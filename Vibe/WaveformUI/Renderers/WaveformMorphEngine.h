@@ -24,14 +24,16 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithVScale:(CGFloat (^)(CGFloat height))vscale
                        rebuild:(void (^)(void))rebuild;
 
-// updateWaveform:'s one target entry point. identity is the waveform pointer
-// (NULL: the collapsed all-zero target), compare-only: it cannot false-match
-// because the view retains the old waveform while a new one is allocated.
-// relaid says the samples now stand for other frames: a renderer whose
-// samples are a step's columns over a window says so when either changes.
+// updateWaveform:'s one target entry point. window is the stretch of size
+// the picture covers, in the caller's own units, compare-only: size and
+// window are the geometry. identity is the waveform pointer (NULL: the
+// collapsed all-zero target), compare-only: it cannot false-match because
+// the view retains the old waveform while a new one is allocated. relaid says
+// the samples now stand for other frames: a renderer whose samples are a
+// step's columns over a window says so when either changes.
 //
 // Same identity and count, not relaid, skip the fill; only a geometry change
-// rebuilds. Otherwise fill() runs synchronously on a reused buffer. Then:
+// rebuilds, which a scroll of the window is. Otherwise fill() runs synchronously on a reused buffer. Then:
 // rebuild instantly on a geometry change. A nil/non-nil flip with unchanged
 // samples also rebuilds: silent tracks need hairlines. Changed content eases.
 // A settled waveform's layout or count change installs at once. One that
@@ -39,6 +41,7 @@ NS_ASSUME_NONNULL_BEGIN
 // rewrites them for the new layout beside the new target, or without one, by
 // nearest bar.
 - (void)updateTargetForSize:(CGSize)size
+                     window:(CGRect)window
                    identity:(const void * _Nullable)identity
                      relaid:(BOOL)relaid
                       count:(NSUInteger)count
@@ -48,6 +51,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The same with one fixed layout and no remap.
 - (void)updateTargetForSize:(CGSize)size
+                     window:(CGRect)window
                    identity:(const void * _Nullable)identity
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill;

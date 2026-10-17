@@ -186,7 +186,8 @@ static uint32_t VibeAlpha(uint32_t pixel) {
     StepWindow to = wavecore::StepWindowForPixels(1 << 20, 4 * M_SQRT2 * 1.001, 1, 75, 85);
     XCTAssertEqual(to.parts[0].step, from.parts[1].step);
     std::vector<float> target(to.columnCount(), -1);
-    wavecore::RemapStepSamples(from, to, 1, samples, target);
+    std::vector<float> scratch;
+    wavecore::RemapStepSamples(from, to, 1, samples, target, scratch);
     XCTAssertEqual(samples.size(), target.size());
     const StepPart &same = to.parts[0], &old = from.parts[1];
     for (size_t i = 0; i < same.count; i++) {

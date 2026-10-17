@@ -19,6 +19,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     // Holds the stale target after a swap, until the next fill.
     std::vector<float> _scratchSamples;
     CGSize _size;
+    CGRect _window;
     BOOL _hasWaveform;   // NO = the zero target means "empty", drawn as nothing rather than hairline bars
     // The fast-path gate. Compare-only; may dangle.
     const void *_lastTargetIdentity;
@@ -48,13 +49,15 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
 }
 
 - (void)updateTargetForSize:(CGSize)size
+                     window:(CGRect)window
                    identity:(const void *)identity
                       count:(NSUInteger)count
                        fill:(void (^)(std::vector<float> &target))fill {
-    [self updateTargetForSize:size identity:identity relaid:NO count:count fill:fill remap:nil];
+    [self updateTargetForSize:size window:window identity:identity relaid:NO count:count fill:fill remap:nil];
 }
 
 - (void)updateTargetForSize:(CGSize)size
+                     window:(CGRect)window
                    identity:(const void *)identity
                      relaid:(BOOL)relaid
                       count:(NSUInteger)count
@@ -71,9 +74,7 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     if (!_targetInvalidated && identity == _lastTargetIdentity && !relaid && count == _lastTargetCount) {
         // Leave the scratch alone: it holds the stale target, and comparing
         // against it would morph back to it.
-        BOOL geometryChanged = !CGSizeEqualToSize(size, _size);
-        _size = size;
-        if (geometryChanged) {
+        if ([self takeGeometrySize:size window:window]) {
             [self runRebuild];
         }
         return;
@@ -94,7 +95,15 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     if (relaid && animate && remap && !_displayedSamples.empty()) {
         remap(_displayedSamples, _scratchSamples);
     }
-    [self commitTargetForSize:size hasWaveform:(identity != NULL) animate:animate];
+    [self commitTargetForSize:size window:window hasWaveform:(identity != NULL) animate:animate];
+}
+
+// Whether the geometry changed.
+- (BOOL)takeGeometrySize:(CGSize)size window:(CGRect)window {
+    BOOL changed = !CGSizeEqualToSize(size, _size) || !CGRectEqualToRect(window, _window);
+    _size = size;
+    _window = window;
+    return changed;
 }
 
 - (void)invalidateTarget {
@@ -152,9 +161,8 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
 }
 
 // updateTargetForSize:'s slow path; the scratch must be freshly filled.
-- (void)commitTargetForSize:(CGSize)size hasWaveform:(BOOL)hasWaveform animate:(BOOL)animate {
-    BOOL geometryChanged = !CGSizeEqualToSize(size, _size);
-    _size = size;
+- (void)commitTargetForSize:(CGSize)size window:(CGRect)window hasWaveform:(BOOL)hasWaveform animate:(BOOL)animate {
+    BOOL geometryChanged = [self takeGeometrySize:size window:window];
     BOOL hasWaveformChanged = (_hasWaveform != hasWaveform);
     _hasWaveform = hasWaveform;
     BOOL targetChanged = (_scratchSamples != _targetSamples);
@@ -194,19 +202,19 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
 }
 
 // Nearest-bar, in samplesPerBar strides so a [min, max] pair travels
-// together.
+// together. Through the scratch, which the next fill overwrites whole.
 - (void)resampleDisplayedToCount:(NSUInteger)count {
     size_t stride = MAX(_samplesPerBar, (NSUInteger)1);
     size_t oldBars = _displayedSamples.size() / stride;
     size_t newBars = count / stride;
-    std::vector<float> resampled(count, 0.0f);
+    _scratchSamples.assign(count, 0.0f);
     for (size_t bar = 0; oldBars > 0 && bar < newBars; bar++) {
         size_t src = bar * oldBars / newBars;
         for (size_t s = 0; s < stride; s++) {
-            resampled[bar * stride + s] = _displayedSamples[src * stride + s];
+            _scratchSamples[bar * stride + s] = _displayedSamples[src * stride + s];
         }
     }
-    _displayedSamples = std::move(resampled);
+    std::swap(_displayedSamples, _scratchSamples);
 }
 
 - (void)rebuildNow {
@@ -268,7 +276,9 @@ static const NSTimeInterval kMorphFrameInterval = 1.0 / 60.0;
     for (size_t i = 0; i < _displayedSamples.size(); i++) {
         float d = _targetSamples[i] - _displayedSamples[i];
         maxDistance = MAX(maxDistance, fabsf(d));
-        _displayedSamples[i] += d * k;
+        // A sample this near lands, so a rebuild sees change only where
+        // samples still move: a streaming load's front.
+        _displayedSamples[i] = fabsf(d) < kMorphEpsilon ? _targetSamples[i] : _displayedSamples[i] + d * k;
     }
     if (maxDistance < kMorphEpsilon) {
         _displayedSamples = _targetSamples;

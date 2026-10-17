@@ -14,6 +14,9 @@
 #import "PlatformColor.h"
 
 #include "WaveformRaster.hpp"
+#include <array>
+#include <atomic>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -75,12 +78,13 @@ struct VibeRenderPixels {
     CGFloat scale = 1;
 
     int width() const { return x1 - x0; }
-    bool operator==(const VibeRenderPixels &other) const {
-        return x0 == other.x0 && x1 == other.x1 && height == other.height && scale == other.scale;
-    }
     // The layer frame its picture covers, in its bounds' points.
     CGRect frameForHeight(CGFloat height) const {
         return CGRectMake(x0 / scale, 0, (x1 - x0) / scale, height);
+    }
+    // The window the morph engine compares, in pixels.
+    CGRect window() const {
+        return CGRectMake(x0, 0, x1 - x0, height);
     }
 };
 
@@ -113,6 +117,99 @@ static inline CGImageRef _Nullable VibeNewLayerImage(CGColorSpaceRef _Nullable s
     fill(flipped ? pixels + (height - 1) * width : pixels, flipped ? -stride : stride);
     return VibeNewImageWithPixels(bytes, width, height, space);
 }
+
+// A step style's picture, kept between rebuilds. A rebuild redraws only the
+// pixel columns whose samples changed or that a moved window newly shows,
+// and copies the rest from the picture before. While a waveform eases, the
+// pixels are recycled once the layer lets an image go. A streaming load
+// changes only its front, and an ease allocated and zeroed the whole picture
+// 60 times a second.
+class VibeStepPicture {
+public:
+    // Everything the raster reads but the samples and the window's pixels.
+    // TRAP: a raster input left out of it draws stale wherever the samples
+    // did not change.
+    struct Look {
+        int height = 0;
+        CGFloat scale = 0;
+        BOOL flipped = NO;
+        double framesPerPixel = 0;
+        int steps[2] = {0, 0};
+        double coarse = 0;
+        // The style's own switches and colors.
+        std::array<float, 24> style = {};
+
+        bool operator==(const Look &other) const {
+            return height == other.height && scale == other.scale && flipped == other.flipped &&
+                   framesPerPixel == other.framesPerPixel && steps[0] == other.steps[0] &&
+                   steps[1] == other.steps[1] && coarse == other.coarse && style == other.style;
+        }
+    };
+
+    // The picture of samples, laid out by window at stride floats a column,
+    // over the window's pixels. raster(out, rowStride, x0, x1) draws pixel
+    // columns [x0, x1) into cleared pixels, out at column x0's top row, and
+    // writes no row outside [inkTop, inkBottom), rows from the top. NULL for
+    // an empty window. Past drawShare of the picture to draw, it draws it
+    // all, since copying the rest would cost more: each style's own, by
+    // what its raster costs against a copy. recycle keeps the last picture's
+    // pixels for the next: on while the samples ease, off at rest, where they
+    // would only double the memory.
+    // The raster is called here, inlined into its renderer, as a picture's
+    // inner loop must be: called through a pointer it cost 3 to 9% more.
+    template <typename Raster>
+    CGImageRef _Nullable newImage(const Look &look, const VibeRenderPixels &pixels, const wavecore::StepWindow &window,
+                        size_t stride, const std::vector<float> &samples, int inkTop, int inkBottom,
+                        float drawShare, CGColorSpaceRef _Nullable space, bool recycle,
+                        Raster raster) CF_RETURNS_RETAINED {
+        Frame frame;
+        if (!begin(frame, look, pixels, window, stride, samples, inkTop, inkBottom, drawShare)) {
+            return NULL;
+        }
+        for (size_t i = 0; i < frame.dirtyCount; i++) {
+            raster(frame.top + (frame.dirty[i].first - pixels.x0), frame.rowStride, frame.dirty[i].first,
+                   frame.dirty[i].second);
+        }
+        return end(frame, look, pixels, window, stride, samples, space, recycle);
+    }
+    // Keeps nothing.
+    void clear();
+
+private:
+    // Zeroed by calloc, so a fresh picture faults in only the pages it
+    // inks, as a CFData's did.
+    struct Pixels {
+        std::unique_ptr<uint32_t[], void (*)(void *)> data{nullptr, free};
+        size_t capacity = 0;
+        // The pixels that may not be zero, as indices.
+        size_t inkBegin = 0, inkEnd = 0;
+        // Set while an image holds them; the image's release clears it.
+        std::atomic<bool> held{false};
+    };
+    // A picture being drawn: its pixels, already holding what it keeps, and
+    // the pixel columns left to draw.
+    struct Frame {
+        std::shared_ptr<Pixels> target;
+        uint32_t *top = nullptr;
+        ptrdiff_t rowStride = 0;
+        std::array<std::pair<int, int>, 8> dirty;
+        size_t dirtyCount = 0;
+    };
+    bool begin(Frame &frame, const Look &look, const VibeRenderPixels &pixels, const wavecore::StepWindow &window,
+               size_t stride, const std::vector<float> &samples, int inkTop, int inkBottom, float drawShare);
+    CGImageRef _Nullable end(Frame &frame, const Look &look, const VibeRenderPixels &pixels, const wavecore::StepWindow &window,
+                   size_t stride, const std::vector<float> &samples, CGColorSpaceRef _Nullable space,
+                   bool recycle) CF_RETURNS_RETAINED;
+    static void releasePixels(void *info, const void *data, size_t size);
+
+    std::shared_ptr<Pixels> shown_;
+    std::shared_ptr<Pixels> spare_;
+    Look look_;
+    VibeRenderPixels pixels_;
+    wavecore::StepWindow window_;
+    size_t stride_ = 0;
+    std::vector<float> samples_;
+};
 
 // Both views own their layer trees, so a display change re-stamps them here,
 // masks and all.
@@ -169,8 +266,6 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
     // style the columns the samples hold.
     VibeRenderPixels _pixels;
     wavecore::StepWindow _window;
-    // The window the picture last covered; each rebuild sets it.
-    VibeRenderPixels _drawnPixels;
     // The columns fillLevels: last read, kept across fills so a resize
     // allocates none.
     std::vector<wavecore::Column> _fillColumns;
@@ -245,10 +340,6 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 - (void)updateStepTargetForSize:(CGSize)size waveform:(AudioWaveform * _Nullable)waveform
                 columnsPerPixel:(double)columnsPerPixel
                            fill:(void (^)(float *out, const wavecore::StepPart &part))fill;
-
-// Rebuilds when _pixels moved from _drawnPixels with nothing else changed, as
-// the scrubber scrolls. Each picture style calls it last in updateWaveform:.
-- (void)rebuildIfWindowMoved;
 
 // Wiggle's loop count can use an unzoomed reference width while its geometry
 // spans the drawn width. Zero follows the drawn width; other styles ignore it.

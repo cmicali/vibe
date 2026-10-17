@@ -68,8 +68,10 @@ StepWindow StepWindowForPixels(int64_t totalFrames, double framesPerPixel, doubl
 // each column takes the from column under the same point of the track, read
 // from the part of its own step or else the nearest step. Where from has no
 // column there, the column takes target's value, which is laid out for to.
+// The result is built in scratch and swapped in, so a caller that keeps
+// scratch allocates nothing.
 void RemapStepSamples(const StepWindow &from, const StepWindow &to, size_t stride,
-                      std::vector<float> &samples, const std::vector<float> &target);
+                      std::vector<float> &samples, const std::vector<float> &target, std::vector<float> &scratch);
 
 // The share of each column of [first, first + count) under pixel x, a pixel
 // spanning perPixel columns: visit(column, share) over the columns it
@@ -122,6 +124,7 @@ public:
     static constexpr int kLanes = 4;
 
     explicit ColumnCoverage(int height);
+    int height() const { return height_; }
 
     // Pixel columns [x0, x1) into out, column x0 first, kLanes at a time:
     // spans(x, add) adds column x's spans with add(bottom, top, weight).

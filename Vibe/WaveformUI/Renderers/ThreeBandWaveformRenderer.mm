@@ -99,6 +99,9 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     CALayer *_hoverHost;
     CALayer *_hoverMask;
     CALayer *_hoverColumn;
+    VibeStepPicture _drawn;
+    // Spectrum's color windows, kept across fills.
+    std::vector<float> _bandMeanSquares;
 }
 
 + (NSString *)styleIdentifier {
@@ -257,7 +260,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
                              fill:^(float *out, const wavecore::StepPart &part) {
         [self fillBandLevels:out part:part waveform:waveform];
     }];
-    [self rebuildIfWindowMoved];
 }
 
 // The bands are read from the summary alone.
@@ -293,12 +295,12 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     if (!_spectrum) {
         return;
     }
-    std::vector<float> meanSquares(count * wavecore::kBandCount);
+    _bandMeanSquares.resize(count * wavecore::kBandCount);
     double halfWidth = fmax(frames, kVibeWaveformSpectrumColorSeconds * waveform->sampleRate());
-    waveform->tentBandMeanSquares(frames, part.first, count, halfWidth, meanSquares.data());
+    waveform->tentBandMeanSquares(frames, part.first, count, halfWidth, _bandMeanSquares.data());
     for (NSUInteger i = 0; i < count; i++) {
         for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
-            float meanSquare = fmaxf(meanSquares[i * wavecore::kBandCount + b], 0);
+            float meanSquare = fmaxf(_bandMeanSquares[i * wavecore::kBandCount + b], 0);
             out[i * stride + wavecore::kBandCount + b] = sqrtf(meanSquare) / kBandShareOfFullScale[b];
         }
     }
@@ -310,7 +312,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 - (void)rebuildPicture {
     const std::vector<float> &displayed = [_morph displayedSamples];
     VibeRenderPixels pixels = _pixels;
-    _drawnPixels = pixels;
     wavecore::StepWindow window = _window;
     NSUInteger stride = _morph.samplesPerBar;
     CGImageRef image = NULL;
@@ -330,11 +331,25 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         BOOL centered = self.centered, spectrum = _spectrum;
         float fills[kLayerCount][3];
         memcpy(fills, _fills, sizeof(fills));
-        image = VibeNewLayerImage(self.pictureColorSpace, _picture.contentsAreFlipped, (size_t)pixels.width(),
-                                  (size_t)pixels.height,
-                                  [&](uint32_t *out, ptrdiff_t rowStride) {
+        VibeStepPicture::Look look = {pixels.height, pixels.scale, _picture.contentsAreFlipped, framesPerPixel,
+                                      {window.parts[0].step, window.parts[1].step}, window.coarse};
+        look.style[0] = centered;
+        look.style[1] = spectrum;
+        memcpy(&look.style[2], fills, sizeof(fills));
+        // A pixel's bands read between columns, so none stands above the
+        // tallest column's, or below the hairline. One pass over every
+        // sample: Spectrum's color levels make it a looser bound, and a pass
+        // a band at a stride cost 3% of a resize.
+        float tallestLevel = 0;
+        vDSP_maxv(samples, 1, &tallestLevel, displayed.size());
+        CGFloat tallest = MAX(minimum / 2, fminf(fmaxf(tallestLevel, 0), 1) * vscale);
+        CGFloat inkLow = centered ? midY - tallest : baseline, inkHigh = centered ? midY + tallest : baseline + 2 * tallest;
+        // Seven spans a column cost more than copying it.
+        image = _drawn.newImage(look, pixels, window, stride, displayed, (int)floor(height - inkHigh),
+                                (int)ceil(height - inkLow), 0.75f, self.pictureColorSpace, !_morph.isSettled,
+                                [&](uint32_t *out, ptrdiff_t rowStride, int x0, int x1) {
             wavecore::ColumnPaint column(pixels.height);
-            for (int x = pixels.x0; x < pixels.x1; x++) {
+            for (int x = x0; x < x1; x++) {
                 column.clear();
                 float bar[kSpectrumSamplesPerBar] = {};
                 double center = (x + 0.5) * framesPerPixel;
@@ -372,9 +387,12 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
                         column.paintSpan(bottom, bottom + 2 * h, fills[layer][0], fills[layer][1], fills[layer][2]);
                     }
                 }
-                column.write(out + (x - pixels.x0), rowStride);
+                column.write(out + (x - x0), rowStride);
             }
         });
+    }
+    if (!image) {
+        _drawn.clear();
     }
     CGRect frame = pixels.frameForHeight(_morph.size.height);
     [CATransaction begin];

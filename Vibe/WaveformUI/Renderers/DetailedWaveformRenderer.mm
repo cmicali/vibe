@@ -109,6 +109,8 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     std::vector<float> _tops;
     std::vector<wavecore::Column> _columns;
     std::vector<float> _levels;
+    std::unique_ptr<wavecore::ColumnCoverage> _coverage;
+    VibeStepPicture _picture;
 }
 
 + (NSString *)styleIdentifier {
@@ -317,13 +319,12 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
         }];
     } else {
         NSUInteger count = [self numBarsForWidth:bounds.size.width];
-        [_morph updateTargetForSize:bounds.size identity:waveform count:count * 2
+        [_morph updateTargetForSize:bounds.size window:_pixels.window() identity:waveform count:count * 2
                                fill:^(std::vector<float> &target) {
             [self fillColumns:target.data() framesPerColumn:(double)waveform->totalFrames() / (double)count
                         first:0 count:count waveform:waveform];
         }];
     }
-    [self rebuildIfWindowMoved];
 }
 
 - (double)minimumFramesPerPointForWaveform:(AudioWaveform *)waveform {
@@ -416,7 +417,6 @@ static const double kLevelPixels = 4;
 - (void)rebuildMask {
     const std::vector<float> &samples = [_morph displayedSamples];
     VibeRenderPixels pixels = _pixels;
-    _drawnPixels = pixels;
     CGSize size = _morph.size;
     NSUInteger count = samples.size() / 2;
     BOOL flipped = _barMask.contentsAreFlipped;
@@ -431,6 +431,8 @@ static const double kLevelPixels = 4;
         std::vector<wavecore::Column>().swap(_columns);
         std::vector<wavecore::Column>().swap(_fillColumns);
         std::vector<float>().swap(_levels);
+        _coverage.reset();
+        _picture.clear();
     }
     if (count > 0 && pixels.width() > 0 && pixels.height > 0) {
         if (_wiggle) {
@@ -461,6 +463,14 @@ static const double kLevelPixels = 4;
                   self.centered, _morph.isSettled);
 }
 
+// The coverage of a picture this tall, kept across rebuilds.
+- (wavecore::ColumnCoverage &)coverageForHeight:(int)height {
+    if (!_coverage || _coverage->height() != height) {
+        _coverage = std::make_unique<wavecore::ColumnCoverage>(height);
+    }
+    return *_coverage;
+}
+
 // The two steps' columns, each landing in the pixels it overlaps by its
 // share, the coarser weighted by how near the view is to its scale.
 - (CGImageRef)newColumnImageForSamples:(const std::vector<float> &)samples pixels:(VibeRenderPixels)pixels
@@ -474,10 +484,21 @@ static const double kLevelPixels = 4;
     double framesPerPixel = [self framesPerPixel];
     const double perPixel[2] = {framesPerPixel / window.parts[0].framesPerColumn(),
                                 framesPerPixel / window.parts[1].framesPerColumn()};
-    return VibeNewLayerImage(self.pictureColorSpace, flipped, pixels.width(), pixels.height,
-                             [&](uint32_t *out, ptrdiff_t stride) {
-        wavecore::ColumnCoverage columns(pixels.height);
-        columns.draw(pixels.x0, pixels.x1, out, stride, [&](int x, auto add) {
+    VibeStepPicture::Look look = {pixels.height, pixels.scale, flipped, framesPerPixel,
+                                  {window.parts[0].step, window.parts[1].step}, window.coarse};
+    look.style = {(float)self.centered, (float)(_morph.barMinHeight * pixels.scale), (float)_morph.isSettled};
+    // The rows the spans reach, from the top.
+    float lowest = 0, highest = 0;
+    vDSP_minv(bottoms, 1, &lowest, _bottoms.size());
+    vDSP_maxv(tops, 1, &highest, _tops.size());
+    wavecore::ColumnCoverage &columns = [self coverageForHeight:pixels.height];
+    // A column's coverage costs less than copying it, unless only a sliver
+    // changes: a streaming load's front. Measured scrolling a window by half
+    // its width, the copy cost a third more than drawing the half.
+    return _picture.newImage(look, pixels, window, 2, samples, (int)floorf(pixels.height - highest),
+                             (int)ceilf(pixels.height - lowest), 0.25f, self.pictureColorSpace, !_morph.isSettled,
+                             [&](uint32_t *out, ptrdiff_t stride, int x0, int x1) {
+        columns.draw(x0, x1, out, stride, [&](int x, auto add) {
             for (int p = 0; p < 2; p++) {
                 float weight = window.weight(p);
                 size_t offset = window.offset(p);
@@ -500,9 +521,9 @@ static const double kLevelPixels = 4;
     const float *bottoms = _bottoms.data(), *tops = _tops.data();
     double pitch = size.width * pixels.scale / count;
     double barWidth = [self barWidthForWidth:size.width barCount:count] * pixels.scale;
+    wavecore::ColumnCoverage &columns = [self coverageForHeight:pixels.height];
     return VibeNewLayerImage(self.pictureColorSpace, flipped, pixels.width(), pixels.height,
                              [&](uint32_t *out, ptrdiff_t stride) {
-        wavecore::ColumnCoverage columns(pixels.height);
         columns.draw(pixels.x0, pixels.x1, out, stride, [&](int x, auto add) {
             long first = MAX(0L, (long)floor((x - barWidth) / pitch));
             long end = MIN((long)count, (long)ceil((x + 1) / pitch));

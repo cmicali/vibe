@@ -7,6 +7,10 @@
 #import "WaveformMorphEngine.h"
 #import "WaveformZoomMath.h"
 
+#include <algorithm>
+#include <climits>
+#include <cstring>
+
 CGColorSpaceRef VibePictureColorSpace(CGColorSpaceRef space) {
     static CGColorSpaceRef sRGB = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
     return space ?: sRGB;
@@ -21,6 +25,167 @@ CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t he
     return image;
 }
 
+void VibeStepPicture::releasePixels(void *info, const void *, size_t) {
+    auto *pixels = static_cast<std::shared_ptr<Pixels> *>(info);
+    (*pixels)->held.store(false, std::memory_order_release);
+    delete pixels;
+}
+
+void VibeStepPicture::clear() {
+    shown_.reset();
+    spare_.reset();
+    std::vector<float>().swap(samples_);
+    stride_ = 0;
+}
+
+bool VibeStepPicture::begin(Frame &frame, const Look &look, const VibeRenderPixels &pixels,
+                            const wavecore::StepWindow &window, size_t stride, const std::vector<float> &samples,
+                            int inkTop, int inkBottom, float drawShare) {
+    int x0 = pixels.x0, x1 = pixels.x1, width = pixels.width(), height = pixels.height;
+    if (width <= 0 || height <= 0 || stride == 0) {
+        clear();
+        return false;
+    }
+    // The pixel columns to draw, from an x0 that counts pixels of the whole
+    // bounds: the newly shown ones, and those whose samples changed.
+    std::array<std::pair<int, int>, 8> &dirty = frame.dirty;
+    size_t &dirtyCount = frame.dirtyCount;
+    auto mark = [&](double a, double b) {
+        int from = std::max(x0, (int)std::floor(a)), to = std::min(x1, (int)std::ceil(b));
+        if (to > from && dirtyCount < dirty.size()) {
+            dirty[dirtyCount++] = {from, to};
+        }
+    };
+    int keep0 = std::max(x0, pixels_.x0), keep1 = std::min(x1, pixels_.x1);
+    bool reuse = shown_ && look == look_ && look.framesPerPixel > 0 && stride == stride_ && keep1 > keep0 &&
+                 samples_.size() == window_.columnCount() * stride && samples.size() == window.columnCount() * stride;
+    if (reuse) {
+        mark(x0, keep0);
+        mark(keep1, x1);
+        // A window's edges cut off the neighbours 3-Band reads between
+        // column centers, so the pixels by either window's edges redraw.
+        double edge = std::ceil(window.parts[1].framesPerColumn() / look.framesPerPixel) + 1;
+        for (int at : {x0, x1, pixels_.x0, pixels_.x1}) {
+            mark(at - edge, at + edge);
+        }
+        for (int p = 0; p < 2; p++) {
+            const wavecore::StepPart &now = window.parts[p], &then = window_.parts[p];
+            int64_t first = std::max(now.first, then.first);
+            int64_t end = std::min(now.first + (int64_t)now.count, then.first + (int64_t)then.count);
+            auto changed = [&](int64_t k) {
+                const float *a = &samples[(window.offset(p) + size_t(k - now.first)) * stride];
+                const float *b = &samples_[(window_.offset(p) + size_t(k - then.first)) * stride];
+                for (size_t s = 0; s < stride; s++) {
+                    if (a[s] != b[s]) {
+                        return true;
+                    }
+                }
+                return false;
+            };
+            // The first and the last column that changed, each scanned for
+            // from its end, so a whole new picture costs two compares.
+            int64_t changed0 = first, changed1 = end - 1;
+            while (changed0 < end && !changed(changed0)) changed0++;
+            while (changed1 > changed0 && !changed(changed1)) changed1--;
+            // A column reaches the pixels over it, and read between centers
+            // the pixels over its neighbours.
+            if (changed0 < end) {
+                double perPixel = now.framesPerColumn() / look.framesPerPixel;
+                mark(double(changed0 - 1) * perPixel, double(changed1 + 2) * perPixel);
+            }
+        }
+        std::sort(dirty.begin(), dirty.begin() + dirtyCount);
+        size_t merged = 0;
+        for (size_t i = 0; i < dirtyCount; i++) {
+            if (merged > 0 && dirty[i].first <= dirty[merged - 1].second) {
+                dirty[merged - 1].second = std::max(dirty[merged - 1].second, dirty[i].second);
+            } else {
+                dirty[merged++] = dirty[i];
+            }
+        }
+        dirtyCount = merged;
+        int drawn = 0;
+        for (size_t i = 0; i < dirtyCount; i++) {
+            drawn += dirty[i].second - dirty[i].first;
+        }
+        reuse = (float)drawn < drawShare * (float)width;
+    }
+    size_t size = size_t(width) * size_t(height);
+    std::shared_ptr<Pixels> &target = frame.target;
+    target = spare_ && !spare_->held.load(std::memory_order_acquire) ? spare_ : nullptr;
+    if (!target || target->capacity < size) {
+        target = std::make_shared<Pixels>();
+        target->data.reset(static_cast<uint32_t *>(calloc(size, sizeof(uint32_t))));
+        target->capacity = target->data ? size : 0;
+        if (!target->data) {
+            return false;
+        }
+    }
+    uint32_t *out = target->data.get();
+    // A recycled picture's ink goes, so every pixel starts at zero.
+    std::memset(out + target->inkBegin, 0, (target->inkEnd - target->inkBegin) * sizeof(uint32_t));
+    // The rows this picture may ink, in the buffer's order.
+    int row0 = std::clamp(look.flipped ? height - inkBottom : inkTop, 0, height);
+    int row1 = std::clamp(look.flipped ? height - inkTop : inkBottom, row0, height);
+    if (reuse) {
+        // Only the rows the last picture inked, which hold the same rows in
+        // both, flipped or not.
+        const uint32_t *before = shown_->data.get();
+        size_t beforeWidth = size_t(pixels_.width());
+        int from = int(shown_->inkBegin / beforeWidth), to = int((shown_->inkEnd + beforeWidth - 1) / beforeWidth);
+        for (int row = from; row < std::min(to, height); row++) {
+            uint32_t *line = out + size_t(row) * size_t(width);
+            std::memcpy(line + (keep0 - x0), before + size_t(row) * beforeWidth + size_t(keep0 - pixels_.x0),
+                        size_t(keep1 - keep0) * sizeof(uint32_t));
+            for (size_t i = 0; i < dirtyCount; i++) {
+                std::memset(line + (dirty[i].first - x0), 0, size_t(dirty[i].second - dirty[i].first) * sizeof(uint32_t));
+            }
+        }
+        if (to > from) {
+            row1 = std::max(row1, std::min(to, height));
+            row0 = std::min(row0, from);
+        }
+    } else {
+        dirty[0] = {x0, x1};
+        dirtyCount = 1;
+    }
+    target->inkBegin = size_t(row0) * size_t(width);
+    target->inkEnd = size_t(row1) * size_t(width);
+    frame.top = look.flipped ? out + size_t(height - 1) * size_t(width) : out;
+    frame.rowStride = look.flipped ? -(ptrdiff_t)width : (ptrdiff_t)width;
+    return true;
+}
+
+CGImageRef VibeStepPicture::end(Frame &frame, const Look &look, const VibeRenderPixels &pixels,
+                                const wavecore::StepWindow &window, size_t stride, const std::vector<float> &samples,
+                                CGColorSpaceRef space, bool recycle) {
+    std::shared_ptr<Pixels> &target = frame.target;
+    int width = pixels.width(), height = pixels.height;
+    size_t size = size_t(width) * size_t(height);
+    uint32_t *out = target->data.get();
+    target->held.store(true, std::memory_order_relaxed);
+    CGDataProviderRef provider = CGDataProviderCreateWithData(new std::shared_ptr<Pixels>(target), out,
+                                                              size * sizeof(uint32_t), releasePixels);
+    CGImageRef image = CGImageCreate(size_t(width), size_t(height), 8, 32, size_t(width) * sizeof(uint32_t),
+                                     VibePictureColorSpace(space),
+                                     (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host,
+                                     provider, NULL, false, kCGRenderingIntentDefault);
+    CGDataProviderRelease(provider);
+    spare_ = recycle ? shown_ : nullptr;
+    shown_ = target;
+    look_ = look;
+    pixels_ = pixels;
+    window_ = window;
+    stride_ = stride;
+    // Grown ahead, so a resize that widens the window frame by frame does
+    // not reallocate them every frame.
+    if (samples_.capacity() < samples.size()) {
+        samples_.reserve(samples.size() + samples.size() / 2);
+    }
+    samples_.assign(samples.begin(), samples.end());
+    return image;
+}
+
 // The block bars' pitch in points at bar density 1, and their cap.
 static const CGFloat kBlockBarPitch = 4;
 static const NSUInteger kMaxBlockBars = 1024;
@@ -29,6 +194,8 @@ static const NSUInteger kMaxBlockBars = 1024;
     CGFloat _hoverHighlightX;
     // The detail's inserts the target was last filled after.
     uint64_t _detailInserts;
+    // Where a remap builds the carried samples, kept so it allocates none.
+    std::vector<float> _remapScratch;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
@@ -77,7 +244,7 @@ static const NSUInteger kMaxBlockBars = 1024;
         [_morph invalidateTarget];
     }
     NSUInteger stride = _morph.samplesPerBar;
-    [_morph updateTargetForSize:size identity:waveform relaid:!window.sameColumns(previous)
+    [_morph updateTargetForSize:size window:_pixels.window() identity:waveform relaid:!window.sameColumns(previous)
                           count:window.columnCount() * stride
                            fill:^(std::vector<float> &target) {
         for (int p = 0; p < 2; p++) {
@@ -86,14 +253,8 @@ static const NSUInteger kMaxBlockBars = 1024;
             }
         }
     } remap:^(std::vector<float> &displayed, const std::vector<float> &target) {
-        wavecore::RemapStepSamples(previous, window, stride, displayed, target);
+        wavecore::RemapStepSamples(previous, window, stride, displayed, target, self->_remapScratch);
     }];
-}
-
-- (void)rebuildIfWindowMoved {
-    if (!(_drawnPixels == _pixels)) {
-        [_morph rebuildNow];
-    }
 }
 
 - (double)minimumFramesPerPointForWaveform:(AudioWaveform *)waveform {

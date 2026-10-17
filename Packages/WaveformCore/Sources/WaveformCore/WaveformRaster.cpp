@@ -41,8 +41,9 @@ StepWindow StepWindowForPixels(int64_t totalFrames, double framesPerPixel, doubl
 }
 
 void RemapStepSamples(const StepWindow &from, const StepWindow &to, size_t stride,
-                      std::vector<float> &samples, const std::vector<float> &target) {
-    std::vector<float> remapped = target;
+                      std::vector<float> &samples, const std::vector<float> &target, std::vector<float> &scratch) {
+    std::vector<float> &remapped = scratch;
+    remapped.assign(target.begin(), target.end());
     if (stride == 0 || samples.size() != from.columnCount() * stride || target.size() != to.columnCount() * stride) {
         samples.swap(remapped);
         return;

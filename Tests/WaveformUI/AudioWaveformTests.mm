@@ -8,6 +8,7 @@
 #import "ThreeBandWaveformRenderer.h"
 #import "WaveformBarMath.h"
 #import "AppSettings.h"
+#import "TestFilesystemGuard.h"
 #import "VibeStrings.h"
 
 #include <algorithm>
@@ -698,11 +699,11 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
         fills++;
         for (NSUInteger i = 0; i < samples.size(); i++) samples[i] = (float)(i + 1) / samples.size();
     };
-    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:60 fill:fill];
+    [morph updateTargetForSize:CGSizeMake(600, 80) window:CGRectZero identity:(__bridge const void *)self count:60 fill:fill];
     [morph settleImmediately];
     rebuilds = fills = 0;
     for (NSUInteger count = 61; count <= 100; count++) {
-        [morph updateTargetForSize:CGSizeMake(count * 10, 80) identity:(__bridge const void *)self count:count fill:fill];
+        [morph updateTargetForSize:CGSizeMake(count * 10, 80) window:CGRectZero identity:(__bridge const void *)self count:count fill:fill];
         XCTAssertTrue(morph.isSettled);
         XCTAssertEqual([morph displayedSamples].size(), count);
         XCTAssertEqualWithAccuracy([morph displayedSamples][0], 1.0f / count, 1e-6);
@@ -710,10 +711,10 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     }
     XCTAssertEqual(rebuilds, 40u);
     XCTAssertEqual(fills, 40u);
-    [morph updateTargetForSize:CGSizeMake(1000, 90) identity:(__bridge const void *)self count:100 fill:fill];
+    [morph updateTargetForSize:CGSizeMake(1000, 90) window:CGRectZero identity:(__bridge const void *)self count:100 fill:fill];
     XCTAssertEqual(rebuilds, 41u);
     XCTAssertEqual(fills, 40u, @"Height alone must not reread the waveform");
-    [morph updateTargetForSize:CGSizeMake(1000, 90) identity:(__bridge const void *)self count:100 fill:fill];
+    [morph updateTargetForSize:CGSizeMake(1000, 90) window:CGRectZero identity:(__bridge const void *)self count:100 fill:fill];
     XCTAssertEqual(rebuilds, 41u, @"An unchanged draw must do no work");
 }
 
@@ -721,15 +722,15 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     WaveformMorphEngine *morph = [[WaveformMorphEngine alloc]
             initWithVScale:^CGFloat(CGFloat height) { return height; } rebuild:^{}];
     morph.samplesPerBar = 2;
-    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:4
+    [morph updateTargetForSize:CGSizeMake(600, 80) window:CGRectZero identity:(__bridge const void *)self count:4
                          fill:^(std::vector<float> &samples) { samples = {-0.2f, 0.4f, -0.6f, 0.8f}; }];
     XCTAssertFalse(morph.isSettled, @"New audio still grows into view");
     [morph settleImmediately];
     [morph invalidateTarget];
-    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:4
+    [morph updateTargetForSize:CGSizeMake(600, 80) window:CGRectZero identity:(__bridge const void *)self count:4
                          fill:^(std::vector<float> &samples) { samples = {-0.1f, 0.2f, -0.3f, 0.4f}; }];
     XCTAssertFalse(morph.isSettled, @"Gain still eases with an unchanged waveform identity");
-    [morph updateTargetForSize:CGSizeMake(900, 80) identity:(__bridge const void *)self count:8
+    [morph updateTargetForSize:CGSizeMake(900, 80) window:CGRectZero identity:(__bridge const void *)self count:8
                          fill:^(std::vector<float> &samples) { samples.assign(8, 0.1f); }];
     XCTAssertFalse(morph.isSettled);
     const std::vector<float> carried = {-0.2f, 0.4f, -0.2f, 0.4f, -0.6f, 0.8f, -0.6f, 0.8f};
@@ -749,13 +750,13 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     void (^silence)(std::vector<float> &) = ^(std::vector<float> &samples) {
         std::fill(samples.begin(), samples.end(), 0.0f);
     };
-    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)self count:60 fill:silence];
+    [morph updateTargetForSize:CGSizeMake(600, 80) window:CGRectZero identity:(__bridge const void *)self count:60 fill:silence];
     [morph settleImmediately];
-    [morph updateTargetForSize:CGSizeMake(900, 80) identity:(__bridge const void *)self count:90 fill:silence];
+    [morph updateTargetForSize:CGSizeMake(900, 80) window:CGRectZero identity:(__bridge const void *)self count:90 fill:silence];
     XCTAssertTrue(morph.isSettled);
     XCTAssertEqual(morph.barMinHeight, 1);
     rebuilds = 0;
-    [morph updateTargetForSize:CGSizeMake(900, 80) identity:NULL count:90 fill:silence];
+    [morph updateTargetForSize:CGSizeMake(900, 80) window:CGRectZero identity:NULL count:90 fill:silence];
     XCTAssertEqual(morph.barMinHeight, 0);
     XCTAssertEqual(rebuilds, 1u);
 }
@@ -1364,6 +1365,102 @@ static CGFloat VibeInkAt(const VibeTestPicture &picture, size_t x) {
         XCTAssertEqualWithAccuracy(VibeInkAt(picture(), 64), outside, 0.5, @"%@: untouched outside it", style);
         [renderer settleMorphImmediately];
         XCTAssertEqualWithAccuracy(VibeInkAt(picture(), 256), inside, 0.5, @"%@: eased back", style);
+    }
+}
+
+#pragma mark - Pictures drawn in part
+
+// Every step style, and the layer its picture is drawn into.
+static NSArray<NSString *> *VibeStepStyles(void) {
+    return @[@"detailed", @"oversampling_detailed_x4", @"three_band", @"spectrum"];
+}
+
+static CALayer *VibePictureLayer(WaveformRenderer *renderer) {
+    return [renderer isKindOfClass:ThreeBandWaveformRenderer.class] ? [renderer valueForKey:@"_picture"]
+                                                                      : [renderer valueForKey:@"_barMask"];
+}
+
+// Two minutes of noise under a kick every half second, swelling.
+static std::vector<float> VibeKickNoise(size_t frames) {
+    std::mt19937 rng(17);
+    std::normal_distribution<float> noise(0, 0.2f);
+    std::vector<float> samples(frames);
+    for (size_t i = 0; i < frames; i++) {
+        double beat = std::fmod((double)i / 22050.0, 1.0);
+        double swell = 0.4 + 0.6 * std::sin(M_PI * (double)i / (double)frames);
+        samples[i] = noise(rng) * (float)(swell * (0.2 + 0.8 * std::exp(-beat * 12)));
+    }
+    return samples;
+}
+
+// A renderer of the style on its own host, drawing with Normalize on.
+static WaveformRenderer *VibeHostedRenderer(NSString *identifier, CGRect bounds, CGFloat scale, BOOL flipped) {
+    CALayer *host = [CALayer layer];
+    host.geometryFlipped = flipped;
+    host.contentsScale = scale;
+    host.bounds = bounds;
+    WaveformRenderer *renderer = [WaveformRendererRegistry rendererForResolvedIdentifier:identifier layer:host
+                                                                                  bounds:bounds isDark:YES];
+    renderer.normalizesLevels = YES;
+    return renderer;
+}
+
+// A streaming load's deliveries, each eased a few frames, then settled: each
+// picture redraws only the stretch the decode reached, into pixels recycled
+// from the frames before. Each settled picture must be the one a renderer
+// draws whole.
+- (void)testALoadDrawnInPartMatchesOneDrawnWhole {
+    const size_t frames = 120 * 44100;
+    std::vector<float> samples = VibeKickNoise(frames);
+    for (NSString *identifier in VibeStepStyles()) {
+        BOOL bands = [WaveformRendererRegistry readsBandsForIdentifier:identifier];
+        wavecore::SummaryBuilder builder(bands, (int64_t)frames, 44100);
+        CGRect bounds = CGRectMake(0, 0, 700, 60);
+        WaveformRenderer *partial = VibeHostedRenderer(identifier, bounds, 2, NO);
+        std::vector<std::shared_ptr<AudioWaveform>> held;
+        for (size_t delivery = 0; delivery < 12; delivery++) {
+            size_t from = frames * delivery / 12, to = frames * (delivery + 1) / 12;
+            builder.append(samples.data() + from, to - from);
+            held.emplace_back(delivery + 1 < 12 ? builder.snapshot() : builder.finish(true));
+            AudioWaveform *waveform = held.back().get();
+            [partial updateWaveform:bounds progress:0.4 waveform:waveform];
+            VibeSpinFor(0.05);
+            [partial settleMorphImmediately];
+            WaveformRenderer *whole = VibeHostedRenderer(identifier, bounds, 2, NO);
+            [whole updateWaveform:bounds progress:0.4 waveform:waveform];
+            [whole settleMorphImmediately];
+            VibeTestPicture a = VibePictureOf(VibePictureLayer(partial)), b = VibePictureOf(VibePictureLayer(whole));
+            XCTAssertGreaterThan(a.pixels.size(), 0u, @"%@ delivery %zu", identifier, delivery);
+            XCTAssertTrue(a.pixels == b.pixels, @"%@ delivery %zu", identifier, delivery);
+        }
+    }
+}
+
+// The iOS scrubber's window, flipped at 3x, moved by steps from a few points
+// to more than its width. Each picture must be the one drawn whole there.
+- (void)testAWindowMovedInPartMatchesOneDrawnWhole {
+    const size_t frames = 60 * 44100;
+    std::vector<float> samples = VibeKickNoise(frames);
+    for (NSString *identifier in VibeStepStyles()) {
+        BOOL bands = [WaveformRendererRegistry readsBandsForIdentifier:identifier];
+        wavecore::SummaryBuilder builder(bands, (int64_t)frames, 44100);
+        builder.append(samples.data(), frames);
+        std::unique_ptr<AudioWaveform> waveform = builder.finish(true);
+        CGRect bounds = CGRectMake(0, 0, 6000, 180);
+        WaveformRenderer *moving = VibeHostedRenderer(identifier, bounds, 3, YES);
+        for (CGFloat x : {0.0, 7.0, 40.0, 41.5, 200.0, 900.0, 3000.0, 2990.0, 5200.0}) {
+            CGRect window = CGRectIntersection(CGRectMake(x, 0, 780, 180), bounds);
+            moving.renderRect = window;
+            [moving updateWaveform:bounds progress:0.4 waveform:waveform.get()];
+            WaveformRenderer *whole = VibeHostedRenderer(identifier, bounds, 3, YES);
+            whole.renderRect = window;
+            [whole updateWaveform:bounds progress:0.4 waveform:waveform.get()];
+            [whole settleMorphImmediately];
+            [moving settleMorphImmediately];
+            VibeTestPicture a = VibePictureOf(VibePictureLayer(moving)), b = VibePictureOf(VibePictureLayer(whole));
+            XCTAssertGreaterThan(a.pixels.size(), 0u, @"%@ at %g", identifier, x);
+            XCTAssertTrue(a.pixels == b.pixels, @"%@ at %g", identifier, x);
+        }
     }
 }
 
