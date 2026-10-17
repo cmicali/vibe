@@ -205,6 +205,7 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             @"waveformTheme": theme.waveformTheme,
             @"waveformShadeOverlaps": @(theme.waveformShadeOverlaps),
             @"waveformSpectrumPalette": theme.waveformSpectrumPalette,
+            @"waveformSpectrumColoring": theme.waveformSpectrumColoring,
             @"waveformPlayheadLine": @(theme.waveformPlayheadLine),
             @"waveformCentered": @(theme.waveformCentered),
             @"waveformDragBehavior": AppSettings.sharedInstance.waveformDragBehavior,

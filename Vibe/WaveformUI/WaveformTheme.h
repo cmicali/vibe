@@ -46,8 +46,9 @@ typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
                          customPlayed:(nullable VibeColor *)played
                        customUnplayed:(nullable VibeColor *)unplayed;
 
-// Played, unplayed, band and Spectrum colors as hex.
-// Key other drawing inputs separately, including flatFill and playheadColor.
+// Played, unplayed, band and Spectrum colors as hex, and Spectrum's
+// coloring. Key other drawing inputs separately, including flatFill and
+// playheadColor.
 @property (readonly) NSString *paletteSignature;
 
 // No vertical ramp: every stop is the side's color as-is. macOS only.
@@ -61,6 +62,10 @@ typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
 // Spectrum's low, mid and high primaries, opaque. It mixes them per bar by
 // the bands' energies. RGB's unless a mac theme or iOS picks another palette.
 @property (nonatomic, copy) NSArray<VibeColor *> *spectrumColors;
+
+// Spectrum gives each section of the track one color, its whole mix, in
+// place of each moment's own. The renderer finds the sections.
+@property (nonatomic) BOOL spectrumColorsBySection;
 
 // spectrumColors for a SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_* identifier;
 // an unknown one resolves as RGB. custom is the band wells' low, mid and high
