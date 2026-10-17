@@ -701,9 +701,12 @@ std::unique_ptr<Summary> Summary::decode(const void *bytes, size_t length) {
         }
     }
     auto summary = std::make_unique<Summary>(bf, bands, header.sampleRate);
-    summary->reserve(summary->base_, n);
+    Level &base = summary->base_;
+    base.lo.resize(n);
+    base.hi.resize(n);
+    base.sumSquares.resize(n);
+    base.bandSumSquares.resize(bands ? n * kBandCount : 0);
     const _Float16 *in = raw.data();
-    double bandSums[kBandCount] = {};
     for (uint64_t i = 0; i < n; i++) {
         float lo = float(in[i]), hi = float(in[n + i]);
         if (lo > hi) {
@@ -719,10 +722,14 @@ std::unique_ptr<Summary> Summary::decode(const void *bytes, size_t length) {
             if (bandRMS < 0) {
                 return nullptr;
             }
-            bandSums[b] = bandRMS * bandRMS * frames;
+            base.bandSumSquares[i * kBandCount + b] = float(bandRMS * bandRMS * frames);
         }
-        summary->appendBin(lo, hi, rms * rms * frames, bands ? bandSums : nullptr, frames);
+        base.lo[i] = in[i];
+        base.hi[i] = in[n + i];
+        base.sumSquares[i] = float(rms * rms * frames);
     }
+    base.count = n;
+    summary->frames_ = header.frames;
     summary->totalFrames_ = header.totalFrames;
     summary->complete_ = header.flags & kFlagComplete;
     summary->buildPyramid();
