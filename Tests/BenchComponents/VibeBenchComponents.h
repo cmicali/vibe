@@ -29,6 +29,11 @@
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS 1            // a waveform can hold the three bands' energies
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM 1         // SpectrumWaveformRenderer exists
 #define VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER 1            // the resampler is VibeResampler*; VibeConverter* before
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW 1             // registry construction
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE 1             // the separate envelope bake
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY 0          // fixed-bin WaveformCore summary instead of chunks
+#define VIBE_BENCH_COMPONENTS_APPLE_MPEG 1                // the selectable MPEG decoder
+#define VIBE_BENCH_COMPONENTS_WAVEFORM_WINDOW 1           // loader CUE windows
 #endif
 
 #include <functional>
@@ -41,6 +46,9 @@
 // file); body is the measured repetition.
 void VibeBenchComponentsAdd(std::string group, std::string variant, const char *unit,
                  std::function<double(void)> prepare, std::function<void(void)> body);
+
+// A failed operation must not become a faster benchmark result.
+void VibeBenchComponentsRequire(BOOL condition, const char *message);
 
 typedef void (*VibeBenchComponentsRegistrar)(void);
 void VibeBenchComponentsAddRegistrar(VibeBenchComponentsRegistrar registrar);
@@ -63,8 +71,9 @@ double VibeBenchComponentsAudioSeconds(NSString *path);
 - (instancetype)initWithPath:(NSString *)path interleaved:(BOOL)interleaved;
 @property (nonatomic, readonly) AVAudioFormat *processingFormat;
 @property (nonatomic, readonly) long long length;
-// Fills the buffer to its capacity; NO at the end or on a failure.
+// Fills the buffer to its capacity; NO at EOF. A read failure fails the run.
 - (BOOL)read:(AVAudioPCMBuffer *)buffer;
+- (BOOL)read:(AVAudioPCMBuffer *)buffer frames:(AVAudioFrameCount)frames;
 - (void)seekTo:(long long)frame;
 @end
 
