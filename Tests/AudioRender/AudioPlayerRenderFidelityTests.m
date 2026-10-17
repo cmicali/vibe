@@ -267,6 +267,89 @@ static NSData *VibeOpusWithOutputGain(NSData *opus, int16_t q78) {
     XCTAssertEqualObjects(VibePCM(VibeReadWithAVAudioFile(quieter, NULL)), plain,
                           @"CoreAudio now applies the Opus output gain: drop VibeOpusOutputGain and _opusGain");
 }
+// The stereo fold CoreAudio's mixer makes of `layout`, as the voice bus makes
+// it (VibeMixMap). A file that states no layout folds as discrete channels.
+static NSData *VibeStereoFold(const AudioChannelLayout *layout, UInt32 channels) {
+    AudioChannelLayout discrete = {.mChannelLayoutTag = kAudioChannelLayoutTag_DiscreteInOrder | channels};
+    AudioChannelLayout stereo = {.mChannelLayoutTag = kAudioChannelLayoutTag_Stereo};
+    const AudioChannelLayout *layouts[2] = {layout ?: &discrete, &stereo};
+    NSMutableData *map = [NSMutableData dataWithLength:channels * 2 * sizeof(Float32)];
+    UInt32 size = (UInt32)map.length;
+    return AudioFormatGetProperty(kAudioFormatProperty_MatrixMixMap, sizeof(layouts), layouts, &size, map.mutableBytes) == noErr ? map : nil;
+}
+// Asserts `file` states what CoreAudio's parser states of `url`: every field
+// of the description, and for more than two channels a layout that folds to
+// stereo as the parser's does. NO when CoreAudio refuses the file. `folds` is
+// whether CoreAudio has a stereo fold for its layout.
+- (BOOL)assertFactsOf:(AudioFileHandle *)file matchCoreAudioOf:(NSURL *)url folds:(BOOL *)folds {
+    NSString *name = url.lastPathComponent;
+    ExtAudioFileRef reader = NULL;
+    if (ExtAudioFileOpenURL((__bridge CFURLRef)url, &reader) != noErr) {
+        return NO;
+    }
+    AudioStreamBasicDescription parsed = {0};
+    UInt32 size = sizeof(parsed);
+    ExtAudioFileGetProperty(reader, kExtAudioFileProperty_FileDataFormat, &size, &parsed);
+    NSMutableData *layout = nil;
+    if (ExtAudioFileGetPropertyInfo(reader, kExtAudioFileProperty_FileChannelLayout, &size, NULL) == noErr && size > 0) {
+        layout = [NSMutableData dataWithLength:size];
+        ExtAudioFileGetProperty(reader, kExtAudioFileProperty_FileChannelLayout, &size, layout.mutableBytes);
+        const AudioChannelLayout *stated = layout.bytes;
+        if (!stated->mChannelLayoutTag && !stated->mChannelBitmap && !stated->mNumberChannelDescriptions) layout = nil;
+    }
+    ExtAudioFileDispose(reader);
+    const AudioStreamBasicDescription *ours = file.fileFormat.streamDescription;
+    XCTAssertEqual(ours->mSampleRate, parsed.mSampleRate, @"%@", name);
+    XCTAssertEqual(ours->mFormatID, parsed.mFormatID, @"%@", name);
+    XCTAssertEqual(ours->mFormatFlags, parsed.mFormatFlags, @"%@", name);
+    XCTAssertEqual(ours->mBytesPerPacket, parsed.mBytesPerPacket, @"%@", name);
+    XCTAssertEqual(ours->mFramesPerPacket, parsed.mFramesPerPacket, @"%@", name);
+    XCTAssertEqual(ours->mBytesPerFrame, parsed.mBytesPerFrame, @"%@", name);
+    XCTAssertEqual(ours->mChannelsPerFrame, parsed.mChannelsPerFrame, @"%@", name);
+    XCTAssertEqual(ours->mBitsPerChannel, parsed.mBitsPerChannel, @"%@", name);
+    *folds = NO;
+    if (parsed.mChannelsPerFrame > 2) {
+        // Nil where CoreAudio has no fold for a layout, and the bus keeps the first channels.
+        NSData *theirs = VibeStereoFold(layout.bytes, parsed.mChannelsPerFrame);
+        XCTAssertEqualObjects(VibeStereoFold(file.processingFormat.channelLayout.layout, parsed.mChannelsPerFrame), theirs, @"%@ folds to stereo as CoreAudio's layout does", name);
+        *folds = theirs != nil;
+    }
+    return YES;
+}
+// dr_flac, dr_wav and libvorbis answer a file's facts in place of CoreAudio's
+// parser. dr_flac's and dr_wav's must be what the parser states, an AIFF's
+// CHAN chunk included. A sowt AIFF-C and an extensible WAV's valid bits are
+// the two known differences (testDrWAVDescribesEachSampleAtItsWidth). No
+// fixture has valid bits below its container. MPEG in a WAV, and a WAV past
+// dr_wav's rates, go to the parser.
+- (void)testOwnDecodersStateWhatCoreAudioStates {
+    NSURL *folder = [self fixture:@"noise-48000-24-2.wav"].URLByDeletingLastPathComponent;
+    NSSet *extensions = [NSSet setWithArray:@[@"wav", @"wave", @"bwf", @"w64", @"aif", @"aiff", @"flac"]];
+    NSUInteger compared = 0, wide = 0;
+    for (NSURL *url in [NSFileManager.defaultManager contentsOfDirectoryAtURL:folder includingPropertiesForKeys:nil options:0 error:NULL]) {
+        if (![extensions containsObject:url.pathExtension.lowercaseString]) continue;
+        NSString *name = url.lastPathComponent;
+        AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url error:NULL];
+        if (!file) continue;
+        const AudioStreamBasicDescription *ours = file.fileFormat.streamDescription;
+        if ([@[@"mp3-in.wav", @"mp2-in.wav"] containsObject:name]) {
+            XCTAssertEqualObjects(file.decoderName, @"dr_mp3", @"%@ goes to the parser", name);
+            continue;
+        }
+        if (ours->mFormatID != kAudioFormatFLAC && ours->mSampleRate > 384000) { // dr_wav's DRWAV_MAX_SAMPLE_RATE
+            XCTAssertEqualObjects(file.decoderName, @"apple", @"%@, past dr_wav's rates, goes to the parser", name);
+            continue;
+        }
+        XCTAssertTrue([file.decoderName hasPrefix:@"dr_"], @"%@ opened with %@", name, file.decoderName);
+        BOOL folds = NO;
+        if ([self assertFactsOf:file matchCoreAudioOf:url folds:&folds]) {
+            compared++;
+            wide += folds;
+        }
+    }
+    XCTAssertGreaterThan(compared, 80u);
+    XCTAssertGreaterThan(wide, 15u);
+}
 // The parser open is the metadata fallback's, so a row never reads as a file
 // playback refuses. The second half is the canary: once CoreAudio reports the
 // length, re-check its decode and lift the refusal (AudioFileHandle.m).
@@ -564,6 +647,26 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     streaminfo[13] &= 0xF0;
     memset(streaminfo + 14, 0, 4);
 }
+// A fixed block size stream's frames are placed by their number times the
+// block size. dr_flac takes the size from the first frame's header, not
+// STREAMINFO's minimum, which damage can make anything. With the minimum at 1
+// the file still decodes whole and seeks exactly, with its length stated and
+// with it left unknown.
+- (void)testDrFLACPlacesFramesByTheFirstFramesBlockSize {
+    NSURL *url = [self optionalFixture:@"flac-block16.flac"];
+    NSData *reference = [self readToEnd:[self open:url decoder:@"dr_flac"]];
+    for (NSNumber *unknown in @[@NO, @YES]) {
+        NSMutableData *flac = [[NSData dataWithContentsOfURL:url] mutableCopy];
+        uint8_t *streaminfo = (uint8_t *)flac.mutableBytes + 8;
+        streaminfo[0] = 0;
+        streaminfo[1] = 1; // the minimum block size, which is 16
+        if (unknown.boolValue) [self clearLengthOfFLAC:flac];
+        NSString *name = unknown.boolValue ? @"minimum block 1, length unknown" : @"minimum block 1";
+        AudioFileHandle *file = [self open:[self writeBytes:flac name:[name stringByAppendingString:@".flac"]] decoder:@"dr_flac"];
+        XCTAssertEqualObjects([self readToEnd:file], reference, @"%@", name);
+        [self assertSeeksOf:file match:reference block:16 name:name];
+    }
+}
 // Exercise empty residual partitions, large Rice orders and 33-bit side
 // channels. Unknown-length variants must find the last valid frame.
 - (void)testDrFLACDecodesWhatTheFileHolds {
@@ -644,13 +747,18 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         return [self open:[self writeBytes:stream name:name] decoder:@"dr_flac"];
     };
 
-    // An ID3v2 tag in front.
+    // An ID3v2 tag in front, and two.
     static const uint8_t tag[] = {'I','D','3',4,0,0, 0,0,0,16, 'T','I','T','2', 0,0,0,6, 0,0, 3,'t','i','t','l','e'};
-    NSMutableData *tagged = [NSMutableData dataWithBytes:tag length:sizeof(tag)];
-    [tagged appendData:bytes];
-    AudioFileHandle *file = open(tagged, @"id3.flac");
-    XCTAssertEqualObjects([self readToEnd:file], reference, @"ID3v2 in front");
-    [self assertSeeksOf:file match:reference block:block name:@"ID3v2 in front"];
+    AudioFileHandle *file = nil;
+    for (NSUInteger tags = 1; tags <= 2; tags++) {
+        NSMutableData *tagged = [NSMutableData data];
+        for (NSUInteger i = 0; i < tags; i++) [tagged appendBytes:tag length:sizeof(tag)];
+        [tagged appendData:bytes];
+        NSString *name = [NSString stringWithFormat:@"%lu ID3v2 tags in front", (unsigned long)tags];
+        file = open(tagged, [name stringByAppendingString:@".flac"]);
+        XCTAssertEqualObjects([self readToEnd:file], reference, @"%@", name);
+        [self assertSeeksOf:file match:reference block:block name:name];
+    }
 
     // A seek table after STREAMINFO, a point every third frame, each claiming the frame lead after the one it points at, and the
     // point at frame garbage offset to where no stream reaches.
@@ -934,9 +1042,12 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // describes as 16-bit, made from a big-endian one by swapping each sample:
 // dr_wav decodes the same samples, and the file's description carries their
 // width. The depth report and bit-perfect output's depth check honor all of it.
-// A WAV's 20-bit sample in 3 bytes, which the two agree on, keeps the parser's
-// description.
-- (void)testDrWAVDescribesSowtAtItsWidth {
+// 20 bits in 3 bytes, a WAV's and an AIFF's, are described as the parser
+// describes them: 20 bits, high-aligned. dr_wav rounds an AIFF's COMM width up
+// to whole bytes, which would report 24. An extensible WAV's 24 valid bits in
+// 32-bit containers are 24 bits, where the parser states 32, so a 24-bit
+// device format carries them.
+- (void)testDrWAVDescribesEachSampleAtItsWidth {
     self.continueAfterFailure = YES;
     for (NSString *name in @[@"aifc-BEI24.aif", @"aifc-BEI32.aif"]) {
         NSURL *url = [self fixture:name];
@@ -962,11 +1073,58 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         XCTAssertFalse(VibePhysicalFormatSatisfies(offered[0].mFormat, source, *sowt.processingFormat.streamDescription), @"%@ as sowt: 16 bits do not carry it", name);
     }
 
-    NSMutableData *twenty = [[NSData dataWithContentsOfURL:[self fixture:@"noise-48000-24-2.wav"]] mutableCopy];
-    ((uint8_t *)twenty.mutableBytes)[[self chunk:"fmt " of:twenty bigEndian:NO].location + 14] = 20; // wBitsPerSample
-    AudioFileHandle *padded = [self open:[self writeBytes:twenty name:@"pcm-20.wav"] decoder:@"dr_wav"];
-    XCTAssertEqual(padded.fileFormat.streamDescription->mBitsPerChannel, 20u, @"20 bits in 3 bytes");
-    XCTAssertEqual(padded.fileFormat.streamDescription->mBytesPerFrame, 6u, @"20 bits in 3 bytes");
+    NSURL *wavURL = [self fixture:@"noise-48000-24-2.wav"];
+    NSData *wav24 = [NSData dataWithContentsOfURL:wavURL];
+    NSMutableData *wav = [wav24 mutableCopy];
+    ((uint8_t *)wav.mutableBytes)[[self chunk:"fmt " of:wav bigEndian:NO].location + 14] = 20; // wBitsPerSample
+    NSMutableData *aiff = [[NSData dataWithContentsOfURL:[self fixture:@"lossless.aiff"]] mutableCopy];
+    NSMutableData *aifc = [[NSData dataWithContentsOfURL:[self fixture:@"aifc-BEI24.aif"]] mutableCopy];
+    [aifc replaceBytesInRange:NSMakeRange([self chunk:"COMM" of:aifc bigEndian:YES].location + 18, 4) withBytes:"NONE"];
+    for (NSMutableData *form in @[aiff, aifc]) {
+        [form replaceBytesInRange:NSMakeRange([self chunk:"COMM" of:form bigEndian:YES].location + 6, 2) withBytes:"\x00\x14"]; // sampleSize
+    }
+    NSDictionary<NSString *, NSData *> *twenty = @{@"pcm-20.wav": wav, @"pcm-20.aif": aiff, @"aifc-NONE-20.aif": aifc};
+    for (NSString *name in twenty) {
+        NSURL *url = [self writeBytes:twenty[name] name:name];
+        AudioFileHandle *file = [self open:url decoder:@"dr_wav"];
+        XCTAssertEqual(VibeSourceBitDepth(*file.fileFormat.streamDescription), 20u, @"%@: the depth reported", name);
+        BOOL folds = NO;
+        XCTAssertTrue([self assertFactsOf:file matchCoreAudioOf:url folds:&folds], @"%@", name);
+    }
+
+    // The 24-bit WAV's samples, each high-aligned in 4 bytes with its low byte zero.
+    NSRange data24 = [self chunk:"data" of:wav24 bigEndian:NO];
+    NSUInteger samples24 = data24.length / 3;
+    NSMutableData *extensible = [NSMutableData data];
+    void (^put)(uint32_t, int) = ^(uint32_t value, int bytes) { [extensible appendBytes:&value length:bytes]; }; // little-endian, as the host
+    [extensible appendBytes:"RIFF" length:4];
+    put(0, 4); // the container's size, set once the samples are in
+    [extensible appendBytes:"WAVEfmt " length:8];
+    put(40, 4);
+    put(0xFFFE, 2); put(2, 2); put(48000, 4); put(48000 * 8, 4); put(8, 2); put(32, 2); // tag, channels, rate, bytes a second, frame, container
+    put(22, 2); put(24, 2); put(3, 4); // cbSize, valid bits, channel mask
+    [extensible appendBytes:"\x01\x00\x00\x00\x00\x00\x10\x00\x80\x00\x00\xAA\x00\x38\x9B\x71" length:16]; // KSDATAFORMAT_SUBTYPE_PCM
+    [extensible appendBytes:"data" length:4];
+    put((uint32_t)(samples24 * 4), 4);
+    const uint8_t *in = (const uint8_t *)wav24.bytes + data24.location;
+    for (NSUInteger i = 0; i < samples24; i++) {
+        uint8_t sample[4] = {0, in[3 * i], in[3 * i + 1], in[3 * i + 2]};
+        [extensible appendBytes:sample length:4];
+    }
+    [self setContainerSizeOf:extensible bigEndian:NO];
+    AudioFileHandle *valid = [self open:[self writeBytes:extensible name:@"extensible-24-in-32.wav"] decoder:@"dr_wav"];
+    XCTAssertEqualObjects([self readToEnd:valid], [self readToEnd:[self open:wavURL decoder:@"dr_wav"]],
+                          @"24 in 32: the same samples");
+    AudioStreamBasicDescription source = *valid.fileFormat.streamDescription;
+    XCTAssertEqual(source.mBitsPerChannel, 24u, @"24 in 32: the valid bits");
+    XCTAssertEqual(source.mBytesPerFrame, 8u, @"24 in 32: the container's bytes");
+    XCTAssertEqual(source.mFormatFlags, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsAlignedHigh);
+    AudioStreamRangedDescription offered[2] = {VibeRangedPCMFormat(48000, 16, NO), VibeRangedPCMFormat(48000, 24, NO)};
+    AudioStreamBasicDescription chosen = {0};
+    XCTAssertTrue(VibeBitPerfectChooseFormat(source, 48000, offered, 2, &chosen), @"24 in 32: a 24-bit device format qualifies");
+    XCTAssertEqual(chosen.mBitsPerChannel, 24u);
+    XCTAssertTrue(VibePhysicalFormatSatisfies(offered[1].mFormat, source, *valid.processingFormat.streamDescription),
+                  @"24 in 32: 24 bits and float32 carry every bit");
 }
 - (void)testQuickTimeAudio { [self checkLossy:@"lossy.qta" tolerance:kVibeAACDecodeTolerance]; }
 - (void)testFloatLimitsAndSilence {

@@ -460,37 +460,45 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
 }
 
 // A chunk after the audio, a 235 KB tag as a Dropbox AIFF carried, is past
-// the small window. Every chunked container's open walks to that chunk's
-// header, so on the small window it waits for the download. On the window
-// its format takes, it opens on its head and the window with no wait, and
-// the stream decodes as the whole file.
+// the small window. An AIFF's open and a CAF's walk to that chunk's header.
+// CoreAudio's parser does too. It opens a WAV dr_wav refuses, here one past
+// dr_wav's 384 kHz. On the small window those opens wait for the download.
+// dr_wav stops at a WAV's or a W64's data chunk, so its opens never wait. On
+// the window its format takes, each opens on its head and the window with no
+// wait. The stream then decodes as the whole file.
 - (void)testAChunkAfterTheAudioOpensFromTheWindow {
     const uint32_t frames = 441000, tag = 235 * 1024;
     const uint64_t head = 64 * 1024, small = 128 * 1024;
     NSData *samples = VibeNoiseSamples(frames, 2);
     NSError *error = nil;
     NSURL *wav = VibeWriteWAV([self sourceNamed:@"plain.wav"], samples, 44100, 2, 16, (uint32_t)samples.length);
+    NSURL *fast = VibeWriteWAV([self sourceNamed:@"fast.wav"], samples, 705600, 2, 16, (uint32_t)samples.length);
     NSURL *w64 = VibeWriteFixture([self sourceNamed:@"plain.w64"], VibeNoiseBuffer(frames), &error);
     NSURL *caf = VibeWriteFixture([self sourceNamed:@"plain.caf"], VibeNoiseBuffer(frames), &error);
     XCTAssertNil(error);
     NSDictionary<NSString *, NSData *> *plain = @{
-        @"aiff": VibeAIFF(samples, frames),
-        @"wav": [NSData dataWithContentsOfURL:wav],
-        @"w64": [NSData dataWithContentsOfURL:w64],
-        @"caf": [NSData dataWithContentsOfURL:caf],
+        @"plain.aiff": VibeAIFF(samples, frames),
+        @"plain.wav": [NSData dataWithContentsOfURL:wav],
+        @"fast.wav": [NSData dataWithContentsOfURL:fast],
+        @"plain.w64": [NSData dataWithContentsOfURL:w64],
+        @"plain.caf": [NSData dataWithContentsOfURL:caf],
     };
-    for (NSString *extension in plain) {
-        NSURL *source = [self sourceNamed:[@"tagged." stringByAppendingString:extension]];
-        XCTAssertTrue([VibeWithTrailingTag(plain[extension], extension, tag) writeToURL:source atomically:YES], @"%@", extension);
+    NSDictionary<NSString *, NSString *> *decoders = @{@"plain.aiff": @"dr_wav", @"plain.wav": @"dr_wav", @"fast.wav": @"apple",
+                                                       @"plain.w64": @"dr_wav", @"plain.caf": @"apple"};
+    for (NSString *name in plain) {
+        NSString *extension = name.pathExtension;
+        NSURL *source = [self sourceNamed:[@"tagged-" stringByAppendingString:name]];
+        XCTAssertTrue([VibeWithTrailingTag(plain[name], extension, tag) writeToURL:source atomically:YES], @"%@", name);
         uint64_t size = [NSData dataWithContentsOfURL:source].length;
         uint64_t window = VibeAudioFileTailWindowBytes(extension, size);
-        XCTAssertGreaterThan(window, (uint64_t)tag + 24, @"%@", extension);
+        XCTAssertGreaterThan(window, (uint64_t)tag + 24, @"%@", name);
+        BOOL walksToTheEnd = [extension isEqualToString:@"aiff"] || [decoders[name] isEqualToString:@"apple"];
 
         VibeGrowingFile *cramped = [self stream:source prefix:head window:small];
         NSUInteger waits = [self drive:cramped step:0 reader:^{
-            XCTAssertNotNil([[AudioFileHandle alloc] initForReading:cramped.url error:NULL], @"%@", extension);
+            XCTAssertNotNil([[AudioFileHandle alloc] initForReading:cramped.url error:NULL], @"%@", name);
         }];
-        XCTAssertGreaterThan(waits, 0u, @"%@: the small window left the chunk's header to the download", extension);
+        XCTAssertEqual(waits > 0, walksToTheEnd, @"%@: only an open that walks to the chunk waits for it", name);
         [cramped complete];
 
         VibeGrowingFile *file = [self stream:source prefix:head window:window];
@@ -498,16 +506,18 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
         waits = [self drive:file step:0 reader:^{
             handle = [[AudioFileHandle alloc] initForReading:file.url error:NULL];
         }];
-        XCTAssertNotNil(handle, @"%@", extension);
-        XCTAssertEqual(waits, 0u, @"%@ waited to open", extension);
-        XCTAssertGreaterThanOrEqual(file.availability.furthestOffsetAsked, file.windowOffset, @"%@: the open read the window",
-                                    extension);
+        XCTAssertNotNil(handle, @"%@", name);
+        XCTAssertEqualObjects(handle.decoderName, decoders[name], @"%@", name);
+        XCTAssertEqual(waits, 0u, @"%@ waited to open", name);
+        if (walksToTheEnd) {
+            XCTAssertGreaterThanOrEqual(file.availability.furthestOffsetAsked, file.windowOffset, @"%@: the open read the window", name);
+        }
         __block NSData *pcm = nil;
         [self drive:file step:7919 reader:^{
             pcm = VibeDecode(handle, 4096, INT64_MAX, NULL);
         }];
-        XCTAssertEqual(file.availability.windowLength, 0u, @"%@: the download reached the window and dropped it", extension);
-        [self assertPCM:pcm equals:[self referenceOf:source from:0 frames:INT64_MAX] context:extension];
+        XCTAssertEqual(file.availability.windowLength, 0u, @"%@: the download reached the window and dropped it", name);
+        [self assertPCM:pcm equals:[self referenceOf:source from:0 frames:INT64_MAX] context:name];
     }
 }
 

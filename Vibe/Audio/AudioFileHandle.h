@@ -2,16 +2,17 @@
 //  AudioFileHandle.h
 //  Vibe
 //
-//  One opened audio file. For reading: a descriptor this process owns,
-//  CoreAudio's parser over it through AudioFileOpenWithCallbacks, and an
-//  ExtAudioFile decoding it to PCM. For writing: an ExtAudioFile encoding PCM
-//  into a file it creates. The surface is AVAudioFile's — the file's facts, a
-//  cursor in file frames, reads from and writes of a PCM buffer — so the
-//  player, the bus, the waveform loader, the converter and the test fixtures
-//  share one class and one lifetime rule: the last reference disposes the
-//  codec (or closes dr_flac or dr_wav), closes the parser and closes the
-//  descriptor, in that order. A FAILED open leaks nothing, which is why no
-//  preflight precedes it. For an open with an `interrupted` block, the last
+//  One opened audio file. For reading: a descriptor this process owns and a
+//  decoder over it. dr_flac, dr_wav and libvorbis parse their own containers.
+//  Any other file opens CoreAudio's parser over the descriptor through
+//  AudioFileOpenWithCallbacks, and dr_mp3 or an ExtAudioFile decodes it. For
+//  writing: an ExtAudioFile encoding PCM into a file it creates. The surface
+//  is AVAudioFile's — the file's facts, a cursor in file frames, reads from
+//  and writes of a PCM buffer — so the player, the bus, the waveform loader,
+//  the converter and the test fixtures share one class and one lifetime rule.
+//  The last reference closes the decoder, then the parser, then the
+//  descriptor. A FAILED open leaks nothing, which is why no preflight
+//  precedes it. For an open with an `interrupted` block, the last
 //  step runs later, on a serial queue of the handle's own. That step closes
 //  the descriptor, or the parser opened by URL that holds one. A close can
 //  wait on a network share's server. The owners of such handles let them go
@@ -34,16 +35,16 @@
 //  A FLAC file is decoded by dr_flac, bit-identical to Apple's decode, which
 //  it replaces for its cost and its seeks: Apple's scans the stream from its
 //  start on the first seek into any part not yet read, and never uses the seek
-//  table (docs/audio-quality.md). CoreAudio's parser answers the file's format
-//  and layout and is then closed; dr_flac reads the stream through the
-//  descriptor itself and answers its length, found from the last frames when
-//  STREAMINFO leaves it unknown. The vendored copy carries fixes of its own
-//  (ThirdParty/AGENTS.md).
+//  table (docs/audio-quality.md). CoreAudio's parser never opens it. dr_flac
+//  reads the stream through the descriptor itself. It states the file's
+//  format and layout as the parser would. It answers the length, found from
+//  the last frames when STREAMINFO leaves it unknown. The vendored copy
+//  carries fixes of its own (ThirdParty/AGENTS.md).
 //
 //  A WAV, W64, RF64 or AIFF file is decoded by dr_wav the same way, when it
-//  holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them); no file
-//  of another container is offered it: WAVE (BWF among them), W64, RF64,
-//  AIFF and AIFF-C, as the parser names them.
+//  holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them). The open
+//  tells these containers and FLAC by the file's first bytes. A file dr_wav
+//  refuses goes to CoreAudio's parser.
 //
 //  A file a remote transfer is still writing from byte 0
 //  (CloudFileMaterializer's availabilityForURL:) is read from its part file
@@ -77,10 +78,10 @@ FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 @interface AudioFileHandle : NSObject
 
 // Opens CoreAudio's parser alone, with no decoder: the one open every reader
-// of CoreAudio's verdict on a file shares. The reading inits open it too, so
-// it refuses what playback refuses (FLAC in Ogg). Ogg Vorbis is the exception:
-// the reading inits give it to libvorbis and never open the parser. Only
-// `url` and `parser` answer.
+// of CoreAudio's verdict on a file shares. The reading inits open it for
+// every file dr_flac, dr_wav and libvorbis do not take, so it refuses what
+// playback refuses (FLAC in Ogg). The files those three take never open it.
+// Only `url` and `parser` answer.
 // `interrupted`, held only while the open runs, is asked whenever one of its
 // waits for a streaming file's bytes would block, and YES fails the open with
 // an interruption. A caller ends a blocked open from another thread by making

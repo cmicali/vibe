@@ -78,6 +78,7 @@ uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
     BOOL _mpegChoiceApplies; // an MPEG file
     BOOL _openedUnderApple;  // the choice when it opened
     uint8_t *_readAheadEnd; // the flags cell a read-ahead shares with its thread
+    AudioFileTypeID _container; // the parser's kAudioFilePropertyFileFormat
     BOOL _holdsStream; // one of _availability's readers (holdStream)
     BOOL _interruptible; // opened with an `interrupted` block: dealloc closes the file on VibeHandleCloseQueue
     BOOL _parserOwnsFile; // opened by URL (the QuickTime road), so it holds a descriptor of its own
@@ -193,7 +194,7 @@ BOOL VibeHandleAwaitWhole(AudioFileHandle *handle, BOOL wait) {
 // latched on the handle, or a failed pread. A read-ahead's bytes all come
 // from its blocks. One answering none is the end. A negative position fails
 // as the pread would.
-static ssize_t VibeHandleFetch(AudioFileHandle *handle, SInt64 position, SInt64 requested, void *buffer, size_t capacity) {
+ssize_t VibeHandleFetch(AudioFileHandle *handle, SInt64 position, SInt64 requested, void *buffer, size_t capacity) {
     if (position < 0 && handle->_descriptor < 0) {
         return -1;
     }
@@ -259,8 +260,8 @@ static SInt64 VibeHandleSize(void *clientData) {
     return ((__bridge AudioFileHandle *)clientData)->_size;
 }
 
-// dr_flac's and dr_wav's reads, over the parser's descriptor at their own
-// cursor. Both take a short read for the end of the stream, so a read is filled
+// dr_flac's, dr_wav's and vorbisfile's reads, at their own cursor. Each
+// takes a short read for the end of the stream, so a read is filled
 // but at the end. TRAP: a failed read ends it short too, so it is remembered
 // here and reported by the read or seek it happened in: a read error must never
 // become a clean end. A wait that answers no reads nothing: the decoder's
@@ -419,19 +420,6 @@ static float VibeOpusOutputGain(AudioFileID parser) {
     }
     int16_t gain = (int16_t)(head[16] | head[17] << 8);
     return gain ? powf(10, gain / 256.0f / 20) : 0;
-}
-
-// Whether the file is Ogg Vorbis: the first packet of its first page, where
-// every Ogg codec puts its identification, is Vorbis's.
-static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
-    uint8_t page[27 + 255 + 7]; // the page header, its segment table, the packet's opening
-    UInt32 got = 0;
-    VibeHandleRead((__bridge void *)handle, 0, sizeof page, page, &got);
-    if (got < 27 || memcmp(page, "OggS", 4) != 0) {
-        return NO;
-    }
-    UInt32 packet = 27 + page[26];
-    return got >= packet + 7 && memcmp(page + packet, "\x01vorbis", 7) == 0;
 }
 
 - (instancetype)initForReading:(NSURL *)url error:(NSError **)error {
@@ -603,7 +591,8 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
     // and decodes only its first page (macOS 27), so the file would play for
     // a second and end as if whole. Refused here, where playback and the
     // metadata fallback both open, it fails as any undecodable file does.
-    // Opus reads in full on both platforms. Playback never brings Vorbis here.
+    // Opus reads in full on both platforms. Vorbis comes here only when
+    // libvorbis refused it.
     UInt32 size = sizeof(_container);
     AudioFileGetProperty(_parser, kAudioFilePropertyFileFormat, &size, &_container);
     AudioStreamBasicDescription format = {0};
@@ -659,14 +648,12 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
         return nil;
     }
     NSString *name = url.lastPathComponent;
-    // TRAP: Ogg Vorbis goes to libvorbis before CoreAudio's parser sees it.
-    // iOS's Ogg reader refuses Vorbis. macOS's decoder drops each file's first
-    // 128 frames (macOS 27, docs/future/audio-quality-gaps.md).
-    if (VibeHoldsOggVorbis(self)) {
-        if (![self openVorbisInterleaved:interleaved]) {
-            return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
-                           description:[NSString stringWithFormat:@"libvorbis refused %@", name]];
-        }
+    // FLAC, WAV, AIFF and Ogg Vorbis go to the decoders that parse them, which
+    // answer the facts too. CoreAudio's parser opens only what none of them
+    // takes. TRAP: iOS's Ogg reader refuses Vorbis, and macOS's decoder drops
+    // each Vorbis file's first 128 frames (macOS 27,
+    // docs/future/audio-quality-gaps.md).
+    if ([self openOwnDecoderInterleaved:interleaved] || _waitError) {
         return [self openedWithError:error];
     }
     if (![self openParserWithError:error]) {
@@ -694,14 +681,6 @@ static BOOL VibeHoldsOggVorbis(AudioFileHandle *handle) {
     _mpegChoiceApplies = formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3;
     _openedUnderApple = atomic_load(&sAppleMPEGDecoder);
     if (_mpegChoiceApplies && !_openedUnderApple && [self openMPEGWithDescription:fileDescription]) {
-        return [self openedWithError:error];
-    }
-    // Before the client format below, which Apple's FLAC codec refuses for
-    // some legal streams dr_flac plays: block sizes of 16 and 65535, rates
-    // past 655 kHz, 32-bit samples.
-    // Both read through the callbacks. Neither runs after the QuickTime road.
-    if ((_descriptor >= 0 || _availability) && ((formatID == kAudioFormatFLAC && [self openFLAC])
-                                                || [self openWAV])) {
         return [self openedWithError:error];
     }
     status = [self decodeToProcessingFormatInLayout:_processingFormat.channelLayout];
