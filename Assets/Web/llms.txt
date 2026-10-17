@@ -13,7 +13,7 @@ Apache 2.0, and available on the App Store. macOS also has a direct download.
 - Requires macOS 13 Ventura or later (Apple silicon or Intel), or iOS 26 or later.
 - Formats: MP3, MP2, AAC/ADTS, FLAC, MP4/M4A/M4B/M4R, CAF, W64, Ogg Opus and
   Vorbis, QTA (Voice Memos), AIFF, WAV, and CUE sheets — all played by Vibe's
-  own engine. Vorbis and QTA require macOS. Audio is decoded to float32.
+  own engine. QTA requires macOS. Audio is decoded to float32.
 - No library or database: drop a file or folder on the window and it plays.
   Tags, artwork and BPM are read in the background and cached to disk.
 - Files may live anywhere the Files system can reach — a local disk, an

@@ -14,7 +14,7 @@
 | The pitch fader's converter | Keep | It measures about −150 dB, the same float32 floor. |
 | Apple's AAC and ALAC decoders | Keep | AAC decodes to float and keeps overs. ALAC is lossless. FAAD2 is GPL. fdk-aac has license problems and no quality advantage. |
 | Apple's Opus decoder | Keep, and fix the gain | It decodes to float and handles pre-skip. See finding 2. |
-| Apple's Vorbis decoder | Replace | Its samples are accurate, but its timeline is wrong. See finding 1. |
+| Apple's Vorbis decoder | Replaced by libvorbis | Its samples are accurate, but its timeline is wrong. See finding 1. |
 
 **Apple's Opus and Vorbis decoders have no 16-bit trap.** Asked for their output formats (`kAudioCodecPropertySupportedOutputFormats`, as `testAppleMPEGDecodersOutputInt16OnlyOnArm64AndAACOutputsFloat` asks the MPEG and AAC decoders), both offer only 32-bit float on arm64. Their decodes of the test files below had 0.01% of samples on the 16-bit grid, the same as the source. Apple's Opus decode matched libopus's to −138 dB, with the same length.
 
@@ -31,22 +31,18 @@
 
 The 48 kHz files decode 128 frames shorter than Apple's own declared length. The 44.1 kHz file keeps its length. It ends with 128 frames from past the end of the audio. Those should have been trimmed.
 
-- **What a listener gets:** about 3 ms cut from the start of every track. On a gapless Vorbis album, every join skips 3 ms of the next track. At 44.1 kHz the track before the join also ends with 3 ms that should have been trimmed.
-- **Why the tests miss it:** `testOggVorbis` compares the player against `AudioFileHandle`'s own decode. That decode is Apple's. The shift is on both sides. `generate-test-audio.sh` makes `lossy.ogg` with ffmpeg's own encoder. Its files show the shift too.
-- **The fix:** vendor a Vorbis decoder. It would read the stream through the handle's callbacks in `AudioFileHandle+Stream.m`, as dr_flac and dr_wav do. CoreAudio's parser still answers the file's facts. libvorbis with vorbisfile (BSD) is the reference decoder. It trims and seeks to the exact granule. stb_vorbis (public domain, one file) fits the dr_ pattern better, but its seeking has a history of bugs that Vibe would then own.
-- **What the fix also removes:** iOS has no Vorbis decoder. Vorbis plays on macOS only. A vendored decoder plays it on both platforms. That removes a platform exception from the root `AGENTS.md`, `Common/PlayableExtensions` and `Audio/AGENTS.md`.
-- **The test to add:** decode a Vorbis fixture and align it against its source WAV. The shift must be 0 and the length must match.
+- **What a listener got:** about 3 ms cut from the start of every track. On a gapless Vorbis album, every join skipped 3 ms of the next track. At 44.1 kHz the track before the join also ended with 3 ms that should have been trimmed.
+- **Why the tests missed it:** `testOggVorbis` compared the player against `AudioFileHandle`'s own decode. That decode was Apple's. The shift was on both sides.
 
-Do not compensate by shifting Apple's decode 128 frames. The cause is Apple's and undocumented. It may differ with the block size.
+**Fixed.** libvorbis and libogg are vendored (`Vibe/ThirdParty/vorbis/`, `ogg/`) and decode Ogg Vorbis on both platforms, through the handle's callbacks in `AudioFileHandle+Stream.m`. CoreAudio's parser opens only a Vorbis file libvorbis refuses. So Vorbis now plays on iOS too. `testOggVorbis` checks the decode against the source and against Apple's decode moved by 128 frames. That half is a canary, which fails once Apple's decoder lines up.
 
 ## 2. CoreAudio ignores the Opus header's output gain
 
 **An Opus file's header carries an output gain, and players must apply it** ([RFC 7845, section 5.1](https://www.rfc-editor.org/rfc/rfc7845#section-5.1)). It is a signed 16-bit value in 1/256 dB at byte 16 of the `OpusHead` packet. Loudness taggers can write it in place of a tag.
 
-A test file's header gain was set to −6 dB. ffmpeg, through libopus, played it 6.0 dB quieter. Apple's decoder played it unchanged. So Vibe plays such files at the wrong level.
+A test file's header gain was set to −6 dB. ffmpeg, through libopus, played it 6.0 dB quieter. Apple's decoder played it unchanged. So Vibe played such files at the wrong level.
 
-- **The fix:** read the gain when the file opens. Scale the float decode in `AudioFileHandle`'s read with one `vDSP_vsmul` when the gain is not zero. This is small, and needs no new type.
-- **The test to add:** a fixture with a nonzero header gain must decode at that gain against libopus's decode.
+**Fixed.** `AudioFileHandle` reads the gain when the file opens and scales Apple's decode by it (`VibeOpusOutputGain`). Its samples are then bounded at +12 dBFS, as a damaged MP3 frame's are. `testOpusPlaysAtItsHeaderOutputGain` checks three gains, and ends with a canary that fails once Apple applies the gain itself.
 
 R128 gain tags in Opus files are relative to this header gain. Finding 3 would need it applied first.
 
@@ -81,8 +77,6 @@ Several stages make samples above 0 dBFS:
 
 All of that stays exact in float inside Vibe. But Vibe's volume control is off by default. At full volume the device's conversion to integer clips every over.
 
-[audio-quality.md](../audio-quality.md) says kept peaks let "Vibe's volume control, effects or resampler" bring them down cleanly. That sentence is wrong about the resampler. It makes overs and never lowers them. The volume control is opt-in. Rewrite that sentence when this lands, or now.
-
 **The options.** Each one trades level for clean peaks. Each one needs a decision.
 
 - A fixed headroom, such as −3 dB, applied only when the path already changes samples: resampling, a downmix, FX or pitch. Bit-exact playback is untouched.
@@ -93,9 +87,8 @@ Mono is fine. Apple's matrix sends mono to each channel at 0.707, but `VibeMixMa
 
 ## 6. 16-bit device formats are rounded without dither
 
-**Bit-perfect output picks the smallest integer depth that carries the source** (`VibeBitPerfectChooseFormat`, `OutputFormatRules.h`). A 16-bit FLAC gets a 16-bit device format even when the DAC offers 24 or 32 bits. Any change to the samples is then rounded to 16 bits without dither: the opt-in volume control, and the declick at transport edges.
+**Bit-perfect output is fixed.** It picked the smallest integer depth that carries the source. A 16-bit FLAC got a 16-bit device format even when the DAC offered 24 or 32 bits. Any change to the samples was then rounded to 16 bits without dither: the opt-in volume control, and the declick at transport edges. It now picks the widest integer depth (`VibeBitPerfectChooseFormat`, `OutputFormatRules.h`). At full volume the output is identical, with the extra bits zero. The DAC's display shows 24 or 32 bits instead of 16. A DAC that decodes HDCD no longer sees a 16-bit stream.
 
-- **The fix:** prefer the widest integer depth for an integer source. At full volume the output is identical, with the extra bits zero. The DAC's display then shows 24 or 32 bits instead of 16. A DAC that decodes HDCD would no longer see a 16-bit stream.
 - **Regular output can land on 16 bits too.** The physical format is whatever Audio MIDI Setup holds, and Vibe does not read it there. Resampling, FX and pitch are then rounded to 16 bits. TPDF dither in the last stage of `VibeMasterBusRender` would fix that. It is not known whether macOS dithers this conversion itself. Measure first with the loopback verifier (`scripts/test/verify-bit-perfect.swift`). Play a −90 dBFS tone at volume 0.5 into a 16-bit format, and look for its harmonics.
 - **Priority is low.** The volume control is off by default, and most DACs default to 24 bits.
 

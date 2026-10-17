@@ -95611,181 +95611,181 @@
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Настройване на устройството според честотата на дискретизация и битовата дълбочина на всеки файл, без обработка"
+            "value": "Настройване на устройството според честотата на дискретизация и битовата дълбочина на файла, когато е възможно"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nastavit zařízení na vzorkovací frekvenci a bitovou hloubku každého souboru, bez úprav"
+            "value": "Nastavit zařízení na vzorkovací frekvenci a bitovou hloubku souboru, pokud je to možné"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Indstil enheden til hver fils samplingsfrekvens og bitdybde uden behandling"
+            "value": "Indstil enheden til filens samplingsfrekvens og bitdybde, når det er muligt"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gerät auf Abtastrate und Bittiefe jeder Datei umstellen, ohne Verarbeitung"
+            "value": "Gerät auf Abtastrate und Bittiefe der Datei umstellen, wenn möglich"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ρύθμιση της συσκευής στον ρυθμό δειγματοληψίας και το βάθος bit κάθε αρχείου, χωρίς επεξεργασία"
+            "value": "Ρύθμιση της συσκευής στον ρυθμό δειγματοληψίας και το βάθος bit του αρχείου, όταν είναι δυνατό"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Switch the device to each file's sample rate and bit depth, with no processing"
+            "value": "Set device to the file’s sample rate and bit depth, when possible"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajustar el dispositivo a la frecuencia de muestreo y la profundidad de bits de cada archivo, sin procesamiento"
+            "value": "Ajustar el dispositivo a la frecuencia de muestreo y la profundidad de bits del archivo, cuando sea posible"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aseta laite kunkin tiedoston näytteenottotaajuudelle ja bittisyvyydelle ilman käsittelyä"
+            "value": "Aseta laite tiedoston näytteenottotaajuudelle ja bittisyvyydelle, kun mahdollista"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Régler l’appareil sur la fréquence d’échantillonnage et la profondeur de bits de chaque fichier, sans traitement"
+            "value": "Régler l’appareil sur la fréquence d’échantillonnage et la profondeur de bits du fichier, si possible"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Postavi uređaj na frekvenciju uzorkovanja i dubinu bita svake datoteke, bez obrade"
+            "value": "Postavi uređaj na frekvenciju uzorkovanja i dubinu bita datoteke, kada je moguće"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Állítsd az eszközt az egyes fájlok mintavételi frekvenciájára és bitmélységére, feldolgozás nélkül"
+            "value": "Állítsd az eszközt a fájl mintavételi frekvenciájára és bitmélységére, ha lehetséges"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Alihkan perangkat ke laju sampel dan kedalaman bit setiap file, tanpa pemrosesan"
+            "value": "Atur perangkat ke laju sampel dan kedalaman bit file, jika memungkinkan"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Impostare il dispositivo sulla frequenza di campionamento e la profondità di bit di ogni file, senza elaborazione"
+            "value": "Impostare il dispositivo sulla frequenza di campionamento e la profondità di bit del file, quando possibile"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "デバイスを各ファイルのサンプルレートとビット深度に切り替え、処理を一切行わない"
+            "value": "可能な場合、デバイスをファイルのサンプルレートとビット深度に設定"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "처리 없이 기기를 각 파일의 샘플률과 비트 심도로 전환하기"
+            "value": "가능한 경우 기기를 파일의 샘플률과 비트 심도로 설정하기"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sett enheten til hver fils samplingsfrekvens og bitdybde, uten behandling"
+            "value": "Sett enheten til filens samplingsfrekvens og bitdybde når det er mulig"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apparaat instellen op de samplefrequentie en bitdiepte van elk bestand, zonder bewerking"
+            "value": "Apparaat instellen op de samplefrequentie en bitdiepte van het bestand, indien mogelijk"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ustaw urządzenie na częstotliwość próbkowania i głębię bitową każdego pliku, bez przetwarzania"
+            "value": "Ustaw urządzenie na częstotliwość próbkowania i głębię bitową pliku, gdy to możliwe"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajustar o dispositivo à taxa de amostragem e à profundidade de bits de cada arquivo, sem processamento"
+            "value": "Ajustar o dispositivo à taxa de amostragem e à profundidade de bits do arquivo, quando possível"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ajustar o dispositivo à frequência de amostragem e à profundidade de bits de cada ficheiro, sem processamento"
+            "value": "Ajustar o dispositivo à frequência de amostragem e à profundidade de bits do ficheiro, quando possível"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Configurați dispozitivul la rata de eșantionare și adâncimea de biți ale fiecărui fișier, fără procesare"
+            "value": "Configurați dispozitivul la rata de eșantionare și adâncimea de biți ale fișierului, când este posibil"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Устанавливать для устройства частоту дискретизации и битовую глубину каждого файла, без обработки"
+            "value": "Устанавливать для устройства частоту дискретизации и битовую глубину файла, когда это возможно"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nastaviť zariadenie na vzorkovaciu frekvenciu a bitovú hĺbku každého súboru, bez úprav"
+            "value": "Nastaviť zariadenie na vzorkovaciu frekvenciu a bitovú hĺbku súboru, ak je to možné"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ställ in enheten på varje fils samplingsfrekvens och bitdjup, utan bearbetning"
+            "value": "Ställ in enheten på filens samplingsfrekvens och bitdjup när det är möjligt"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สลับอุปกรณ์ให้ตรงกับอัตราสุ่มตัวอย่างและความลึกบิตของแต่ละไฟล์ โดยไม่มีการประมวลผล"
+            "value": "ตั้งอุปกรณ์ให้ตรงกับอัตราสุ่มตัวอย่างและความลึกบิตของไฟล์ เมื่อทำได้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aygıtı işlem yapmadan her dosyanın örnekleme hızına ve bit derinliğine ayarla"
+            "value": "Mümkün olduğunda aygıtı dosyanın örnekleme hızına ve bit derinliğine ayarla"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Установлювати для пристрою частоту дискретизації та бітову глибину кожного файлу, без обробки"
+            "value": "Установлювати для пристрою частоту дискретизації та бітову глибину файлу, коли це можливо"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chuyển thiết bị theo tần số lấy mẫu và độ sâu bit của từng tệp, không xử lý gì"
+            "value": "Đặt thiết bị theo tần số lấy mẫu và độ sâu bit của tệp, khi có thể"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "将设备切换为每个文件的采样率和位深度，不做任何处理"
+            "value": "尽可能将设备设为文件的采样率和位深度"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "將裝置切換為每個檔案的取樣率和位元深度，不做任何處理"
+            "value": "盡可能將裝置設為檔案的取樣率和位元深度"
           }
         }
       },
@@ -96350,7 +96350,7 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.format": {
-      "comment": "The output format bit-perfect output settled on: %1$@ is the sample rate, already formatted with its unit (e.g. '96.0 kHz'), %2$@ the word length in bits.",
+      "comment": "The format bit-perfect output delivers: %1$@ is the device's sample rate, already formatted with its unit (e.g. '96.0 kHz'), %2$@ the file's bit depth.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -96536,7 +96536,7 @@
       "extractionState": "manual"
     },
     "settings.general.bit_perfect.format_exclusive": {
-      "comment": "The output format bit-perfect output settled on, with the app holding exclusive use of the device: %1$@ is the sample rate, already formatted with its unit (e.g. '96.0 kHz'), %2$@ the word length in bits.",
+      "comment": "The format bit-perfect output delivers, with the app holding exclusive use of the device: %1$@ is the device's sample rate, already formatted with its unit (e.g. '96.0 kHz'), %2$@ the file's bit depth.",
       "localizations": {
         "bg": {
           "stringUnit": {

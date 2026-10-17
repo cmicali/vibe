@@ -127,6 +127,11 @@ static void VibeRemoveOrphanedTestRoots(NSString *temporary) {
     gToolDomain = NSBundle.mainBundle.bundleIdentifier ?: @"com.apple.dt.xctest.tool";
     gSuite = [gRoot stringByAppendingPathComponent:@"defaults"];
     NSUserDefaults *defaults = [[VibeTestUserDefaults alloc] initWithSuiteName:gSuite];
+    // TRAP: carry over the defaults XCTest registered before this bundle
+    // loaded. One is XCTIDEConnectionTimeout. Without it XCTest gives the IDE
+    // no time to say start. A parallel worker that is ready first then exits
+    // 1, "operation never finished bootstrapping".
+    [defaults registerDefaults:[NSUserDefaults.standardUserDefaults volatileDomainForName:NSRegistrationDomain]];
     method_setImplementation(
             class_getClassMethod(NSUserDefaults.class, @selector(standardUserDefaults)),
             imp_implementationWithBlock(^NSUserDefaults *(id self) { return defaults; }));

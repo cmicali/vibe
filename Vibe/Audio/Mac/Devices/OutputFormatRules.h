@@ -84,6 +84,7 @@ typedef struct {
     VibeBitPerfectStatus status;
     double sampleRate;      // the device's, after the switch
     UInt32 bitsPerChannel;  // the physical format's width
+    UInt32 sourceBits;      // the file's depth (VibeSourceBitDepth), 0 for lossy; the Active caption shows it
     BOOL isFloat;
     float softwareVolume;
     float balance;         // 0 = left, 0.5 = center, 1 = right
@@ -99,7 +100,6 @@ typedef struct {
     BOOL muted;
     BOOL hogWanted;
     BOOL exclusive;
-    BOOL sourceLossless;
 } VibeBitPerfectReport;
 
 static const UInt32 kVibeBitPerfectAssumedLosslessDepth = 24;
@@ -107,21 +107,20 @@ static const UInt32 kVibeBitPerfectAssumedLosslessDepth = 24;
 // Every field, so a publication that changed nothing is not announced.
 static inline BOOL VibeBitPerfectReportsEqual(VibeBitPerfectReport a, VibeBitPerfectReport b) {
     return a.status == b.status && a.sampleRate == b.sampleRate
-            && a.bitsPerChannel == b.bitsPerChannel && a.isFloat == b.isFloat
+            && a.bitsPerChannel == b.bitsPerChannel && a.sourceBits == b.sourceBits && a.isFloat == b.isFloat
             && a.softwareVolume == b.softwareVolume && a.balance == b.balance
             && a.playerVolume == b.playerVolume && a.enabled == b.enabled
             && a.eligibleDevice == b.eligibleDevice && a.hasTrack == b.hasTrack
             && a.rateExact == b.rateExact
             && a.formatConfirmed == b.formatConfirmed && a.channelsMatch == b.channelsMatch
             && a.depthOK == b.depthOK && a.muted == b.muted
-            && a.hogWanted == b.hogWanted && a.exclusive == b.exclusive
-            && a.sourceLossless == b.sourceLossless;
+            && a.hogWanted == b.hogWanted && a.exclusive == b.exclusive;
 }
 
 // PCM: mBitsPerChannel. ALAC and FLAC: the kAppleLosslessFormatFlag_*
 // source-depth flags, or 24 assumed when the flags say nothing. Lossy and
-// unknown: 0, meaning "no native depth to honor" — which is also what makes a
-// source lossless below, so the two cannot list different formats.
+// unknown: 0, meaning no native depth to honor. The fold's SourceLossy is that
+// 0, so the chooser and the report cannot disagree about a file.
 static inline UInt32 VibeSourceBitDepth(AudioStreamBasicDescription source) {
     if (source.mFormatID == kAudioFormatLinearPCM) {
         return source.mBitsPerChannel;
@@ -136,10 +135,6 @@ static inline UInt32 VibeSourceBitDepth(AudioStreamBasicDescription source) {
         }
     }
     return 0;
-}
-
-static inline BOOL VibeSourceIsLossless(AudioStreamBasicDescription source) {
-    return VibeSourceBitDepth(source) > 0;
 }
 
 static inline BOOL VibePhysicalFormatIsFloat(AudioStreamBasicDescription format) {
@@ -263,24 +258,19 @@ static inline BOOL VibeBitPerfectOutputNeedsSwitch(AudioStreamBasicDescription c
     return !VibePhysicalFormatsEquivalent(current, chosen) || mixerRate != chosen.mSampleRate;
 }
 
-// The depth rule at `rate`, as-is: the integer format whose depth equals the
-// source's, else the smallest integer depth above it, else the widest float — and for
-// a float source the float format first, since no integer depth delivers one
-// unchanged. A lossy source has no depth of its own: what reaches the device
-// is its float32 decode, so it is chosen like a float source, the float
-// format first, else the widest integer, which rounds that decode least —
-// never 16 bits for being lossy, which would round every AAC sample to 16
-// bits. Only formats wide enough for all source channels qualify. Returns NO
-// when none is usable at `rate`; the caller compares the choice against what
-// the device has before writing.
+// The depth rule at `rate`, as-is (Mac/Devices/AGENTS.md says why). The
+// integer pick is the widest integer depth not below the source's, and the
+// float pick the widest float. An integer source takes the integer pick. A
+// float or lossy source takes the float pick first, since only a float format
+// carries a float decode unchanged. Only formats wide enough for all source
+// channels qualify. Returns NO when none is usable at `rate`. The caller
+// compares the choice against what the device has before writing.
 static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source,
                                               double rate,
                                               const AudioStreamRangedDescription *formats,
                                               UInt32 count,
                                               AudioStreamBasicDescription *chosen) {
     UInt32 depth = VibeSourceBitDepth(source);
-    BOOL lossy = depth == 0;
-    BOOL haveInteger = NO, haveFloat = NO;
     AudioStreamBasicDescription integerPick = {0}, floatPick = {0};
     for (UInt32 i = 0; i < count; i++) {
         if (!VibeRangedFormatOffersRate(formats[i], rate)
@@ -290,28 +280,20 @@ static inline BOOL VibeBitPerfectChooseFormat(AudioStreamBasicDescription source
         }
         AudioStreamBasicDescription candidate = formats[i].mFormat;
         candidate.mSampleRate = rate;
-        if (VibePhysicalFormatIsFloat(candidate)) {
-            if (!haveFloat || candidate.mBitsPerChannel > floatPick.mBitsPerChannel) {
-                floatPick = candidate;
-                haveFloat = YES;
-            }
-            continue;
-        }
-        if (candidate.mBitsPerChannel < depth) {
+        BOOL isFloat = VibePhysicalFormatIsFloat(candidate);
+        if (!isFloat && candidate.mBitsPerChannel < depth) {
             continue; // never below the source
         }
-        // Candidates below the source were excluded, so the smallest wins;
-        // a lossy source's widest.
-        if (!haveInteger || (lossy ? candidate.mBitsPerChannel > integerPick.mBitsPerChannel
-                                   : candidate.mBitsPerChannel < integerPick.mBitsPerChannel)) {
-            integerPick = candidate;
-            haveInteger = YES;
+        AudioStreamBasicDescription *pick = isFloat ? &floatPick : &integerPick;
+        if (candidate.mBitsPerChannel > pick->mBitsPerChannel) {
+            *pick = candidate;
         }
     }
+    BOOL haveInteger = integerPick.mBitsPerChannel > 0, haveFloat = floatPick.mBitsPerChannel > 0;
     if (!haveInteger && !haveFloat) {
         return NO;
     }
-    BOOL preferFloat = VibeSourceIsFloat(source) || lossy ? haveFloat : !haveInteger;
+    BOOL preferFloat = (VibeSourceIsFloat(source) || depth == 0) ? haveFloat : !haveInteger;
     *chosen = preferFloat ? floatPick : integerPick;
     return YES;
 }
@@ -351,7 +333,7 @@ static inline VibeBitPerfectStatus VibeBitPerfectFold(VibeBitPerfectReport r) {
     if (r.hogWanted && !r.exclusive) {
         return VibeBitPerfectStatusExclusiveRefused;
     }
-    if (!r.sourceLossless) {
+    if (r.sourceBits == 0) {
         return VibeBitPerfectStatusSourceLossy;
     }
     return VibeBitPerfectStatusActive;

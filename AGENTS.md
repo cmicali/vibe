@@ -4,16 +4,17 @@ Guidance for any coding agent working in this repository.
 
 Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++.
 
-Playback uses CoreAudio, AudioToolbox and AVFoundation plus four vendored libraries, and no other third-party audio code:
+Playback uses CoreAudio, AudioToolbox and AVFoundation plus five vendored libraries, and no other third-party audio code:
 
 - **r8brain-free-src** resamples every file whose rate is not the output's.
 - **dr_mp3** is the default MP3 decoder. The mac's Settings > Advanced can switch to Apple's.
 - **dr_flac** decodes FLAC.
 - **dr_wav** decodes WAV and AIFF.
+- **libvorbis**, with libogg's page reader, decodes Ogg Vorbis.
 
 The three dr_ libraries carry fixes of Vibe's own. `docs/audio-quality.md` has the measurements behind each choice.
 
-The playable formats are listed once, in `Common/PlayableExtensions`. Ogg Vorbis plays on macOS only, because iOS's CoreAudio has no Vorbis decoder. FLAC in Ogg is refused at the parser open, because CoreAudio truncates it (`AudioFileHandle.m`).
+The playable formats are listed once, in `Common/PlayableExtensions`. FLAC in Ogg is refused at the parser open, because CoreAudio truncates it (`AudioFileHandle.m`).
 
 A CUE sheet, beside its files or embedded in a FLAC, plays as rows. Each row is a window of its file, and the player treats the window as the whole track (`Playlist/AGENTS.md`, `Audio/AGENTS.md`).
 
@@ -108,7 +109,7 @@ Every directory directly under `Vibe/` except `Mac/`, `iOS/` and `ThirdParty/` i
 - **`Vibe/Util/`** — featureless helpers, with `Mac/` and `iOS/` halves. **`Vibe/Debug/`** — the debug channel, with `Mac/` and `iOS/` command tables.
 - **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, sandbox grants, stats, the debug info report), `MainWindow/` (`MainPlayerController`; layout and chrome are its `LAYOUT.md`; `Transport/` carries its own doc), `Menu/`, `Controls/`, `Settings/` (`Themes/` is the theme list and editor), `About/`, `Convert/` (the FLAC converter and its file round trip, with a doc).
 - **`Vibe/iOS/`** — the iPhone/iPad app shell: `PlaybackController` (the model), the tab shell, the Playlist tab and the mini player; `Files/` is the Files tab's browser and Recents, `Player/` the now-playing card, `Search/` Favorites and search, `Settings/` the settings screens, `Widget/` the widget's app side, each with a doc. The top-level `VibeWidget/` is the widget extension, with its own doc. The iOS halves of shared subsystems live under those subsystems, not here.
-- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain-free-src, dr_mp3, dr_flac, and dr_wav (the last three modified; its `AGENTS.md` lists how), and the prebuilt Sparkle framework, the direct download's updater.
+- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain-free-src, dr_mp3, dr_flac, and dr_wav (the last three modified; its `AGENTS.md` lists how), libvorbis and libogg (unmodified), and the prebuilt Sparkle framework, the direct download's updater.
 
 ## Cross-directory guarantees
 

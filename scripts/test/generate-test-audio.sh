@@ -536,6 +536,18 @@ AUDIO_PY
         # FFmpeg's float decode of the generated 8 kHz mixed-block stream: the reference testDrMP3DecodesMixedBlocksAt8kHzAsFFmpegDoes reads.
         [ -s "$render_dir/mixed-8k.f32" ] || ffmpeg_out "$render_dir/mixed-8k.f32" -c:a mp3float -i "$render_dir/mixed-8k.mp3" -f f32le
         encode lossy.qta "$render_source" -c:a aac -f mov
+        # WAVE_FORMAT_EXTENSIBLE files with a channel mask, and FLACs at three to eight channels. dr_wav and dr_flac
+        # must state their layouts as CoreAudio's parser does (testOwnDecodersStateWhatCoreAudioStates).
+        for layout in 2.1 3.0 4.0 quad 5.0 5.1 '5.1(side)' 6.0 6.1 7.1 '7.1(wide)' FL+FR+TC; do
+            name=$(printf '%s' "$layout" | tr -d '()+'); name=${name//./-}
+            [ -s "$render_dir/mask-$name.wav" ] || ffmpeg_out "$render_dir/mask-$name.wav" -f lavfi -i anoisesrc=d=0.25:r=48000:a=0.1:seed=7 \
+                -af "aformat=channel_layouts=$layout" -c:a pcm_s16le
+        done
+        for layout in 3-0 quad 5-0 5-1 6-1 7-1; do
+            encode "channels-$layout.flac" "$render_dir/mask-$layout.wav" -c:a flac
+        done
+        # 5.1 in AIFF's CHAN chunk, in an order no WAVE mask names, as Apple's tools write it.
+        [ -s "$render_dir/chan-5-1-b.aif" ] || afconvert -f AIFF -d BEI16 -l MPEG_5_1_B "$render_dir/mask-5-1.wav" "$render_dir/chan-5-1-b.aif"
         # The WAV ADPCMs, which afconvert cannot write.
         encode wav-ima-adpcm.wav "$render_source" -c:a adpcm_ima_wav
         encode wav-ms-adpcm.wav "$render_source" -c:a adpcm_ms
@@ -544,6 +556,16 @@ AUDIO_PY
         # is libopus, whose file declares the length it decodes to.
         encode lossy.ogg "$render_source" -c:a vorbis -strict -2
         [ -s "$render_dir/alias.oga" ] || { [ -s "$render_dir/lossy.ogg" ] && cp "$render_dir/lossy.ogg" "$render_dir/alias.oga"; }
+        # The same packets in 100 ms pages, near oggenc's size, where FFmpeg's muxer writes one-second pages. A
+        # streaming open reads the first audio page and the end, and in pages this size the two lie apart.
+        [ -s "$render_dir/lossy.ogg" ] && encode paged.ogg "$render_dir/lossy.ogg" -c:a copy -page_duration 100000
+        # 5.1 Vorbis with a tone in each channel, which libvorbis writes in Vorbis I's channel order. FFmpeg's own
+        # encoder is stereo only, so this needs a build with libvorbis. Without one, its test skips.
+        if [ ! -s "$render_dir/surround.ogg" ] && ffmpeg -hide_banner -encoders 2>/dev/null | grep -q libvorbis; then
+            ffmpeg_out "$render_dir/surround.ogg" -f lavfi \
+                -i 'aevalsrc=0.125*sin(2*PI*500*t)|0.125*sin(2*PI*700*t)|0.125*sin(2*PI*900*t)|0.125*sin(2*PI*60*t)|0.125*sin(2*PI*1300*t)|0.125*sin(2*PI*1700*t):c=5.1:s=48000:d=2' \
+                -c:a libvorbis
+        fi
         encode lossy.opus "$render_source" -c:a libopus -b:a 128k
         # FLAC in Ogg, which the handle refuses: CoreAudio decodes its first page only.
         encode ogg-flac.oga "$render_source" -c:a flac

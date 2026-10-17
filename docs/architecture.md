@@ -71,7 +71,7 @@ Vibe/
     Search/            Favorites and Search
     Settings/          the settings screens
     Widget/            the app's side of the Home Screen widget
-  ThirdParty/          vendored code: TagLib, PINCache, r8brain, dr_mp3, dr_flac, dr_wav, Sparkle
+  ThirdParty/          vendored code: TagLib, PINCache, r8brain, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, Sparkle
 VibeWidget/            the widget extension, in Swift
 Tests/                 unit tests, laid out like Vibe/
   AudioRender/         the audio suite: the real player, rendered with no device
@@ -148,7 +148,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### Third-party code
 
-`Vibe/ThirdParty/` is vendored code: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, and the prebuilt Sparkle framework. There is no package manager. The three dr_ libraries carry fixes of Vibe's own. Read `Vibe/ThirdParty/AGENTS.md` before changing them. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
+`Vibe/ThirdParty/` is vendored code: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis and libogg, and the prebuilt Sparkle framework. There is no package manager. The three dr_ libraries carry fixes of Vibe's own. Read `Vibe/ThirdParty/AGENTS.md` before changing them. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
 
 ### Tests, resources, and scripts
 
@@ -208,7 +208,7 @@ Read `Vibe/Loading/AGENTS.md` ("One claim, two stages" and "The transfer registr
 
 ### 4. AudioFileHandle
 
-`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. It opens CoreAudio's parser (`initParserForReading:`) for the file's facts. Then it picks the decoder. MPEG files use dr_mp3 (`AudioFileHandle+MPEG.m`). FLAC uses dr_flac, and WAV and AIFF use dr_wav (`AudioFileHandle+Stream.m`). Everything else, such as AAC, ALAC, and Opus, uses Apple's decoders. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too.
+`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV and AIFF to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). Each answers the file's facts itself. Any other file opens CoreAudio's parser (`initParserForReading:`) for its facts. Then the handle picks the decoder. MPEG files use dr_mp3 (`AudioFileHandle+MPEG.m`). Everything else, such as AAC, ALAC, and Opus, uses Apple's decoders. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too.
 
 A handle reads its bytes in one of three ways:
 

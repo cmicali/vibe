@@ -22,13 +22,6 @@
 // a damaged stream it takes that long for the reservoir to fall into step.
 static const SInt64 kVibeMPEGSeekPrerollPackets = 10;
 
-// dr_mp3 never clamps, and one damaged frame can decode past +90 dBFS: the
-// FX's reverb and delay then ring at full scale for seconds, the equalizer's
-// reference stays up for half a minute, and the track's detected tempo moves.
-// The bound, +12 dBFS, sits well above any real master's overs
-// (docs/audio-quality.md).
-static const float kVibeMPEGSampleBound = 4.0f;
-
 // A stream's packet count until it is settled (VibeUncountedMPEGPackets).
 static const SInt64 kVibeMPEGPacketsUncounted = INT64_MAX;
 
@@ -388,7 +381,7 @@ static SInt64 VibeUncountedMPEGPackets(AudioFileHandle *handle, AudioStreamBasic
         // damaged one: silence, keeping the timeline.
         memset(_mpegPCM, 0, (size_t)_mpegFramesPerPacket * channels * sizeof(float));
     } else {
-        const float low = -kVibeMPEGSampleBound, high = kVibeMPEGSampleBound;
+        const float low = -kVibeDecodeSampleBound, high = kVibeDecodeSampleBound;
         vDSP_vclip(_mpegPCM, 1, &low, &high, _mpegPCM, 1, (vDSP_Length)frames * channels);
     }
     _mpegPCMFrames = flush ? _mpegDelay : _mpegFramesPerPacket;

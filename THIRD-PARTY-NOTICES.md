@@ -17,6 +17,8 @@ Sparkle is a prebuilt framework in the direct-download Mac app only.
 | dr_mp3 | `Vibe/ThirdParty/dr_mp3/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
 | dr_flac | `Vibe/ThirdParty/dr_flac/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
 | dr_wav | `Vibe/ThirdParty/dr_wav/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
+| libogg | `Vibe/ThirdParty/ogg/` | BSD 3-Clause |
+| libvorbis | `Vibe/ThirdParty/vorbis/` | BSD 3-Clause |
 | Sparkle | `Vibe/ThirdParty/Sparkle/` | MIT, with its bundled components' permissive notices |
 
 ## TagLib
@@ -106,6 +108,46 @@ the recipient's choice; Vibe uses it under MIT No Attribution. Both texts are
 at the end of `Vibe/ThirdParty/dr_wav/dr_wav.h`. The vendored copy carries
 Vibe's own fixes and additions (`Vibe/ThirdParty/AGENTS.md`), which that
 license permits without condition.
+
+## libogg and libvorbis
+
+The Ogg page reader and the Vorbis decoder from the Xiph.Org Foundation.
+Copyright (c) 2002 (libogg) and 2002-2020 (libvorbis), Xiph.org Foundation.
+Licensed under the BSD 3-Clause license. The full texts are vendored at
+`Vibe/ThirdParty/ogg/LICENSE.txt` and `Vibe/ThirdParty/vorbis/LICENSE.txt`
+(upstream's `COPYING`, renamed so the build leaves them out of the bundles).
+Both are unmodified. The license, as libvorbis states it:
+
+```
+Copyright (c) 2002-2020 Xiph.org Foundation
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+- Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+
+- Redistributions in binary form must reproduce the above copyright
+notice, this list of conditions and the following disclaimer in the
+documentation and/or other materials provided with the distribution.
+
+- Neither the name of the Xiph.org Foundation nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE FOUNDATION
+OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
 
 ## Sparkle
 
