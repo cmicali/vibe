@@ -46,8 +46,11 @@ static inline uint64_t VibeFuzzNext(VibeFuzzRandom *random) {
     return x * 0x2545F4914F6CDD1DULL;
 }
 
+// From the high bits. TRAP: `% bound` kept only the low bits, and seeds that
+// differ only in high bits drew the same small numbers first. Every iteration
+// of a mutator then made the same mutant.
 static inline NSUInteger VibeFuzzBelow(VibeFuzzRandom *random, NSUInteger bound) {
-    return bound ? (NSUInteger)(VibeFuzzNext(random) % bound) : 0;
+    return (NSUInteger)(((__uint128_t)VibeFuzzNext(random) * bound) >> 64);
 }
 
 // VIBE_FUZZ_SEED in decimal or 0x hex, else `fallback`. Fixed by default: a
