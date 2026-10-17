@@ -60,6 +60,19 @@ static std::unique_ptr<Summary> VibeLevelSummary(const std::vector<float> &meanS
     XCTAssertEqual(wavecore::BinFramesForLength(0), 256u, @"an unknown length takes the full bin");
 }
 
+// Long files take coarser bins, so a summary's size is bounded whatever the
+// length.
+- (void)testLongFilesTakeCoarserBins {
+    const int64_t most = wavecore::kMaximumBins;
+    XCTAssertEqual(wavecore::BinFramesForLength(most * 256), 256u);
+    XCTAssertEqual(wavecore::BinFramesForLength(most * 256 + 256), 512u);
+    // The render fixture: 6.2 hours at 192 kHz, just over 2^32 frames.
+    int64_t fixture = 4295032830;
+    uint32_t bin = wavecore::BinFramesForLength(fixture);
+    XCTAssertLessThanOrEqual(fixture / bin, most);
+    XCTAssertGreaterThan(fixture / bin, most / 2);
+}
+
 #pragma mark - The builder
 
 - (void)testBuilderKeepsEachBinsExtremesAndEnergy {
@@ -230,13 +243,108 @@ static std::unique_ptr<Summary> VibeLevelSummary(const std::vector<float> &meanS
     XCTAssertEqualWithAccuracy(summary->column(0, 6).meanSquare(), 4.0f / 6, 1e-6);
 }
 
-- (void)testCopyIsDeep {
-    auto original = VibeRampSummary(8);
-    auto copy = original->copy();
-    float lo = -99, hi = 99;
-    original->appendBin(&lo, &hi, 0, nullptr, 1);
-    XCTAssertEqual(copy->binCount(), 8u);
-    XCTAssertEqual(copy->column(0, 100).hi, 7.0f, @"the copy must not see writes to the original");
+#pragma mark - Snapshots
+
+// One-frame bins of noise under a slow swell, through a builder.
+static void VibeAppendNoise(SummaryBuilder &builder, size_t frames, uint32_t seed) {
+    std::mt19937 rng(seed);
+    std::normal_distribution<float> noise(0, 0.2f);
+    std::vector<float> mono(frames);
+    for (size_t i = 0; i < frames; i++) mono[i] = noise(rng) * (1 + 0.5f * sinf((float)i * 1e-3f));
+    builder.append(mono.data(), mono.data(), frames);
+}
+
+// Every value a grid of columns reads, so two summaries compare exactly.
+static void VibeAssertSameColumns(Summary &a, Summary &b, double framesPerColumn, NSString *label) {
+    size_t count = (size_t)std::ceil((double)a.frames() / framesPerColumn);
+    std::vector<Column> left(count), right(count);
+    a.columns(framesPerColumn, 0, count, left.data());
+    b.columns(framesPerColumn, 0, count, right.data());
+    for (size_t i = 0; i < count; i++) {
+        XCTAssertEqual(left[i].lo, right[i].lo, @"%@ column %zu", label, i);
+        XCTAssertEqual(left[i].hi, right[i].hi, @"%@ column %zu", label, i);
+        XCTAssertEqual(left[i].sumSquares, right[i].sumSquares, @"%@ column %zu", label, i);
+        XCTAssertEqual(left[i].loudest, right[i].loudest, @"%@ column %zu", label, i);
+        for (size_t band = 0; band < wavecore::kBandCount; band++) {
+            XCTAssertEqual(left[i].bandSumSquares[band], right[i].bandSumSquares[band], @"%@ column %zu", label, i);
+            XCTAssertEqual(left[i].bandLoudest[band], right[i].bandLoudest[band], @"%@ column %zu", label, i);
+        }
+        if (left[i].lo != right[i].lo || left[i].loudest != right[i].loudest) {
+            return;
+        }
+    }
+}
+
+- (void)testASnapshotIsDeep {
+    SummaryBuilder builder(1, 1, true, 4096, 44100);
+    VibeAppendNoise(builder, 2048, 3);
+    auto snapshot = builder.snapshot();
+    Column before = snapshot->column(0, 2048);
+    VibeAppendNoise(builder, 2048, 4);
+    XCTAssertEqual(snapshot->binCount(), 2048u);
+    XCTAssertEqual(snapshot->column(0, 4096).hi, before.hi, @"the snapshot must not see later bins");
+    XCTAssertEqual(snapshot->column(0, 4096).loudest, before.loudest);
+}
+
+// What one snapshot costs does not grow with the stream: it copies the
+// finest level of at most kSnapshotBins. A copy of every bin made a long
+// decode run at its snapshots' pace.
+- (void)testASnapshotHoldsAtMostKSnapshotBins {
+    SummaryBuilder builder(1, 1, true, 4096, 44100);  // one-frame bins
+    for (size_t frames : {(size_t)20000, (size_t)200000, (size_t)400000}) {
+        VibeAppendNoise(builder, frames, (uint32_t)frames);
+        auto snapshot = builder.snapshot();
+        XCTAssertLessThanOrEqual(snapshot->binCount(), wavecore::kSnapshotBins);
+        XCTAssertGreaterThan(snapshot->binCount(), (size_t)std::min<int64_t>(wavecore::kMinimumBins, 20000));
+    }
+}
+
+// A snapshot of a level reads the finished summary's values over the whole
+// bins it holds. Its sums were added at the level, a finished read of so
+// narrow a column adds the base bins, so they agree to float rounding.
+- (void)testASnapshotReadsTheFinishedValues {
+    SummaryBuilder builder(1, 1, true, 4096, 44100);
+    VibeAppendNoise(builder, 300000, 9);
+    auto snapshot = builder.snapshot();
+    XCTAssertGreaterThan(snapshot->binFrames(), 1u, @"a level above the base");
+    double bin = snapshot->binFrames();
+    size_t whole = snapshot->binCount() - 1;
+    auto finished = builder.finish(true);
+    std::vector<Column> fromSnapshot(whole), fromFinished(whole);
+    snapshot->columns(bin, 0, whole, fromSnapshot.data());
+    finished->columns(bin, 0, whole, fromFinished.data());
+    for (size_t i = 0; i < whole; i++) {
+        XCTAssertEqual(fromSnapshot[i].hi, fromFinished[i].hi, @"bin %zu", i);
+        XCTAssertEqualWithAccuracy(fromSnapshot[i].sumSquares, fromFinished[i].sumSquares,
+                                   1e-6 * fromFinished[i].sumSquares, @"bin %zu", i);
+        XCTAssertEqual(fromSnapshot[i].loudest, fromFinished[i].loudest, @"bin %zu", i);
+        if (fromSnapshot[i].loudest != fromFinished[i].loudest) break;
+    }
+}
+
+// A builder derives its pyramid and loudest windows as bins arrive. Its
+// summary must equal one that derives them in one pass over the same bins.
+- (void)testABuildersSummaryEqualsOneBuiltWhole {
+    for (size_t frames : {(size_t)5, (size_t)9000, (size_t)70001}) {
+        SummaryBuilder builder(1, 1, true, 4096, 44100);
+        VibeAppendNoise(builder, frames, 11);
+        auto incremental = builder.finish(true);
+        // The same bins, appended to a summary that derives on first read.
+        size_t bins = incremental->binCount();
+        std::vector<Column> base(bins);
+        incremental->columns(incremental->binFrames(), 0, bins, base.data());
+        auto whole = std::make_unique<Summary>(incremental->binFrames(), 1, true, 44100);
+        for (const Column &column : base) {
+            double bands[wavecore::kBandCount] = {column.bandSumSquares[0], column.bandSumSquares[1],
+                                                  column.bandSumSquares[2]};
+            whole->appendBin(&column.lo, &column.hi, column.sumSquares, bands, (uint32_t)column.frames);
+        }
+        whole->markComplete();
+        for (double framesPerColumn : {1.0, 3.0, 16.0, 64.0, 257.0, 4096.0, 30000.0}) {
+            VibeAssertSameColumns(*incremental, *whole, framesPerColumn,
+                                  [NSString stringWithFormat:@"%zu frames, %g a column", frames, framesPerColumn]);
+        }
+    }
 }
 
 #pragma mark - Loudest windows

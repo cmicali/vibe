@@ -162,8 +162,14 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       # The reusable waveform core, a package of its own for other apps
       # (Packages/WaveformCore/AGENTS.md), compiled straight in here.
+      # Its summary and band split are the decode's per-sample work, and its
+      # raster every picture's: optimized in every configuration, as the
+      # decoders are, so a Debug build loads and draws as a shipped one does.
+      # -Os is what Release uses anyway.
       - path: Packages/WaveformCore/Sources
         excludes: ["**/.DS_Store", "**/*.md"]
+        compilerFlags: &waveform-core-flags
+          - "-Os"
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Loading
@@ -507,8 +513,10 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Audio
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
+      # Optimized in every configuration; see the macOS target.
       - path: Packages/WaveformCore/Sources
         excludes: ["**/.DS_Store", "**/*.md"]
+        compilerFlags: *waveform-core-flags
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Loading
@@ -816,6 +824,7 @@ targets:
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Packages/WaveformCore/Sources
         excludes: ["**/.DS_Store", "**/*.md"]
+        compilerFlags: *waveform-core-flags
       - path: Packages/WaveformCore/Tests   # the package's own, which swift test runs too
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm

@@ -7,13 +7,13 @@
 #import "WaveformMorphEngine.h"
 #import "WaveformZoomMath.h"
 
-CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t height) {
+CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t height, CGColorSpaceRef space) {
     CGDataProviderRef provider = CGDataProviderCreateWithCFData((__bridge CFDataRef)pixels);
-    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGImageRef image = CGImageCreate(width, height, 8, 32, width * sizeof(uint32_t), space,
+    CGColorSpaceRef sRGB = space ? NULL : CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGImageRef image = CGImageCreate(width, height, 8, 32, width * sizeof(uint32_t), space ?: sRGB,
                                      (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host,
                                      provider, NULL, false, kCGRenderingIntentDefault);
-    CGColorSpaceRelease(space);
+    CGColorSpaceRelease(sRGB);
     CGDataProviderRelease(provider);
     return image;
 }
@@ -26,6 +26,8 @@ static const NSUInteger kMaxBlockBars = 1024;
     CGFloat _hoverHighlightX;
     // The detail's inserts the target was last filled after.
     uint64_t _detailInserts;
+    // fillLevels:'s columns, kept across fills so a resize allocates none.
+    std::vector<wavecore::Column> _fillColumns;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
@@ -74,6 +76,7 @@ static const NSUInteger kMaxBlockBars = 1024;
         [_morph invalidateTarget];
     }
     NSUInteger stride = _morph.samplesPerBar;
+    _morph.targetIsPartial = waveform && !waveform->isComplete();
     [_morph updateTargetForSize:size identity:waveform relaid:!window.sameColumns(previous)
                           count:window.columnCount() * stride
                            fill:^(std::vector<float> &target) {
@@ -160,9 +163,9 @@ static const NSUInteger kMaxBlockBars = 1024;
 
 - (void)fillLevels:(float *)out stride:(NSUInteger)stride framesPerColumn:(double)frames
              first:(int64_t)first count:(NSUInteger)count waveform:(AudioWaveform *)waveform {
-    std::vector<wavecore::Column> columns(count);
-    waveform->columns(frames, first, count, columns.data());
-    [self fillLevels:out stride:stride columns:columns.data() count:count waveform:waveform];
+    _fillColumns.resize(count);
+    waveform->columns(frames, first, count, _fillColumns.data(), wavecore::kAllChannels, AudioWaveform::Fill::kUnions);
+    [self fillLevels:out stride:stride columns:_fillColumns.data() count:count waveform:waveform];
 }
 
 - (void)fillLevels:(float *)out stride:(NSUInteger)stride columns:(const wavecore::Column *)columns

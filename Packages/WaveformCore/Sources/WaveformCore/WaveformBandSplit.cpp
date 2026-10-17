@@ -54,7 +54,23 @@ void BandSplit::addSumSquares(const float *mono, size_t frames, double *sums) {
     // Locals, so the stores through sums cannot alias the state.
     simd_double4 x1 = this->x1, x2 = this->x2, y1 = this->y1, y2 = this->y2;
     simd_double4 squares = 0;
-    for (size_t i = 0; i < frames; i++) {
+    size_t i = 0;
+    // Two samples a pass, so the history is renamed rather than moved: the
+    // same arithmetic in the same order, a fifth fewer instructions.
+    for (; i + 2 <= frames; i += 2) {
+        double xa = mono[i], xb = mono[i + 1];
+        simd_double4 inA = {xa, xa, y2[1], xa};
+        simd_double4 ya = a1 * y1 + (b0 * inA + b1 * x1 + b2 * x2 + a2 * y2);
+        squares += ya * ya;
+        simd_double4 inB = {xb, xb, y1[1], xb};
+        simd_double4 yb = a1 * ya + (b0 * inB + b1 * inA + b2 * x1 + a2 * y1);
+        squares += yb * yb;
+        x2 = inA;
+        x1 = inB;
+        y2 = ya;
+        y1 = yb;
+    }
+    for (; i < frames; i++) {
         double x = mono[i];
         simd_double4 in = {x, x, y2[1], x};
         simd_double4 y = a1 * y1 + (b0 * in + b1 * x1 + b2 * x2 + a2 * y2);
@@ -65,10 +81,14 @@ void BandSplit::addSumSquares(const float *mono, size_t frames, double *sums) {
         y1 = y;
     }
     // A corrupt file's NaN or Inf stays in a section's state forever: reset
-    // it, so the band loses this slice rather than the rest of the file.
-    for (int lane = 0; lane < 4; lane++) {
-        if (!std::isfinite(x1[lane] + x2[lane] + y1[lane] + y2[lane])) {
-            x1[lane] = x2[lane] = y1[lane] = y2[lane] = 0;
+    // it, so the band loses this slice rather than the rest of the file. One
+    // test first, since x - x is 0 only for a finite x: a call is a bin.
+    simd_double4 state = x1 + x2 + y1 + y2;
+    if (!simd_all(state - state == 0)) {
+        for (int lane = 0; lane < 4; lane++) {
+            if (!std::isfinite(state[lane])) {
+                x1[lane] = x2[lane] = y1[lane] = y2[lane] = 0;
+            }
         }
     }
     this->x1 = x1;
@@ -76,8 +96,9 @@ void BandSplit::addSumSquares(const float *mono, size_t frames, double *sums) {
     this->y1 = y1;
     this->y2 = y2;
     const int bandLanes[kBandCount] = {0, 2, 3};
+    bool finite = simd_all(squares - squares == 0);
     for (size_t b = 0; b < kBandCount; b++) {
-        if (std::isfinite(squares[bandLanes[b]])) sums[b] += squares[bandLanes[b]];
+        if (finite || std::isfinite(squares[bandLanes[b]])) sums[b] += squares[bandLanes[b]];
     }
 }
 

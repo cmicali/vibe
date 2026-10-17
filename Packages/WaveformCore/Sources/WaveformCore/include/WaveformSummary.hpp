@@ -29,6 +29,15 @@ constexpr uint32_t kMaxChannels = 2;
 constexpr uint32_t kBaseBinFrames = 256;
 // Short files take finer bins, down to one frame, until they hold this many.
 constexpr int64_t kMinimumBins = 8192;
+// Long files take coarser bins, so they hold no more than this many: about
+// 25 minutes at 44.1 kHz in 256-frame bins. A summary then costs at most
+// about 3.5 MB, 9.5 MB with bands, however long the file. A long file needs
+// no zoom near its samples. A 66-minute mix keeps 23 ms bins.
+constexpr int64_t kMaximumBins = int64_t(1) << 18;
+// A progressive snapshot holds at most this many bins: the finest pyramid
+// level that fits. So a snapshot costs the same for an hour as for a minute,
+// and never holds fewer than kMinimumBins.
+constexpr size_t kSnapshotBins = 4 * kMinimumBins;
 // Read extremes through the coarsest level that still puts this many bins in
 // a column, so a column's edges move by at most an eighth of it.
 constexpr double kBinsPerColumn = 8;
@@ -37,7 +46,8 @@ constexpr double kBinsPerColumn = 8;
 constexpr double kTransientSeconds = 0.02;
 
 // 256 frames, or a finer power of two for a file too short to fill
-// kMinimumBins at 256.
+// kMinimumBins at 256, or a coarser one for a file too long to fit
+// kMaximumBins.
 uint32_t BinFramesForLength(int64_t frames);
 
 // Asks for the union of every stored channel.
@@ -120,26 +130,27 @@ public:
     bool isComplete() const { return complete_; }
     double decodedFraction() const;
 
+    // What a read fills: every field, or the unions alone (extremes and
+    // loudest windows), which is all a picture draws and skips the sums.
+    enum class Fill { kEverything, kUnions };
     // Frames [first, last), clipped to the frames held. Extremes are exact
     // unions, a straddling base bin taken whole so a peak is never lost.
     // Sums are exact, a straddling base bin counted by its part.
-    Column column(double first, double last, int channel = kAllChannels) const;
+    Column column(double first, double last, int channel = kAllChannels, Fill fill = Fill::kEverything) const;
     // Column k of the grid covers [k F, (k + 1) F). count columns from
     // firstIndex into out. The grid counts from frame 0, so a scroll or a
     // window never moves a column's frames. Columns finer than a bin read
     // the mix's own frames where the detail holds every one they cross.
     void columns(double framesPerColumn, int64_t firstIndex, size_t count, Column *out,
-                 int channel = kAllChannels) const;
+                 int channel = kAllChannels, Fill fill = Fill::kEverything) const;
     // Each grid column's band mean squares under a tent centred on it,
     // halfWidth frames from centre to foot, into bands (low to high per
     // column). Zeros without bands.
     void tentBandMeanSquares(double framesPerColumn, int64_t firstIndex, size_t count, double halfWidth,
                              float *bands) const;
     // The stream's frames for deep zoom, filled by whoever holds the summary.
-    // A copy starts without them.
+    // A snapshot starts without them.
     Detail &detail() const { return detail_; }
-
-    std::unique_ptr<Summary> copy() const;
 
     // The archive form: a header and LZFSE-compressed float16 planes. decode
     // answers null for anything malformed or non-finite.
@@ -171,9 +182,12 @@ private:
     const Level &level(size_t index) const;
     size_t levelCount() const;
     void buildPyramid() const;
-    void buildLoudest() const;
-    void accumulate(size_t levelIndex, double first, double last, int channel, Column &into) const;
-    void unionBin(const Level &level, size_t bin, int channel, Column &into) const;
+    void reserve(Level &level, size_t bins) const;
+    void derive(bool final) const;
+    void reduceGroups(Level &up, const Level &below, size_t groups, size_t count) const;
+    std::unique_ptr<Summary> snapshot() const;
+    void uniteBins(size_t b0, size_t b1, int channel, Column &into) const;
+    void accumulate(size_t levelIndex, double first, double last, Column &into) const;
     double binEnd(const Level &level, size_t bin) const;
     double binWidth(const Level &level, size_t bin) const { return binEnd(level, bin) - double(bin * level.binFrames); }
 
@@ -186,12 +200,19 @@ private:
     bool complete_ = false;
     Level base_;
 
-    // The pyramid and the loudest windows. Built where a summary is made (a
-    // copy, a decode, a builder's finish), or else on first read, and kept: a
-    // shared summary never changes.
+    // The pyramid and the loudest windows, derived as bins arrive by a
+    // builder, whole by a decode, or else on first read, and kept: a shared
+    // summary never changes. derived_ bins have their loudest windows.
     mutable std::mutex lazyLock_;
     mutable std::atomic<bool> pyramidBuilt_{false};
     mutable std::vector<Level> pyramid_;
+    mutable size_t derived_ = 0;
+    // The loudest window's sums, slid a bin at a time over [start, end).
+    mutable struct {
+        size_t start = 0, end = 0;
+        double frames = 0, squares = 0;
+        std::array<double, kBandCount> bandSquares = {};
+    } window_;
     // Running sums per level, for the tent: per bin edge the frames' and
     // bands' first and second running sums. An entry is never replaced, so a
     // reader holding one is safe while another builds a second.
@@ -213,8 +234,9 @@ public:
 
     void append(const float *interleaved, const float *mono, size_t frames);
     void setExpectedFrames(int64_t frames) { summary_->setTotalFrames(frames); }
-    // The whole bins so far, for a streaming load's progressive delivery.
-    std::unique_ptr<Summary> snapshot() const { return summary_->copy(); }
+    // The bins so far at the finest level of at most kSnapshotBins, for a
+    // streaming load's progressive delivery.
+    std::unique_ptr<Summary> snapshot() const { return summary_->snapshot(); }
     // Flushes the partial bin. A complete summary spans exactly what was read.
     std::unique_ptr<Summary> finish(bool complete);
 

@@ -18,7 +18,7 @@ Two families and one flat style, split by how progress and hover quantize:
 
 ## Pictures
 
-**Every style but Sonic Cirrus and Progress draws a picture into a layer's contents.** The Detailed family draws coverage, white and premultiplied, into its mask, which cuts both gradients and the hover slice to the waveform. 3-Band and Spectrum paint their colors into one layer under the sides' mask. A rebuild draws the picture once, from the displayed samples, and installs it with actions off. The layer tree never holds a path, so a moving or scrolling waveform costs the render server no scan conversion. `VibeNewLayerImage` (`WaveformRenderer.h`) is the one image factory.
+**Every style but Sonic Cirrus and Progress draws a picture into a layer's contents.** The Detailed family draws coverage, white and premultiplied, into its mask, which cuts both gradients and the hover slice to the waveform. 3-Band and Spectrum paint their colors into one layer under the sides' mask. A rebuild draws the picture once, from the displayed samples, and installs it with actions off. The layer tree never holds a path, so a moving or scrolling waveform costs the render server no scan conversion. `VibeNewLayerImage` (`WaveformRenderer.h`) is the one image factory. **A picture is painted in its window's color space** (`pictureColorSpace`, which the mac view sets). Core Animation color-matched an sRGB picture at every commit, which took half the main thread while a long file loaded on an external display. 3-Band and Spectrum convert their fills into it once.
 
 - **TRAP: a picture is 32-bit premultiplied ARGB, never an alpha-only image.** An alpha-only mask draws nothing under `renderInContext:`, which the registry's bake uses.
 - **TRAP: in a `geometryFlipped` tree a layer shows its contents upside down.** The iOS host is one. A picture for a layer whose `contentsAreFlipped` is written bottom-up, which `VibeNewLayerImage` does from the flag.
@@ -65,9 +65,11 @@ Two families and one flat style, split by how progress and hover quantize:
 
 - **`identity` is compare-only and never dereferenced.** It cannot false-match, because the view retains the old waveform while the new one is allocated.
 - **A geometry change rebuilds at once. A content change eases.** A settled waveform's count or layout change installs the new samples in one rebuild. A resize mid-morph carries the displayed samples over and keeps easing, so loading, gain and the convert sweep survive a resize. A step style carries them by the track's frames (Zoom steps, above). The others carry them by nearest bar.
+- **A load's later snapshots install at once.** Each family sets `targetIsPartial` from `isComplete` before an update. A partial target that follows a partial one skips the ease, so a load repaints once per snapshot, 10 times a second. Easing each one repainted the picture about 58 times a second for the whole load, and the window server composited every frame. The first snapshot still grows out of the midline. The completing delivery still eases, since Normalize raises the bars then.
 - **A nil to non-nil identity flip rebuilds even when the samples are unchanged.** A silent track's all-zero waveform equals the collapsed target, but it draws hairlines. `barMinHeight` is 1 with a waveform and 0 without, and both families read it from the engine.
 - **The Detailed family pixel-rounds only when settled.** Rounding mid-morph quantizes the motion into visible steps.
 - **`settleImmediately` exists because every morph frame is a full repaint.** Settling an unseen renderer avoids that work. The base forwards it as `settleMorphImmediately`.
+- **An empty view keeps no buffers sized for the waveform it last drew.** A cleared picture eases flat, and once it settles the engine drops its samples and keeps an empty target until a waveform arrives. The families then drop their own fill and span buffers, and the picture's contents go. Kept, they held about 7 MB at rest with no track loaded.
 
 ## The convert sweep
 

@@ -143,13 +143,42 @@ static CGRect VibeBenchComponentsUIHost(VibeBenchComponentsUIRenderer *state, CG
     return state->parent.bounds;
 }
 
-// Sixty frames of a live resize, 700 to 936pt.
+// The render server's share of a frame: every shape layer's path scan
+// converted at 2x. A version that draws its waveform as paths hands this
+// work out of process, where a benchmark would not see it. One that draws
+// pictures does it in process and has no paths left here, so the two
+// compare.
+static void VibeBenchComponentsUIFillShapes(CALayer *layer, CGContextRef ctx) {
+    if ([layer isKindOfClass:CAShapeLayer.class] && ((CAShapeLayer *)layer).path) {
+        CGContextAddPath(ctx, ((CAShapeLayer *)layer).path);
+        CGContextFillPath(ctx);
+    }
+    if (layer.mask) {
+        VibeBenchComponentsUIFillShapes(layer.mask, ctx);
+    }
+    for (CALayer *sublayer in layer.sublayers) {
+        VibeBenchComponentsUIFillShapes(sublayer, ctx);
+    }
+}
+
+static CGContextRef VibeBenchComponentsUIShapeContext(void) {
+    CGContextRef ctx = CGBitmapContextCreate(NULL, 2 * 1000, 120, 8, 0, NULL, (CGBitmapInfo)kCGImageAlphaOnly);
+    CGContextScaleCTM(ctx, 2, 2);
+    return ctx;
+}
+
+// Sixty frames of a live resize, 700 to 936pt, each with the render server's
+// share.
 static void VibeBenchComponentsUILiveResize(VibeBenchComponentsUIRenderer *state) {
+    CGContextRef ctx = VibeBenchComponentsUIShapeContext();
     for (int i = 0; i < 60; i++) {
         CGRect bounds = CGRectMake(0, 0, 700 + 4 * i, 60);
         state->parent.bounds = bounds;
         [state->renderer updateWaveform:bounds progress:0.4 waveform:state->waveform.get()];
+        CGContextClearRect(ctx, CGRectMake(0, 0, 1000, 60));
+        VibeBenchComponentsUIFillShapes(state->parent, ctx);
     }
+    CGContextRelease(ctx);
     [state->renderer settleMorphImmediately];
     [CATransaction flush];
 }
@@ -304,11 +333,15 @@ static void VibeBenchComponentsRegisterRenderers(void) {
         return 30;
     }, [loads, next]() {
         CGRect bounds = loads->parent.bounds;
+        CGContextRef ctx = VibeBenchComponentsUIShapeContext();
         for (int i = 0; i < 30; i++) {
             AudioWaveform *waveform = (i % 2 ? loads->waveform : *next).get();
             [loads->renderer updateWaveform:bounds progress:0.4 waveform:waveform];
             [loads->renderer settleMorphImmediately];
+            CGContextClearRect(ctx, CGRectMake(0, 0, 1000, 60));
+            VibeBenchComponentsUIFillShapes(loads->parent, ctx);
         }
+        CGContextRelease(ctx);
         [CATransaction flush];
     });
 

@@ -8,6 +8,7 @@
 
 #include <Accelerate/Accelerate.h>
 #include <compression.h>
+#include <simd/simd.h>
 
 #include <algorithm>
 #include <cstring>
@@ -22,6 +23,9 @@ uint32_t BinFramesForLength(int64_t frames) {
     uint32_t bin = kBaseBinFrames;
     while (bin > 1 && frames > 0 && frames / bin < kMinimumBins) {
         bin >>= 1;
+    }
+    while (frames / bin > kMaximumBins) {
+        bin <<= 1;
     }
     return bin;
 }
@@ -75,31 +79,169 @@ const Summary::Level &Summary::level(size_t index) const {
 
 // Each bin's loudest window: the RMS of the kTransientSeconds centred on it,
 // clipped to the frames held, so a streaming load's front is not dragged
-// toward the silence past it. The window's sums slide a bin at a time, so a
-// long track's snapshot allocates nothing beyond the planes. lazyLock_ held.
-void Summary::buildLoudest() const {
+// toward the silence past it. A window is whole once the bins half a window
+// past its bin are in, and final takes each window as it stands. The sums
+// slide a bin at a time, in the order a pass over the finished bins would
+// add them.
+//
+// Each level then takes whole groups of kFanout bins below it, and final the
+// last group however short. So a level holds only bins that will not change,
+// each reduced as a pass over the finished bins would reduce it, and a
+// builder's summary is identical to one built whole. That pass builds a
+// level above each level of more than kFanout bins. A builder's own summary,
+// or lazyLock_ held.
+void Summary::derive(bool final) const {
     size_t n = base_.count;
     size_t window = size_t(std::max(1.0, std::round(kTransientSeconds * sampleRate_ / double(binFrames_))));
-    base_.loudest.resize(n);
-    base_.bandLoudest.resize(bands_ ? n * kBandCount : 0);
-    double frames = 0, squares = 0;
-    std::array<double, kBandCount> bandSquares = {};
-    auto slide = [&](size_t bin, double sign) {
-        frames += sign * binWidth(base_, bin);
-        squares += sign * base_.sumSquares[bin];
+    size_t half = window / 2;
+    // Bin i's window is [i - half, i - half + window), clamped at 0, and whole
+    // once it ends within the bins held. A snapshot's bins arrive with their
+    // loudest windows.
+    size_t first = std::max(derived_, base_.loudest.size());
+    size_t whole = final ? n : n >= window ? n - window + half + 1 : 0;
+    if (whole > first) {
+        base_.loudest.resize(whole);
+        base_.bandLoudest.resize(bands_ ? whole * kBandCount : 0);
+    }
+    // In locals, so the compiler need not reload them for every bin.
+    auto sums = window_;
+    const float *squares = base_.sumSquares.data(), *bandSquares = base_.bandSumSquares.data();
+    _Float16 *loudest = base_.loudest.data(), *bandLoudest = base_.bandLoudest.data();
+    // Every bin but the last holds binFrames.
+    double binFrames = double(binFrames_), lastWidth = n > 0 ? binWidth(base_, n - 1) : 0;
+    auto rms = [&](double sum) {
+        return _Float16(sums.frames > 0 ? std::sqrt(std::max(0.0, sum) / sums.frames) : 0.0);
+    };
+    for (size_t i = first; i < whole; i++) {
+        size_t from = i >= half ? i - half : 0, to = std::min(n, from + window);
+        for (; sums.end < to; sums.end++) {
+            sums.frames += sums.end + 1 < n ? binFrames : lastWidth;
+            sums.squares += squares[sums.end];
+            for (size_t b = 0; bands_ && b < kBandCount; b++) {
+                sums.bandSquares[b] += bandSquares[sums.end * kBandCount + b];
+            }
+        }
+        for (; sums.start < from; sums.start++) {
+            sums.frames -= sums.start + 1 < n ? binFrames : lastWidth;
+            sums.squares -= squares[sums.start];
+            for (size_t b = 0; bands_ && b < kBandCount; b++) {
+                sums.bandSquares[b] -= bandSquares[sums.start * kBandCount + b];
+            }
+        }
+        loudest[i] = rms(sums.squares);
         for (size_t b = 0; bands_ && b < kBandCount; b++) {
-            bandSquares[b] += sign * base_.bandSumSquares[bin * kBandCount + b];
+            bandLoudest[i * kBandCount + b] = rms(sums.bandSquares[b]);
+        }
+    }
+    derived_ = std::max(first, whole);
+    window_ = sums;
+    for (size_t index = 1;; index++) {
+        size_t below = index == 1 ? derived_ : pyramid_[index - 2].count;
+        if (final ? below <= kFanout : below < kFanout) {
+            if (final) {
+                pyramid_.resize(index - 1);
+            }
+            break;
+        }
+        if (pyramid_.size() < index) {
+            pyramid_.emplace_back();
+            pyramid_.back().binFrames = uint64_t(binFrames_) << (2 * index);
+            reserve(pyramid_.back(), (base_.sumSquares.capacity() >> (2 * index)) + 1);
+        }
+        const Level &from = index == 1 ? base_ : pyramid_[index - 2];
+        Level &up = pyramid_[index - 1];
+        reduceGroups(up, from, final ? (below + kFanout - 1) / kFanout : below / kFanout, below);
+    }
+}
+
+// below's bins in groups of kFanout, each a new bin of up, until up holds
+// `groups`. The last group holds what remains of below's `count`. Each is
+// reduced in order, as a pass over the finished bins would: the first bin,
+// then each next one into it.
+void Summary::reduceGroups(Level &up, const Level &below, size_t groups, size_t count) const {
+    size_t at = up.count;
+    if (groups <= at) {
+        return;
+    }
+    static_assert(kFanout == 4, "a group is four bins");
+    // A whole group unrolled, a short last one looped.
+    auto children = [&](size_t g) { return std::min(kFanout, count - g * kFanout); };
+    auto extremes = [&](const std::vector<_Float16> &from, std::vector<_Float16> &to, bool lows) {
+        to.resize(groups);
+        for (size_t g = at; g < groups; g++) {
+            const _Float16 *x = from.data() + g * kFanout;
+            _Float16 value = x[0];
+            if (children(g) == kFanout) {
+                value = lows ? std::min(value, x[1]) : std::max(value, x[1]);
+                value = lows ? std::min(value, x[2]) : std::max(value, x[2]);
+                value = lows ? std::min(value, x[3]) : std::max(value, x[3]);
+            } else {
+                for (size_t j = 1; j < children(g); j++) value = lows ? std::min(value, x[j]) : std::max(value, x[j]);
+            }
+            to[g] = value;
         }
     };
-    auto rms = [&](double sum) { return _Float16(frames > 0 ? std::sqrt(std::max(0.0, sum) / frames) : 0.0); };
-    for (size_t i = 0, start = 0, end = 0; i < n; i++) {
-        size_t from = i >= window / 2 ? i - window / 2 : 0, to = std::min(n, from + window);
-        for (; end < to; end++) slide(end, 1);
-        for (; start < from; start++) slide(start, -1);
-        base_.loudest[i] = rms(squares);
-        for (size_t b = 0; bands_ && b < kBandCount; b++) {
-            base_.bandLoudest[i * kBandCount + b] = rms(bandSquares[b]);
+    auto sums = [&](const std::vector<float> &from, std::vector<float> &to, size_t stride, size_t lane) {
+        for (size_t g = at; g < groups; g++) {
+            const float *x = from.data() + g * kFanout * stride + lane;
+            float sum = 0;
+            if (children(g) == kFanout) {
+                sum += x[0];
+                sum += x[stride];
+                sum += x[2 * stride];
+                sum += x[3 * stride];
+            } else {
+                for (size_t j = 0; j < children(g); j++) sum += x[j * stride];
+            }
+            to[g * stride + lane] = sum;
         }
+    };
+    auto loudest = [&](const std::vector<_Float16> &from, std::vector<_Float16> &to, size_t stride, size_t lane) {
+        for (size_t g = at; g < groups; g++) {
+            const _Float16 *x = from.data() + g * kFanout * stride + lane;
+            _Float16 value = 0;
+            if (children(g) == kFanout) {
+                value = std::max(value, x[0]);
+                value = std::max(value, x[stride]);
+                value = std::max(value, x[2 * stride]);
+                value = std::max(value, x[3 * stride]);
+            } else {
+                for (size_t j = 0; j < children(g); j++) value = std::max(value, x[j * stride]);
+            }
+            to[g * stride + lane] = value;
+        }
+    };
+    for (uint32_t c = 0; c < channels_; c++) {
+        extremes(below.lo[c], up.lo[c], true);
+        extremes(below.hi[c], up.hi[c], false);
+    }
+    up.sumSquares.resize(groups);
+    up.loudest.resize(groups);
+    sums(below.sumSquares, up.sumSquares, 1, 0);
+    loudest(below.loudest, up.loudest, 1, 0);
+    if (bands_) {
+        up.bandSumSquares.resize(groups * kBandCount);
+        up.bandLoudest.resize(groups * kBandCount);
+        for (size_t b = 0; b < kBandCount; b++) {
+            sums(below.bandSumSquares, up.bandSumSquares, kBandCount, b);
+            loudest(below.bandLoudest, up.bandLoudest, kBandCount, b);
+        }
+    }
+    up.count = groups;
+}
+
+// Room for bins in every plane of level, so a decode of known length copies
+// none of them as they grow.
+void Summary::reserve(Level &level, size_t bins) const {
+    for (uint32_t c = 0; c < channels_; c++) {
+        level.lo[c].reserve(bins);
+        level.hi[c].reserve(bins);
+    }
+    level.sumSquares.reserve(bins);
+    level.loudest.reserve(bins);
+    if (bands_) {
+        level.bandSumSquares.reserve(bins * kBandCount);
+        level.bandLoudest.reserve(bins * kBandCount);
     }
 }
 
@@ -108,77 +250,62 @@ void Summary::buildPyramid() const {
     if (pyramidBuilt_.load(std::memory_order_relaxed)) {
         return;
     }
-    buildLoudest();
-    std::vector<Level> levels;
-    while ((levels.empty() ? base_.count : levels.back().count) > kFanout) {
-        const Level &below = levels.empty() ? base_ : levels.back();
-        Level next;
-        next.binFrames = below.binFrames * kFanout;
-        next.count = (below.count + kFanout - 1) / kFanout;
-        for (uint32_t c = 0; c < channels_; c++) {
-            next.lo[c].resize(next.count);
-            next.hi[c].resize(next.count);
-        }
-        next.sumSquares.resize(next.count);
-        next.loudest.resize(next.count);
-        if (bands_) {
-            next.bandSumSquares.resize(next.count * kBandCount);
-            next.bandLoudest.resize(next.count * kBandCount);
-        }
-        for (size_t i = 0; i < next.count; i++) {
-            size_t j0 = i * kFanout, j1 = std::min(below.count, j0 + kFanout);
-            for (uint32_t c = 0; c < channels_; c++) {
-                _Float16 lo = below.lo[c][j0], hi = below.hi[c][j0];
-                for (size_t j = j0 + 1; j < j1; j++) {
-                    lo = std::min(lo, below.lo[c][j]);
-                    hi = std::max(hi, below.hi[c][j]);
-                }
-                next.lo[c][i] = lo;
-                next.hi[c][i] = hi;
-            }
-            float sum = 0;
-            _Float16 loudest = 0;
-            for (size_t j = j0; j < j1; j++) {
-                sum += below.sumSquares[j];
-                loudest = std::max(loudest, below.loudest[j]);
-            }
-            next.sumSquares[i] = sum;
-            next.loudest[i] = loudest;
-            for (size_t b = 0; bands_ && b < kBandCount; b++) {
-                float band = 0;
-                _Float16 bandLoudest = 0;
-                for (size_t j = j0; j < j1; j++) {
-                    band += below.bandSumSquares[j * kBandCount + b];
-                    bandLoudest = std::max(bandLoudest, below.bandLoudest[j * kBandCount + b]);
-                }
-                next.bandSumSquares[i * kBandCount + b] = band;
-                next.bandLoudest[i * kBandCount + b] = bandLoudest;
-            }
-        }
-        // The level below may move as this one is appended: build into a
-        // local first.
-        levels.push_back(std::move(next));
-    }
-    pyramid_ = std::move(levels);
+    derive(true);
     pyramidBuilt_.store(true, std::memory_order_release);
 }
 
-// One bin's unions into into: its channels' extremes, or one channel's, and
-// its loudest windows. into starts at +inf and -inf.
-inline void Summary::unionBin(const Level &level, size_t bin, int channel, Column &into) const {
+// The unions over base bins [b0, b1), through the pyramid: at each level the
+// bins left at either end until both ends align with the level above.
+// Unions do not depend on order, so any decomposition reads the same.
+void Summary::uniteBins(size_t b0, size_t b1, int channel, Column &into) const {
     uint32_t c0 = channel >= 0 ? uint32_t(channel) : 0;
-    uint32_t c1 = channel >= 0 ? c0 + 1 : channels_;
-    for (uint32_t c = c0; c < c1 && c < channels_; c++) {
-        into.lo = std::fmin(into.lo, float(level.lo[c][bin]));
-        into.hi = std::fmax(into.hi, float(level.hi[c][bin]));
+    uint32_t c1 = std::min(channel >= 0 ? c0 + 1 : channels_, channels_);
+    float lo = into.lo, hi = into.hi, loudest = into.loudest;
+    std::array<float, kBandCount> bandLoudest = into.bandLoudest;
+    static_assert(kFanout == 4, "a parent holds four bins");
+    // The pyramid is built: the caller asked levelCount.
+    size_t levels = 1 + pyramid_.size();
+    bool bands = !base_.bandLoudest.empty();
+    for (size_t index = 0; b0 < b1; index++) {
+        const Level &L = index == 0 ? base_ : pyramid_[index - 1];
+        // The planes' data, loaded once a level rather than once a bin.
+        const _Float16 *lo0 = L.lo[c0].data(), *hi0 = L.hi[c0].data();
+        const _Float16 *lo1 = c1 > c0 + 1 ? L.lo[c0 + 1].data() : nullptr;
+        const _Float16 *hi1 = c1 > c0 + 1 ? L.hi[c0 + 1].data() : nullptr;
+        const _Float16 *loudests = L.loudest.data(), *bandLoudests = L.bandLoudest.data();
+        auto take = [&](size_t i) {
+            lo = std::fmin(lo, float(lo0[i]));
+            hi = std::fmax(hi, float(hi0[i]));
+            if (lo1) {
+                lo = std::fmin(lo, float(lo1[i]));
+                hi = std::fmax(hi, float(hi1[i]));
+            }
+            loudest = std::fmax(loudest, float(loudests[i]));
+            if (bands) {
+                for (size_t b = 0; b < kBandCount; b++) {
+                    bandLoudest[b] = std::fmax(bandLoudest[b], float(bandLoudests[i * kBandCount + b]));
+                }
+            }
+        };
+        if (index + 1 == levels) {
+            for (size_t i = b0; i < b1; i++) take(i);
+            break;
+        }
+        while (b0 < b1 && (b0 & 3) != 0) take(b0++);
+        while (b0 < b1 && (b1 & 3) != 0) take(--b1);
+        b0 >>= 2;
+        b1 >>= 2;
     }
-    into.loudest = std::fmax(into.loudest, float(level.loudest[bin]));
-    for (size_t b = 0; b < kBandCount && !level.bandLoudest.empty(); b++) {
-        into.bandLoudest[b] = std::fmax(into.bandLoudest[b], float(level.bandLoudest[bin * kBandCount + b]));
-    }
+    into.lo = lo;
+    into.hi = hi;
+    into.loudest = loudest;
+    into.bandLoudest = bandLoudest;
 }
 
-void Summary::accumulate(size_t levelIndex, double first, double last, int channel, Column &into) const {
+// The sums over [first, last) through levelIndex and the levels below: whole
+// bins where they fit, a straddling base bin by its part, added in frame
+// order.
+void Summary::accumulate(size_t levelIndex, double first, double last, Column &into) const {
     if (last <= first) {
         return;
     }
@@ -193,7 +320,6 @@ void Summary::accumulate(size_t levelIndex, double first, double last, int chann
             if (overlap <= 0 || end <= start) {
                 continue;
             }
-            unionBin(L, i, channel, into);
             double share = overlap / (end - start);
             into.sumSquares += share * L.sumSquares[i];
             for (size_t b = 0; bands_ && b < kBandCount; b++) {
@@ -206,36 +332,41 @@ void Summary::accumulate(size_t levelIndex, double first, double last, int chann
     size_t i0 = size_t(std::ceil(first / bf));
     size_t i1 = std::min(L.count, size_t(std::floor(last / bf)));
     if (i1 <= i0) {
-        accumulate(levelIndex - 1, first, last, channel, into);
+        accumulate(levelIndex - 1, first, last, into);
         return;
     }
-    accumulate(levelIndex - 1, first, double(i0) * bf, channel, into);
+    accumulate(levelIndex - 1, first, double(i0) * bf, into);
     for (size_t i = i0; i < i1; i++) {
-        unionBin(L, i, channel, into);
         into.sumSquares += L.sumSquares[i];
         for (size_t b = 0; bands_ && b < kBandCount; b++) {
             into.bandSumSquares[b] += L.bandSumSquares[i * kBandCount + b];
         }
         into.frames += binWidth(L, i);
     }
-    accumulate(levelIndex - 1, double(i1) * bf, last, channel, into);
+    accumulate(levelIndex - 1, double(i1) * bf, last, into);
 }
 
-Column Summary::column(double first, double last, int channel) const {
+Column Summary::column(double first, double last, int channel, Fill fill) const {
     Column result;
     first = std::max(0.0, first);
     last = std::min(double(frames_), last);
     if (!(last > first) || base_.count == 0) {
         return result;
     }
-    size_t levels = levelCount();
-    size_t start = 0;
-    while (start + 1 < levels && double(level(start + 1).binFrames) * kBinsPerColumn <= last - first) {
-        start++;
-    }
+    double bf = double(binFrames_);
     result.lo = INFINITY;
     result.hi = -INFINITY;
-    accumulate(start, first, last, channel, result);
+    levelCount();
+    uniteBins(size_t(std::floor(first / bf)), std::min(base_.count, size_t(std::ceil(last / bf))), channel, result);
+    if (fill == Fill::kEverything) {
+        // Sums through the coarsest level that still puts kBinsPerColumn bins
+        // in the column.
+        size_t levels = levelCount(), start = 0;
+        while (start + 1 < levels && double(level(start + 1).binFrames) * kBinsPerColumn <= last - first) {
+            start++;
+        }
+        accumulate(start, first, last, result);
+    }
     if (!(result.lo <= result.hi)) {
         result.lo = result.hi = 0;
     }
@@ -363,14 +494,15 @@ bool Detail::columns(double framesPerColumn, int64_t firstIndex, size_t count, i
     return true;
 }
 
-void Summary::columns(double framesPerColumn, int64_t firstIndex, size_t count, Column *out, int channel) const {
+void Summary::columns(double framesPerColumn, int64_t firstIndex, size_t count, Column *out, int channel,
+                      Fill fill) const {
     if (framesPerColumn < double(binFrames_) && (channel == kAllChannels || channels_ == 1) &&
         detail_.columns(framesPerColumn, firstIndex, count, frames_, out)) {
         return;
     }
     for (size_t i = 0; i < count; i++) {
         double k = double(firstIndex + int64_t(i));
-        out[i] = column(k * framesPerColumn, (k + 1) * framesPerColumn, channel);
+        out[i] = column(k * framesPerColumn, (k + 1) * framesPerColumn, channel, fill);
     }
 }
 
@@ -450,16 +582,44 @@ void Summary::tentBandMeanSquares(double framesPerColumn, int64_t firstIndex, si
     }
 }
 
-std::unique_ptr<Summary> Summary::copy() const {
-    auto copy = std::make_unique<Summary>(binFrames_, channels_, bands_, sampleRate_);
-    copy->base_.lo = base_.lo;
-    copy->base_.hi = base_.hi;
-    copy->base_.sumSquares = base_.sumSquares;
-    copy->base_.bandSumSquares = base_.bandSumSquares;
-    copy->base_.count = base_.count;
-    copy->frames_ = frames_;
+// The finest level of at most kSnapshotBins, as a summary of its own with its
+// levels above built from it. The base is copied whole, and its last loudest
+// windows are taken as they stand, from the builder's own sums. A level
+// above holds only whole groups, so a copy of one trails the last bin
+// appended by less than one of its bins and half a loudest window: a second
+// at most of a stream hours long.
+std::unique_ptr<Summary> Summary::snapshot() const {
+    auto countAt = [&](size_t index) { return index == 0 ? base_.count : pyramid_[index - 1].count; };
+    size_t index = 0;
+    while (index < pyramid_.size() && countAt(index) > kSnapshotBins) {
+        index++;
+    }
+    const Level &from = index == 0 ? base_ : pyramid_[index - 1];
+    size_t bins = countAt(index);
+    auto copy = std::make_unique<Summary>(uint32_t(from.binFrames), channels_, bands_, sampleRate_);
+    Level &to = copy->base_;
+    auto head = [](const auto &plane, size_t values) {
+        return std::vector<typename std::decay_t<decltype(plane)>::value_type>(
+                plane.begin(), plane.begin() + ptrdiff_t(std::min(values, plane.size())));
+    };
+    for (uint32_t c = 0; c < channels_; c++) {
+        to.lo[c] = head(from.lo[c], bins);
+        to.hi[c] = head(from.hi[c], bins);
+    }
+    to.sumSquares = head(from.sumSquares, bins);
+    to.loudest = head(from.loudest, bins);
+    if (bands_) {
+        to.bandSumSquares = head(from.bandSumSquares, bins * kBandCount);
+        to.bandLoudest = head(from.bandLoudest, bins * kBandCount);
+    }
+    to.count = bins;
+    if (index == 0) {
+        copy->frames_ = frames_;
+        copy->window_ = window_;
+    } else {
+        copy->frames_ = std::min<int64_t>(frames_, int64_t((uint64_t(bins) << (2 * index)) * binFrames_));
+    }
     copy->totalFrames_ = totalFrames_;
-    copy->complete_ = complete_;
     copy->buildPyramid();
     return copy;
 }
@@ -664,6 +824,8 @@ SummaryBuilder::SummaryBuilder(uint32_t inputChannels, uint32_t storedChannels, 
                                              inputChannels == 2 && storedChannels == 2 ? 2 : 1, bands, sampleRate)),
           inputChannels_(std::max<uint32_t>(1, inputChannels)) {
     summary_->setTotalFrames(expectedFrames);
+    // At most kMaximumBins, however long a length claims to be.
+    summary_->reserve(summary_->base_, size_t(std::max<int64_t>(expectedFrames, 0) / summary_->binFrames() + 1));
     if (bands) {
         split_ = std::make_unique<BandSplit>(sampleRate);
     }
@@ -671,29 +833,121 @@ SummaryBuilder::SummaryBuilder(uint32_t inputChannels, uint32_t storedChannels, 
 
 SummaryBuilder::~SummaryBuilder() = default;
 
+namespace {
+
+// A slice's extremes and sum of squares in one pass, which costs a 256-frame
+// bin a quarter fewer instructions than three vDSP calls. TRAP: named
+// accumulators, not arrays of them: at -Os the arrays spill, and the pass
+// costs twice the three calls.
+struct Slice {
+    float lo, hi, squares;
+};
+// Four samples into one set of accumulators.
+inline void Take(const float *samples, simd_float4 &lo, simd_float4 &hi, simd_float4 &squares) {
+    simd_float4 x;
+    std::memcpy(&x, samples, sizeof(x));
+    lo = simd_min(lo, x);
+    hi = simd_max(hi, x);
+    squares = simd_muladd(x, x, squares);
+}
+Slice MeasureSlice(const float *samples, size_t count) {
+    simd_float4 lo0 = INFINITY, lo1 = INFINITY, lo2 = INFINITY, lo3 = INFINITY;
+    simd_float4 hi0 = -INFINITY, hi1 = -INFINITY, hi2 = -INFINITY, hi3 = -INFINITY;
+    simd_float4 squares0 = 0, squares1 = 0, squares2 = 0, squares3 = 0;
+    // 32 samples a pass, then 16, which saves a 256-frame bin about 40 of its
+    // 330 instructions. Each set takes its samples in the order 16 a pass
+    // would, so the sums are the same.
+    const float *at = samples, *passes = samples + (count & ~size_t(31)), *end = samples + count;
+    for (; at < passes; at += 32) {
+        Take(at, lo0, hi0, squares0);
+        Take(at + 4, lo1, hi1, squares1);
+        Take(at + 8, lo2, hi2, squares2);
+        Take(at + 12, lo3, hi3, squares3);
+        Take(at + 16, lo0, hi0, squares0);
+        Take(at + 20, lo1, hi1, squares1);
+        Take(at + 24, lo2, hi2, squares2);
+        Take(at + 28, lo3, hi3, squares3);
+    }
+    if (count & 16) {
+        Take(at, lo0, hi0, squares0);
+        Take(at + 4, lo1, hi1, squares1);
+        Take(at + 8, lo2, hi2, squares2);
+        Take(at + 12, lo3, hi3, squares3);
+        at += 16;
+    }
+    Slice slice = {simd_reduce_min(simd_min(simd_min(lo0, lo1), simd_min(lo2, lo3))),
+                   simd_reduce_max(simd_max(simd_max(hi0, hi1), simd_max(hi2, hi3))),
+                   simd_reduce_add((squares0 + squares1) + (squares2 + squares3))};
+    for (; at < end; at++) {
+        slice.lo = std::fmin(slice.lo, *at);
+        slice.hi = std::fmax(slice.hi, *at);
+        slice.squares += *at * *at;
+    }
+    return slice;
+}
+
+}  // namespace
+
 void SummaryBuilder::append(const float *interleaved, const float *mono, size_t frames) {
     uint32_t binFrames = summary_->binFrames(), channels = summary_->channels();
+    // A corrupt file can decode NaN or Inf: NaN geometry in every view,
+    // persisted under the file's key. Extremes skip NaN and drop Inf, and a
+    // slice whose sum is not finite adds nothing.
+    auto mergePeaks = [&](uint32_t c, float lo, float hi) {
+        if (!std::isfinite(lo)) lo = 0;
+        if (!std::isfinite(hi)) hi = 0;
+        lo_[c] = binFill_ ? std::fmin(lo_[c], lo) : lo;
+        hi_[c] = binFill_ ? std::fmax(hi_[c], hi) : hi;
+    };
     size_t offset = 0;
     while (offset < frames) {
-        size_t take = std::min<size_t>(frames - offset, binFrames - binFill_);
-        for (uint32_t c = 0; c < channels; c++) {
-            // One stored channel is the mix; two are the file's own.
-            const float *source = channels == 1 ? mono + offset : interleaved + offset * inputChannels_ + c;
-            vDSP_Stride stride = channels == 1 ? 1 : vDSP_Stride(inputChannels_);
-            float lo, hi;
-            vDSP_minv(source, stride, &lo, take);
-            vDSP_maxv(source, stride, &hi, take);
-            // A corrupt file can decode NaN or Inf, which vDSP propagates:
-            // NaN geometry in every view, persisted under the file's key.
-            if (!std::isfinite(lo)) lo = 0;
-            if (!std::isfinite(hi)) hi = 0;
-            lo_[c] = binFill_ ? std::fmin(lo_[c], lo) : lo;
-            hi_[c] = binFill_ ? std::fmax(hi_[c], hi) : hi;
+        // Whole bins of the mix go straight into the planes, a block's at a
+        // time: a call and three appends a bin cost more than the bin's pass.
+        size_t whole = binFill_ == 0 && channels == 1 ? (frames - offset) / binFrames : 0;
+        if (whole > 0) {
+            Summary::Level &base = summary_->base_;
+            size_t at = base.count;
+            base.lo[0].resize(at + whole);
+            base.hi[0].resize(at + whole);
+            base.sumSquares.resize(at + whole);
+            if (split_) {
+                base.bandSumSquares.resize((at + whole) * kBandCount);
+            }
+            for (size_t bin = at; bin < at + whole; bin++, offset += binFrames) {
+                Slice slice = MeasureSlice(mono + offset, binFrames);
+                base.lo[0][bin] = (_Float16)(std::isfinite(slice.lo) ? slice.lo : 0.0f);
+                base.hi[0][bin] = (_Float16)(std::isfinite(slice.hi) ? slice.hi : 0.0f);
+                base.sumSquares[bin] = std::isfinite(slice.squares) ? slice.squares : 0.0f;
+                if (split_) {
+                    std::array<double, kBandCount> bands = {0, 0, 0};
+                    split_->addSumSquares(mono + offset, binFrames, bands.data());
+                    for (size_t b = 0; b < kBandCount; b++) {
+                        base.bandSumSquares[bin * kBandCount + b] = float(bands[b]);
+                    }
+                }
+            }
+            base.count += whole;
+            summary_->frames_ += int64_t(whole) * binFrames;
+            continue;
         }
-        float meanSquare;
-        vDSP_measqv(mono + offset, 1, &meanSquare, take);
-        if (std::isfinite(meanSquare)) {
-            sumSquares_ += double(meanSquare) * double(take);
+        size_t take = std::min<size_t>(frames - offset, binFrames - binFill_);
+        // One stored channel is the mix; two are the file's own.
+        float squares;
+        if (channels == 1) {
+            Slice slice = MeasureSlice(mono + offset, take);
+            mergePeaks(0, slice.lo, slice.hi);
+            squares = slice.squares;
+        } else {
+            for (uint32_t c = 0; c < channels; c++) {
+                float lo, hi;
+                vDSP_minv(interleaved + offset * inputChannels_ + c, vDSP_Stride(inputChannels_), &lo, take);
+                vDSP_maxv(interleaved + offset * inputChannels_ + c, vDSP_Stride(inputChannels_), &hi, take);
+                mergePeaks(c, lo, hi);
+            }
+            vDSP_svesq(mono + offset, 1, &squares, take);
+        }
+        if (std::isfinite(squares)) {
+            sumSquares_ += double(squares);
         }
         if (split_) {
             split_->addSumSquares(mono + offset, take, bandSumSquares_.data());
@@ -704,6 +958,7 @@ void SummaryBuilder::append(const float *interleaved, const float *mono, size_t 
             flushBin();
         }
     }
+    summary_->derive(false);
 }
 
 void SummaryBuilder::flushBin() {

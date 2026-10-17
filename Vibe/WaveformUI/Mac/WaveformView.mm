@@ -78,6 +78,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
         _styleIdentifier = style;
         _currentWaveformRenderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style
                 layer:_rendererHost bounds:self.bounds isDark:self.isDark];
+        [self applyPictureColorSpace];
         [self applyLevelSettings];
         [self applyResolvedTheme];
     }
@@ -410,10 +411,19 @@ static const CGFloat kWaveformDragHysteresis = 4;
     CGFloat scale = VibeBackingScaleOrDefault(self.window.backingScaleFactor);
     VibeApplyContentsScale(self.layer, scale);
     [_loadingIndicator updateContentsScale:scale];
+    [self applyPictureColorSpace];
     // Settled geometry is snapped to the old pixel grid and the same-size draw
     // skips the rebuild. After the re-stamp above, which the rebuild reads.
     [_currentWaveformRenderer backingScaleDidChange];
     [self layoutPlayheadLine];
+}
+
+// The window's space, which a picture is painted in. A space that is not RGB
+// leaves sRGB: a picture's pixels are RGB.
+- (void)applyPictureColorSpace {
+    CGColorSpaceRef space = self.window.colorSpace.CGColorSpace;
+    _currentWaveformRenderer.pictureColorSpace =
+            space && CGColorSpaceGetModel(space) == kCGColorSpaceModelRGB ? space : NULL;
 }
 
 - (void)viewDidChangeEffectiveAppearance {

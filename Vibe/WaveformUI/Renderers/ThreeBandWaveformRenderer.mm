@@ -46,9 +46,18 @@ static CGFloat VibeThreeBandHalves(const float *bar, CGFloat vscale, CGFloat min
     return tallest;
 }
 
-static void VibeSRGBComponents(VibeColor *color, float *rgb) {
+// A fill's components in the picture's space, or sRGB's for NULL.
+static void VibeFillComponents(VibeColor *color, CGColorSpaceRef space, float *rgb) {
     CGFloat components[3] = {};
-    VibeColorGetSRGB(color, &components[0], &components[1], &components[2]);
+    CGColorRef matched = space ? CGColorCreateCopyByMatchingToColorSpace(space, kCGRenderingIntentDefault,
+                                                                         color.CGColor, NULL)
+                               : NULL;
+    if (matched && CGColorGetNumberOfComponents(matched) == 4) {
+        memcpy(components, CGColorGetComponents(matched), sizeof(components));
+    } else {
+        VibeColorGetSRGB(color, &components[0], &components[1], &components[2]);
+    }
+    CGColorRelease(matched);
     for (NSUInteger c = 0; c < 3; c++) {
         rgb[c] = (float)components[c];
     }
@@ -174,11 +183,21 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     NSArray<VibeColor *> *fills = _spectrum ? self.theme.spectrumColors : self.theme.bandColors;
     if (![_fillColors isEqualToArray:fills]) {
         _fillColors = fills;
-        for (NSUInteger i = 0; i < MIN(fills.count, kLayerCount); i++) {
-            VibeSRGBComponents(fills[i], _fills[i]);
-        }
+        [self convertFills];
         [_morph rebuildNow];
     }
+}
+
+- (void)convertFills {
+    for (NSUInteger i = 0; i < MIN(_fillColors.count, kLayerCount); i++) {
+        VibeFillComponents(_fillColors[i], self.pictureColorSpace, _fills[i]);
+    }
+}
+
+// The view rebuilds after it sets the space.
+- (void)setPictureColorSpace:(CGColorSpaceRef)space {
+    [super setPictureColorSpace:space];
+    [self convertFills];
 }
 
 + (VibeWaveformPaletteKind)paletteKind {
@@ -267,7 +286,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         // A column at a time, never through the detail, whose frames hold no
         // bands.
         double k = (double)(part.first + (int64_t)i);
-        wavecore::Column column = waveform->column(k * frames, (k + 1) * frames);
+        wavecore::Column column = waveform->column(k * frames, (k + 1) * frames, wavecore::kAllChannels,
+                                                   AudioWaveform::Fill::kUnions);
         for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
             out[i * stride + b] = kBandCeiling[b] * VibeWaveformBarLevel(column.bandLoudest[b], references[b], gainDB);
         }
@@ -308,7 +328,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
         BOOL centered = self.centered, spectrum = _spectrum;
         float fills[kLayerCount][3];
         memcpy(fills, _fills, sizeof(fills));
-        image = VibeNewLayerImage(_picture.contentsAreFlipped, (size_t)pixels.width(), (size_t)pixels.height,
+        image = VibeNewLayerImage(self.pictureColorSpace, _picture.contentsAreFlipped, (size_t)pixels.width(),
+                                  (size_t)pixels.height,
                                   [&](uint32_t *out, ptrdiff_t rowStride) {
             wavecore::ColumnPaint column(pixels.height);
             for (int x = pixels.x0; x < pixels.x1; x++) {

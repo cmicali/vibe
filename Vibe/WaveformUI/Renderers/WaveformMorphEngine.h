@@ -56,6 +56,10 @@ NS_ASSUME_NONNULL_BEGIN
 // refills rather than taking the fast path.
 - (void)invalidateTarget;
 
+// Set before each update: whether its waveform is a snapshot of a load still
+// running. A partial target that follows a partial one installs at once.
+@property (nonatomic) BOOL targetIsPartial;
+
 // Samples per drawn bar: 1 by default, 2 for the Detailed family's [min, max]
 // pairs. The dip rounds outward to it.
 @property (nonatomic) NSUInteger samplesPerBar;

@@ -6,6 +6,7 @@
 #import "WaveformRendererRegistry.h"
 #import "DetailedWaveformRenderer.h"
 #import "ThreeBandWaveformRenderer.h"
+#import "WaveformBarMath.h"
 #import "AppSettings.h"
 #import "VibeStrings.h"
 
@@ -384,6 +385,29 @@ static CAGradientLayer *VibeFirstGradient(CALayer *layer) {
     XCTAssertTrue(CGColorEqualToColor(bars[200].backgroundColor, unplayed));
 }
 
+// A resize changes the bar count, which repaints only the bars whose side of
+// the playhead can have changed. Every bar must still show its own side.
+- (void)testSonicCirrusResizeKeepsEveryBarOnItsSide {
+    auto waveform = VibeTestSteadyWaveform(1, {-0.5f, 0.5f, 0.25f});
+    WaveformRenderer *renderer = [self rendererForStyle:@"sonic_cirrus"];
+    CALayer *host = renderer.parentLayer;
+    CGColorRef played = renderer.theme.playedColor.CGColor;
+    CGColorRef unplayed = renderer.theme.unplayedColor.CGColor;
+    for (CGFloat width : {1024.0, 700.0, 703.0, 1500.0, 400.0, 1024.0}) {
+        host.bounds = CGRectMake(0, 0, width, host.bounds.size.height);
+        [renderer updateWaveform:host.bounds progress:0.4 waveform:waveform.get()];
+        NSArray<CALayer *> *bars = host.sublayers;
+        NSInteger count = (NSInteger)bars.count / 2;
+        NSInteger boundary = VibeBlockBoundaryForProgress(0.4, count);
+        for (NSInteger i = 0; i < count; i++) {
+            // Each bar's top is layer 2i.
+            CGColorRef expected = i < boundary ? played : unplayed;
+            XCTAssertTrue(CGColorEqualToColor(bars[(NSUInteger)(2 * i)].backgroundColor, expected),
+                          @"width %g bar %ld of %ld", width, (long)i, (long)count);
+        }
+    }
+}
+
 // Width changes only the thickness: a bar's coverage across its slot, two
 // stems' strokes across a loop for Wiggle, or Sonic's layers.
 - (void)testBarWidthRebuildsLiveGeometryWithoutChangingCount {
@@ -691,6 +715,29 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     XCTAssertEqual(fills, 40u, @"Height alone must not reread the waveform");
     [morph updateTargetForSize:CGSizeMake(1000, 90) identity:(__bridge const void *)self count:100 fill:fill];
     XCTAssertEqual(rebuilds, 41u, @"An unchanged draw must do no work");
+}
+
+- (void)testALoadsLaterSnapshotsInstallAtOnce {
+    __block NSUInteger rebuilds = 0;
+    WaveformMorphEngine *morph = [[WaveformMorphEngine alloc]
+            initWithVScale:^CGFloat(CGFloat height) { return height; }
+            rebuild:^{ rebuilds++; }];
+    NSObject *first = [NSObject new], *second = [NSObject new], *complete = [NSObject new];
+    auto level = ^(float value) {
+        return ^(std::vector<float> &samples) { std::fill(samples.begin(), samples.end(), value); };
+    };
+    morph.targetIsPartial = YES;
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)first count:60 fill:level(0.5f)];
+    XCTAssertFalse(morph.isSettled, @"A load's first snapshot still grows into view");
+    rebuilds = 0;
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)second count:60 fill:level(0.75f)];
+    XCTAssertTrue(morph.isSettled);
+    XCTAssertEqual(rebuilds, 1u);
+    XCTAssertEqual([morph displayedSamples][0], 0.75f);
+    morph.targetIsPartial = NO;
+    [morph updateTargetForSize:CGSizeMake(600, 80) identity:(__bridge const void *)complete count:60 fill:level(1.0f)];
+    XCTAssertFalse(morph.isSettled, @"The completing delivery eases: Normalize raises the bars then");
+    [morph settleImmediately];
 }
 
 - (void)testResizePreservesAGainMorphAndItsPairedSamples {

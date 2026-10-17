@@ -318,6 +318,7 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
         }];
     } else {
         NSUInteger count = [self numBarsForWidth:bounds.size.width];
+        _morph.targetIsPartial = waveform && !waveform->isComplete();
         [_morph updateTargetForSize:bounds.size identity:waveform count:count * 2
                                fill:^(std::vector<float> &target) {
             [self fillColumns:target.data() framesPerColumn:(double)waveform->totalFrames() / (double)count
@@ -353,7 +354,7 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     // linearly between that grid's centers, so no edge of it shows when
     // zoomed in.
     _columns.resize(count);
-    waveform->columns(frames, first, count, _columns.data());
+    waveform->columns(frames, first, count, _columns.data(), wavecore::kAllChannels, AudioWaveform::Fill::kUnions);
     double total = (double)waveform->totalFrames();
     double levelFrames = fmax(frames * [self levelColumnsPerColumn], total / kVibeWaveformLevelColumns);
     double firstLevel = fmax(0, floor(((double)first + 0.5) * frames / levelFrames - 0.5));
@@ -365,7 +366,8 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
         return;
     }
     _levelColumns.resize(levelCount);
-    waveform->columns(levelFrames, (int64_t)firstLevel, levelCount, _levelColumns.data());
+    waveform->columns(levelFrames, (int64_t)firstLevel, levelCount, _levelColumns.data(), wavecore::kAllChannels,
+                      AudioWaveform::Fill::kUnions);
     _levels.resize(levelCount);
     [self fillLevels:_levels.data() stride:1 columns:_levelColumns.data() count:levelCount waveform:waveform];
     const float *levels = _levels.data();
@@ -423,8 +425,17 @@ static const double kLevelPixels = 4;
     NSUInteger count = samples.size() / 2;
     BOOL flipped = _barMask.contentsAreFlipped;
     CGImageRef image = NULL;
-    float opacity = 1;
+    // An empty picture draws nothing: Wiggle's flattened loops have faded out.
+    float opacity = count > 0 ? 1 : 0;
     VibeSignpostBegin(waveform_raster);
+    if (count == 0) {
+        // Nothing to draw: nothing kept at the size of the waveform last drawn.
+        std::vector<float>().swap(_bottoms);
+        std::vector<float>().swap(_tops);
+        std::vector<wavecore::Column>().swap(_columns);
+        std::vector<wavecore::Column>().swap(_levelColumns);
+        std::vector<float>().swap(_levels);
+    }
     if (count > 0 && pixels.width() > 0 && pixels.height > 0) {
         if (_wiggle) {
             opacity = [self wiggleOpacityForSamples:samples];
@@ -467,7 +478,8 @@ static const double kLevelPixels = 4;
     double framesPerPixel = [self framesPerPixel];
     const double perPixel[2] = {framesPerPixel / window.parts[0].framesPerColumn(),
                                 framesPerPixel / window.parts[1].framesPerColumn()};
-    return VibeNewLayerImage(flipped, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
+    return VibeNewLayerImage(self.pictureColorSpace, flipped, pixels.width(), pixels.height,
+                             [&](uint32_t *out, ptrdiff_t stride) {
         wavecore::ColumnCoverage columns(pixels.height);
         columns.draw(pixels.x0, pixels.x1, out, stride, [&](int x, auto add) {
             for (int p = 0; p < 2; p++) {
@@ -492,7 +504,8 @@ static const double kLevelPixels = 4;
     const float *bottoms = _bottoms.data(), *tops = _tops.data();
     double pitch = size.width * pixels.scale / count;
     double barWidth = [self barWidthForWidth:size.width barCount:count] * pixels.scale;
-    return VibeNewLayerImage(flipped, pixels.width(), pixels.height, [&](uint32_t *out, ptrdiff_t stride) {
+    return VibeNewLayerImage(self.pictureColorSpace, flipped, pixels.width(), pixels.height,
+                             [&](uint32_t *out, ptrdiff_t stride) {
         wavecore::ColumnCoverage columns(pixels.height);
         columns.draw(pixels.x0, pixels.x1, out, stride, [&](int x, auto add) {
             long first = MAX(0L, (long)floor((x - barWidth) / pitch));
@@ -522,10 +535,10 @@ static const double kLevelPixels = 4;
 - (CGImageRef)newWiggleImageForSamples:(const std::vector<float> &)samples pixels:(VibeRenderPixels)pixels
                                   size:(CGSize)size flipped:(BOOL)flipped CF_RETURNS_RETAINED {
     NSUInteger count = samples.size() / 2;
-    CGColorSpaceRef space = CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
-    CGContextRef ctx = CGBitmapContextCreate(NULL, (size_t)pixels.width(), (size_t)pixels.height, 8, 0, space,
-            (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
-    CGColorSpaceRelease(space);
+    CGColorSpaceRef sRGB = self.pictureColorSpace ? NULL : CGColorSpaceCreateWithName(kCGColorSpaceSRGB);
+    CGContextRef ctx = CGBitmapContextCreate(NULL, (size_t)pixels.width(), (size_t)pixels.height, 8, 0,
+            self.pictureColorSpace ?: sRGB, (CGBitmapInfo)kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
+    CGColorSpaceRelease(sRGB);
     if (!ctx) {
         return NULL;
     }

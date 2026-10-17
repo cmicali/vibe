@@ -36,8 +36,9 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
 // empty column stands for. Its loudest window is only the loudest SO FAR, and
 // a reference that rises per delivery shrinks bars already drawn.
 static inline wavecore::Column VibeWaveformNormalizeColumn(AudioWaveform *waveform, BOOL normalize) {
-    return normalize && waveform->isComplete() ? waveform->column(0, (double)waveform->totalFrames())
-                                               : wavecore::Column();
+    return normalize && waveform->isComplete()
+            ? waveform->column(0, (double)waveform->totalFrames(), wavecore::kAllChannels, AudioWaveform::Fill::kUnions)
+            : wavecore::Column();
 }
 // The mix styles' Normalize only raises levels: its reference cannot exceed
 // the fixed one. Silence keeps the fixed reference.
@@ -84,20 +85,22 @@ struct VibeRenderPixels {
     }
 };
 
-// A layer's picture from 32-bit premultiplied ARGB pixels in host order.
-// TRAP: never an alpha-only image, even for a mask: one draws nothing under
-// renderInContext:, which the registry's bake uses.
-CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t height) CF_RETURNS_RETAINED;
+// A layer's picture from 32-bit premultiplied ARGB pixels in host order, in
+// space, or sRGB for NULL. TRAP: never an alpha-only image, even for a mask:
+// one draws nothing under renderInContext:, which the registry's bake uses.
+CGImageRef VibeNewImageWithPixels(NSMutableData *pixels, size_t width, size_t height,
+                                  CGColorSpaceRef _Nullable space) CF_RETURNS_RETAINED;
 
 // fill(pixels, rowStride) writes rows from the top of the picture. NULL when
 // empty. TRAP: in a geometryFlipped tree (the iOS host) a layer shows its
 // contents upside down, so for a layer whose contentsAreFlipped the rows are
 // handed bottom-up, with a negative stride.
 template <typename Fill>
-static inline CGImageRef _Nullable VibeNewLayerImage(BOOL flipped, size_t width, size_t height,
-                                                     Fill fill) CF_RETURNS_RETAINED;
+static inline CGImageRef _Nullable VibeNewLayerImage(CGColorSpaceRef _Nullable space, BOOL flipped, size_t width,
+                                                     size_t height, Fill fill) CF_RETURNS_RETAINED;
 template <typename Fill>
-static inline CGImageRef _Nullable VibeNewLayerImage(BOOL flipped, size_t width, size_t height, Fill fill) {
+static inline CGImageRef _Nullable VibeNewLayerImage(CGColorSpaceRef _Nullable space, BOOL flipped, size_t width,
+                                                     size_t height, Fill fill) {
     if (width == 0 || height == 0) {
         return NULL;
     }
@@ -105,7 +108,7 @@ static inline CGImageRef _Nullable VibeNewLayerImage(BOOL flipped, size_t width,
     uint32_t *pixels = (uint32_t *)bytes.mutableBytes;
     ptrdiff_t stride = (ptrdiff_t)width;
     fill(flipped ? pixels + (height - 1) * width : pixels, flipped ? -stride : stride);
-    return VibeNewImageWithPixels(bytes, width, height);
+    return VibeNewImageWithPixels(bytes, width, height, space);
 }
 
 // Both views own their layer trees, so a display change re-stamps them here,
@@ -209,6 +212,12 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 - (double)minimumFramesPerPointForWaveform:(AudioWaveform *)waveform;
 
 @property (strong) CALayer* parentLayer;
+
+// The space a picture is painted in: its window's, set by the view. Core
+// Animation then installs a picture as it is. It color-matched an sRGB one at
+// every commit, half the main thread while a long file loaded on an external
+// display. NULL, the default, is sRGB, which a picture drawn offscreen keeps.
+@property (nonatomic, strong, nullable) __attribute__((NSObject)) CGColorSpaceRef pictureColorSpace;
 
 // The part of the bounds to draw, in the parent's points; CGRectNull, the
 // default, is the whole bounds. The iOS scrubber draws its visible stretch
