@@ -1510,7 +1510,7 @@ static void drmp3_L3_intensity_stereo_band(float *left, int n, float kl, float k
     }
 }
 
-static void drmp3_L3_stereo_top_band(const float *right, const drmp3_uint8 *sfb, int nbands, int max_band[3])
+static void drmp3_L3_stereo_top_band(const float *right, const drmp3_uint8 *sfb, int nbands, int n_long_sfb, int max_band[3])
 {
     int i, k;
 
@@ -1522,7 +1522,13 @@ static void drmp3_L3_stereo_top_band(const float *right, const drmp3_uint8 *sfb,
         {
             if (right[k] != 0 || right[k + 1] != 0)
             {
-                max_band[i % 3] = i;
+                if (i < n_long_sfb)
+                {
+                    max_band[0] = max_band[1] = max_band[2] = i;
+                } else
+                {
+                    max_band[(i - n_long_sfb) % 3] = i;
+                }
                 break;
             }
         }
@@ -1530,15 +1536,17 @@ static void drmp3_L3_stereo_top_band(const float *right, const drmp3_uint8 *sfb,
     }
 }
 
-static void drmp3_L3_stereo_process(float *left, const drmp3_uint8 *ist_pos, const drmp3_uint8 *sfb, const drmp3_uint8 *hdr, int max_band[3], int mpeg2_sh)
+static void drmp3_L3_stereo_process(float *left, const drmp3_uint8 *ist_pos, const drmp3_uint8 *sfb, const drmp3_uint8 *hdr, int max_band[3], int n_long_sfb, int mpeg2_sh)
 {
     static const float g_pan[7*2] = { 0,1,0.21132487f,0.78867513f,0.36602540f,0.63397460f,0.5f,0.5f,0.63397460f,0.36602540f,0.78867513f,0.21132487f,1,0 };
     unsigned i, max_pos = DRMP3_HDR_TEST_MPEG1(hdr) ? 7 : 64;
+    int long_top = DRMP3_MAX(DRMP3_MAX(max_band[0], max_band[1]), max_band[2]);
 
     for (i = 0; sfb[i]; i++)
     {
         unsigned ipos = ist_pos[i];
-        if ((int)i > max_band[i % 3] && ipos < max_pos)
+        int top = (int)i < n_long_sfb ? long_top : max_band[(i - n_long_sfb) % 3];
+        if ((int)i > top && ipos < max_pos)
         {
             float kl, kr, s = DRMP3_HDR_TEST_MS_STEREO(hdr) ? 1.41421356f : 1;
             if (DRMP3_HDR_TEST_MPEG1(hdr))
@@ -1569,11 +1577,7 @@ static void drmp3_L3_intensity_stereo(float *left, drmp3_uint8 *ist_pos, const d
     int max_band[3], n_sfb = gr->n_long_sfb + gr->n_short_sfb;
     int i, max_blocks = gr->n_short_sfb ? 3 : 1;
 
-    drmp3_L3_stereo_top_band(left + 576, gr->sfbtab, n_sfb, max_band);
-    if (gr->n_long_sfb)
-    {
-        max_band[0] = max_band[1] = max_band[2] = DRMP3_MAX(DRMP3_MAX(max_band[0], max_band[1]), max_band[2]);
-    }
+    drmp3_L3_stereo_top_band(left + 576, gr->sfbtab, n_sfb, gr->n_long_sfb, max_band);
     for (i = 0; i < max_blocks; i++)
     {
         int default_pos = DRMP3_HDR_TEST_MPEG1(hdr) ? 3 : 0;
@@ -1581,7 +1585,7 @@ static void drmp3_L3_intensity_stereo(float *left, drmp3_uint8 *ist_pos, const d
         int prev = itop - max_blocks;
         ist_pos[itop] = (drmp3_uint8)(max_band[i] >= prev ? default_pos : ist_pos[prev]);
     }
-    drmp3_L3_stereo_process(left, ist_pos, gr->sfbtab, hdr, max_band, gr[1].scalefac_compress & 1);
+    drmp3_L3_stereo_process(left, ist_pos, gr->sfbtab, hdr, max_band, gr->n_long_sfb, gr[1].scalefac_compress & 1);
 }
 
 static void drmp3_L3_reorder(float *grbuf, float *scratch, const drmp3_uint8 *sfb)

@@ -394,6 +394,64 @@ def mixed_8k(name, frames=40):
         stream += bytes(int(''.join(map(str, bits[i:i + 8])), 2) for i in range(0, len(bits), 8))
     path.write_bytes(stream)
 mixed_8k('mixed-8k.mp3')
+# Mixed blocks in intensity stereo at 48 kHz (MPEG-1), which no encoder writes, coded as mixed_8k codes its
+# spectrum. In a mixed block each short window has its own intensity bound, and the long part is coded in
+# intensity stereo only when every window is zero above it. So the right channel's lines stop at a band of
+# each window's own, or in its long part, or nowhere. Its scalefactors are intensity positions 0 to 6. A
+# window never stops at band 11, whose band 12 decoders position differently.
+def mixed_is(name, frames=40):
+    path = out / name
+    if path.exists(): return
+    state = 0x2468ace1
+    def rand(n):
+        nonlocal state
+        state = (1664525 * state + 1013904223) & 0xffffffff
+        return (state >> 8) % n
+    long_widths = [4, 4, 4, 4, 4, 4, 6, 6]                # long bands 0 to 7
+    short_widths = [4, 6, 6, 10, 12, 14, 16, 20, 26, 66]  # short bands 3 to 12
+    stream = bytearray()
+    for _ in range(frames):
+        bits, main, side = [], [], []
+        put = lambda v, n: bits.extend((v >> i) & 1 for i in range(n - 1, -1, -1))
+        mput = lambda v, n: main.extend((v >> i) & 1 for i in range(n - 1, -1, -1))
+        for _ in range(2):
+            for ch in range(2):
+                start = len(main)
+                for _ in range(35): mput(rand(7) if ch else rand(8), 3)  # long bands 0 to 7, short 3 to 11
+                if ch == 0:
+                    lines = [rand(5) < 2 for _ in range(576)]
+                else:
+                    lines, at = [False] * 576, 0
+                    tops, long_top = [rand(9) + 2 for _ in range(3)], [-1, 3, 7][rand(3)]  # a top of 2 is none
+                    for band, width in enumerate(long_widths):
+                        for i in range(width): lines[at + i] = band <= long_top and rand(3) == 0
+                        at += width
+                    for band, width in enumerate(short_widths, start=3):
+                        for window in range(3):
+                            for i in range(width): lines[at + i] = band <= tops[window] and rand(3) == 0
+                            at += width
+                for q in range(144):
+                    values = [(1 if rand(2) else -1) if lines[4 * q + i] else 0 for i in range(4)]
+                    mput(15 - sum(8 >> i for i, v in enumerate(values) if v), 4)
+                    for v in values:
+                        if v: mput(v < 0, 1)
+                side.append((len(main) - start, 170 + rand(25), [rand(4) for _ in range(3)], rand(2)))
+        put(0x7ff, 11); put(3, 2); put(1, 2); put(1, 1)  # MPEG-1, Layer III, no CRC
+        put(14, 4); put(1, 2); put(0, 1); put(0, 1)      # 320 kbps, 48 kHz, no padding, private
+        put(1, 2); put(1, 2); put(0, 1); put(1, 1); put(0, 2)  # joint stereo, intensity stereo only
+        put(0, 9); put(0, 3); put(0, 8)                  # main_data_begin, private bits, scfsi
+        for length, gain, subblock, scale in side:
+            put(length, 12); put(0, 9); put(gain, 8); put(13, 4)  # scalefac_compress 13: three bits each
+            put(1, 1); put(2, 2); put(1, 1)              # window switching, short blocks, mixed
+            put(0, 10)                                    # table_select, unused with big_values 0
+            for g in subblock: put(g, 3)
+            put(0, 1); put(scale, 1); put(1, 1)           # preflag, scalefac_scale, count1 table B
+        bits += main
+        size = 144 * 320000 // 48000
+        bits += [0] * (size * 8 - len(bits))
+        stream += bytes(int(''.join(map(str, bits[i:i + 8])), 2) for i in range(0, len(bits), 8))
+    path.write_bytes(stream)
+mixed_is('mixed-is.mp3')
 # Legal FLACs no encoder here writes, coded directly (testDrFLACDecodesWhatTheFileHolds and
 # testDrFLACSeeksFurtherThanThirtyTwoBitsOfFrames): Rice partition orders past the streamable subset's
 # 8, which RFC 9639 section 9.2.7 allows up to 15, in a 24-bit stream and in a 32-bit one's 33-bit side
@@ -531,10 +589,14 @@ AUDIO_PY
         encode hot.mp3 "$render_source" -af volume=12dB,alimiter=limit=1:level=false -c:a libmp3lame -b:a 320k
         # Mono Layer III, whose private bits are five where stereo's are three.
         encode mono.mp3 "$render_source" -ac 1 -c:a libmp3lame -b:a 128k
+        # Mono with no Info frame: a stream that changes from mono to stereo starts with it.
+        encode mono-noinfo.mp3 "$render_source" -ac 1 -c:a libmp3lame -b:a 128k -write_xing 0
         # MPEG-2 at 8 kbps: frames of a few bytes of payload, whose reservoir reaches back past MPEG-1's seek preroll.
         encode lsf-8k.mp3 "$render_source" -ar 24000 -c:a libmp3lame -b:a 8k
         # FFmpeg's float decode of the generated 8 kHz mixed-block stream: the reference testDrMP3DecodesMixedBlocksAt8kHzAsFFmpegDoes reads.
         [ -s "$render_dir/mixed-8k.f32" ] || ffmpeg_out "$render_dir/mixed-8k.f32" -c:a mp3float -i "$render_dir/mixed-8k.mp3" -f f32le
+        # And of the intensity-stereo mixed-block stream, which testDrMP3BoundsIntensityStereoPerWindowInMixedBlocks reads.
+        [ -s "$render_dir/mixed-is.f32" ] || ffmpeg_out "$render_dir/mixed-is.f32" -c:a mp3float -i "$render_dir/mixed-is.mp3" -f f32le
         encode lossy.qta "$render_source" -c:a aac -f mov
         # WAVE_FORMAT_EXTENSIBLE files with a channel mask, and FLACs at three to eight channels. dr_wav and dr_flac
         # must state their layouts as CoreAudio's parser does (testOwnDecodersStateWhatCoreAudioStates).

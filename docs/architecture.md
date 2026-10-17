@@ -208,7 +208,7 @@ Read `Vibe/Loading/AGENTS.md` ("One claim, two stages" and "The transfer registr
 
 ### 4. AudioFileHandle
 
-`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV and AIFF to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). Each answers the file's facts itself. Any other file opens CoreAudio's parser (`initParserForReading:`) for its facts. Then the handle picks the decoder. MPEG files use dr_mp3 (`AudioFileHandle+MPEG.m`). Everything else, such as AAC, ALAC, and Opus, uses Apple's decoders. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too.
+`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV and AIFF to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). MPEG goes to dr_mp3, and the handle frames it itself (`AudioFileHandle+MPEG.m`). Each answers the file's facts itself. Any other file opens CoreAudio's parser (`initParserForReading:`) for its facts, and Apple's decoders play it. AAC, ALAC and Opus are such files. On macOS, Settings > Advanced can switch MP3 to Apple's decoder too, and CoreAudio's parser then frames it.
 
 A handle reads its bytes in one of three ways:
 

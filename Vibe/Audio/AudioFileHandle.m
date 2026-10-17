@@ -337,7 +337,7 @@ long VibeVorbisTell(void *user) {
 
 // The type CoreAudio registers for an extension: the hint AudioFileOpenURL
 // takes from a path. 0 when none is registered.
-static AudioFileTypeID VibeFileTypeForExtension(NSString *extension) {
+AudioFileTypeID VibeFileTypeForExtension(NSString *extension) {
     // A strong local, not a bridged temporary: ARC frees that at the end of
     // its statement, leaving the lookup below reading freed memory.
     NSString *lowered = extension.lowercaseString;
@@ -653,7 +653,9 @@ static float VibeOpusOutputGain(AudioFileID parser) {
     // takes. TRAP: iOS's Ogg reader refuses Vorbis, and macOS's decoder drops
     // each Vorbis file's first 128 frames (macOS 27,
     // docs/future/audio-quality-gaps.md).
-    if ([self openOwnDecoderInterleaved:interleaved] || _waitError) {
+    _openedUnderApple = atomic_load(&sAppleMPEGDecoder);
+    if ([self openOwnDecoderInterleaved:interleaved mpeg:!_openedUnderApple] || _waitError) {
+        _mpegChoiceApplies = _mpeg != NULL;
         return [self openedWithError:error];
     }
     if (![self openParserWithError:error]) {
@@ -679,10 +681,6 @@ static float VibeOpusOutputGain(AudioFileID parser) {
     }
     UInt32 formatID = fileDescription.mFormatID;
     _mpegChoiceApplies = formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3;
-    _openedUnderApple = atomic_load(&sAppleMPEGDecoder);
-    if (_mpegChoiceApplies && !_openedUnderApple && [self openMPEGWithDescription:fileDescription]) {
-        return [self openedWithError:error];
-    }
     status = [self decodeToProcessingFormatInLayout:_processingFormat.channelLayout];
     if (status != noErr) {
         // What AVAudioFile reported for a file its decoder cannot produce:
@@ -714,7 +712,8 @@ static float VibeOpusOutputGain(AudioFileID parser) {
             && offset >= 0 && offset <= _size) {
         length = (SInt64)(MIN(bytes, (UInt64)(_size - offset)) / fileDescription.mBytesPerFrame);
     }
-    _length = length;
+    // A damaged header can state a negative length.
+    _length = MAX(0, length);
     return [self openedWithError:error];
 }
 
@@ -839,8 +838,10 @@ static float VibeOpusOutputGain(AudioFileID parser) {
     }
     free(_readBlock);
     free(_mpeg);
-    free(_mpegRead);
+    free(_mpegPacket);
     free(_mpegPCM);
+    free(_mpegOffsets);
+    free(_mpegSizes);
     [self closeStreamDecoder];
     AudioFileID parser = _parserOwnsFile ? _parser : NULL;
     if (!parser) {

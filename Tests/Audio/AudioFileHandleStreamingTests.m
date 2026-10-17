@@ -252,15 +252,13 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
     }
 }
 
-// The head-only formats open on their head alone. AIFF also reads at exactly
-// the file's size, which is the end, never a wait. A hang here is a
-// wait the open should not have made.
+// The head-only formats open on their head alone, MP3 among them: its open
+// reads no tag at the end. AIFF also reads at exactly the file's size, which
+// is the end, never a wait. A hang here is a wait the open should not have
+// made.
 - (void)testAHeadOnlyFormatOpensOnItsHeadAlone {
     NSDictionary<NSURL *, NSString *> *fixtures = [self fixtures];
     for (NSURL *source in fixtures) {
-        if ([source.pathExtension isEqualToString:@"mp3"]) {
-            continue;
-        }
         VibeGrowingFile *file = [self stream:source prefix:64 * 1024];
         __block AudioFileHandle *handle = nil;
         NSUInteger waits = [self drive:file step:0 reader:^{
@@ -307,9 +305,13 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
     [file complete];
 }
 
-// Every MP3 open reads its last bytes (an ID3v1 check), so on a prefix with no
-// tail window it waits for the tail, and opens once the file is complete.
-- (void)testAnMP3OpenWaitsForTheTailThenOpensWhenTheFileCompletes {
+// Under Apple's decoder, CoreAudio's parser opens an MP3 and reads its last
+// bytes (an ID3v1 check). On a prefix with no tail window it waits for the
+// tail, and opens once the file is complete.
+- (void)testAnMP3OpenUnderAppleWaitsForTheTailThenOpensWhenTheFileCompletes {
+    BOOL prior = AudioFileHandle.appleMPEGDecoder;
+    [self addTeardownBlock:^{ AudioFileHandle.appleMPEGDecoder = prior; }];
+    AudioFileHandle.appleMPEGDecoder = YES;
     NSDictionary<NSURL *, NSString *> *fixtures = [self fixtures];
     for (NSURL *source in fixtures) {
         if (![source.pathExtension isEqualToString:@"mp3"]) {
@@ -344,13 +346,13 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
 #pragma mark - The tail window
 
 // With the tail window, every open that reads past its head opens on its head
-// and the window, never waiting for the download. Those are an MP3 (its ID3v1
-// check), an M4A with its moov last and a FLAC with no length. Each one's
-// first second decodes with the download still short of the end. The whole
-// decode is the whole file's. The download reaching the window drops it. The
-// WAV's open never asks the window. An MP3 with no VBR header opens on them
-// too, on an estimate from its head's frames, which for a constant rate is the
-// length that rate gives, and which reading to its end settles.
+// and the window, never waiting for the download. Those are an M4A with its
+// moov last and a FLAC with no length. Each one's first second decodes with
+// the download still short of the end. The whole decode is the whole file's.
+// The download reaching the window drops it. The WAV's and the MP3s' opens
+// never ask the window. An MP3 with no VBR header opens on its head, on an
+// estimate from its head's frames, which for a constant rate is the length
+// that rate gives, and which reading to its end settles.
 - (void)testATailReadingOpenOpensOnItsHeadAndTheWindow {
     const uint64_t head = 64 * 1024, window = 80 * 1024;
     NSDictionary<NSURL *, NSString *> *fixtures = [self tailFixtures];
@@ -370,7 +372,7 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
         XCTAssertNotNil(handle, @"%@: %@", name, error);
         XCTAssertEqualObjects(handle.decoderName, fixtures[source], @"%@", name);
         XCTAssertEqual(waits, 0u, @"%@ waited to open", name);
-        if ([name hasSuffix:@"wav"]) {
+        if ([name hasSuffix:@"wav"] || [name hasSuffix:@"mp3"]) {
             XCTAssertLessThan(file.availability.furthestOffsetAsked, file.windowOffset, @"%@ read its tail", name);
         }
         else {

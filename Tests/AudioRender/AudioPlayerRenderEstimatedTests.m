@@ -82,7 +82,7 @@ static NSData *MP3Frames(NSData *mp3) {
     NSData *encoded = MP3Frames([NSData dataWithContentsOfURL:[self optionalFixture:@"vbr-noxing.mp3"]]);
     NSMutableData *bytes = [NSMutableData data];
     for (int i = 0; i < 4; i++) [bytes appendData:encoded];
-    NSURL *source = [self playEstimatedStreamOf:bytes prefix:40 * 1024 name:@"estimated.mp3"];
+    NSURL *source = [self playEstimatedStreamOf:bytes prefix:32 * 1024 name:@"estimated.mp3"];
     NSData *reference = VibePCM([self read:source]);
     double exact = (double)[self open:source decoder:@"dr_mp3"].length / 48000;
     AudioTrack *track = _player.currentTrack;

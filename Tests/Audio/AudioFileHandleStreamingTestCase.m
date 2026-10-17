@@ -276,8 +276,8 @@ static NSData *VibeXingVBR(void) {
     }
 }
 
-// The tail-reading opens, by the decoder each reaches, and a WAV. The WAV's
-// open reads its head alone.
+// The tail-reading opens, by the decoder each reaches, and a WAV and MP3s,
+// whose opens read their heads alone.
 - (NSDictionary<NSURL *, NSString *> *)tailFixtures {
     NSMutableDictionary<NSURL *, NSString *> *fixtures = [NSMutableDictionary dictionary];
     NSError *error = nil;

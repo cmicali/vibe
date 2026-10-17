@@ -28,10 +28,6 @@
 // master's overs (docs/audio-quality.md).
 static const float kVibeDecodeSampleBound = 4.0f;
 
-// Packets asked of the parser at once, sparing it about four small reads
-// per MP3 frame, which were a tenth of the whole decode's time.
-enum { kVibeMPEGReadPackets = 16 };
-
 // Small reads go through one block: the parser's under kVibeReadBlock, filling
 // all of it — Apple's Ogg reader asks for about 200 bytes at a time on Opus,
 // 18,000 reads for three minutes — and dr_flac's 4 KB ones, filling a quarter:
@@ -58,19 +54,27 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
     // end of data, never bytes after a gap, and its read or seek reports why:
     // the transfer's error, for good, or an interruption, until the next seek.
     NSError *_waitError;
-    // dr_mp3's decode: the parser's packets on a timeline of packet ×
-    // framesPerPacket, with _mpegSkip frames before logical frame 0.
+    // dr_mp3's decode: the stream's frames, its packets, on a timeline of
+    // packet × framesPerPacket, with _mpegSkip frames before logical frame 0.
     drmp3dec *_mpeg;
-    // Up to kVibeMPEGReadPackets packets as the parser read them, from
-    // packet _mpegReadFirst on; _mpegPacket is the one decoded last.
-    uint8_t *_mpegRead;
-    UInt32 _mpegReadCapacity;
-    AudioStreamPacketDescription _mpegReadPackets[kVibeMPEGReadPackets];
-    SInt64 _mpegReadFirst;
-    UInt32 _mpegReadCount;
-    uint8_t *_mpegPacket;
+    uint8_t *_mpegPacket;    // the packet decoded last
     UInt32 _mpegPacketBytes; // 0 when none is held
-    UInt32 _mpegBytesPerPacket; // nonzero for fixed-size packets, which have no descriptions
+    // The frames walked so far: each one's offset and size, in stream order.
+    // The walk goes on from _mpegWalk, and has ended at the data's end.
+    SInt64 *_mpegOffsets;
+    uint16_t *_mpegSizes;
+    SInt64 _mpegIndexed;
+    SInt64 _mpegIndexCapacity;
+    SInt64 _mpegWalk;
+    SInt64 _mpegDataEnd;
+    BOOL _mpegWalkEnded;
+    // What every frame of the stream shares (VibeMPEGFrame.fixed), and a free
+    // format stream's frame size before its padding.
+    UInt32 _mpegFixed;
+    UInt32 _mpegFreeBytes;
+    UInt32 _mpegFirstBitrate;
+    BOOL _mpegConstantBitrate;
+    UInt32 _mpegChannels; // the most any frame walked holds
     UInt32 _mpegFramesPerPacket;
     UInt32 _mpegDelay;       // the synthesis filterbank's, in frames
     SInt64 _mpegSkip;
@@ -102,11 +106,12 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
 
 @end
 
-// AudioFileHandle+MPEG.m. The core calls each from its own method's MPEG
-// branch.
+// AudioFileHandle+MPEG.m. The stream open calls the opens, and the core
+// calls the rest from its own methods' MPEG branches.
 @interface AudioFileHandle (MPEG)
 
-- (BOOL)openMPEGWithDescription:(AudioStreamBasicDescription)description;
+- (BOOL)openMPEGFrom:(SInt64)start to:(SInt64)end junk:(BOOL)junk interleaved:(BOOL)interleaved;
+- (BOOL)openMPEGInWAVInterleaved:(BOOL)interleaved;
 - (void)countMPEGPacketsOnDisk;
 - (BOOL)seekMPEGToFrame:(AVAudioFramePosition)frame error:(NSError **)error;
 - (BOOL)readMPEGIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error;
@@ -118,7 +123,7 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
 // decoder.
 @interface AudioFileHandle (Stream)
 
-- (BOOL)openOwnDecoderInterleaved:(BOOL)interleaved;
+- (BOOL)openOwnDecoderInterleaved:(BOOL)interleaved mpeg:(BOOL)mpeg;
 - (void)closeStreamDecoder;
 - (BOOL)readStreamIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error;
 
@@ -126,6 +131,7 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
 
 // AudioFileHandle.m's reads and waits, which the decode's open also uses.
 uint32_t VibeID3v2TagBytes(const uint8_t header[10]);
+AudioFileTypeID VibeFileTypeForExtension(NSString *extension);
 NSError *VibeHandleError(OSStatus status, NSString *description);
 BOOL VibeHandleAwait(AudioFileHandle *handle, SInt64 position, SInt64 count,
                      void *window, uint64_t capacity, uint64_t *copied);
