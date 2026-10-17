@@ -220,18 +220,24 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
             if (h[5] & 0x40 && version >= 3) {
                 uint8_t x[4];
                 if (VibeHandleRead(context, at, 4, x, &got) != noErr || got != 4) break;
-                uint32_t size = OSReadBigInt32(x, 0);
-                at += version == 4 ? ((x[0] & 0x7F) << 21 | (x[1] & 0x7F) << 14 | (x[2] & 0x7F) << 7 | (x[3] & 0x7F)) : 4 + size;
+                at += version == 4 ? ((x[0] & 0x7F) << 21 | (x[1] & 0x7F) << 14 | (x[2] & 0x7F) << 7 | (x[3] & 0x7F))
+                        : 4 + (SInt64)OSReadBigInt32(x, 0);
             }
             UInt32 header = version == 2 ? 6 : 10;
             while (at + header <= stop && VibeHandleRead(context, at, header, h, &got) == noErr && got == header && h[0]) {
-                uint32_t size = version == 2 ? (uint32_t)h[3] << 16 | h[4] << 8 | h[5]
-                        : version == 4 ? (uint32_t)(h[4] & 0x7F) << 21 | (h[5] & 0x7F) << 14 | (h[6] & 0x7F) << 7 | (h[7] & 0x7F)
-                        : OSReadBigInt32(h, 4);
+                SInt64 size = version == 2 ? (SInt64)h[3] << 16 | h[4] << 8 | h[5]
+                        : version == 4 ? (SInt64)(h[4] & 0x7F) << 21 | (h[5] & 0x7F) << 14 | (h[6] & 0x7F) << 7 | (h[7] & 0x7F)
+                        : (SInt64)OSReadBigInt32(h, 4);
+                // TRAP: a damaged size can claim more than the tag holds. In
+                // 32 bits, a header plus a size near 2^32 wrapped to 0, and
+                // the walk never moved.
+                if (size > stop - at - header) {
+                    break;
+                }
                 BOOL comment = version == 2 ? memcmp(h, "COM", 3) == 0 : memcmp(h, "COMM", 4) == 0 && h[9] == 0;
                 uint8_t body[512];
-                if (comment && size >= 5 && size <= sizeof body
-                        && VibeHandleRead(context, at + header, size, body, &got) == noErr && got == size) {
+                if (comment && size >= 5 && size <= (SInt64)sizeof body
+                        && VibeHandleRead(context, at + header, (UInt32)size, body, &got) == noErr && got == size) {
                     // Encoding, language, description, text. UTF-16 ends the
                     // description with two zero bytes, and its BOMs and zero
                     // bytes are dropped here, so its ASCII reads as Latin-1.

@@ -696,6 +696,36 @@ static NSUInteger VibeID3v2End(NSData *file) {
                               (both.frameLength - settled) * sizeof(float)), 0, @"the stereo frames, channel %lu", (unsigned long)c);
     }
 }
+// A damaged ID3v2.3 frame size near 2^32 plus its header wrapped to 0, and
+// the open's walk of the tag for iTunes' comment never moved. The open must
+// finish and play the stream untrimmed.
+- (void)testAnID3FrameSizePastItsTagEndsTheGaplessSearch {
+    NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
+    AudioFileHandle.appleMPEGDecoder = NO;
+    NSData *source = [NSData dataWithContentsOfURL:url];
+    NSUInteger start = VibeID3v2End(source);
+    for (NSNumber *claimed in @[@0xFFFFFFF6u, @0x7FFFFFFFu, @64u]) {
+        uint32_t size = CFSwapInt32HostToBig(claimed.unsignedIntValue);
+        uint8_t frame[10] = {'T', 'I', 'T', '2'};
+        memcpy(frame + 4, &size, sizeof(size));
+        uint8_t header[10] = {'I', 'D', '3', 3, 0, 0, 0, 0, 0, sizeof(frame) + 20};
+        NSMutableData *tagged = [NSMutableData dataWithBytes:header length:sizeof(header)];
+        [tagged appendBytes:frame length:sizeof(frame)];
+        [tagged increaseLengthBy:20];
+        [tagged appendData:[source subdataWithRange:NSMakeRange(start, source.length - start)]];
+        NSURL *damaged = [self writeBytes:tagged name:[NSString stringWithFormat:@"id3-size-%@.mp3", claimed]];
+        dispatch_semaphore_t opened = dispatch_semaphore_create(0);
+        __block AudioFileHandle *file = nil;
+        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+            file = [[AudioFileHandle alloc] initForReading:damaged error:NULL];
+            dispatch_semaphore_signal(opened);
+        });
+        XCTAssertEqual(dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW, (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0,
+                       @"a frame size of %@ hung the open", claimed);
+        XCTAssertEqualObjects(file.decoderName, @"dr_mp3", @"%@", claimed);
+        XCTAssertEqual(file.length, [self open:url decoder:@"dr_mp3"].length, @"%@", claimed);
+    }
+}
 // iTunes states its priming and remainder in an iTunSMPB comment rather than
 // a LAME tag, and CoreAudio honors it. Here the comment is an ID3v2.3 COMM
 // frame before a stream with no Info frame.
