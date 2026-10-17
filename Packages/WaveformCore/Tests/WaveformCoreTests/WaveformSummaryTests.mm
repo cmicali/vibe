@@ -615,9 +615,9 @@ static const double kHitLevel = std::sqrt((1 + 2 * kQuietLevel * kQuietLevel) / 
     XCTAssertTrue(Summary::decode(blob.data(), blob.size()) != nullptr);
     XCTAssertTrue(Summary::decode(nullptr, 0) == nullptr);
     XCTAssertTrue(Summary::decode(blob.data(), blob.size() - 1) == nullptr, @"truncated");
-    // The magic, the version, the bin size, the payload's size, the bin count
-    // and the frames.
-    for (size_t offset : {(size_t)0, (size_t)4, (size_t)8, (size_t)12, (size_t)16, (size_t)24}) {
+    // The magic, the version, the bin size, the payload's size, the bin count,
+    // the frames and the low stream's length.
+    for (size_t offset : {(size_t)0, (size_t)4, (size_t)8, (size_t)12, (size_t)16, (size_t)24, (size_t)48}) {
         std::vector<uint8_t> broken = blob;
         broken[offset] ^= 0x5A;
         XCTAssertTrue(Summary::decode(broken.data(), broken.size()) == nullptr, @"header byte %zu", offset);
@@ -634,6 +634,19 @@ static const double kHitLevel = std::sqrt((1 + 2 * kQuietLevel * kQuietLevel) / 
     std::vector<uint8_t> shifted(blob.size() + 1);
     std::memcpy(shifted.data() + 1, blob.data(), blob.size());
     XCTAssertTrue(Summary::decode(shifted.data() + 1, blob.size()) != nullptr);
+}
+
+// Silence archives small. Its low bytes compress as well as its high ones,
+// so a long silent stretch costs the archive almost nothing.
+- (void)testSilenceArchivesSmall {
+    std::vector<float> mono(44100 * 60, 0.0f);
+    SummaryBuilder builder(true, (int64_t)mono.size(), 44100);
+    builder.append(mono.data(), mono.size());
+    auto summary = builder.finish(true);
+    std::vector<uint8_t> blob = summary->encode();
+    XCTAssertTrue(Summary::decode(blob.data(), blob.size()) != nullptr);
+    size_t raw = summary->binCount() * (3 + wavecore::kBandCount) * sizeof(_Float16);
+    XCTAssertLessThan(blob.size(), raw / 50);
 }
 
 #pragma mark - Detail
