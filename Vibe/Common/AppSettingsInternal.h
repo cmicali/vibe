@@ -56,8 +56,9 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_USER_THEMES                         @"Appearance.userThemes"
 #define SETTING_CURRENT_THEME                       @"Appearance.currentTheme"
 
-// The display keys predate themes, and themes carried their choices through
-// 1.14 (migrateThemeDisplaySettings).
+// The display keys predate themes. Themes carried their choices through 1.14,
+// and the volume slider's place, showing and labels through 1.16
+// (migrateThemeDisplaySettings).
 #define SETTING_SHOW_TIME_LABELS                    @"MainWindow.showTimeLabels"
 #define SETTING_SHOW_STATUS_ICONS                   @"MainWindow.showStatusIcons"
 #define SETTING_PLAYLIST_NUMBER_COLUMN              @"Playlist.showNumberColumn"
@@ -68,8 +69,6 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_KEY_COLORS                          @"Appearance.keyColors"
 #define SETTING_SHOW_BPM                            @"Appearance.showBPM"
 #define SETTING_SHOW_KEY                            @"Appearance.showKey"
-// The volume slider's place, its showing and its labels. Themes carried them
-// through 1.16 (migrateThemeDisplaySettings).
 #define SETTING_VOLUME_LOCATION                     @"Appearance.volumeLocation"
 #define SETTING_VOLUME_VISIBILITY                   @"Appearance.volumeVisibility"
 #define SETTING_SHOW_VOLUME_LABELS                  @"Appearance.showVolumeLabels"

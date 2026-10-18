@@ -11,7 +11,6 @@
 #import "PlaylistDropZoneView.h"
 #import "PlaylistTableView.h"
 #import "VolumeControlView.h"
-#import "MainWindow.h"
 #import "TransportMath.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
@@ -20,10 +19,6 @@
 #import "VibeStrings.h"
 
 #pragma mark - Layout
-
-static BOOL VolumeAlwaysShown(AppSettings *settings) {
-    return [settings.volumeVisibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS];
-}
 
 @implementation MainPlayerContentView
 
@@ -248,7 +243,8 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     BOOL volumeShown = settings.volumeControl;
     BOOL corner = VolumeControlView.atTopRight;
     BOOL volumeUp = volumeShown
-            && (VolumeAlwaysShown(settings) || _volumeDragging || CursorIsIn(self, _volumeHoverArea.rect));
+            && ([settings.volumeVisibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS]
+                || _volumeDragging || CursorIsIn(self, _volumeHoverArea.rect));
     CGFloat volume = volumeUp ? 1.0 : 0.0;
     CGFloat readouts = (volumeUp && corner) ? 0.0 : 1.0;
     CGFloat hint = (volumeUp && !corner) ? 0.0 : kDropHintAlpha;
@@ -323,28 +319,27 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
 
 // Only the drag's own mouse-up may clear its hold, so nothing else moves the
 // knob in hand.
-- (void)moveVolumeBy:(double)delta {
-    VibeSlider *slider = _volumeControlView.slider;
+- (void)moveVolumeBySteps:(double)steps {
     if (AppSettings.sharedInstance.volumeControl && !_volumeDragging) {
-        [slider moveToValue:slider.doubleValue + delta];
+        [_volumeControlView.slider moveBySteps:steps];
     }
 }
 
 // A scroll anywhere outside the playlist moves the volume, while the control
 // hides as well as while it shows. The rows' scroll view takes a scroll over
-// them first, and one it passes back up must not move the volume.
+// them first, and one it passes back up must not move the volume. Collapsed,
+// the scroll view is zero high, so nothing is over it.
 - (void)scrollWheel:(NSEvent *)event {
     NSScrollView *playlist = _playlistTableView.enclosingScrollView;
-    BOOL overPlaylist = ((MainWindow *)self.window).isPlaylistShown
-            && NSMouseInRect([playlist convertPoint:event.locationInWindow fromView:nil],
-                             playlist.bounds, playlist.isFlipped);
-    if (!AppSettings.sharedInstance.volumeControl || overPlaylist) {
+    if (!AppSettings.sharedInstance.volumeControl
+            || NSMouseInRect([playlist convertPoint:event.locationInWindow fromView:nil],
+                             playlist.bounds, playlist.isFlipped)) {
         [super scrollWheel:event];
     }
     // A trackpad's coast after the fingers lift would keep turning it.
     else if (event.momentumPhase == NSEventPhaseNone) {
-        [self moveVolumeBy:VibeVolumeScrollDelta(event.scrollingDeltaY, event.hasPreciseScrollingDeltas,
-                                                 event.isDirectionInvertedFromDevice)];
+        [self moveVolumeBySteps:VibeVolumeScrollSteps(event.scrollingDeltaY, event.hasPreciseScrollingDeltas,
+                                                      event.isDirectionInvertedFromDevice)];
     }
 }
 
@@ -385,10 +380,11 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
 // panel. There is no area when the slider is off or always shown.
 - (void)placeVolumeHoverArea {
     AppSettings *settings = AppSettings.sharedInstance;
+    NSString *visibility = settings.volumeVisibility;
     NSRect rect = NSZeroRect;
-    if (settings.volumeControl && !VolumeAlwaysShown(settings)) {
+    if (settings.volumeControl && ![visibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS]) {
         rect = _volumeControlView.frame;
-        if ([settings.volumeVisibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE]) {
+        if ([visibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE]) {
             rect = NSInsetRect(rect, -kVolumeHoverOutsetX, -kVolumeHoverOutsetY);
         }
         rect = NSIntersectionRect(rect, self.bounds);

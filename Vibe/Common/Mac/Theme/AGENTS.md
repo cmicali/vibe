@@ -57,7 +57,7 @@ The theme record. The store that holds it is `AppSettings+Themes`, in this direc
 
 ## The volume slider
 
-`volumeBar` (`mono`/`artwork`/`waveform`/`custom`, default `waveform`, with the `kVibeThemeColorVolumeBar` pair) and `volumeKnob` (the same ladder plus `bar`, the default, whatever color the bar draws, the system accent under None; with the `kVibeThemeColorVolumeKnob` pair) travel as `volume.bar`, `volume.barColor`, `volume.knob` and `volume.knobColor`. The pairs' unset slots draw the system accent and the white knob, so Custom starts from None's look. The dice roll both colors. The slider's place, when it shows and its labels are app-wide settings (What a theme is not).
+`volumeBar` (`mono`/`artwork`/`waveform`/`custom`, default `waveform`, with the `kVibeThemeColorVolumeBar` pair) and `volumeKnob` (the same ladder plus `bar`, the default, whatever color the bar draws, the system accent under None; with the `kVibeThemeColorVolumeKnob` pair) travel as `volume.bar`, `volume.barColor`, `volume.knob` and `volume.knobColor`. The pairs' unset slots draw the system accent and the white knob, so Custom starts from None's look. The dice roll both colors.
 
 ## Images
 

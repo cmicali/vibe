@@ -12,7 +12,6 @@
 #import "MainPlayerController+Transport.h"
 #import "MainWindow.h"
 #import "ShortcutRules.h"
-#import "TransportMath.h"
 
 // Each flips its effect at keyDown; keyUp decides: a tap latches the flip, a
 // hold reverts to the pre-press state.
@@ -199,7 +198,7 @@ static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modif
     // and Down move the volume then, and repeat while held.
     if (playerWindow && !((MainWindow *)controller.window).isPlaylistShown && VibeIsPlaylistKey(keyCode, mods)) {
         if (keyCode == kVibeKeyCodeUpArrow || keyCode == kVibeKeyCodeDownArrow) {
-            [controller moveVolumeBy:keyCode == kVibeKeyCodeUpArrow ? kVibeVolumeStep : -kVibeVolumeStep];
+            [controller moveVolumeBySteps:keyCode == kVibeKeyCodeUpArrow ? 1 : -1];
         }
         return nil;
     }

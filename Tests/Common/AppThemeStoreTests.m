@@ -636,8 +636,9 @@
     [settings factoryReset];
 }
 
-// Themes carried the display choices through 1.14: the active theme's become
-// the app-wide settings, once, and no stored record keeps them.
+// Themes carried the display choices through 1.14, and the volume slider's
+// layout through 1.16: the active theme's become the app-wide settings, once,
+// and no stored record keeps them.
 - (void)testThemeDisplayChoicesMigrateFromTheActiveThemeOnce {
     AppSettings *settings = AppSettings.sharedInstance;
     [settings factoryReset];
@@ -645,7 +646,8 @@
     [defaults setObject:@[
         @{kVibeThemeRecordIdentifierKey: @"user-active", kVibeThemeRecordNameKey: @"Active",
           @"showBPM": @NO, @"keyNotation": @"musical", @"showPlaylistArtworkColumn": @NO,
-          @"dockIcon": @"app_icon", @"windowTint": @"mono"},
+          @"dockIcon": @"app_icon", @"windowTint": @"mono",
+          @"volumeLocation": @"bottom", @"volumeVisibility": @"always", @"showVolumeLabels": @NO},
         @{kVibeThemeRecordIdentifierKey: @"user-other", kVibeThemeRecordNameKey: @"Other",
           @"showKey": @NO},
     ] forKey:@"Appearance.userThemes"];
@@ -656,6 +658,9 @@
     XCTAssertEqualObjects(migrated.keyNotation, @"musical");
     XCTAssertFalse(migrated.showPlaylistArtworkColumn);
     XCTAssertEqualObjects(migrated.dockIcon, @"app_icon");
+    XCTAssertEqualObjects(migrated.volumeLocation, @"bottom");
+    XCTAssertEqualObjects(migrated.volumeVisibility, @"always");
+    XCTAssertFalse(migrated.showVolumeLabels);
     XCTAssertTrue(migrated.showKey, @"an inactive theme's choice is not the user's");
     NSArray *stored = [defaults arrayForKey:@"Appearance.userThemes"];
     XCTAssertEqualObjects(stored[0], (@{kVibeThemeRecordIdentifierKey: @"user-active",
@@ -668,28 +673,11 @@
     [settings factoryReset];
 }
 
-// Themes carried the volume slider's place, showing and labels through 1.16.
-// Kinda Blue and Dark Wolf shipped their labels off, so an unedited one
-// carries that too, once: either picked since keeps them on.
-- (void)testVolumeLayoutMigratesFromTheActiveThemeOnce {
+// Kinda Blue and Dark Wolf shipped their volume labels off through 1.16, so
+// an unedited one keeps them off, once: either picked since keeps them on.
+- (void)testUneditedBuiltInsKeepTheirVolumeLabelsOffOnce {
     AppSettings *settings = AppSettings.sharedInstance;
-    [settings factoryReset];
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    [defaults setObject:@[
-        @{kVibeThemeRecordIdentifierKey: @"user-active", kVibeThemeRecordNameKey: @"Active",
-          @"volumeLocation": @"bottom", @"volumeVisibility": @"always", @"showVolumeLabels": @NO,
-          @"volumeBar": @"custom"},
-    ] forKey:@"Appearance.userThemes"];
-    [defaults setObject:@"user-active" forKey:@"Appearance.activeTheme"];
-
-    AppSettings *migrated = [AppSettings new];
-    XCTAssertEqualObjects(migrated.volumeLocation, @"bottom");
-    XCTAssertEqualObjects(migrated.volumeVisibility, @"always");
-    XCTAssertFalse(migrated.showVolumeLabels);
-    XCTAssertEqualObjects([defaults arrayForKey:@"Appearance.userThemes"][0],
-                          (@{kVibeThemeRecordIdentifierKey: @"user-active", kVibeThemeRecordNameKey: @"Active",
-                             @"volumeBar": @"custom"}));
-
     for (NSString *builtIn in @[@"kinda_blue", @"dark_wolf"]) {
         [settings factoryReset];
         [defaults removeObjectForKey:@"Appearance.builtInVolumeLabelsRead"];

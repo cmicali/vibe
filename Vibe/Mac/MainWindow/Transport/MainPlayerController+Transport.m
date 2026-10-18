@@ -335,8 +335,8 @@
     [self.playerContentView volumeSliderDidMove];
 }
 
-- (void)moveVolumeBy:(double)delta {
-    [self.playerContentView moveVolumeBy:delta];
+- (void)moveVolumeBySteps:(double)steps {
+    [self.playerContentView moveVolumeBySteps:steps];
 }
 
 #pragma mark - WaveformViewDelegate: the scrub seek

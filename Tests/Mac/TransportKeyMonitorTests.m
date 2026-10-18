@@ -9,7 +9,6 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "ShortcutRules.h"
-#import "TransportMath.h"
 
 // HIToolbox key codes, as the monitor matches them.
 static const unsigned short kKeyA = 0, kKeyS = 1, kKeyQ = 12, kKeyW = 13, kKeyE = 14, kKeyR = 15, kKeyT = 17;
@@ -49,8 +48,8 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
 - (NSResponder *)firstResponder { return nil; }
 - (id)audioPlayer { return self; }
 - (id)fx { return self.hasFXGraph ? self : nil; }
-- (void)moveVolumeBy:(double)delta {
-    [self.volumeMoves addObject:@(delta)];
+- (void)moveVolumeBySteps:(double)steps {
+    [self.volumeMoves addObject:@(steps)];
 }
 - (BOOL)performMenuCommandWithIdentifier:(NSString *)identifier {
     if ([self.hiddenCommands containsObject:identifier]) {
@@ -268,7 +267,7 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
     XCTAssertNil([monitor handleKeyEvent:arrow inWindow:self.window]);
     XCTAssertNil([monitor handleKeyEvent:[self down:76] inWindow:self.window], @"keypad Enter");
     XCTAssertEqualObjects(self.commands, @[]);
-    XCTAssertEqualObjects(self.volumeMoves, @[@(-kVibeVolumeStep)], @"Down only");
+    XCTAssertEqualObjects(self.volumeMoves, @[@-1], @"Down only");
 }
 
 // Collapsed, Up and Down move the volume and repeat while held. Showing, they
@@ -285,7 +284,7 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
     self.playlistShown = YES;
     NSEvent *up = [self down:kKeyUp];
     XCTAssertEqual([monitor handleKeyEvent:up inWindow:self.window], up);
-    XCTAssertEqualObjects(self.volumeMoves, (@[@(kVibeVolumeStep), @(kVibeVolumeStep), @(-kVibeVolumeStep)]));
+    XCTAssertEqualObjects(self.volumeMoves, (@[@1, @1, @-1]));
 }
 
 - (void)testAReservedCharacterBeatsAKeyCodeBinding {

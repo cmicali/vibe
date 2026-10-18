@@ -126,17 +126,17 @@ static const CGFloat kKnobHalf = 9;
     XCTAssertFalse([slider accessibilityPerformDecrement]);
 }
 
-// The scroll and arrow keys' move: unrounded, clamped, and NO when it did not
-// move.
+// The scroll and arrow keys' move: 5% a step, unrounded, clamped, and NO
+// when it did not move.
 - (void)testAMoveIsExactAndClamps {
     VibeSlider *slider = [self sliderAt:0.52 dark:YES];
-    XCTAssertTrue([slider moveToValue:0.535]);
+    XCTAssertTrue([slider moveBySteps:0.3]);
     XCTAssertEqualWithAccuracy(slider.doubleValue, 0.535, 1e-9);
-    XCTAssertTrue([slider moveToValue:1.2]);
+    XCTAssertTrue([slider moveBySteps:20]);
     XCTAssertEqual(slider.doubleValue, 1);
-    XCTAssertFalse([slider moveToValue:1.1]);
+    XCTAssertFalse([slider moveBySteps:1]);
     slider.enabled = NO;
-    XCTAssertFalse([slider moveToValue:0.5]);
+    XCTAssertFalse([slider moveBySteps:-1]);
     XCTAssertEqual(slider.doubleValue, 1);
 }
 

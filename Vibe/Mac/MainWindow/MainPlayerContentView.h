@@ -42,9 +42,9 @@ NS_ASSUME_NONNULL_BEGIN
 // percentage, and the hover held open while the knob is in hand.
 - (void)volumeSliderDidMove;
 // A scroll anywhere outside the playlist, or Up or Down over a collapsed
-// playlist. The slider moves and sends its action. Nothing moves while the
-// control is off or a drag holds the knob.
-- (void)moveVolumeBy:(double)delta;
+// playlist, in the slider's 5% steps. The slider moves and sends its action.
+// Nothing moves while the control is off or a drag holds the knob.
+- (void)moveVolumeBySteps:(double)steps;
 // The slider's fill and knob, resolved by VolumeControlView. Every resolution
 // of the waveform's theme calls it, so a waveform edit and an art color reach
 // it.

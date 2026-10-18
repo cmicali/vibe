@@ -147,6 +147,16 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
     };
     // Every launch asks, so the common answer, nothing to carry, allocates nothing.
     NSDictionary *diverged = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
+    // Kinda Blue and Dark Wolf shipped their volume labels off through 1.16, so
+    // an unedited one turns them off, once. Either picked since keeps them on.
+    // An edited one carries its labels in the divergence key.
+    if (![defaults boolForKey:SETTING_BUILT_IN_VOLUME_LABELS_READ]) {
+        [defaults setBool:YES forKey:SETTING_BUILT_IN_VOLUME_LABELS_READ];
+        NSString *active = self.activeThemeIdentifier;
+        if (!diverged && ([active isEqualToString:@"kinda_blue"] || [active isEqualToString:@"dark_wolf"])) {
+            [defaults setBool:NO forKey:SETTING_SHOW_VOLUME_LABELS];
+        }
+    }
     NSArray *stored = [defaults arrayForKey:SETTING_USER_THEMES];
     BOOL (^carries)(id) = ^BOOL(id record) {
         if (![record isKindOfClass:NSDictionary.class]) {
@@ -163,11 +173,7 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
     for (id record in stored) {
         carried = carried || carries(record);
     }
-    // Kinda Blue and Dark Wolf shipped their volume labels off through 1.16,
-    // so an unedited one carries that too, once. Either picked since keeps
-    // them on.
-    BOOL builtInsUnread = ![defaults boolForKey:SETTING_BUILT_IN_VOLUME_LABELS_READ];
-    if (!carried && !builtInsUnread) {
+    if (!carried) {
         return;
     }
     // The raw records: the sanitized ones have lost the fields being carried.
@@ -179,19 +185,11 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
             working = record;
         }
     }
-    if (!working && builtInsUnread
-            && ([active isEqualToString:@"kinda_blue"] || [active isEqualToString:@"dark_wolf"])) {
-        working = @{@"showVolumeLabels": @NO};
-    }
     for (NSString *field in keys) {
         id value = working[field];
         if ([value isKindOfClass:NSNumber.class] || [value isKindOfClass:NSString.class]) {
             [defaults setObject:value forKey:keys[field]];
         }
-    }
-    [defaults setBool:YES forKey:SETTING_BUILT_IN_VOLUME_LABELS_READ];
-    if (!carried) {
-        return;
     }
     [self persistUserThemes:[self storedUserThemes]];
     if (diverged) {
