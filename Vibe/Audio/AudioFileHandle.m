@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <os/lock.h>
 #include <stdatomic.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -345,18 +346,33 @@ AudioFileTypeID VibeFileTypeForExtension(NSString *extension) {
     // A strong local, not a bridged temporary: ARC frees that at the end of
     // its statement, leaving the lookup below reading freed memory.
     NSString *lowered = extension.lowercaseString;
+    if (lowered.length == 0) {
+        return 0;
+    }
+    // Every open asks. CoreAudio's lookup was a quarter of an MP3 open's cost.
+    // Its answer does not change while the app runs.
+    static os_unfair_lock lock = OS_UNFAIR_LOCK_INIT;
+    static NSMutableDictionary<NSString *, NSNumber *> *known;
+    os_unfair_lock_lock(&lock);
+    NSNumber *remembered = known[lowered];
+    os_unfair_lock_unlock(&lock);
+    if (remembered != nil) {
+        return remembered.unsignedIntValue;
+    }
     CFStringRef key = (__bridge CFStringRef)lowered;
     UInt32 size = 0;
-    if (lowered.length == 0
-            || AudioFileGetGlobalInfoSize(kAudioFileGlobalInfo_TypesForExtension, sizeof(key), &key, &size) != noErr
-            || size < sizeof(AudioFileTypeID)) {
-        return 0;
-    }
     AudioFileTypeID types[8] = {0};
-    size = MIN(size, (UInt32)sizeof(types));
-    if (AudioFileGetGlobalInfo(kAudioFileGlobalInfo_TypesForExtension, sizeof(key), &key, &size, types) != noErr) {
-        return 0;
+    if (AudioFileGetGlobalInfoSize(kAudioFileGlobalInfo_TypesForExtension, sizeof(key), &key, &size) == noErr
+            && size >= sizeof(AudioFileTypeID)) {
+        size = MIN(size, (UInt32)sizeof(types));
+        if (AudioFileGetGlobalInfo(kAudioFileGlobalInfo_TypesForExtension, sizeof(key), &key, &size, types) != noErr) {
+            types[0] = 0;
+        }
     }
+    os_unfair_lock_lock(&lock);
+    known = known ?: [NSMutableDictionary dictionary];
+    known[lowered] = @(types[0]);
+    os_unfair_lock_unlock(&lock);
     return types[0];
 }
 
