@@ -245,10 +245,9 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     BOOL isDark = self.isDark;
     WaveformTheme *theme = [WaveformTheme themeForSettings:settings widget:NO isDark:isDark
                                               artworkColor:_artworkThemeColor];
-    // No well for it here: the mac's default, the appearance's contrast pole
-    // at 80% opacity.
+    // No well for it here: the appearance's contrast pole at 68% opacity.
     if ([self drawsPlayheadLine]) {
-        theme.playheadColor = [isDark ? UIColor.whiteColor : UIColor.blackColor colorWithAlphaComponent:0.8];
+        theme.playheadColor = [isDark ? UIColor.whiteColor : UIColor.blackColor colorWithAlphaComponent:0.68];
     }
     _renderer.theme = theme;
     [_renderer updateColors:isDark];
@@ -458,6 +457,8 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 }
 // The play position IS the view's center, so the line never moves: it follows
 // only the theme, the layout and whether there is a waveform to mark.
+static const CGFloat kPlayheadLineOvershoot = 4;
+
 - (void)layoutPlayheadLine {
     VibeColor *color = self.waveform ? _renderer.theme.playheadColor : nil;
     if (!color && _playheadLine.hidden) {
@@ -472,6 +473,9 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
         // which an off-center band (Sonic Cirrus) shows.
         CGRect band = [_renderer seekHitBandForBounds:bounds];
         band.origin.y = bounds.size.height - CGRectGetMaxY(band);
+        // A few points past the waveform at each end, as the widget's line
+        // reaches past its strip.
+        band = CGRectIntersection(CGRectInset(band, 0, -kPlayheadLineOvershoot), bounds);
         _playheadLine.backgroundColor = color.CGColor;
         _playheadLine.frame = VibePlayheadLineRect(bounds.size.width / 2, band,
                 bounds.size.width, [self displayScale]);

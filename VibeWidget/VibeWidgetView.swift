@@ -406,7 +406,7 @@ struct VibeWidgetView: View {
                 }
                 if state?.playheadLine == true, entry.played != nil {
                     Rectangle()
-                        .fill(.white.opacity(0.8))
+                        .fill(.white.opacity(0.68))
                         .frame(width: kPlayheadLineWidth)
                         .offset(x: max(0, min(geometry.size.width - kPlayheadLineWidth,
                                               geometry.size.width * progress - kPlayheadLineWidth / 2)))
