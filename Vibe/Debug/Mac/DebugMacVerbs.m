@@ -99,6 +99,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeDebugCmd(@"settings_reveal <control>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsReveal(tokens);
             }),
+            VibeDebugCmd(@"settings_menu <control> [row] [item]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeDebugSettingsMenu(tokens);
+            }),
             VibeDebugCmd(@"settings_resize <width> <height>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsResize(tokens);
             }),

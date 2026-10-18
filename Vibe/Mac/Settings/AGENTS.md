@@ -128,4 +128,4 @@ AppKit resizes a `contentViewController` window to its fitting size after every 
 
 ## Driving this window from the debug channel
 
-**Never with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. `settings_open`, `dump_settings_ui`, `settings_click`, `settings_resize` and `settings_close` address it structurally: a pane by identifier, a control by the name its row shows. The `vibe-debug` skill documents them. Rerun `dump_settings_ui` after changing a pane's layout. A control kind the walker does not model, or a name two controls share, shows up there first.
+**Never with `click`, `drag` or the `key*` verbs**, which post into the main player window's event stream. `settings_open`, `dump_settings_ui`, `settings_click`, `settings_reveal`, `settings_menu`, `settings_resize` and `settings_close` address it structurally: a pane by identifier, a control by the name its row shows. The `vibe-debug` skill documents them. Rerun `dump_settings_ui` after changing a pane's layout. A control kind the walker does not model, or a name two controls share, shows up there first.

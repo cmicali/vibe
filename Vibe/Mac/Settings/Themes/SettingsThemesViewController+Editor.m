@@ -296,6 +296,7 @@ static const CGFloat kImageBadgeInset = 1.5;
     for (NSView *section in _editorJumpSections) {
         [section.widthAnchor constraintEqualToAnchor:_editorStack.widthAnchor].active = YES;
     }
+    [self addCopyPasteMenusIn:_editorStack];
 
     NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSZeroRect];
     scroll.translatesAutoresizingMaskIntoConstraints = NO;

@@ -23624,7 +23624,7 @@
       "extractionState": "manual"
     },
     "menu.edit.copy": {
-      "comment": "Edit menu item, ⌘C: copies the selected text in a text field, or otherwise puts the current track's audio file on the clipboard, ready to paste in the Finder. macOS uses this same name in every app. The playlist row menu's 'Copy File' is a separate string.",
+      "comment": "Edit menu item, ⌘C: copies the selected text in a text field, or otherwise puts the current track's audio file on the clipboard, ready to paste in the Finder. It also copies a color or font of the theme editor as text, from its right-click menu. macOS uses this same name in every app. The playlist row menu's 'Copy File' is a separate string.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -24554,7 +24554,7 @@
       "extractionState": "manual"
     },
     "menu.edit.paste": {
-      "comment": "Edit menu item: pastes text into a text field, such as the Open URL address. macOS uses this same name in every app.",
+      "comment": "Edit menu item: pastes text into a text field, such as the Open URL address. It also pastes a color or font onto a row of the theme editor, from its right-click menu. macOS uses this same name in every app.",
       "localizations": {
         "bg": {
           "stringUnit": {
