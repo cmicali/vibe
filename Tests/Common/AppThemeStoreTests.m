@@ -64,7 +64,7 @@
         AppTheme *working = settings.currentTheme;
         working.showTransportButtons = NO;
         [settings currentThemeDidChange];
-        working.showVolumeLabels = NO;
+        working.appIconShape = NO;
         [settings currentThemeDidChange];
         [settings undoThemeEdit];
         XCTAssertTrue(settings.canUndoThemeEdit);
@@ -360,20 +360,20 @@
     AppSettings *settings = self.editingSettings;
     NSString *removed = settings.activeThemeIdentifier;
     [settings applyThemeWithIdentifier:@"vibe"];
-    settings.currentTheme.showVolumeLabels = NO;
+    settings.currentTheme.appIconShape = NO;
     [settings currentThemeDidChange];
     [settings removeUserThemeWithIdentifier:removed fallingBackTo:nil];
     [settings undoThemeEdit];
     XCTAssertEqualObjects(settings.activeThemeIdentifier, @"vibe");
-    XCTAssertFalse(settings.currentTheme.showVolumeLabels);
+    XCTAssertFalse(settings.currentTheme.appIconShape);
     XCTAssertTrue(settings.currentThemeIsModified);
     XCTAssertTrue([settings.orderedThemeIdentifiers containsObject:removed]);
     [settings redoThemeEdit];
     XCTAssertFalse([settings.orderedThemeIdentifiers containsObject:removed]);
-    XCTAssertFalse(settings.currentTheme.showVolumeLabels);
+    XCTAssertFalse(settings.currentTheme.appIconShape);
     [settings undoThemeEdit];
     [settings undoThemeEdit];
-    XCTAssertTrue(settings.currentTheme.showVolumeLabels);
+    XCTAssertTrue(settings.currentTheme.appIconShape);
 }
 
 - (void)testRemovalRedoKeepsFallbackOrderImagesAndPreviousEdits {
@@ -382,7 +382,7 @@
     NSString *path = [self installEditingImageInSettings:settings];
     NSString *fallback = [settings addUserThemeWithRecord:@{@"showTransportButtons": @NO} name:@"Fallback"];
     NSArray *order = settings.orderedThemeIdentifiers;
-    settings.currentTheme.showVolumeLabels = NO;
+    settings.currentTheme.appIconShape = NO;
     [settings currentThemeDidChange];
     [settings removeUserThemeWithIdentifier:removed fallingBackTo:fallback];
     [settings undoThemeEdit];
@@ -398,7 +398,7 @@
     [settings undoThemeEdit];
     XCTAssertEqualObjects(settings.orderedThemeIdentifiers, order);
     XCTAssertEqualObjects(settings.activeThemeIdentifier, removed);
-    XCTAssertFalse(settings.currentTheme.showVolumeLabels);
+    XCTAssertFalse(settings.currentTheme.appIconShape);
     [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
     [settings currentThemeDidChange];
     XCTAssertFalse(settings.canRedoThemeEdit);
@@ -665,6 +665,43 @@
 
     migrated.showBPM = YES;
     XCTAssertTrue([AppSettings new].showBPM);
+    [settings factoryReset];
+}
+
+// Themes carried the volume slider's place, showing and labels through 1.16.
+// Kinda Blue and Dark Wolf shipped their labels off, so an unedited one
+// carries that too, once: either picked since keeps them on.
+- (void)testVolumeLayoutMigratesFromTheActiveThemeOnce {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [settings factoryReset];
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    [defaults setObject:@[
+        @{kVibeThemeRecordIdentifierKey: @"user-active", kVibeThemeRecordNameKey: @"Active",
+          @"volumeLocation": @"bottom", @"volumeVisibility": @"always", @"showVolumeLabels": @NO,
+          @"volumeBar": @"custom"},
+    ] forKey:@"Appearance.userThemes"];
+    [defaults setObject:@"user-active" forKey:@"Appearance.activeTheme"];
+
+    AppSettings *migrated = [AppSettings new];
+    XCTAssertEqualObjects(migrated.volumeLocation, @"bottom");
+    XCTAssertEqualObjects(migrated.volumeVisibility, @"always");
+    XCTAssertFalse(migrated.showVolumeLabels);
+    XCTAssertEqualObjects([defaults arrayForKey:@"Appearance.userThemes"][0],
+                          (@{kVibeThemeRecordIdentifierKey: @"user-active", kVibeThemeRecordNameKey: @"Active",
+                             @"volumeBar": @"custom"}));
+
+    for (NSString *builtIn in @[@"kinda_blue", @"dark_wolf"]) {
+        [settings factoryReset];
+        [defaults removeObjectForKey:@"Appearance.builtInVolumeLabelsRead"];
+        [defaults setObject:builtIn forKey:@"Appearance.activeTheme"];
+        XCTAssertFalse([AppSettings new].showVolumeLabels, @"%@ as 1.16 shipped it", builtIn);
+    }
+
+    [settings factoryReset];
+    [defaults removeObjectForKey:@"Appearance.builtInVolumeLabelsRead"];
+    (void)[AppSettings new];
+    [defaults setObject:@"kinda_blue" forKey:@"Appearance.activeTheme"];
+    XCTAssertTrue([AppSettings new].showVolumeLabels, @"picked after the update");
     [settings factoryReset];
 }
 

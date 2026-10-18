@@ -668,28 +668,8 @@ static const CGFloat kImageBadgeInset = 1.5;
     [self addItem:STR_SETTINGS_WINDOW_TINT_CUSTOM value:SETTINGS_VALUE_WINDOW_TINT_CUSTOM to:_volumeKnobPopUp];
     _volumeKnobPair = [self darkLightPairForBase:kVibeThemeColorVolumeKnob
                                           effect:VibeSettingsLiveEffectWaveformTheme];
-    _volumeLabelsSwitch = [self themeSwitchWithEffect:VibeSettingsLiveEffectVolume
-            write:^(AppTheme *theme, BOOL on) { theme.showVolumeLabels = on; }];
-    _volumeLocationPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth action:@selector(volumeLocationChanged:)];
-    [self addItem:STR_SETTINGS_THEME_VOLUME_LOCATION_BOTTOM value:SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM
-               to:_volumeLocationPopUp];
-    [self addItem:STR_SETTINGS_THEME_VOLUME_LOCATION_TOP_RIGHT value:SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT
-               to:_volumeLocationPopUp];
-    _volumeVisibilityPopUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
-                                                 action:@selector(volumeVisibilityChanged:)];
-    [self addItem:STR_SETTINGS_THEME_VOLUME_VISIBILITY_ALWAYS value:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS
-               to:_volumeVisibilityPopUp];
-    [self addItem:STR_SETTINGS_THEME_VOLUME_VISIBILITY_HOVER_CLOSE value:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE
-               to:_volumeVisibilityPopUp];
-    [self addItem:STR_SETTINGS_THEME_VOLUME_VISIBILITY_HOVER_EXACT value:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_EXACT
-               to:_volumeVisibilityPopUp];
 
     return [SettingsSectionView sectionWithHeader:STR_SETTINGS_VOLUME_SECTION rows:@[
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_LOCATION
-                              caption:STR_SETTINGS_THEME_VOLUME_LOCATION_CAPTION
-                              control:_volumeLocationPopUp],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_VISIBILITY control:_volumeVisibilityPopUp],
-        [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_SHOW_VOLUME_LABELS control:_volumeLabelsSwitch],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_BAR controls:@[_volumeBarPair, _volumeBarPopUp]],
         [SettingsRowView rowWithTitle:STR_SETTINGS_THEME_VOLUME_KNOB controls:@[_volumeKnobPair, _volumeKnobPopUp]],
     ]];

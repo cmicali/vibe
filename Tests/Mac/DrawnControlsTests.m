@@ -195,21 +195,21 @@ static const CGFloat kKnobHalf = 9;
 }
 
 - (void)testTheVolumeColumnsHoldTheSliderAtTheCenter {
-    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
-    NSDictionary *saved = theme.dictionaryRepresentation;
+    AppSettings *settings = AppSettings.sharedInstance;
+    BOOL saved = settings.showVolumeLabels;
     VolumeControlView *volume = [[VolumeControlView alloc] initWithFrame:NSMakeRect(0, 0, 10, 20) target:self];
 
-    theme.showVolumeLabels = NO;
+    settings.showVolumeLabels = NO;
     [volume layoutColumns];
     XCTAssertEqual(NSWidth(volume.frame), 100);
     XCTAssertTrue(volume.label.hidden);
 
-    theme.showVolumeLabels = YES;
+    settings.showVolumeLabels = YES;
     [volume layoutColumns];
     XCTAssertFalse(volume.label.hidden);
     XCTAssertEqualWithAccuracy(NSMidX(volume.slider.frame), NSWidth(volume.frame) / 2, 1e-9);
     XCTAssertEqual(NSWidth(volume.label.frame), NSWidth(volume.percentLabel.frame));
-    [theme replaceWithRecord:saved];
+    settings.showVolumeLabels = saved;
 }
 
 - (void)testTheVolumeBarTakesTheThemesChoice {

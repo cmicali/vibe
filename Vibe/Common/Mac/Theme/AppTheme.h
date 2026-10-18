@@ -65,13 +65,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeIdentifierVibe;
 // adds the bar's color and uses it by default. Mono draws the system's white pill.
 #define SETTINGS_VALUE_VOLUME_WAVEFORM                      @"waveform"
 #define SETTINGS_VALUE_VOLUME_KNOB_BAR                      @"bar"
-// Top right swaps with the corner readouts on hover (MainWindow/LAYOUT.md).
-#define SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM               @"bottom"
-#define SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT            @"top_right"
-// When the volume slider shows.
-#define SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS             @"always"
-#define SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE        @"hover_close"
-#define SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_EXACT        @"hover_exact"
 
 // The transport buttons' factory glyphs. The editor writes play and pause
 // from one pick (SettingsRules.h); a JSON can set either.
@@ -293,9 +286,6 @@ FOUNDATION_EXPORT NSString *const kVibeThemeImageNextButtonLight;
 @property (nonatomic, copy) NSString *nextButtonGlyph;
 @property (nonatomic, copy) NSString *volumeBar;            // mono/artwork/waveform (default)/custom
 @property (nonatomic, copy) NSString *volumeKnob;           // mono/bar (default)/artwork/waveform/custom
-@property (nonatomic) BOOL showVolumeLabels;                // "Vol" and the percentage
-@property (nonatomic, copy) NSString *volumeLocation;       // top_right (default)/bottom
-@property (nonatomic, copy) NSString *volumeVisibility;     // always/hover_close (default)/hover_exact
 
 // An empty face is the built-in font. Faces are not validated: Fonts' never-nil
 // fallback resolves an uninstalled one. The size clamps are narrow because the

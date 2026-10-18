@@ -68,6 +68,11 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTING_KEY_COLORS                          @"Appearance.keyColors"
 #define SETTING_SHOW_BPM                            @"Appearance.showBPM"
 #define SETTING_SHOW_KEY                            @"Appearance.showKey"
+// The volume slider's place, its showing and its labels. Themes carried them
+// through 1.16 (migrateThemeDisplaySettings).
+#define SETTING_VOLUME_LOCATION                     @"Appearance.volumeLocation"
+#define SETTING_VOLUME_VISIBILITY                   @"Appearance.volumeVisibility"
+#define SETTING_SHOW_VOLUME_LABELS                  @"Appearance.showVolumeLabels"
 
 @class AppTheme;
 

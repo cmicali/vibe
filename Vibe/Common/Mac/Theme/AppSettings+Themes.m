@@ -14,6 +14,9 @@
 #define SETTING_WINDOW_TINT_CUSTOM_LIGHT            @"Appearance.windowTintCustomColorLight"
 // What makes migrateThemeRecordsToVersion2 run once.
 #define SETTING_THEME_RECORD_VERSION                @"Appearance.themeRecordVersion"
+// What makes migrateThemeDisplaySettings read the built-ins' volume labels
+// once. Unregistered, so a reset keeps it.
+#define SETTING_BUILT_IN_VOLUME_LABELS_READ         @"Appearance.builtInVolumeLabelsRead"
 
 @implementation AppSettings (Themes)
 
@@ -120,11 +123,11 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
 
 // The active theme's display choices become the app-wide settings, so the
 // window shows what it showed before; storing every record back through the
-// gate, which drops them as unknown keys, makes this run once. Only stored
-// records can carry one: no shipped built-in set a display field.
+// gate, which drops them as unknown keys, makes this run once.
 - (void)migrateThemeDisplaySettings {
     NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-    // The fields a theme record carried through 1.14, and the key each became.
+    // The fields a theme record carried, and the key each became: the display
+    // choices through 1.14, the volume slider's layout through 1.16.
     NSDictionary<NSString *, NSString *> *keys = @{
         @"showTimeLabels":             SETTING_SHOW_TIME_LABELS,
         @"showRemainingTime":          SETTING_SHOW_REMAINING_TIME,
@@ -138,6 +141,9 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
         @"showPlaylistArtworkColumn":  SETTING_PLAYLIST_ARTWORK_COLUMN,
         @"showPlaylistDurationColumn": SETTING_PLAYLIST_DURATION_COLUMN,
         @"dockIcon":                   SETTING_DOCK_ICON,
+        @"volumeLocation":             SETTING_VOLUME_LOCATION,
+        @"volumeVisibility":           SETTING_VOLUME_VISIBILITY,
+        @"showVolumeLabels":           SETTING_SHOW_VOLUME_LABELS,
     };
     // Every launch asks, so the common answer, nothing to carry, allocates nothing.
     NSDictionary *diverged = [defaults dictionaryForKey:SETTING_CURRENT_THEME];
@@ -157,7 +163,11 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
     for (id record in stored) {
         carried = carried || carries(record);
     }
-    if (!carried) {
+    // Kinda Blue and Dark Wolf shipped their volume labels off through 1.16,
+    // so an unedited one carries that too, once. Either picked since keeps
+    // them on.
+    BOOL builtInsUnread = ![defaults boolForKey:SETTING_BUILT_IN_VOLUME_LABELS_READ];
+    if (!carried && !builtInsUnread) {
         return;
     }
     // The raw records: the sanitized ones have lost the fields being carried.
@@ -169,11 +179,19 @@ static void StoreBuiltInWorkingRecord(NSDictionary *record, NSString *builtIn) {
             working = record;
         }
     }
+    if (!working && builtInsUnread
+            && ([active isEqualToString:@"kinda_blue"] || [active isEqualToString:@"dark_wolf"])) {
+        working = @{@"showVolumeLabels": @NO};
+    }
     for (NSString *field in keys) {
         id value = working[field];
         if ([value isKindOfClass:NSNumber.class] || [value isKindOfClass:NSString.class]) {
             [defaults setObject:value forKey:keys[field]];
         }
+    }
+    [defaults setBool:YES forKey:SETTING_BUILT_IN_VOLUME_LABELS_READ];
+    if (!carried) {
+        return;
     }
     [self persistUserThemes:[self storedUserThemes]];
     if (diverged) {
