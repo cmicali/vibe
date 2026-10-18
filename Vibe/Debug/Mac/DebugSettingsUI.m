@@ -12,6 +12,7 @@
 #import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "DebugInternal.h"
 #import "DebugWireFormat.h"
 #import "DrawnControls.h"
 #import "PlatformColor.h"
@@ -497,8 +498,8 @@ static VibeSettingsElement *VibeElementForToken(NSArray<VibeSettingsElement *> *
     return nil;
 }
 
-static NSMenuItem *VibeMenuItemForToken(NSPopUpButton *popUp, NSString *token, NSString **errorJSON) {
-    NSArray<NSMenuItem *> *items = popUp.itemArray;
+static NSMenuItem *VibeMenuItemForToken(NSMenu *menu, NSString *token, NSString **errorJSON) {
+    NSArray<NSMenuItem *> *items = menu.itemArray;
     if ([token hasPrefix:@"#"]) {
         NSScanner *scanner = [NSScanner scannerWithString:[token substringFromIndex:1]];
         NSInteger index = 0;
@@ -507,7 +508,7 @@ static NSMenuItem *VibeMenuItemForToken(NSPopUpButton *popUp, NSString *token, N
             return items[(NSUInteger)index];
         }
         *errorJSON = VibeErrorJSON(@"no item %@ in '%@' (it has %lu)",
-                token, popUp.itemArray.firstObject.title ?: @"", (unsigned long)items.count);
+                token, items.firstObject.title ?: @"", (unsigned long)items.count);
         return nil;
     }
     for (NSUInteger pass = 0; pass < 2; pass++) {
@@ -607,7 +608,7 @@ static NSString *VibeChooseMenuItem(VibeSettingsElement *element, NSString *valu
                 element.name, element.name);
     }
     NSString *errorJSON = nil;
-    NSMenuItem *item = VibeMenuItemForToken(popUp, value, &errorJSON);
+    NSMenuItem *item = VibeMenuItemForToken(popUp.menu, value, &errorJSON);
     if (!item) {
         return errorJSON;
     }
@@ -1026,26 +1027,19 @@ NSString *VibeDebugSettingsMenu(NSArray<NSString *> *tokens) {
     if (!menu) {
         return VibeErrorJSON(@"a right-click on '%@' opens no menu", element.name);
     }
-    [menu update]; // the real validateMenuItem: pass
-    NSMutableArray<NSDictionary *> *items = [NSMutableArray array];
-    for (NSMenuItem *item in menu.itemArray) {
-        if (!item.isSeparatorItem) {
-            [items addObject:@{@"title": item.title, @"enabled": @(item.isEnabled)}];
-        }
-    }
     NSMutableDictionary *reply = [@{@"ok": @YES, @"control": element.name,
                                     @"menuOwner": view == element.row ? @"row" : view.className,
-                                    @"items": items} mutableCopy];
+                                    @"items": VibeMenuArray(menu)} mutableCopy];
     if (tokens.count > itemIndex) {
-        NSInteger index = [menu indexOfItemWithTitle:tokens[itemIndex]];
-        if (index < 0) {
-            return VibeErrorJSON(@"no item '%@' in that menu", tokens[itemIndex]);
+        NSMenuItem *item = VibeMenuItemForToken(menu, tokens[itemIndex], &errorJSON);
+        if (!item) {
+            return errorJSON;
         }
-        if (![menu itemAtIndex:index].isEnabled) {
-            return VibeErrorJSON(@"'%@' is disabled", tokens[itemIndex]);
+        if (!item.isEnabled) {
+            return VibeErrorJSON(@"menu item '%@' is disabled", item.title);
         }
-        [menu performActionForItemAtIndex:index];
-        reply[@"performed"] = tokens[itemIndex];
+        [menu performActionForItemAtIndex:[menu indexOfItem:item]];
+        reply[@"performed"] = item.title;
     }
     return VibeJSONString(reply);
 }
