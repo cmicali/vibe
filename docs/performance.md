@@ -51,7 +51,7 @@ Four releases cut the CPU it takes to play a file:
 - 1.12 made the UI's playback updates cheaper. Formatting the time readout had been most of each update.
 - 1.14 brought Vibe's own engine, and its MP3 decoder and resampler.
 - 1.15 brought Vibe's FLAC, WAV and AIFF decoders, and slowed the player's timer from 100 checks a second to 10.
-- 1.16 replaces Apple's Varispeed with Vibe's own pitch converter. It sounds much cleaner. It costs about three times as much CPU as Apple's. That's still a fraction of a percent of a core. [Audio quality](audio-quality.md#the-pitch-fader) has the numbers. 1.16 isn't on these charts yet.
+- 1.16 replaces Apple's Varispeed with Vibe's own pitch converter. It sounds much cleaner. It costs about three times as much CPU as Apple's. That's still a fraction of a percent of a core. [Audio quality](audio-quality.md#the-pitch-fader) has the numbers. Playing FLAC 24/192 at +8% pitch went from 6.8% of a core to 7.2%.
 
 **Why:** a music player should cost close to nothing during playback. The savings matter most on a laptop battery.
 
