@@ -26,8 +26,9 @@ Only five files in the moving code read `AppSettings`: one in folder art, four i
 1. **The name is `cm_libs`. The prefix for new code is `CMM`.** `CM` alone is CoreMedia's.
 2. **No rename.** Moves are pure `git mv`, with history carried by `git filter-repo`. The `Vibe` C prefix stays. The unprefixed classes (`AudioPlayer`, `AudioFileHandle`, `WaveformView`) are listed by a check. A scripted prefix is a later PR if ever wanted. The rename the earlier plan folded into the move would touch 441 names, 678 files and 88 of #294's 111 files.
 3. **#294 merged here first.** The waveform data moves once.
-4. **Pieces are cut by job, not by Vibe's directories.** Split a piece when that saves a consumer a dependency. Merge parts that only work together. The rules and the full list of about thirty pieces are in the cm_libs plan.
-5. **Compile in tree.** Apps add `cm_libs` as a git submodule, include `cm_libs.yml`, and list the templates they want. The sources compile into the app exactly as today. Static libraries and SwiftPM are later switches, with their triggers below.
+4. **Extraction first, and the playback and waveform path first.** A move changes no API, language, or platform. Portable rewrites, new tag fields, and other redesigns are separate work. The playback and waveform path moves first, and the other app builds its first slice on it. Every other piece moves when a second app needs it.
+5. **Pieces are cut by job, not by Vibe's directories.** Split a piece when that saves a consumer a dependency. Merge parts that only work together. The rules and the full list of about thirty pieces are in the cm_libs plan.
+6. **Compile in tree.** Apps add `cm_libs` as a git submodule, include `cm_libs.yml`, and list the templates they want. The sources compile into the app exactly as today. Static libraries and SwiftPM are later switches, with their triggers below.
 
 ## The build shape
 
@@ -97,7 +98,7 @@ grep -rln 'AppSettings\|AppTheme\|VibeStrings.h\|FolderAccessManager\|PlaylistFi
 | 4 | Folder art providers | `FolderArtResolver -init` reads `useFolderArt` and calls `FolderAccessManager`. | Delete the reads. `-init` uses the injectable `initWithEnabledProvider:accessProvider:` with the iOS defaults. `AppDelegate` installs both beside the `FolderWalk` handlers. |
 | 5 | AudioTrack strings | `STR_LABEL_TRACK_ARTIST_TITLE` is `"%1$@ - %2$@"` in all 30 languages. `STR_LABEL_CUE_TRACK` is translated. | Retire the first key and join with a literal. The second becomes a class property `cueTrackTitleFormat`, pushed at launch by each app delegate. TRAP: do not route it through the CUE reader, because `PlaylistFile` persists `cueTitle` into the session. |
 | 6 | `Common/StringRules.h` | `VibeStatusForPlayError`, `LinkStore`'s 26 `STR_LINK_*`, eight renderer `+displayName` overrides and the registry's two name methods. | One header-only file in Vibe, the one place a library's code or identifier becomes a `STR_*`. Precedent `SettingsRules.h`. `styleIdentifiers` returns a stable order and each shell sorts by name. |
-| 7 | Formatters stays in Vibe | `AudioTrack.durationString`, `AudioTrackMetadata.fileInfoLine`, both views' `accessibilityLabel`, `Formatters.percentString:`. | Delete `durationString`. `fileInfoLineForMetadata:` moves to `Formatters`. Shells set the label where they build the view. A small `WaveformAccessibility.h` formats the percent. |
+| 7 | Formatters stays in Vibe | `AudioTrackMetadata.fileInfoLine`, both views' `accessibilityLabel`, `Formatters.percentString:`. | `fileInfoLineForMetadata:` moves to `Formatters`. Shells set the label where they build the view. A small `WaveformAccessibility.h` formats the percent. |
 | 8 | Identifier macros | `SETTINGS_VALUE_WAVEFORM_*` in `AppSettings.h` are identifiers the registry and theme own. | Theme, band and palette identifiers to `WaveformTheme.h`, style identifiers to `WaveformRendererRegistry.h`. Names unchanged. |
 | 9 | `WaveformTheme+Settings` | `themeForAppTheme:` and `themeForSettings:widget:` map Vibe's stores onto the theme. | A category in `Vibe/Common/WaveformTheme+Settings`, precedent `AppSettings+Themes`. `WaveformTheme` then imports only `PlatformColor.h`. |
 | 10 | Mac `WaveformView` pushed | Nine `AppSettings` reads. | Pushed properties the renderer already has, a `dragSeeks` BOOL, and a `themeProvider` block. One shell method `applyWaveformSettings` pushes everything. One new live-effect bit for the drag popup. Precedent `AudioPlayer.declick`. |
@@ -108,17 +109,22 @@ grep -rln 'AppSettings\|AppTheme\|VibeStrings.h\|FolderAccessManager\|PlaylistFi
 
 | # | Seam | Today | Fix |
 | --- | --- | --- | --- |
-| 13 | `AudioTrack` splits | Nine shared areas import the playlist row. | A small value naming a file and an optional frame window moves to Decode, with its source and cache keys. The player, both caches, the CUE reader, the folder walk, Now Playing and the play queue take that value or a URL. The row keeps the tags, the analyzed tempo and key, the display names and the rule that tags beat analysis. This is the largest cut, and most of the others build on it. |
+| 13 | The playable-item protocol | Nine shared areas import the playlist row. | A small protocol gives an item's file, frame window, and source key. `AudioTrack` adopts it and stays in Vibe, moving to `Vibe/Playlist/` as the row it is, with its tags, analyzed tempo and key, display names, and the rule that tags beat analysis. The player, both caches, and the queue take `id` of the protocol and hand back the same object, so object identity survives. Caches match by source key. The player's submission identity stays its own. |
 | 14 | `AudioFileOpenRules.h` splits | It holds the open's delivery states, path spelling and the mount read-ahead rules. Four areas import it. | Each part goes to the piece that owns it. |
 | 15 | The loader's handle | Its opener is already a block, but it is typed as `AudioFileHandle`. It also calls `[AudioTrack invalidateMemoizedCacheKeys]`. | The handle becomes a small protocol for interrupting reads and holding a stream. The call becomes a handler block. |
 | 16 | TagLib and artwork | The TagLib wrapper returns an artwork extractor and reads remote ranges through the materializer. | Tags returns art bytes and takes a byte-range reader. |
 | 17 | The waveform decode's analyzers | The loader builds the tempo and key analyzers itself. | It takes observers of each mono block, and the app attaches the analyzers. |
 | 18 | CUE and M3U | The readers return `AudioTrack` rows. | They return records, and Vibe mints rows from them. |
-| 19 | Now Playing and the play queue | Both hold `AudioTrack`. | Now Playing takes a snapshot value, and the queue holds values. |
+| 19 | The play queue, then Now Playing | Both hold `AudioTrack`. `Playlist` relies on object identity: two entries for one file are two entries. | The queue holds caller-owned entries and keeps object identity. Now Playing takes a snapshot value when it moves. |
+| 22 | `AudioWaveform.h` splits | It holds the `AudioWaveform` name, the mono mix, and `CodableAudioWaveform`. | The name and the mono mix stay with the waveform data. `CodableAudioWaveform`, the cache's entry, goes with the cache. The C++ package stays whole. |
 | 20 | The link store | It mixes share-link rules with track naming and strings. | The rules and the client move. The store stays. |
 | 21 | The shell pieces | The folder-grant panel, the pitch fader and the drawn controls read strings, fonts and `Formatters`. The Sparkle wiring reads the beta setting. | The app pushes each one in. |
 
-These seams add four small types: the file-and-window value, the handle protocol, the decode observer block and the playlist record. Each one replaces a dependency on an app class.
+These seams add small types: the playable-item protocol, the handle protocol, the decode observer block, and later the playlist record. Each one replaces a dependency on an app class.
+
+**Only the cuts the playback and waveform path needs come first:** 1, 3, 4, 6 to 17, 19's queue half, and 22. Cut 2 and seam 20 wait for RemoteFiles and ShareLinks, seam 18 for Playlists, 19's Now Playing half for NowPlaying, and seam 21 for the shell pieces. Cut 5 is needed only if `AudioTrack` ever moves.
+
+**Two ownership rules from the import graph.** The morph engine stays with the renderers in WaveformStyles, since they drive it. `AudioPlayer+Devices`, `+BitPerfect`, and `+Recovery` read the player's private state, so they go to `Player/Mac` and `Player/iOS`. The device manager, `CoreAudioUtil`, the format rules, and the iOS session controller name the player only in comments, so they form OutputDevices.
 
 **Moves with its users, no source change:** `Util/StallWatch`, `NSString+CPPStrings`, `VibeWeakProxy`, `NSView+DarkMode`, `UIView+DarkMode`, `HelperMacros.h`, the platform aliases, `PlayableExtensions`, the debug seams, simulators and `AudioLoadTiming`. Convert is wholly `Vibe/Mac/Convert/` and stays. `AudioFileHandle`'s writing half stays in the engine. `VibeWidget/` is untouched.
 
@@ -127,16 +133,11 @@ These seams add four small types: the file-and-window value, the handle protocol
 The moves are planned in [cm_libs' plan](https://github.com/cmicali/cm_libs/blob/main/docs/plan.md). Each move is a pull request there, plus one here that bumps the submodule and deletes what moved. Each is `git mv` only, and each passes the acceptance test. In order:
 
 1. Phase 0: the license and eight build experiments. The repo rename and its docs are done (2026-10-17).
-2. Phase 1: the cuts and seams above, here.
-3. The pilot, DSP with the varispeed.
-4. `third_party/`.
-5. `core/`, and the portable pieces: DSP, Analysis, Tags, Playlists, ShareLinks.
-6. `files/`.
-7. The waveform data.
-8. `audio/` and `media/`.
-9. The waveform drawing and `ui/Controls`. The other app can start after this.
-10. `system/` and `dev/`.
-11. Docs.
+2. The pilot, DSP with the varispeed, after cut 12 alone.
+3. The cuts and seams the playback and waveform path needs, here.
+4. The path moves: `third_party/` without Sparkle, `core/`, FileLoading and DiskCache, `audio/`, Tags, Metadata and PlayQueue, then `waveform/` and the indicators once #294 merges here. The other app's first slice starts after this.
+5. The tag fields: album, album artist, genre, year, track and disc numbers, composer, the compilation flag, and a release identifier. The metadata archive's version moves, which costs every Vibe user one re-parse, so it ships in an announced release. Vibe reads none of the fields.
+6. Every other piece, when a second app needs it.
 
 ### What changes in this repo's tooling
 
@@ -158,6 +159,6 @@ The moves are planned in [cm_libs' plan](https://github.com/cmicali/cm_libs/blob
 
 ## Budget
 
-Most of the shared code and its tests leave this repo. Deleted or unified in what remains: the vendored flag anchors and their entries, eleven header search paths, three source entries, the prefix header's macro body, eight renderer name overrides and two registry methods, one link-error table and `VibeStatusForPlayError` consolidated into one header, `AudioTrack.durationString`, two accessibility overrides and a duplicated constant, one catalog key, eighteen settings reads, and two imports. New here: `Common/StringRules.h`, `Common/WaveformTheme+Settings`, `WaveformUI/WaveformAccessibility.h`, one live-effect bit. New types: the four the seams add, each argued above. The two hand-kept test source lists are not consolidated yet. The tests must keep compiling production sources for verbose logging, the `-O2` render path and the decoy. They shrink as each piece's tests move.
+Most of the shared code and its tests leave this repo. Deleted or unified in what remains: the vendored flag anchors and their entries, eleven header search paths, three source entries, the prefix header's macro body, eight renderer name overrides and two registry methods, one link-error table and `VibeStatusForPlayError` consolidated into one header, `AudioTrack.durationString`, two accessibility overrides and a duplicated constant, one catalog key, eighteen settings reads, and two imports. New here: `Common/StringRules.h`, `Common/WaveformTheme+Settings`, `WaveformUI/WaveformAccessibility.h`, one live-effect bit. New types: the small ones the seams add, each argued above. The two hand-kept test source lists are not consolidated yet. The tests must keep compiling production sources for verbose logging, the `-O2` render path and the decoy. They shrink as each piece's tests move.
 
 **Not done here.** Artwork keeps handing out `NSImage` and `UIImage`. WaveformStyles stays Objective-C++ until its later rewrite into portable C++. Windows support and the move of Vibe's release and test scripts into the toolbox come later, as cm_libs' plan says.
