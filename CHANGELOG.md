@@ -1,5 +1,7 @@
 # v1.17
 
+* Changed MP3, FLAC, WAV, AIFF and Ogg Vorbis files to always play with Vibe's own decoders
+* Improved playback of Ogg Vorbis files that also carry video or a Skeleton stream
 * Fixed 320 kbps MP3s opening slowly
 
 # v1.16

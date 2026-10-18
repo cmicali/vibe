@@ -194,6 +194,7 @@ static int VibeDescriptorsOpenOn(NSURL *url) {
 - (void)testValidContainerWithNoAudioIsOpenedWithZeroLength {
     NSURL *url = [self writePCMNamed:@"zero-frames.wav" frames:0 channels:1 rate:44100];
     AudioFileHandle *handle = [self open:url];
+    XCTAssertEqualObjects(handle.decoderName, @"dr_wav");
     XCTAssertEqual(handle.length, (AVAudioFramePosition)0);
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:handle.processingFormat frameCapacity:64];
     XCTAssertTrue([handle readIntoBuffer:buffer error:NULL]);

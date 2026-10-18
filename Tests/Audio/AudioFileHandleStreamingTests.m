@@ -305,44 +305,6 @@ enum { VibeFetchRunning = 0, VibeFetchCompleted, VibeFetchFailed, VibeFetchCance
     [file complete];
 }
 
-// Under Apple's decoder, CoreAudio's parser opens an MP3 and reads its last
-// bytes (an ID3v1 check). On a prefix with no tail window it waits for the
-// tail, and opens once the file is complete.
-- (void)testAnMP3OpenUnderAppleWaitsForTheTailThenOpensWhenTheFileCompletes {
-    BOOL prior = AudioFileHandle.appleMPEGDecoder;
-    [self addTeardownBlock:^{ AudioFileHandle.appleMPEGDecoder = prior; }];
-    AudioFileHandle.appleMPEGDecoder = YES;
-    NSDictionary<NSURL *, NSString *> *fixtures = [self fixtures];
-    for (NSURL *source in fixtures) {
-        if (![source.pathExtension isEqualToString:@"mp3"]) {
-            continue;
-        }
-        VibeGrowingFile *file = [self stream:source prefix:(uint64_t)([NSData dataWithContentsOfURL:source].length * 9 / 10)];
-        XCTestExpectation *opened = [self expectationWithDescription:@"opened"];
-        __block AudioFileHandle *handle = nil;
-        __block NSError *error = nil;
-        dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            NSError *openError = nil;
-            handle = [[AudioFileHandle alloc] initForReading:file.url error:&openError];
-            error = openError;
-            [opened fulfill];
-        });
-        if (![self awaitBlock:file]) {
-            [file complete];
-            [self waitForExpectations:@[opened] timeout:VIBE_TEST_HANG_TIMEOUT];
-            continue;
-        }
-        XCTAssertGreaterThan(file.blockedEnd, (uint64_t)file.bytes.length - 128, @"%@: the open's wait is for the tail",
-                             source.lastPathComponent);
-        XCTAssertNil(handle, @"%@ opened before its tail arrived", source.lastPathComponent);
-        [file complete];
-        [self waitForExpectations:@[opened] timeout:VIBE_TEST_HANG_TIMEOUT];
-        XCTAssertNotNil(handle, @"%@: %@", source.lastPathComponent, error);
-        NSData *pcm = VibeDecode(handle, 4096, INT64_MAX, &error);
-        [self assertPCM:pcm equals:[self referenceOf:source from:0 frames:INT64_MAX] context:source.lastPathComponent];
-    }
-}
-
 #pragma mark - The tail window
 
 // With the tail window, every open that reads past its head opens on its head
@@ -494,8 +456,7 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
 
 // A chunk after the audio, a 235 KB tag as a Dropbox AIFF carried, is past
 // the small window. An AIFF's open and a CAF's walk to that chunk's header.
-// CoreAudio's parser does too. It opens a WAV dr_wav refuses, here one past
-// dr_wav's 384 kHz. On the small window those opens wait for the download.
+// On the small window those opens wait for the download.
 // dr_wav stops at a WAV's or a W64's data chunk, so its opens never wait. On
 // the window its format takes, each opens on its head and the window with no
 // wait. The stream then decodes as the whole file.
@@ -505,18 +466,16 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
     NSData *samples = VibeNoiseSamples(frames, 2);
     NSError *error = nil;
     NSURL *wav = VibeWriteWAV([self sourceNamed:@"plain.wav"], samples, 44100, 2, 16, (uint32_t)samples.length);
-    NSURL *fast = VibeWriteWAV([self sourceNamed:@"fast.wav"], samples, 705600, 2, 16, (uint32_t)samples.length);
     NSURL *w64 = VibeWriteFixture([self sourceNamed:@"plain.w64"], VibeNoiseBuffer(frames), &error);
     NSURL *caf = VibeWriteFixture([self sourceNamed:@"plain.caf"], VibeNoiseBuffer(frames), &error);
     XCTAssertNil(error);
     NSDictionary<NSString *, NSData *> *plain = @{
         @"plain.aiff": VibeAIFF(samples, frames),
         @"plain.wav": [NSData dataWithContentsOfURL:wav],
-        @"fast.wav": [NSData dataWithContentsOfURL:fast],
         @"plain.w64": [NSData dataWithContentsOfURL:w64],
         @"plain.caf": [NSData dataWithContentsOfURL:caf],
     };
-    NSDictionary<NSString *, NSString *> *decoders = @{@"plain.aiff": @"dr_wav", @"plain.wav": @"dr_wav", @"fast.wav": @"apple",
+    NSDictionary<NSString *, NSString *> *decoders = @{@"plain.aiff": @"dr_wav", @"plain.wav": @"dr_wav",
                                                        @"plain.w64": @"dr_wav", @"plain.caf": @"apple"};
     for (NSString *name in plain) {
         NSString *extension = name.pathExtension;

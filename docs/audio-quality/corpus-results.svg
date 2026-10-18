@@ -16,14 +16,14 @@
 <line class="a" x1="24.0" y1="124.0" x2="892.0" y2="124.0" stroke-width="1"/>
 <text class="t" x="24.0" y="143.0" font-size="12" text-anchor="start">IETF CELLAR FLAC test files</text>
 <text class="t" x="351.7" y="143.0" font-size="12" text-anchor="middle">86</text>
-<text class="t" x="418.4" y="143.0" font-size="12" text-anchor="middle">82</text>
-<text class="t" x="486.9" y="143.0" font-size="12" text-anchor="middle">4</text>
+<text class="t" x="418.4" y="143.0" font-size="12" text-anchor="middle">81</text>
+<text class="t" x="486.9" y="143.0" font-size="12" text-anchor="middle">5</text>
 <text class="t" x="559.2" y="143.0" font-size="12" text-anchor="middle">69 of 69</text>
 <text class="t" x="633.9" y="143.0" font-size="12" text-anchor="middle">3</text>
 <text class="t" x="702.2" y="143.0" font-size="12" text-anchor="middle">0</text>
 <rect class="good3" x="736.2" y="126.0" width="63.7" height="26" rx="4"/>
 <text class="t" x="768.0" y="143.0" font-size="12" text-anchor="middle">0</text>
-<text class="t" x="847.0" y="143.0" font-size="12" text-anchor="middle">2026-10-17</text>
+<text class="t" x="847.0" y="143.0" font-size="12" text-anchor="middle">2026-10-18</text>
 <line class="g" x1="24.0" y1="154.0" x2="892.0" y2="154.0" stroke-width="1"/>
 <text class="t" x="24.0" y="173.0" font-size="12" text-anchor="start">ISO/IEC 14496-26 Layer III conformance</text>
 <text class="t" x="351.7" y="173.0" font-size="12" text-anchor="middle">40</text>
@@ -34,7 +34,7 @@
 <text class="t" x="702.2" y="173.0" font-size="12" text-anchor="middle">0</text>
 <rect class="good3" x="736.2" y="156.0" width="63.7" height="26" rx="4"/>
 <text class="t" x="768.0" y="173.0" font-size="12" text-anchor="middle">0</text>
-<text class="t" x="847.0" y="173.0" font-size="12" text-anchor="middle">2026-10-17</text>
+<text class="t" x="847.0" y="173.0" font-size="12" text-anchor="middle">2026-10-18</text>
 <line class="g" x1="24.0" y1="184.0" x2="892.0" y2="184.0" stroke-width="1"/>
 <text class="t" x="24.0" y="203.0" font-size="12" text-anchor="start">FFmpeg FATE audio samples</text>
 <text class="t" x="351.7" y="203.0" font-size="12" text-anchor="middle">173</text>
@@ -45,38 +45,38 @@
 <text class="t" x="702.2" y="203.0" font-size="12" text-anchor="middle">2</text>
 <rect class="good3" x="736.2" y="186.0" width="63.7" height="26" rx="4"/>
 <text class="t" x="768.0" y="203.0" font-size="12" text-anchor="middle">0</text>
-<text class="t" x="847.0" y="203.0" font-size="12" text-anchor="middle">2026-10-17</text>
+<text class="t" x="847.0" y="203.0" font-size="12" text-anchor="middle">2026-10-18</text>
 <line class="g" x1="24.0" y1="214.0" x2="892.0" y2="214.0" stroke-width="1"/>
 <text class="t" x="24.0" y="233.0" font-size="12" text-anchor="start">McGill WAVE and AIFF samples, EBU BW64 tests</text>
 <text class="t" x="351.7" y="233.0" font-size="12" text-anchor="middle">70</text>
-<text class="t" x="418.4" y="233.0" font-size="12" text-anchor="middle">61</text>
-<text class="t" x="486.9" y="233.0" font-size="12" text-anchor="middle">9</text>
+<text class="t" x="418.4" y="233.0" font-size="12" text-anchor="middle">59</text>
+<text class="t" x="486.9" y="233.0" font-size="12" text-anchor="middle">11</text>
 <text class="t" x="559.2" y="233.0" font-size="12" text-anchor="middle">–</text>
 <text class="t" x="633.9" y="233.0" font-size="12" text-anchor="middle">0</text>
 <text class="t" x="702.2" y="233.0" font-size="12" text-anchor="middle">0</text>
 <rect class="good3" x="736.2" y="216.0" width="63.7" height="26" rx="4"/>
 <text class="t" x="768.0" y="233.0" font-size="12" text-anchor="middle">0</text>
-<text class="t" x="847.0" y="233.0" font-size="12" text-anchor="middle">2026-10-17</text>
+<text class="t" x="847.0" y="233.0" font-size="12" text-anchor="middle">2026-10-18</text>
 <line class="g" x1="24.0" y1="244.0" x2="892.0" y2="244.0" stroke-width="1"/>
 <text class="t" x="24.0" y="263.0" font-size="12" text-anchor="start">Chromium and Firefox media tests</text>
 <text class="t" x="351.7" y="263.0" font-size="12" text-anchor="middle">493</text>
-<text class="t" x="418.4" y="263.0" font-size="12" text-anchor="middle">220</text>
-<text class="t" x="486.9" y="263.0" font-size="12" text-anchor="middle">273</text>
+<text class="t" x="418.4" y="263.0" font-size="12" text-anchor="middle">215</text>
+<text class="t" x="486.9" y="263.0" font-size="12" text-anchor="middle">278</text>
 <text class="t" x="559.2" y="263.0" font-size="12" text-anchor="middle">–</text>
-<text class="t" x="633.9" y="263.0" font-size="12" text-anchor="middle">30</text>
+<text class="t" x="633.9" y="263.0" font-size="12" text-anchor="middle">24</text>
 <text class="t" x="702.2" y="263.0" font-size="12" text-anchor="middle">0</text>
 <rect class="good3" x="736.2" y="246.0" width="63.7" height="26" rx="4"/>
 <text class="t" x="768.0" y="263.0" font-size="12" text-anchor="middle">0</text>
-<text class="t" x="847.0" y="263.0" font-size="12" text-anchor="middle">2026-10-17</text>
+<text class="t" x="847.0" y="263.0" font-size="12" text-anchor="middle">2026-10-18</text>
 <line class="g" x1="24.0" y1="274.0" x2="892.0" y2="274.0" stroke-width="1"/>
 <text class="t" x="24.0" y="293.0" font-size="12" text-anchor="start">TagLib test data</text>
 <text class="t" x="351.7" y="293.0" font-size="12" text-anchor="middle">71</text>
-<text class="t" x="418.4" y="293.0" font-size="12" text-anchor="middle">55</text>
-<text class="t" x="486.9" y="293.0" font-size="12" text-anchor="middle">16</text>
+<text class="t" x="418.4" y="293.0" font-size="12" text-anchor="middle">54</text>
+<text class="t" x="486.9" y="293.0" font-size="12" text-anchor="middle">17</text>
 <text class="t" x="559.2" y="293.0" font-size="12" text-anchor="middle">–</text>
-<text class="t" x="633.9" y="293.0" font-size="12" text-anchor="middle">2</text>
+<text class="t" x="633.9" y="293.0" font-size="12" text-anchor="middle">1</text>
 <text class="t" x="702.2" y="293.0" font-size="12" text-anchor="middle">0</text>
 <rect class="good3" x="736.2" y="276.0" width="63.7" height="26" rx="4"/>
 <text class="t" x="768.0" y="293.0" font-size="12" text-anchor="middle">0</text>
-<text class="t" x="847.0" y="293.0" font-size="12" text-anchor="middle">2026-10-17</text>
+<text class="t" x="847.0" y="293.0" font-size="12" text-anchor="middle">2026-10-18</text>
 </svg>

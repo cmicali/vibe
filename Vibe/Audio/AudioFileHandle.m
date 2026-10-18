@@ -21,10 +21,32 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
-static atomic_bool sAppleMPEGDecoder;
-
 // CoreAudio's Ogg reader (.ogg, .oga, .opus). The SDK names no constant.
 static const AudioFileTypeID kVibeOggFileType = 'Oggf';
+
+// Whether one of Vibe's own decoders takes this container and coding
+// (openOwnDecoderInterleaved:). Such a file reaches the parser only after its
+// decoder refused it, damaged past what that decoder plays, so playback
+// refuses it too. Apple's decoders play only codings Vibe has no decoder for,
+// GSM in a WAV among them, and containers it does not parse.
+static BOOL VibeOwnDecoderCoding(AudioFileTypeID container, AudioFormatID format) {
+    BOOL mpeg = format == kAudioFormatMPEGLayer1 || format == kAudioFormatMPEGLayer2 || format == kAudioFormatMPEGLayer3;
+    BOOL pcm = format == kAudioFormatLinearPCM || format == kAudioFormatALaw || format == kAudioFormatULaw;
+    switch (container) {
+        case kAudioFileWAVEType: case kAudioFileRF64Type: case kAudioFileWave64Type:
+            return mpeg || pcm || format == 0x6D730002 || format == 0x6D730011; // Microsoft's ADPCM and IMA's
+        case kAudioFileAIFFType: case kAudioFileAIFCType:
+            return pcm || format == kAudioFormatAppleIMA4;
+        case kAudioFileFLACType:
+            return format == kAudioFormatFLAC;
+        case kAudioFileMP3Type: case kAudioFileMP2Type: case kAudioFileMP1Type:
+            return mpeg;
+        case kVibeOggFileType:
+            return format == 'vorb';
+        default:
+            return NO;
+    }
+}
 
 // The status of an interrupted read, seek or open (+isInterruption:).
 static const OSStatus kVibeReadInterrupted = 'intr';
@@ -80,8 +102,6 @@ uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
     UInt32 _readBlockLength;
     UInt32 _bytesPerFrame; // of the processing format, per buffer
     BOOL _writing;
-    BOOL _mpegChoiceApplies; // an MPEG file
-    BOOL _openedUnderApple;  // the choice when it opened
     uint8_t *_readAheadEnd; // the flags cell a read-ahead shares with its thread
     AudioFileTypeID _container; // the parser's kAudioFilePropertyFileFormat
     BOOL _holdsStream; // one of _availability's readers (holdStream)
@@ -91,14 +111,6 @@ uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
     _Atomic bool _waitingForBytes;
     BOOL (^_openInterrupted)(void); // the open's caller's, while it runs
     float _opusGain; // the Opus header's output gain as a factor, 0 for none
-}
-
-+ (BOOL)appleMPEGDecoder {
-    return atomic_load(&sAppleMPEGDecoder);
-}
-
-+ (void)setAppleMPEGDecoder:(BOOL)appleMPEGDecoder {
-    atomic_store(&sAppleMPEGDecoder, appleMPEGDecoder);
 }
 
 - (NSString *)decoderName {
@@ -122,10 +134,6 @@ uint32_t VibeID3v2TagBytes(const uint8_t header[10]) {
 - (AVAudioFramePosition)lengthEstimated:(BOOL *)estimated {
     *estimated = self.lengthIsEstimated;
     return self.length;
-}
-
-- (BOOL)decoderChoiceIsStale {
-    return _mpegChoiceApplies && _openedUnderApple != atomic_load(&sAppleMPEGDecoder);
 }
 
 NSError *VibeHandleError(OSStatus status, NSString *description) {
@@ -668,15 +676,13 @@ static float VibeOpusOutputGain(AudioFileID parser) {
         return nil;
     }
     NSString *name = url.lastPathComponent;
-    // FLAC, WAV, AIFF, Ogg Vorbis and, under the dr_mp3 choice, MPEG go to the
-    // decoders that parse them, which answer the facts too. CoreAudio's parser
-    // opens only what none of them takes.
+    // FLAC, WAV, AIFF, Ogg Vorbis and MPEG go to the decoders that parse them.
+    // Those answer the facts too. CoreAudio's parser opens only what none of
+    // them takes.
     // TRAP: iOS's Ogg reader refuses Vorbis, and macOS's decoder drops
     // each Vorbis file's first 128 frames (macOS 27,
     // docs/future/audio-quality-gaps.md).
-    _openedUnderApple = atomic_load(&sAppleMPEGDecoder);
-    if ([self openOwnDecoderInterleaved:interleaved mpeg:!_openedUnderApple] || _waitError) {
-        _mpegChoiceApplies = _mpeg != NULL;
+    if ([self openOwnDecoderInterleaved:interleaved] || _waitError) {
         return [self openedWithError:error];
     }
     if (![self openParserWithError:error]) {
@@ -696,12 +702,15 @@ static float VibeOpusOutputGain(AudioFileID parser) {
         return [self failWithError:error status:status ?: kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ reports no audio format", name]];
     }
+    if (VibeOwnDecoderCoding(_container, fileDescription.mFormatID)) {
+        return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
+                       description:[NSString stringWithFormat:@"%@ is damaged past what Vibe's decoder plays", name]];
+    }
     if (![self takeFileFormat:fileDescription layout:VibeFileChannelLayout(_codec) interleaved:interleaved]) {
         return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ has a format this player cannot decode", name]];
     }
     UInt32 formatID = fileDescription.mFormatID;
-    _mpegChoiceApplies = formatID == kAudioFormatMPEGLayer1 || formatID == kAudioFormatMPEGLayer2 || formatID == kAudioFormatMPEGLayer3;
     status = [self decodeToProcessingFormatInLayout:_processingFormat.channelLayout];
     if (status != noErr) {
         // What AVAudioFile reported for a file its decoder cannot produce:
