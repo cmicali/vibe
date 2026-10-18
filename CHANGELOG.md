@@ -48,6 +48,7 @@
 * ios: Improved Settings: On track end and Time display choose in place, and the 3-Band palettes are named by their colors
 * ios: Added Ogg Vorbis playback
 * ios: Added zooming the waveform down to the samples
+* ios: Fixed an older link open replacing a newer file open
 
 # v1.15
 
