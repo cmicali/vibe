@@ -109,20 +109,22 @@ grep -rln 'AppSettings\|AppTheme\|VibeStrings.h\|FolderAccessManager\|PlaylistFi
 
 | # | Seam | Today | Fix |
 | --- | --- | --- | --- |
-| 13 | The playable-item protocol | Nine shared areas import the playlist row. | A small protocol gives an item's file, frame window, and source key. `AudioTrack` adopts it and stays in Vibe, moving to `Vibe/Playlist/` as the row it is, with its tags, analyzed tempo and key, display names, and the rule that tags beat analysis. The player, both caches, and the queue take `id` of the protocol and hand back the same object, so object identity survives. Caches match by source key. The player's submission identity stays its own. |
+| 13 | The playable-item protocol | Nine shared areas import the playlist row. | A small protocol gives an item's file, frame window, source key, and disk key. `AudioTrack` adopts it and stays in Vibe, moving to `Vibe/Playlist/` as the row it is, with its tags, analyzed tempo and key, display names, and the rule that tags beat analysis. The player, both caches, and the queue take `id` of the protocol and hand back the same object, so object identity survives. The source key, path and window, names the same audio for shared work, claims, and late deliveries, and does not change with the file's contents. The disk key, `NSURL+Hash.cacheKey` with the window appended for a waveform, names one version of the file for persisted entries. The player's submission identity stays its own. |
 | 14 | `AudioFileOpenRules.h` splits | It holds the open's delivery states, path spelling and the mount read-ahead rules. Four areas import it. | Each part goes to the piece that owns it. |
 | 15 | The loader's handle | Its opener is already a block, but it is typed as `AudioFileHandle`. It also calls `[AudioTrack invalidateMemoizedCacheKeys]`. | The handle becomes a small protocol for interrupting reads and holding a stream. The call becomes a handler block. |
 | 16 | TagLib and artwork | The TagLib wrapper returns an artwork extractor and reads remote ranges through the materializer. | Tags returns art bytes and takes a byte-range reader. |
 | 17 | The waveform decode's analyzers | The loader builds the tempo and key analyzers itself. | It takes observers of each mono block, and the app attaches the analyzers. |
 | 18 | CUE and M3U | The readers return `AudioTrack` rows. | They return records, and Vibe mints rows from them. |
 | 19 | The play queue, then Now Playing | Both hold `AudioTrack`. `Playlist` relies on object identity: two entries for one file are two entries. | The queue holds caller-owned entries and keeps object identity. Now Playing takes a snapshot value when it moves. |
-| 22 | `AudioWaveform.h` splits | It holds the `AudioWaveform` name, the mono mix, and `CodableAudioWaveform`. | The name and the mono mix stay with the waveform data. `CodableAudioWaveform`, the cache's entry, goes with the cache. The C++ package stays whole. |
+| 22 | Metadata's holder protocol | The metadata loader reads an item's installed metadata and installs results through `AudioTrack (Internal)`'s `installMetadataIfUnresolved:` and `deliverIfMetadataStillInstalled:usingBlock:`. | Metadata declares those three operations as its own protocol, and `AudioTrack` adopts it with the methods it has. The check and the install stay atomic in the row. Decode's playable-item protocol stays free of metadata. |
 | 20 | The link store | It mixes share-link rules with track naming and strings. | The rules and the client move. The store stays. |
 | 21 | The shell pieces | The folder-grant panel, the pitch fader and the drawn controls read strings, fonts and `Formatters`. The Sparkle wiring reads the beta setting. | The app pushes each one in. |
 
-These seams add small types: the playable-item protocol, the handle protocol, the decode observer block, and later the playlist record. Each one replaces a dependency on an app class.
+These seams add small types: the playable-item protocol, Metadata's holder protocol, the handle protocol, the decode observer block, and later the playlist record. Each one replaces a dependency on an app class.
 
 **Only the cuts the playback and waveform path needs come first:** 1, 3, 4, 6 to 17, 19's queue half, and 22. Cut 2 and seam 20 wait for RemoteFiles and ShareLinks, seam 18 for Playlists, 19's Now Playing half for NowPlaying, and seam 21 for the shell pieces. Cut 5 is needed only if `AudioTrack` ever moves.
+
+**`CodableAudioWaveform` stays with the waveform data**, in the Waveform piece's Objective-C++ part beside the unchanged C++ package. Both views, the style registry, both shells, and the widget publisher hold it, so moving it to the cache would make drawing depend on Decode and FileLoading.
 
 **Two ownership rules from the import graph.** The morph engine stays with the renderers in WaveformStyles, since they drive it. `AudioPlayer+Devices`, `+BitPerfect`, and `+Recovery` read the player's private state, so they go to `Player/Mac` and `Player/iOS`. The device manager, `CoreAudioUtil`, the format rules, and the iOS session controller name the player only in comments, so they form OutputDevices.
 
@@ -133,9 +135,9 @@ These seams add small types: the playable-item protocol, the handle protocol, th
 The moves are planned in [cm_libs' plan](https://github.com/cmicali/cm_libs/blob/main/docs/plan.md). Each move is a pull request there, plus one here that bumps the submodule and deletes what moved. Each is `git mv` only, and each passes the acceptance test. In order:
 
 1. Phase 0: the license and eight build experiments. The repo rename and its docs are done (2026-10-17).
-2. The pilot, DSP with the varispeed, after cut 12 alone.
+2. The pilot, DSP with the varispeed, after cut 12 alone. The pilot moves `CMMMacros.h` to cm_libs with it, as the first file of `core/Common`, and Vibe's prefix header imports it from the submodule.
 3. The cuts and seams the playback and waveform path needs, here.
-4. The path moves: `third_party/` without Sparkle, `core/`, FileLoading and DiskCache, `audio/`, Tags, Metadata and PlayQueue, then `waveform/` and the indicators once #294 merges here. The other app's first slice starts after this.
+4. The path moves: `third_party/` without Sparkle, `core/`, FileLoading and DiskCache, `audio/`, Tags, Metadata and PlayQueue, then `waveform/` and the indicators. The other app's first slice starts after this.
 5. The tag fields: album, album artist, genre, year, track and disc numbers, composer, the compilation flag, and a release identifier. The metadata archive's version moves, which costs every Vibe user one re-parse, so it ships in an announced release. Vibe reads none of the fields.
 6. Every other piece, when a second app needs it.
 
