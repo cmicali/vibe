@@ -2,6 +2,7 @@
 
 * mac: Added mouse/trackpad scrolling and up/down keys to change the volume (when enabled)
 * mac: Moved the volume slider appearance and behavior settings from themes to Settings > Appearance
+* mac: Added Copy and Paste for colors and fonts in the theme editor's right-click menu
 * Fixed 320 kbps MP3s opening slowly
 
 # v1.16
@@ -45,7 +46,6 @@
 * mac: Improved bit-perfect output to use the device's widest bit depth: cleaner volume changes, and gapless between 16 and 24-bit songs
 * mac: Fixed Ogg Vorbis songs losing their first 3 ms
 * mac: Improved the Settings window: clearer names, reasons under disabled rows, a confirmation before restoring defaults, and a jump bar in the theme editor
-* mac: Added Copy and Paste for colors and fonts in the theme editor's right-click menu
 * Changed the Cupertino theme to darken only cover art behind the playback buttons, and lightened that gradient on both platforms
 * ios: Added waveform, large, and Lock Screen widgets, and improved the widget's playhead, skips, and theme
 * ios: Added a full-bleed artwork widget with the mac's playlist, play, and next buttons
