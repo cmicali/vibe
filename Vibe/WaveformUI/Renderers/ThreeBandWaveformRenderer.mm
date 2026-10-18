@@ -9,7 +9,6 @@
 #import "WaveformZoomMath.h"
 
 #include <algorithm>
-#include <functional>
 #include <vector>
 #include <cmath>
 
@@ -17,12 +16,6 @@
 // mids three quarters, the highs half. So the bands nest as a DJ's waveform
 // does, the lows outside, and the highs show as each hit's tip.
 static const float kBandCeiling[wavecore::kBandCount] = {1.0f, 0.75f, 0.5f};
-
-// Each band's share of the fixed full scale, from a typical mix's balance.
-// Without Normalize each band is measured against its share, and Spectrum's
-// color levels divide by it. Both weigh the mids and highs up against music's
-// falling spectrum.
-static const float kBandShareOfFullScale[wavecore::kBandCount] = {1.0f, 0.48f, 0.48f};
 
 // Spectrum's columns carry their outline's height, then their color levels.
 static const NSUInteger kSpectrumSamplesPerBar = 1 + wavecore::kBandCount;
@@ -90,11 +83,12 @@ std::vector<VibeSpectrumSection> VibeSpectrumSections(AudioWaveform *waveform) {
     std::vector<float> grid(columns * wavecore::kBandCount);
     waveform->tentBandMeanSquares(gridFrames, 0, columns, gridFrames, grid.data());
     NSUInteger starts[kVibeWaveformSectionColumns];
-    NSUInteger count = VibeWaveformSectionStarts(grid.data(), columns, kBandShareOfFullScale, starts);
+    NSUInteger count = VibeWaveformSectionStarts(grid.data(), columns, kVibeWaveformBandShares, starts);
     sections.resize(count);
     double cell = waveform->binFrames();
     // A kick's build, in cells: how far an edge may move onto its hit.
     int64_t reach = std::max((int64_t)1, (int64_t)ceil(0.1 * waveform->sampleRate() / cell));
+    std::vector<wavecore::Column> read;
     std::vector<float> levels, peaks;
     for (NSUInteger s = 0; s < count; s++) {
         double edge = starts[s] * gridFrames;
@@ -107,27 +101,25 @@ std::vector<VibeSpectrumSection> VibeSpectrumSections(AudioWaveform *waveform) {
         int64_t first = (int64_t)ceil(fmax(edge - 2 * gridFrames, (previous + edge) / 2) / cell);
         int64_t last = (int64_t)floor(fmin(edge + 2 * gridFrames, (edge + next) / 2) / cell);
         NSUInteger cells = last > first ? (NSUInteger)(last - first) : 0;
+        read.resize(cells);
         levels.resize(cells * wavecore::kBandCount);
+        peaks.resize(cells);
+        waveform->columns(cell, first, cells, read.data());
         for (NSUInteger i = 0; i < cells; i++) {
-            double at = (double)(first + (int64_t)i) * cell;
-            wavecore::Column column = waveform->column(at, at + cell);
             for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
-                levels[i * wavecore::kBandCount + b] = column.bandLoudest[b] / kBandShareOfFullScale[b];
+                levels[i * wavecore::kBandCount + b] = read[i].bandLoudest[b] / kVibeWaveformBandShares[b];
             }
+            peaks[i] = read[i].extent();
         }
         NSUInteger split = VibeWaveformSectionSplit(levels.data(), cells);
         if (split == 0) {
             continue;
         }
         // The peaks a reach either side of the split place it on the hit.
-        int64_t at = first + (int64_t)split;
-        int64_t from = std::max(first, at - reach), to = std::min(last, at + reach);
-        peaks.resize((size_t)(to - from));
-        for (int64_t c = from; c < to; c++) {
-            peaks[(size_t)(c - from)] = waveform->column((double)c * cell, (double)(c + 1) * cell).extent();
-        }
-        at = from + (int64_t)VibeWaveformSectionSnapToHit(peaks.data(), peaks.size(), (NSUInteger)(at - from));
-        sections[s].start = (double)at * cell;
+        NSUInteger from = split > (NSUInteger)reach ? split - (NSUInteger)reach : 0;
+        NSUInteger to = MIN(cells, split + (NSUInteger)reach);
+        split = from + VibeWaveformSectionSnapToHit(peaks.data() + from, to - from, split - from);
+        sections[s].start = (double)(first + (int64_t)split) * cell;
     }
     std::vector<double> sums(count * wavecore::kBandCount, 0.0);
     std::vector<NSUInteger> held(count, 0);
@@ -161,15 +153,18 @@ static NSUInteger VibeSectionOfColumn(const std::vector<VibeSpectrumSection> &se
     while (under + 1 < sections.size() && center >= sections[under + 1].start) {
         under++;
     }
+    // The sections either side of an edge inside the column, if there is one.
+    NSUInteger before = under, after = under;
     if (under + 1 < sections.size() && sections[under + 1].start < last) {
-        double edge = sections[under + 1].start;
-        return waveform->column(edge, last).extent() > waveform->column(first, edge).extent() ? under + 1 : under;
+        after = under + 1;
+    } else if (under > 0 && sections[under].start > first) {
+        before = under - 1;
+    } else {
+        return under;
     }
-    if (under > 0 && sections[under].start > first) {
-        double edge = sections[under].start;
-        return waveform->column(first, edge).extent() > waveform->column(edge, last).extent() ? under - 1 : under;
-    }
-    return under;
+    double edge = sections[after].start;
+    float left = waveform->column(first, edge).extent(), right = waveform->column(edge, last).extent();
+    return left == right ? under : left > right ? before : after;
 }
 
 static id VibePinned(CALayer *layer, CGFloat scale) {
@@ -203,12 +198,8 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     VibeStepPicture _drawn;
     // Spectrum's color windows and its columns' peaks, kept across fills.
     std::vector<float> _bandMeanSquares;
-    std::vector<float> _peaks;
     // The colors are part of the target, so a coloring change refills it.
     BOOL _colorsBySection;
-    // How much of the peaks' shape the heights take, by the pixel; set by
-    // each draw before its fill.
-    double _peakShapeWeight;
 }
 
 + (NSString *)styleIdentifier {
@@ -372,15 +363,15 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     // The peak shape's weight is by the pixel, so both styles fade it in at
     // the same zoom. By the column, 3-Band's wider columns took half of it.
     double pixels = bounds.size.width * _pixels.scale;
-    _peakShapeWeight = waveform && pixels > 0
-            ? VibeWaveformPeakShapeWeight((double)waveform->totalFrames() / waveform->sampleRate() / pixels)
+    float peakShape = waveform && pixels > 0
+            ? (float)VibeWaveformPeakShapeWeight((double)waveform->totalFrames() / waveform->sampleRate() / pixels)
             : 0;
-    double columnsPerPixel = _spectrum ? 1 : 1 / _pixels.scale + _peakShapeWeight * (1 - 1 / _pixels.scale);
+    double columnsPerPixel = _spectrum ? 1 : 1 / _pixels.scale + peakShape * (1 - 1 / _pixels.scale);
     // By section's fit is the track's, so both parts of a fill share one.
     __block std::vector<VibeSpectrumSection> sections;
     [self updateStepTargetForSize:bounds.size waveform:waveform columnsPerPixel:columnsPerPixel
                              fill:^(float *out, const wavecore::StepPart &part) {
-        [self fillBandLevels:out part:part waveform:waveform sections:sections];
+        [self fillBandLevels:out part:part waveform:waveform peakShape:peakShape sections:sections];
     }];
 }
 
@@ -389,53 +380,68 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     return VibeWaveformMinimumFramesPerPoint(waveform->binFrames());
 }
 
-// Heights are each band's loudest window, shaped by the peaks at deep zoom.
-// Spectrum's outline is the tallest band. Spectrum colors use a window of
+// A kick's low band builds for 40 to 60 ms after its attack. Each column's
+// peak is scaled by the level and the peak this far ahead of it, so the
+// attack stands at the level it builds to.
+static const double kPeakShapeReachSeconds = 0.06;
+
+// Heights are each band's loudest window, shaped by the peaks at deep zoom by
+// peakShape's weight. Spectrum's outline is the tallest band. Spectrum colors use a window of
 // their own (kVibeWaveformSpectrumColorSeconds), never narrower than a
 // column each side, unclamped and kept inside the column's section. By
 // section, each column takes the section under its center. sections holds
 // them once the fill's first part finds them.
 - (void)fillBandLevels:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform
-              sections:(std::vector<VibeSpectrumSection> &)sections {
+             peakShape:(float)peakShape sections:(std::vector<VibeSpectrumSection> &)sections {
     NSUInteger count = part.count, stride = _morph.samplesPerBar;
     double frames = part.framesPerColumn();
     // Under Normalize each band is measured against its own loudest window,
-    // so a hot master's bands fill their ceilings rather than pegging.
-    // Otherwise against its share of the fixed full scale. A streaming load
-    // takes the louder of the two so far. With the share alone a hot
-    // master's bands pegged until the decode completed, and then the whole
-    // strip shrank at once.
-    BOOL normalize = self.normalizesLevels;
-    wavecore::Column track = normalize ? waveform->column(0, (double)waveform->totalFrames()) : wavecore::Column();
+    // raised or lowered, so a hot master's bands fill their ceilings rather
+    // than pegging. Otherwise against its share of the fixed full scale.
+    wavecore::Column track = VibeWaveformNormalizeColumn(waveform, self.normalizesLevels);
     float references[wavecore::kBandCount];
     for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
-        float share = kVibeWaveformFullScaleRMS * kBandShareOfFullScale[b];
-        float loudest = track.bandLoudest[b];
-        references[b] = !(loudest > 0) ? share : waveform->isComplete() ? loudest : fmaxf(loudest, share);
+        references[b] = VibeWaveformReference(track.bandLoudest[b], kVibeWaveformFullScaleRMS * kVibeWaveformBandShares[b],
+                                              waveform->isComplete());
     }
     float gainDB = self.gainDB;
-    auto heights = [&](const wavecore::Column &column, float *bands) {
+    BOOL spectrum = _spectrum;
+    NSUInteger heightCount = spectrum ? 1 : wavecore::kBandCount;
+    auto heights = [&](const wavecore::Column &column, float *into) {
+        float bands[wavecore::kBandCount];
         for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
             bands[b] = kBandCeiling[b] * VibeWaveformBarLevel(column.bandLoudest[b], references[b], gainDB);
         }
+        if (spectrum) {
+            into[0] = fmaxf(bands[0], fmaxf(bands[1], bands[2]));
+        } else {
+            memcpy(into, bands, sizeof(bands));
+        }
     };
-    _peaks.resize(count);
+    double reach = kPeakShapeReachSeconds * waveform->sampleRate();
     for (NSUInteger i = 0; i < count; i++) {
         // A column at a time, never through the detail, whose frames hold no
         // bands.
         double k = (double)(part.first + (int64_t)i);
         wavecore::Column column = waveform->column(k * frames, (k + 1) * frames);
-        float bands[wavecore::kBandCount];
-        heights(column, _spectrum ? bands : out + i * stride);
-        if (_spectrum) {
-            out[i * stride] = fmaxf(bands[0], fmaxf(bands[1], bands[2]));
+        float *height = out + i * stride;
+        heights(column, height);
+        if (peakShape > 0) {
+            // Raised toward the peaks' shape: the column's peak scaled so the
+            // loudest peak just ahead draws the level there. Only ahead: a
+            // window behind as well raised a kick's body to the hi-hat after
+            // it, and its tail to its plateau. Never lowered, and never above
+            // the level ahead, so the quiet columns before a hit stay quiet.
+            wavecore::Column ahead = waveform->column(k * frames, (k + 0.5) * frames + reach);
+            float levels[wavecore::kBandCount];
+            heights(ahead, levels);
+            float share = ahead.extent() > 0 ? fminf(column.extent() / ahead.extent(), 1) : 0;
+            for (NSUInteger h = 0; h < heightCount; h++) {
+                height[h] += peakShape * fmaxf(share * levels[h] - height[h], 0);
+            }
         }
-        _peaks[i] = column.extent();
     }
-    if (_peakShapeWeight > 0) {
-        [self shapeHeights:out part:part waveform:waveform weight:(float)_peakShapeWeight heights:heights];
-    }
-    if (!_spectrum) {
+    if (!spectrum) {
         return;
     }
     _bandMeanSquares.resize(count * wavecore::kBandCount);
@@ -459,7 +465,7 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
     for (NSUInteger i = 0; i < count; i++) {
         for (NSUInteger b = 0; b < wavecore::kBandCount; b++) {
             float meanSquare = fmaxf(_bandMeanSquares[i * wavecore::kBandCount + b], 0);
-            out[i * stride + 1 + b] = sqrtf(meanSquare) / kBandShareOfFullScale[b];
+            out[i * stride + 1 + b] = sqrtf(meanSquare) / kVibeWaveformBandShares[b];
         }
     }
 }
@@ -492,41 +498,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
             readWidth = width;
         }
         memcpy(&_bandMeanSquares[i * wavecore::kBandCount], read, sizeof(read));
-    }
-}
-
-// A kick's low band builds for 40 to 60 ms after its attack. Each column's
-// peak is scaled by the level and the peak this far ahead of it, so the
-// attack stands at the level it builds to.
-static const double kPeakShapeReachSeconds = 0.06;
-
-// The heights raised toward the peaks' shape: each column's peak scaled so
-// the loudest peak just ahead draws each band's level there, or for Spectrum
-// the tallest band's. A window per column, not a grid, so no grid edge can
-// fall inside an attack. Only ahead: a window behind as well raised a kick's
-// body to the hi-hat after it, and its tail to its plateau. Never lower than
-// the bands, and never above the level ahead, so the quiet columns before a
-// hit stay quiet. weight fades the shape in.
-- (void)shapeHeights:(float *)out part:(const wavecore::StepPart &)part waveform:(AudioWaveform *)waveform
-              weight:(float)weight heights:(const std::function<void(const wavecore::Column &, float *)> &)heights {
-    NSUInteger count = part.count, stride = _morph.samplesPerBar;
-    NSUInteger shaped = _spectrum ? 1 : wavecore::kBandCount;
-    double frames = part.framesPerColumn();
-    double reach = kPeakShapeReachSeconds * waveform->sampleRate();
-    for (NSUInteger i = 0; i < count; i++) {
-        double center = ((double)part.first + i + 0.5) * frames;
-        wavecore::Column around = waveform->column(center - frames / 2, center + reach);
-        float levels[wavecore::kBandCount];
-        heights(around, levels);
-        if (_spectrum) {
-            levels[0] = fmaxf(levels[0], fmaxf(levels[1], levels[2]));
-        }
-        float peak = around.extent();
-        float share = peak > 0 ? fminf(_peaks[i] / peak, 1) : 0;
-        for (NSUInteger b = 0; b < shaped; b++) {
-            float height = out[i * stride + b];
-            out[i * stride + b] = height + weight * fmaxf(share * levels[b] - height, 0);
-        }
     }
 }
 
@@ -625,7 +596,6 @@ static const double kPeakShapeReachSeconds = 0.06;
     if (!image) {
         _drawn.clear();
         std::vector<float>().swap(_bandMeanSquares);
-        std::vector<float>().swap(_peaks);
     }
     CGRect frame = pixels.frameForHeight(_morph.size.height);
     [CATransaction begin];

@@ -323,15 +323,21 @@ std::vector<int64_t> Detail::takeLackedBlocks() {
     return std::exchange(lacked_, {});
 }
 
+std::pair<int64_t, int64_t> Detail::samplesFor(double framesPerColumn, int64_t firstIndex, size_t count,
+                                               int64_t frames) {
+    double first = std::max(0.0, double(firstIndex) * framesPerColumn);
+    double last = std::min(double(frames), double(firstIndex + int64_t(count)) * framesPerColumn);
+    int64_t s0 = std::clamp(int64_t(std::floor(first - 0.5)), int64_t(0), std::max(frames - 1, int64_t(0)));
+    int64_t s1 = std::clamp(int64_t(std::ceil(last - 0.5)), s0, std::max(frames - 1, s0));
+    return {s0, s1};
+}
+
 bool Detail::columns(double framesPerColumn, int64_t firstIndex, size_t count, int64_t frames, Column *out) const {
     if (count == 0 || frames <= 0 || !(framesPerColumn > 0)) {
         return count == 0;
     }
-    // The samples the line runs through, one past each end of the frames.
-    double first = std::max(0.0, double(firstIndex) * framesPerColumn);
-    double last = std::min(double(frames), double(firstIndex + int64_t(count)) * framesPerColumn);
-    int64_t s0 = std::clamp(int64_t(std::floor(first - 0.5)), int64_t(0), frames - 1);
-    int64_t s1 = std::clamp(int64_t(std::ceil(last - 0.5)), s0, frames - 1);
+    std::pair<int64_t, int64_t> samples = samplesFor(framesPerColumn, firstIndex, count, frames);
+    int64_t s0 = samples.first, s1 = samples.second;
     int64_t b0 = s0 / kBlockFrames, b1 = s1 / kBlockFrames;
     size_t blocks = size_t(b1 - b0 + 1);
     if (blocks > kMaxReadBlocks) {
@@ -435,10 +441,14 @@ void Summary::columns(double framesPerColumn, int64_t firstIndex, size_t count, 
             out[i] = column(k * framesPerColumn, (k + 1) * framesPerColumn);
         }
     };
-    double first = double(firstIndex) * framesPerColumn, last = double(firstIndex + int64_t(count)) * framesPerColumn;
-    int64_t span = int64_t(std::floor(std::max(0.0, last) / Detail::kBlockFrames)) -
-                   int64_t(std::floor(std::max(0.0, first) / Detail::kBlockFrames)) + 1;
-    if (!(framesPerColumn < double(base_.binFrames)) || count == 0 || span > int64_t(Detail::kMaxReadBlocks)) {
+    // Blocks a read needs, first and last.
+    auto blocks = [&](size_t from, size_t to) {
+        auto [s0, s1] = Detail::samplesFor(framesPerColumn, firstIndex + int64_t(from), to - from, frames_);
+        return std::make_pair(s0 / Detail::kBlockFrames, s1 / Detail::kBlockFrames);
+    };
+    auto whole = count > 0 ? blocks(0, count) : std::make_pair(int64_t(0), int64_t(0));
+    if (!(framesPerColumn < double(base_.binFrames)) || count == 0 ||
+        whole.second - whole.first + 1 > int64_t(Detail::kMaxReadBlocks)) {
         bins(0, count);
         return;
     }
@@ -446,19 +456,12 @@ void Summary::columns(double framesPerColumn, int64_t firstIndex, size_t count, 
     // the bins and leaves the rest on the samples. Read whole, one missing
     // block dropped every column to the bins, and the picture flashed each
     // time a scroll reached a block not yet in. Columns are grouped by the
-    // blocks their samples need, as Detail::columns finds them, so only the
-    // column across a block's edge needs both blocks.
-    auto blocks = [&](size_t c) {
-        double a = std::max(0.0, double(firstIndex + int64_t(c)) * framesPerColumn);
-        double b = std::min(double(frames_), double(firstIndex + int64_t(c) + 1) * framesPerColumn);
-        int64_t s0 = std::clamp(int64_t(std::floor(a - 0.5)), int64_t(0), std::max(frames_ - 1, int64_t(0)));
-        int64_t s1 = std::clamp(int64_t(std::ceil(b - 0.5)), s0, std::max(frames_ - 1, s0));
-        return std::make_pair(s0 / Detail::kBlockFrames, s1 / Detail::kBlockFrames);
-    };
+    // blocks their samples need, so only the column across a block's edge
+    // needs both blocks.
     for (size_t from = 0; from < count;) {
-        auto need = blocks(from);
+        auto need = blocks(from, from + 1);
         size_t to = from + 1;
-        while (to < count && blocks(to) == need) {
+        while (to < count && blocks(to, to + 1) == need) {
             to++;
         }
         if (!detail_.columns(framesPerColumn, firstIndex + int64_t(from), to - from, frames_, out + from)) {

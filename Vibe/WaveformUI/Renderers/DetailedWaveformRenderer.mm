@@ -115,9 +115,6 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
     std::vector<float> _tops;
     std::vector<wavecore::Column> _columns;
     std::vector<float> _levels;
-    // The step columns a pixel the last draw asked for
-    // (columnsPerPixelForWaveform:width:), which the level grid follows.
-    double _columnsPerPixel;
     std::unique_ptr<wavecore::ColumnCoverage> _coverage;
     VibeStepPicture _picture;
 }
@@ -351,7 +348,6 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
             columnsPerPixel = framesPerPixel / fmax(framesPerColumn, fmin(bin, framesPerPixel));
         }
     }
-    _columnsPerPixel = columnsPerPixel;
     return columnsPerPixel;
 }
 
@@ -431,7 +427,8 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
 static const double kLevelPixels = 4;
 
 - (double)levelColumnsPerColumn {
-    return _columnsPerPixel > 0 ? kLevelPixels * _columnsPerPixel : 1;
+    double columnsPerPixel = [self columnsPerPoint] / _pixels.scale;
+    return columnsPerPixel > 0 ? kLevelPixels * columnsPerPixel : 1;
 }
 
 - (void)backingScaleDidChange {

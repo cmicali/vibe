@@ -34,20 +34,25 @@ static inline CGFloat VibeBackingScaleForLayer(CALayer * _Nullable layer) {
     return VibeBackingScaleOrDefault(layer.contentsScale);
 }
 
-// The mix styles' Normalize reference is the whole track's column: the
-// waveform's own, so no view can move it. A streaming load keeps the fixed
-// reference, which an empty column stands for. Its loudest window is only the
-// loudest SO FAR, and a reference that rises per delivery shrinks bars
-// already drawn.
+// Normalize reads the whole track's column: the waveform's own, so no view
+// can move it. Without Normalize it is empty, and every reference is fixed.
 static inline wavecore::Column VibeWaveformNormalizeColumn(AudioWaveform *waveform, BOOL normalize) {
-    return normalize && waveform->isComplete() ? waveform->column(0, (double)waveform->totalFrames())
-                                                : wavecore::Column();
+    return normalize ? waveform->column(0, (double)waveform->totalFrames()) : wavecore::Column();
+}
+// The reference a loudest window is measured against. Once the track is
+// complete, its own loudest window. While a load streams its loudest window
+// is only the loudest so far, so the reference is never below the fixed one.
+// A reference that rose from below it per delivery shrank bars already
+// drawn. Silence keeps the fixed reference.
+static inline float VibeWaveformReference(float loudest, float fixed, BOOL complete) {
+    return !(loudest > 0) ? fixed : complete ? loudest : fmaxf(loudest, fixed);
 }
 // The mix styles' Normalize only raises levels: its reference cannot exceed
-// the fixed one. Silence keeps the fixed reference.
+// the fixed one, so a streaming load draws at the fixed one.
 static inline float VibeWaveformFullScaleRMSForWaveform(AudioWaveform *waveform, BOOL normalize) {
     float loudest = VibeWaveformNormalizeColumn(waveform, normalize).loudest;
-    return loudest > 0 ? fminf(loudest, kVibeWaveformFullScaleRMS) : kVibeWaveformFullScaleRMS;
+    return fminf(VibeWaveformReference(loudest, kVibeWaveformFullScaleRMS, waveform->isComplete()),
+                 kVibeWaveformFullScaleRMS);
 }
 
 // Both styles' gradient: a ramp down the band, the resting level at the top

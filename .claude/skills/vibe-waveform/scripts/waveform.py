@@ -19,16 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'vibe-perf/scripts'))
 import perf  # noqa: E402  builds VibeBenchComponents at a ref
-
-
-def option(args, name, default=None):
-    """Removes `name VALUE` from args and answers VALUE."""
-    if name in args:
-        i = args.index(name)
-        value = args[i + 1]
-        del args[i:i + 2]
-        return value
-    return default
+from bench import ffmpeg, option  # noqa: E402  on the path perf sets
 
 
 def probe(ref, file, args):
@@ -43,7 +34,7 @@ def tile(directory, out):
         return
     inputs = [arg for frame in frames for arg in ('-i', str(frame))]
     stack = f'vstack=inputs={len(frames)}' if len(frames) > 1 else 'null'
-    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', *inputs, '-filter_complex', stack, str(out)], check=True)
+    ffmpeg(*inputs, '-filter_complex', stack, str(out))
 
 
 def main(argv):
@@ -76,8 +67,7 @@ def main(argv):
         if deliveries:
             tile(Path(deliveries) / label, Path(deliveries) / f'{label}.png')
         sides.append(picture)
-    subprocess.run(['ffmpeg', '-loglevel', 'error', '-y', '-i', str(sides[0]), '-i', str(sides[1]),
-                    '-filter_complex', 'vstack=inputs=2', out], check=True)
+    ffmpeg('-i', str(sides[0]), '-i', str(sides[1]), '-filter_complex', 'vstack=inputs=2', out)
     print(f'{out}: base on top, head below')
     return 0
 

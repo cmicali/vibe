@@ -84,6 +84,10 @@ public:
     // when the columns cross more than kMaxReadBlocks or a block that is
     // missing.
     bool columns(double framesPerColumn, int64_t firstIndex, size_t count, int64_t frames, Column *out) const;
+    // The first and last sample those columns' line runs through, one past
+    // each end of their frames, clamped to the stream: what columns reads.
+    static std::pair<int64_t, int64_t> samplesFor(double framesPerColumn, int64_t firstIndex, size_t count,
+                                                  int64_t frames);
     // The blocks the reads since the last take lacked, which a holder reads
     // in. Taken once, so a block that cannot be read is asked for again only
     // by a later read.

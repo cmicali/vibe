@@ -44,6 +44,29 @@ static inline simd_float3 VibeSpectrumWeights(const float *levels) {
     return energy * energy;
 }
 
+// Each band's share of the fixed full scale, from a typical mix's balance.
+// Without Normalize 3-Band measures each band against its share, and
+// Spectrum's color levels divide by it. Both weigh the mids and highs up
+// against music's falling spectrum.
+static const float kVibeWaveformBandShares[3] = {1.0f, 0.48f, 0.48f};
+
+// A column's mix from its band mean squares: each band's share of
+// VibeSpectrumWeights at the levels Spectrum reads, RMS over the band's share
+// of full scale (kVibeWaveformBandShares, or a test's). NO, and no mix, for
+// silence.
+static inline BOOL VibeSpectrumMix(const float *meanSquares, const float shares[3], float *mix) {
+    float levels[3];
+    for (int b = 0; b < 3; b++) {
+        levels[b] = sqrtf(fmaxf(meanSquares[b], 0)) / shares[b];
+    }
+    simd_float3 weights = VibeSpectrumWeights(levels);
+    float total = weights.x + weights.y + weights.z;
+    for (int b = 0; b < 3; b++) {
+        mix[b] = total > 0 ? weights[b] / total : 0;
+    }
+    return total > 0;
+}
+
 // Mix sRGB primaries by VibeSpectrumWeights. Restore the weighted primary
 // brightness. Silence uses the plain mean.
 static inline void VibeSpectrumColor(const float *levels, const float primaries[3][3], float *rgb) {
@@ -82,6 +105,44 @@ static const NSUInteger kVibeWaveformLevelColumns = 1024;
 // time. As a share of the track, it was a beat long on a short track.
 static const double kVibeWaveformSpectrumColorSeconds = 2.0;
 
+// A peak of the run, read from either end.
+static inline float VibeWaveformSnapPeak(const float *peaks, NSUInteger count, NSUInteger i, BOOL mirrored) {
+    return peaks[mirrored ? count - 1 - i : i];
+}
+
+// The edge onto a hit the second side starts with. Mirrored, the first side
+// ends with it.
+static inline NSUInteger VibeWaveformSnapOntoHit(const float *peaks, NSUInteger count, NSUInteger at, BOOL mirrored) {
+    float loudest = 0;
+    for (NSUInteger i = 0; i < count; i++) {
+        loudest = fmaxf(loudest, peaks[i]);
+    }
+    float loud = loudest / 2;
+    if (VibeWaveformSnapPeak(peaks, count, at, mirrored) >= loud) {
+        while (at > 0 && VibeWaveformSnapPeak(peaks, count, at - 1, mirrored) >= loud) {
+            at--;
+        }
+    } else {
+        while (at < count && VibeWaveformSnapPeak(peaks, count, at, mirrored) < loud) {
+            at++;
+        }
+    }
+    // The quiet side's level, without the hit's own cells.
+    double quiet = 0;
+    for (NSUInteger i = 0; i < at; i++) {
+        quiet += VibeWaveformSnapPeak(peaks, count, i, mirrored);
+    }
+    quiet = at > 0 ? quiet / (double)at : 0;
+    while (at > 0) {
+        float soft = VibeWaveformSnapPeak(peaks, count, at - 1, mirrored);
+        if (!(soft > quiet * 1.5 && soft <= VibeWaveformSnapPeak(peaks, count, MIN(at, count - 1), mirrored))) {
+            break;
+        }
+        at--;
+    }
+    return at;
+}
+
 // An edge the levels place, moved onto the hit that makes it. peaks are the
 // mix's peaks in count cells, and at is the cell the levels start the second
 // side on. The bands' levels lag a kick's attack by its 40 to 60 ms build,
@@ -96,55 +157,19 @@ static inline NSUInteger VibeWaveformSectionSnapToHit(const float *peaks, NSUInt
         return at;
     }
     double before = 0, after = 0;
-    float loudest = 0;
     for (NSUInteger i = 0; i < count; i++) {
         if (i < at) {
             before += peaks[i];
         } else {
             after += peaks[i];
         }
-        loudest = fmaxf(loudest, peaks[i]);
     }
     before /= (double)at;
     after /= (double)(count - at);
-    float loud = loudest / 2;
     if (after > before * 1.25) {
-        if (peaks[at] >= loud) {
-            while (at > 0 && peaks[at - 1] >= loud) {
-                at--;
-            }
-        } else {
-            while (at < count && peaks[at] < loud) {
-                at++;
-            }
-        }
-        // The quiet side's level, without the hit's own cells.
-        double quiet = 0;
-        for (NSUInteger i = 0; i < at; i++) {
-            quiet += peaks[i];
-        }
-        quiet = at > 0 ? quiet / (double)at : 0;
-        while (at > 0 && peaks[at - 1] > quiet * 1.5 && peaks[at - 1] <= peaks[MIN(at, count - 1)]) {
-            at--;
-        }
+        at = VibeWaveformSnapOntoHit(peaks, count, at, NO);
     } else if (before > after * 1.25) {
-        if (peaks[at - 1] >= loud) {
-            while (at < count && peaks[at] >= loud) {
-                at++;
-            }
-        } else {
-            while (at > 0 && peaks[at - 1] < loud) {
-                at--;
-            }
-        }
-        double quiet = 0;
-        for (NSUInteger i = at; i < count; i++) {
-            quiet += peaks[i];
-        }
-        quiet = at < count ? quiet / (double)(count - at) : 0;
-        while (at > 0 && at < count && peaks[at] > quiet * 1.5 && peaks[at] <= peaks[at - 1]) {
-            at++;
-        }
+        at = count - VibeWaveformSnapOntoHit(peaks, count, count - at, YES);
     }
     return MIN(MAX(at, (NSUInteger)1), count - 1);
 }
@@ -200,18 +225,12 @@ static inline NSUInteger VibeWaveformSectionStarts(const float *meanSquares, NSU
     double mix[kVibeWaveformSectionColumns + 1][3] = {{0}};
     double squared[kVibeWaveformSectionColumns + 1] = {0};
     for (NSUInteger j = 0; j < count; j++) {
-        float levels[3];
-        for (int b = 0; b < 3; b++) {
-            levels[b] = sqrtf(fmaxf(meanSquares[j * 3 + b], 0)) / shares[b];
-        }
-        simd_float3 weights = VibeSpectrumWeights(levels);
-        double total = (double)weights.x + weights.y + weights.z;
-        sounding[j + 1] = sounding[j] + (total > 0);
+        float column[3];
+        sounding[j + 1] = sounding[j] + VibeSpectrumMix(meanSquares + j * 3, shares, column);
         squared[j + 1] = squared[j];
         for (int b = 0; b < 3; b++) {
-            double share = total > 0 ? weights[b] / total : 0;
-            mix[j + 1][b] = mix[j][b] + share;
-            squared[j + 1] += share * share;
+            mix[j + 1][b] = mix[j][b] + column[b];
+            squared[j + 1] += (double)column[b] * column[b];
         }
     }
     // best[j] is the least cost of the first j columns. start[j] is where its
@@ -236,11 +255,12 @@ static inline NSUInteger VibeWaveformSectionStarts(const float *meanSquares, NSU
     }
     NSUInteger sections = 0;
     for (NSUInteger end = count; end > 0; end = start[end]) {
-        sections++;
+        starts[sections++] = start[end];
     }
-    NSUInteger i = sections;
-    for (NSUInteger end = count; end > 0; end = start[end]) {
-        starts[--i] = start[end];
+    for (NSUInteger i = 0; i < sections / 2; i++) {
+        NSUInteger swap = starts[i];
+        starts[i] = starts[sections - 1 - i];
+        starts[sections - 1 - i] = swap;
     }
     return sections;
 }

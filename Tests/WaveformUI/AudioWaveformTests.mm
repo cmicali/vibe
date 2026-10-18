@@ -1374,10 +1374,10 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
     }
 }
 
-// The grid finds the sections, and each edge moves to the change itself: the
-// first kick back in, not the grid column it falls in.
-- (void)testSpectrumSectionEdgeLandsOnTheFirstKickBackIn {
-    // A frame a bin at 8 Hz: a section column is four bins.
+// Quiet hats, then a kick every fourth bin from bin 514. A frame a bin at
+// 8 Hz: a section column is four bins, and Precise's tent reaches 16 bins
+// each side.
+static std::unique_ptr<AudioWaveform> VibeKickBackInWaveform(void) {
     auto waveform = std::make_unique<AudioWaveform>(1, true, 8);
     for (NSUInteger i = 0; i < 1024; i++) {
         BOOL kick = i >= 514 && (i - 514) % 4 == 0;
@@ -1385,6 +1385,13 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
         waveform->appendBin(-0.1f, 0.1f, 0.01, bands, 1);
     }
     waveform->markComplete();
+    return waveform;
+}
+
+// The grid finds the sections, and each edge moves to the change itself: the
+// first kick back in, not the grid column it falls in.
+- (void)testSpectrumSectionEdgeLandsOnTheFirstKickBackIn {
+    auto waveform = VibeKickBackInWaveform();
     std::vector<VibeSpectrumSection> sections = VibeSpectrumSections(waveform.get());
     XCTAssertEqual(sections.size(), 2u);
     if (sections.size() == 2) {
@@ -1395,13 +1402,11 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
     }
 }
 
-// The rows a picture inks down one pixel column.
-static size_t VibeInkedRows(const VibeTestPicture &picture, size_t x) {
-    size_t rows = 0;
-    for (size_t row = 0; row < picture.height; row++) {
-        rows += picture.alpha(x, row) >= 128;
-    }
-    return rows;
+// The ink down one pixel column of a picture.
+static CGFloat VibeInkAt(const VibeTestPicture &picture, size_t x) {
+    CGFloat ink = 0;
+    for (size_t row = 0; row < picture.height; row++) ink += picture.alpha(x, row) / 255.0;
+    return ink;
 }
 
 // A kick whose peaks jump at once while its low band builds over 12 bins,
@@ -1429,9 +1434,9 @@ static size_t VibeInkedRows(const VibeTestPicture &picture, size_t x) {
         VibeTestPicture picture = VibeThreeBandPicture(renderer);
         XCTAssertEqual(picture.width, 2048u, @"%@: half a bin a pixel, 2.9 ms columns", style);
         if (picture.width == 2048) {
-            size_t plateau = VibeInkedRows(picture, 2 * 540);
-            XCTAssertGreaterThan(VibeInkedRows(picture, 2 * 512 + 2), plateau * 8 / 10, @"%@: the attack stands at once", style);
-            XCTAssertLessThan(VibeInkedRows(picture, 2 * 500), plateau / 10, @"%@: the bins before it stay quiet", style);
+            CGFloat plateau = VibeInkAt(picture, 2 * 540);
+            XCTAssertGreaterThan(VibeInkAt(picture, 2 * 512 + 2), plateau * 0.8, @"%@: the attack stands at once", style);
+            XCTAssertLessThan(VibeInkAt(picture, 2 * 500), plateau * 0.1, @"%@: the bins before it stay quiet", style);
         }
     }
 }
@@ -1439,15 +1444,7 @@ static size_t VibeInkedRows(const VibeTestPicture &picture, size_t x) {
 // Precise's tent stops at the section edge, so the hats before the kick
 // comes back keep their own color right up to it.
 - (void)testSpectrumPreciseColorsStopAtTheSectionEdge {
-    // A frame a bin at 8 Hz: a section column is four bins, and Precise's
-    // tent reaches 16 bins each side.
-    auto waveform = std::make_unique<AudioWaveform>(1, true, 8);
-    for (NSUInteger i = 0; i < 1024; i++) {
-        BOOL kick = i >= 514 && (i - 514) % 4 == 0;
-        double bands[wavecore::kBandCount] = {kick ? 1.0 : 0.0, 0.0, 0.04};
-        waveform->appendBin(-0.1f, 0.1f, 0.01, bands, 1);
-    }
-    waveform->markComplete();
+    auto waveform = VibeKickBackInWaveform();
     WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
     theme.flatFill = YES;
     VibeTestPicture picture = [self spectrumPictureForWaveform:waveform.get() scale:1 theme:theme];
@@ -1470,13 +1467,6 @@ static size_t VibeInkedRows(const VibeTestPicture &picture, size_t x) {
 }
 
 #pragma mark - The convert sweep
-
-// The ink down one pixel column of a picture.
-static CGFloat VibeInkAt(const VibeTestPicture &picture, size_t x) {
-    CGFloat ink = 0;
-    for (size_t row = 0; row < picture.height; row++) ink += picture.alpha(x, row) / 255.0;
-    return ink;
-}
 
 // The convert sweep zeroes a step style's columns over the span in every
 // step, so the notch is a hairline, and the ease brings them back.

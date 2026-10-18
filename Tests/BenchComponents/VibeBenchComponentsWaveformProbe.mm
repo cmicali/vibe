@@ -70,7 +70,7 @@ static NSArray<CodableAudioWaveform *> *VibeWaveformProbeReplay(NSString *path, 
     AVAudioFormat *format = reader.processingFormat;
     double rate = format.sampleRate;
     NSUInteger channels = format.channelCount;
-    wavecore::SummaryBuilder builder(bands, reader.length, rate);
+    auto builder = VibeBenchComponentsMixBuilder(bands, reader.length, rate);
     AVAudioFrameCount block = 4096;
     AVAudioPCMBuffer *buffer = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:block];
     std::vector<float> scratch(block);
@@ -81,15 +81,27 @@ static NSArray<CodableAudioWaveform *> *VibeWaveformProbeReplay(NSString *path, 
         more = [reader read:buffer];
         NSUInteger frames = buffer.frameLength;
         if (frames > 0) {
-            builder.append(AudioWaveformMonoMix(buffer.floatChannelData[0], scratch.data(), frames, channels), frames);
+            VibeBenchComponentsAppendMix(*builder,
+                    AudioWaveformMonoMix(buffer.floatChannelData[0], scratch.data(), frames, channels), frames);
             read += (int64_t)frames;
         }
         if (more && read >= next) {
-            [snapshots addObject:[[CodableAudioWaveform alloc] initWithWaveform:builder.snapshot()]];
+            [snapshots addObject:[[CodableAudioWaveform alloc] initWithWaveform:builder->snapshot()]];
             next += (int64_t)(every * rate);
         }
     }
     return snapshots;
+}
+
+// The style's renderer on a host of its own, as the scrubber makes it.
+static WaveformRenderer *VibeWaveformProbeRenderer(const ProbeOptions &o, NSString *style, CALayer *host) {
+    host.anchorPoint = CGPointZero;
+    host.contentsScale = o.scale;
+    host.bounds = CGRectMake(0, 0, o.width, o.height);
+    WaveformRenderer *renderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style layer:host
+                                                                                 bounds:host.bounds isDark:!o.light];
+    renderer.normalizesLevels = YES;
+    return renderer;
 }
 
 // The view's visible fraction, clamped as the scrubber clamps it.
@@ -105,7 +117,7 @@ static WaveformTheme *VibeWaveformProbeTheme(const ProbeOptions &o, NSString *st
     theme.spectrumColors = [WaveformTheme spectrumColorsForIdentifier:o.palette isDark:!o.light customBands:@[]];
     theme.spectrumColorsBySection = !o.precise;
     if ([WaveformRendererRegistry drawsPlayheadLineForIdentifier:style chosen:nil]) {
-        theme.playheadColor = [(o.light ? NSColor.blackColor : NSColor.whiteColor) colorWithAlphaComponent:0.8];
+        theme.playheadColor = [(o.light ? NSColor.blackColor : NSColor.whiteColor) colorWithAlphaComponent:0.68];
     }
     return theme;
 }
@@ -113,31 +125,24 @@ static WaveformTheme *VibeWaveformProbeTheme(const ProbeOptions &o, NSString *st
 // Draws the window the scrubber shows with the playhead at its center, and
 // answers the picture. Deep zoom's blocks are read from the file once, as the
 // scrubber's delegate reads them, and the window drawn again.
-static CGImageRef VibeWaveformProbeNewImage(const ProbeOptions &o, NSString *path, CodableAudioWaveform *codable,
-                                            AudioWaveformLoader *loader, double *fractionOut) {
+static CGImageRef VibeWaveformProbeNewImage(const ProbeOptions &o, NSString *style, double fraction, NSString *path,
+                                            CodableAudioWaveform *codable, AudioWaveformLoader *loader) {
     AudioWaveform *waveform = codable.waveform;
-    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:o.style];
     CALayer *host = [CALayer layer];
-    host.anchorPoint = CGPointZero;
-    host.contentsScale = o.scale;
-    host.bounds = CGRectMake(0, 0, o.width, o.height);
-    WaveformRenderer *renderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style layer:host
-                                                                                 bounds:host.bounds isDark:!o.light];
+    WaveformRenderer *renderer = VibeWaveformProbeRenderer(o, style, host);
     if (!renderer) {
         return NULL;
     }
-    renderer.normalizesLevels = YES;
     WaveformTheme *theme = VibeWaveformProbeTheme(o, style);
     renderer.theme = theme;
     [renderer updateColors:!o.light];
-    double fraction = VibeWaveformProbeFraction(o, renderer, waveform);
-    *fractionOut = fraction;
     CGFloat virtualWidth = o.width / fraction;
     CGRect virtualBounds = CGRectMake(0, 0, virtualWidth, o.height);
     host.bounds = virtualBounds;
-    CGFloat left = o.at * waveform->sampleRate() / (double)waveform->totalFrames() * virtualWidth - o.width / 2;
+    double at = o.at * waveform->sampleRate() / (double)waveform->totalFrames();
+    CGFloat left = at * virtualWidth - o.width / 2;
     CGRect window = CGRectIntersection(CGRectMake(left, 0, o.width, o.height), virtualBounds);
-    CGFloat progress = theme.playheadColor ? 1 : clampRange(o.at * waveform->sampleRate() / (double)waveform->totalFrames(), 0.0, 1.0);
+    CGFloat progress = theme.playheadColor ? 1 : clampRange(at, 0.0, 1.0);
     renderer.samplingWidth = o.width / kVibeWaveformDefaultZoomFraction;
     renderer.renderRect = CGRectIsNull(window) ? CGRectZero : window;
     [renderer updateWaveform:virtualBounds progress:progress waveform:waveform];
@@ -167,8 +172,10 @@ static CGImageRef VibeWaveformProbeNewImage(const ProbeOptions &o, NSString *pat
     CGContextTranslateCTM(context, left, 0);
     if (theme.playheadColor) {
         CGContextSetFillColorWithColor(context, theme.playheadColor.CGColor);
-        CGContextFillRect(context, VibePlayheadLineRect(o.width / 2, [renderer seekHitBandForBounds:host.bounds],
-                                                        o.width, o.scale));
+        // The scrubber's line, 4 pt past the band at each end.
+        CGRect band = CGRectIntersection(CGRectInset([renderer seekHitBandForBounds:host.bounds], 0, -4),
+                                         CGRectMake(0, 0, o.width, o.height));
+        CGContextFillRect(context, VibePlayheadLineRect(o.width / 2, band, o.width, o.scale));
     }
     CGImageRef image = CGBitmapContextCreateImage(context);
     CGContextRelease(context);
@@ -181,19 +188,13 @@ static BOOL VibeWaveformProbeWrite(CGImageRef image, NSString *path) {
 }
 
 static void VibeWaveformProbePrintSections(AudioWaveform *waveform) {
-    static const float kShares[3] = {1.0f, 0.48f, 0.48f};
     double rate = waveform->sampleRate();
     printf("sections (start s, low mid high share of the mix):\n");
 #if VIBE_BENCH_COMPONENTS_SPECTRUM_SECTIONS
     for (const VibeSpectrumSection &section : VibeSpectrumSections(waveform)) {
-        float levels[3];
-        for (int b = 0; b < 3; b++) {
-            levels[b] = sqrtf(fmaxf(section.meanSquares[b], 0)) / kShares[b];
-        }
-        simd_float3 weights = VibeSpectrumWeights(levels);
-        float total = weights.x + weights.y + weights.z;
-        printf("  %9.3f  %.2f %.2f %.2f\n", section.start / rate, total > 0 ? weights.x / total : 0,
-               total > 0 ? weights.y / total : 0, total > 0 ? weights.z / total : 0);
+        float mix[3];
+        VibeSpectrumMix(section.meanSquares, kVibeWaveformBandShares, mix);
+        printf("  %9.3f  %.2f %.2f %.2f\n", section.start / rate, mix[0], mix[1], mix[2]);
     }
 #else
     printf("  this ref has no VibeSpectrumSections\n");
@@ -261,9 +262,9 @@ static int VibeWaveformProbe(NSString *path, int argc, const char *argv[]) {
             done = YES;
         });
     });
-    while (!done) {
-        [NSRunLoop.mainRunLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
-    }
+    VibeBenchComponentsSpinMainUntil(^BOOL {
+        return done;
+    });
     if (!result) {
         fprintf(stderr, "the loader could not decode %s\n", path.UTF8String);
         return 65;
@@ -272,9 +273,10 @@ static int VibeWaveformProbe(NSString *path, int argc, const char *argv[]) {
     double rate = waveform->sampleRate();
     printf("%s: %.3f s at %.0f Hz, %u-frame bins%s\n", path.lastPathComponent.UTF8String,
            (double)waveform->totalFrames() / rate, rate, waveform->binFrames(), waveform->hasBands() ? ", bands" : "");
-    double fraction = 0;
+    // One zoom for every picture, the complete waveform's.
+    double fraction = VibeWaveformProbeFraction(o, VibeWaveformProbeRenderer(o, style, [CALayer layer]), waveform);
     if (o.out) {
-        CGImageRef image = VibeWaveformProbeNewImage(o, path, result, loader, &fraction);
+        CGImageRef image = VibeWaveformProbeNewImage(o, style, fraction, path, result, loader);
         if (!image || !VibeWaveformProbeWrite(image, o.out)) {
             fprintf(stderr, "could not draw %s with %s\n", o.out.UTF8String, style.UTF8String);
             CGImageRelease(image);
@@ -292,8 +294,7 @@ static int VibeWaveformProbe(NSString *path, int argc, const char *argv[]) {
         [all addObject:result];
         for (NSUInteger i = 0; i < all.count; i++) {
             @autoreleasepool {
-                double unused = 0;
-                CGImageRef image = VibeWaveformProbeNewImage(o, path, all[i], nil, &unused);
+                CGImageRef image = VibeWaveformProbeNewImage(o, style, fraction, path, all[i], nil);
                 NSString *file = [o.deliveries stringByAppendingPathComponent:[NSString stringWithFormat:@"%03lu.png", (unsigned long)i]];
                 if (image) {
                     VibeWaveformProbeWrite(image, file);
@@ -307,13 +308,6 @@ static int VibeWaveformProbe(NSString *path, int argc, const char *argv[]) {
         VibeWaveformProbePrintSections(waveform);
     }
     if (o.levelsStep > 0) {
-        if (fraction == 0) {
-            CALayer *host = [CALayer layer];
-            WaveformRenderer *renderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style layer:host
-                                                                                         bounds:CGRectMake(0, 0, o.width, o.height)
-                                                                                         isDark:YES];
-            fraction = VibeWaveformProbeFraction(o, renderer, waveform);
-        }
         VibeWaveformProbePrintLevels(o, waveform, fraction);
     }
     return 0;
