@@ -7,6 +7,27 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.16-beta12</title>
+<pubDate>Sun, 18 Oct 2026 01:56:47 +0000</pubDate>
+<sparkle:version>319</sparkle:version>
+<sparkle:shortVersionString>1.16-beta12</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* Added By section coloring to the Spectrum waveform, so each part of a song keeps one color
+* Added the Sectioned theme
+* Added playback of free-format MP3s
+* Changed the default playhead line to be slightly see-through
+* Improved how quickly MP3, FLAC, WAV and AIFF songs open
+* Improved bit-perfect output to use the device's widest bit depth: cleaner volume changes, and gapless between 16 and 24-bit songs
+* Fixed gapless playback of mono and MPEG-2 MP3s
+* Fixed Opus files whose header sets a volume playing at the wrong level
+* Fixed Ogg Vorbis songs losing their first 3 ms
+* Fixed memory growth on every playlist open and theme change on macOS 27
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.16-beta12/Vibe-macOS-arm64-1.16-beta12.zip" length="8904509" type="application/octet-stream" sparkle:edSignature="QNj7mLVsmO6lCq2RpKpd7WA/kyfolsCH6z0kfriRszl0hmQzfrmU4LckwUaDQ6uvRgjTf6RHTLynSHPJgxl4Dw=="/>
+</item>
+<item>
 <title>Vibe 1.16-beta11</title>
 <pubDate>Fri, 16 Oct 2026 03:23:48 +0000</pubDate>
 <sparkle:version>318</sparkle:version>
