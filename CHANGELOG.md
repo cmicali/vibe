@@ -1,7 +1,7 @@
 # v1.17
 
-* mac: Added scrolling and the Up and Down keys to change the volume
-* mac: Changed the volume slider's place and labels to app-wide settings in Settings > Appearance
+* mac: Added mouse/trackpad scrolling and up/down keys to change the volume (when enabled)
+* mac: Moved the volume slider appearance and behavior settings from themes to Settings > Appearance
 * Fixed 320 kbps MP3s opening slowly
 
 # v1.16
