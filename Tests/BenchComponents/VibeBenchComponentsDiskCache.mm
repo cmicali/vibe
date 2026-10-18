@@ -13,9 +13,17 @@
 #import "AudioWaveform.h"
 #import "AudioWaveformLoader.h"
 #import "AudioTrackMetadata.h"
+#if __has_include("AudioTrackMetadataInternal.h")
 #import "AudioTrackMetadataInternal.h"
+#endif
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW
+#if __has_include("WaveformRenderer.h")
 #import "WaveformRenderer.h"
+#else
+#import "AudioWaveformRenderer.h"
+// The renderer was AudioWaveformRenderer before it took the Waveform* name.
+#define WaveformRenderer AudioWaveformRenderer
+#endif
 #import "WaveformRendererRegistry.h"
 #endif
 
@@ -102,9 +110,11 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
                 return 100;
             };
             for (const char *operation : {"read", "write", "snapshot", "read-draw", "snapshot-draw"}) {
-#if !VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW
-                if (std::string(operation).find("-draw") != std::string::npos) continue;
-#endif
+                // A bands draw is Spectrum's, so a version without Spectrum has none.
+                if (std::string(operation).find("-draw") != std::string::npos &&
+                    (!VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW || (bands && !VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM))) {
+                    continue;
+                }
                 std::string op = operation;
                 VibeBenchComponentsAdd("waveform-cache", op + (bands ? "-bands" : "-plain") +
                                       ([name hasSuffix:@"60min"] ? "-60min" : ""), "op", prepare,
