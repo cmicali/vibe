@@ -456,8 +456,7 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
 
 // A chunk after the audio, a 235 KB tag as a Dropbox AIFF carried, is past
 // the small window. An AIFF's open and a CAF's walk to that chunk's header.
-// CoreAudio's parser does too. It opens a WAV dr_wav refuses, here one past
-// dr_wav's 384 kHz. On the small window those opens wait for the download.
+// On the small window those opens wait for the download.
 // dr_wav stops at a WAV's or a W64's data chunk, so its opens never wait. On
 // the window its format takes, each opens on its head and the window with no
 // wait. The stream then decodes as the whole file.
@@ -467,18 +466,16 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
     NSData *samples = VibeNoiseSamples(frames, 2);
     NSError *error = nil;
     NSURL *wav = VibeWriteWAV([self sourceNamed:@"plain.wav"], samples, 44100, 2, 16, (uint32_t)samples.length);
-    NSURL *fast = VibeWriteWAV([self sourceNamed:@"fast.wav"], samples, 705600, 2, 16, (uint32_t)samples.length);
     NSURL *w64 = VibeWriteFixture([self sourceNamed:@"plain.w64"], VibeNoiseBuffer(frames), &error);
     NSURL *caf = VibeWriteFixture([self sourceNamed:@"plain.caf"], VibeNoiseBuffer(frames), &error);
     XCTAssertNil(error);
     NSDictionary<NSString *, NSData *> *plain = @{
         @"plain.aiff": VibeAIFF(samples, frames),
         @"plain.wav": [NSData dataWithContentsOfURL:wav],
-        @"fast.wav": [NSData dataWithContentsOfURL:fast],
         @"plain.w64": [NSData dataWithContentsOfURL:w64],
         @"plain.caf": [NSData dataWithContentsOfURL:caf],
     };
-    NSDictionary<NSString *, NSString *> *decoders = @{@"plain.aiff": @"dr_wav", @"plain.wav": @"dr_wav", @"fast.wav": @"apple",
+    NSDictionary<NSString *, NSString *> *decoders = @{@"plain.aiff": @"dr_wav", @"plain.wav": @"dr_wav",
                                                        @"plain.w64": @"dr_wav", @"plain.caf": @"apple"};
     for (NSString *name in plain) {
         NSString *extension = name.pathExtension;

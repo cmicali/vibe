@@ -6,7 +6,9 @@
 //  decoder over it. dr_flac, dr_wav and libvorbis parse their own containers,
 //  and Vibe's MPEG open frames an MPEG file for dr_mp3. Any other file opens
 //  CoreAudio's parser over the descriptor through AudioFileOpenWithCallbacks,
-//  and an ExtAudioFile decodes it. For
+//  and an ExtAudioFile decodes it. A file in a container and coding Vibe's
+//  decoders take reaches the parser only once its decoder refused it, and
+//  playback refuses it there too. For
 //  writing: an ExtAudioFile encoding PCM into a file it creates. The surface
 //  is AVAudioFile's — the file's facts, a cursor in file frames, reads from
 //  and writes of a PCM buffer — so the player, the bus, the waveform loader,
@@ -26,26 +28,25 @@
 //  to one consumer at a time (the bus's decoder after a voice starts,
 //  AudioVoiceBus.h).
 //
-//  An MPEG file (MP1, MP2, MP3) is decoded by dr_mp3 instead of ExtAudioFile
-//  unless Apple's is chosen. Apple's arm64 MPEG decoder outputs 16-bit
-//  integers, clipped at full scale and rounded without dither. Its x86_64
-//  decoder outputs float32 but still clips overs.
-//  Under dr_mp3 the handle frames the stream itself. It states CoreAudio's
+//  An MPEG file (MP1, MP2, MP3) is decoded by dr_mp3 instead of ExtAudioFile.
+//  Apple's arm64 MPEG decoder outputs 16-bit integers, clipped at full scale
+//  and rounded without dither. Its x86_64 decoder outputs float32 but still
+//  clips overs. The handle frames the stream itself. It states CoreAudio's
 //  facts and length, except where CoreAudio is wrong (AudioFileHandle+MPEG.m).
 //
 //  A FLAC file is decoded by dr_flac, bit-identical to Apple's decode, which
 //  it replaces for its cost and its seeks: Apple's scans the stream from its
 //  start on the first seek into any part not yet read, and never uses the seek
-//  table (docs/audio-quality.md). CoreAudio's parser opens it only when dr_flac
-//  refuses it. dr_flac reads the stream through the handle's reads itself.
+//  table (docs/audio-quality.md). dr_flac reads the stream through the
+//  handle's reads itself.
 //  It states the file's format and layout as the parser would. It answers
 //  the length, found from the last frames when STREAMINFO leaves it unknown. The vendored copy
 //  carries fixes of its own (ThirdParty/AGENTS.md).
 //
 //  A WAV, W64, RF64 or AIFF file is decoded by dr_wav the same way, when it
 //  holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them). The open
-//  tells these containers and FLAC by the file's first bytes. A file dr_wav
-//  refuses goes to CoreAudio's parser.
+//  tells these containers and FLAC by the file's first bytes. A coding
+//  dr_wav lacks, such as GSM, is CoreAudio's.
 //
 //  A file a remote transfer is still writing from byte 0
 //  (CloudFileMaterializer's availabilityForURL:) is read from its part file

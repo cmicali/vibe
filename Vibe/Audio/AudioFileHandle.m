@@ -24,6 +24,30 @@
 // CoreAudio's Ogg reader (.ogg, .oga, .opus). The SDK names no constant.
 static const AudioFileTypeID kVibeOggFileType = 'Oggf';
 
+// Whether one of Vibe's own decoders takes this container and coding
+// (openOwnDecoderInterleaved:). Such a file reaches the parser only after its
+// decoder refused it, damaged past what that decoder plays, so playback
+// refuses it too. Apple's decoders play only codings Vibe has no decoder for,
+// GSM in a WAV among them, and containers it does not parse.
+static BOOL VibeOwnDecoderCoding(AudioFileTypeID container, AudioFormatID format) {
+    BOOL mpeg = format == kAudioFormatMPEGLayer1 || format == kAudioFormatMPEGLayer2 || format == kAudioFormatMPEGLayer3;
+    BOOL pcm = format == kAudioFormatLinearPCM || format == kAudioFormatALaw || format == kAudioFormatULaw;
+    switch (container) {
+        case kAudioFileWAVEType: case kAudioFileRF64Type: case kAudioFileWave64Type:
+            return mpeg || pcm || format == 0x6D730002 || format == 0x6D730011; // Microsoft's ADPCM and IMA's
+        case kAudioFileAIFFType: case kAudioFileAIFCType:
+            return pcm || format == kAudioFormatAppleIMA4;
+        case kAudioFileFLACType:
+            return format == kAudioFormatFLAC;
+        case kAudioFileMP3Type: case kAudioFileMP2Type: case kAudioFileMP1Type:
+            return mpeg;
+        case kVibeOggFileType:
+            return format == 'vorb';
+        default:
+            return NO;
+    }
+}
+
 // The status of an interrupted read, seek or open (+isInterruption:).
 static const OSStatus kVibeReadInterrupted = 'intr';
 
@@ -677,6 +701,10 @@ static float VibeOpusOutputGain(AudioFileID parser) {
     if (status != noErr || fileDescription.mChannelsPerFrame == 0 || fileDescription.mSampleRate <= 0) {
         return [self failWithError:error status:status ?: kAudioFileUnsupportedDataFormatError
                        description:[NSString stringWithFormat:@"%@ reports no audio format", name]];
+    }
+    if (VibeOwnDecoderCoding(_container, fileDescription.mFormatID)) {
+        return [self failWithError:error status:kAudioFileUnsupportedDataFormatError
+                       description:[NSString stringWithFormat:@"%@ is damaged past what Vibe's decoder plays", name]];
     }
     if (![self takeFileFormat:fileDescription layout:VibeFileChannelLayout(_codec) interleaved:interleaved]) {
         return [self failWithError:error status:kAudioFileUnsupportedDataFormatError

@@ -10,7 +10,7 @@ This page covers what Vibe does to your audio between the file and your output d
 - **FLAC doesn't use Apple's decoder either.** Vibe's gives the same samples, with much faster seeks and less CPU. [The FLAC decoder](#the-flac-decoder)
 - **Neither do WAV and AIFF.** Vibe's decoder gives the same samples, faster, and reads files Apple's gets wrong. [The WAV and AIFF decoder](#the-wav-and-aiff-decoder)
 - **Ogg Vorbis doesn't use Apple's decoder.** Apple's decoder on the Mac starts every file about 3 ms late, and the iPhone has none. [The Vorbis decoder](#the-vorbis-decoder)
-- **Everything else uses Apple's decoders.** That covers AAC, ALAC, Opus and CAF, and any file Vibe's own decoders refuse. An Opus file plays at the gain its header states. Apple's decoder ignores that gain, so Vibe applies it.
+- **Everything else uses Apple's decoders.** That covers AAC, ALAC, Opus and CAF, and codings like GSM inside a WAV. A file Vibe's own decoders refuse in a format they read doesn't play. Apple's decoders would have played a few damaged ones. An Opus file plays at the gain its header states. Apple's decoder ignores that gain, so Vibe applies it.
 - **Sample-rate conversion doesn't use Apple's converter.** Vibe's resampler is cleaner and far cheaper. [The resampler](#the-resampler)
 - **The pitch fader uses Vibe's own converter.** It's much cleaner than Apple's Varispeed. [The pitch fader](#the-pitch-fader)
 
@@ -84,7 +84,7 @@ In bit-perfect mode, a lossy file goes to your device as float if the device has
 
 ## The MP3 decoder
 
-Vibe decodes MP3, MP2 and MP1 with dr_mp3 on both platforms. Apple's decoder plays only a file dr_mp3's open refuses. Until 1.17, a Mac setting could choose Apple's decoder for every MP3.
+Vibe decodes MP3, MP2 and MP1 with dr_mp3 on both platforms. Until 1.17, a Mac setting could choose Apple's decoder instead.
 
 ![MP3 decoders considered](audio-quality/mp3-choice.svg)
 
@@ -197,7 +197,7 @@ One change was left out. Giving up early on a long run of zeros inside a frame s
 
 ## The WAV and AIFF decoder
 
-Vibe decodes WAV, BWF, RF64, Wave64 and AIFF with dr_wav on the Mac and the iPhone. That covers 8 to 32-bit integer, 32 and 64-bit float, A-law and µ-law, and the three ADPCM kinds: IMA and Microsoft's in a WAV, and Apple's IMA4 in an AIFF. Anything else falls back to the right decoder. MPEG inside a WAV can use Vibe's MP3 decoder. Files above dr_wav's 384 kHz limit fall back too. There's no setting. On all 10,823 WAV and AIFF files of a real library that both decoders open, dr_wav matched Apple's output bit for bit, and so did every seek.
+Vibe decodes WAV, BWF, RF64, Wave64 and AIFF with dr_wav on the Mac and the iPhone. That covers 8 to 32-bit integer, 32 and 64-bit float, A-law and µ-law, and the three ADPCM kinds: IMA and Microsoft's in a WAV, and Apple's IMA4 in an AIFF. Other codings, like GSM, use Apple's decoder. MPEG inside a WAV uses Vibe's MP3 decoder. dr_wav reads files up to 768 kHz. There's no setting. On all 10,823 WAV and AIFF files of a real library that both decoders open, dr_wav matched Apple's output bit for bit, and so did every seek.
 
 ![WAV and AIFF decoders considered](audio-quality/wav-choice.svg)
 
@@ -208,7 +208,7 @@ Vibe decodes WAV, BWF, RF64, Wave64 and AIFF with dr_wav on the Mac and the iPho
 - **Damaged compressed WAVs keep playing.** At a damaged block in an IMA ADPCM file, Apple's decoder decodes it anyway. At one in a Microsoft ADPCM file, it plays nothing of the file at all. Vibe's plays silence for the bad block and every other block in its place.
 - **The end of a Microsoft ADPCM file.** Apple's decoder plays the padding in the last block, 464 frames (about 10 ms) in a test file. Vibe's stops where the file says the sound ends.
 - **24 and 32-bit little-endian AIFF.** Apple's decoder reads these as 16-bit and plays them wrong, one and a half or two times as long as the music. Vibe plays them right. Convert to FLAC reads them the same way.
-- **dr_wav opens the file itself.** It states the format and channel layout as CoreAudio would, from an AIFF's channel layout chunk or a WAV's channel mask. CoreAudio's parser reads only a file dr_wav refuses. Opening takes 0.5 ms of CPU time, where it took 1.1 ms with CoreAudio's parser.
+- **dr_wav opens the file itself.** It states the format and channel layout as CoreAudio would, from an AIFF's channel layout chunk or a WAV's channel mask. CoreAudio's parser reads only a file in a coding dr_wav doesn't decode. Opening takes 0.5 ms of CPU time, where it took 1.1 ms with CoreAudio's parser.
 
 **The data:**
 
@@ -249,7 +249,7 @@ Vibe decodes Ogg Vorbis with **libvorbis**, the reference decoder from the Xiph.
 
 ### How it fits in
 
-- **libvorbis reads the file itself.** CoreAudio's parser never opens it. libvorbis reads the length from the last page and trims the encoder's padding, so each track has its exact length.
+- **libvorbis reads the file itself.** CoreAudio's parser never opens it. A file that starts a Skeleton or a video stream beside the sound plays too. A chain of streams that changes channels or rate plays its first streams, as Apple's decoder plays the first. libvorbis reads the length from the last page and trims the encoder's padding, so each track has its exact length.
 - **Seeks land on the exact sample.** In 300 random seeks on each of four test files, every one matched playing from the start.
 - **Surround files keep their channels.** Vorbis stores 5.1 as left, center, right, the two surrounds and the LFE. Vibe labels each channel, so the fold to stereo puts each one in its place.
 - **A file still downloading opens** once its first page of audio and its last 64 KB have arrived.
