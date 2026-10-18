@@ -1,0 +1,3 @@
+[submodule "cm_libs"]
+	path = cm_libs
+	url = https://github.com/cmicali/cm_libs.git

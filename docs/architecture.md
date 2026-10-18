@@ -73,6 +73,7 @@ Vibe/
     Widget/            the app's side of the Home Screen widget
   ThirdParty/          vendored code: TagLib, PINCache, r8brain, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, Sparkle
 VibeWidget/            the widget extension, in Swift
+cm_libs/               the shared toolbox, a git submodule; pieces compile into both apps
 Tests/                 unit tests, laid out like Vibe/
   AudioRender/         the audio suite: the real player, rendered with no device
   Support/             shared test helpers
@@ -101,7 +102,7 @@ Makefile               every build, test, and check command
 
 Each feature beside the engine has its own directory and doc:
 
-- **`FX/`**: `AudioFX` is the DJ effects on the master bus: a low-kill filter, a reverb, and two tempo-synced delays. `AudioVarispeed` is the pitch fader's stage, on macOS only. Doc: `Audio/FX/AGENTS.md`.
+- **`FX/`**: `AudioFX` is the DJ effects on the master bus: a low-kill filter, a reverb, and two tempo-synced delays. The pitch fader's stage, `AudioVarispeed`, comes from cm_libs (`cm_libs/audio/DSP/`) and runs on macOS only. Doc: `Audio/FX/AGENTS.md`.
 - **`Metadata/`**: `AudioTrackMetadataCache` is the facade over tags, their disk cache, and the playlist scan. `AudioTrackMetadataLoader` is the scan behind it. `TagLibAudioFile` reads tags through TagLib. `Artwork/` holds `AudioTrackArtwork` and `EmbeddedThumbnailCache`. `Artwork/FolderArt/FolderArtResolver` finds a cover beside the files, on macOS. Docs: `Audio/Metadata/AGENTS.md` and `Audio/Metadata/Artwork/FolderArt/AGENTS.md`.
 - **`Waveform/`**: `AudioWaveformLoader` decodes a file into an `AudioWaveform`. `AudioWaveformCache` owns the loaders and stores the results on disk through PINCache. The data is `Packages/WaveformCore`'s summary. Docs: `Audio/Waveform/AGENTS.md` and `Packages/WaveformCore/AGENTS.md`.
 - **`Analysis/`**: `AudioBPMAnalyzer` and `AudioKeyAnalyzer` ride the waveform's decode pass. Neither reads the file a second time. Key detection runs on macOS only. Doc: `Audio/Analysis/AGENTS.md`.
@@ -148,6 +149,10 @@ Each feature beside the engine has its own directory and doc:
 ### The widget
 
 `VibeWidget/` is the Home Screen and Lock Screen widget extension, written in Swift. It has no engine and never reads an audio file. It draws the `VibeWidgetState` snapshot the app writes into a shared app group. The app's writer is `Vibe/iOS/Widget/WidgetPublisher`. Read next: `VibeWidget/AGENTS.md` and `Vibe/iOS/Widget/AGENTS.md`.
+
+### cm_libs
+
+`cm_libs/` is a git submodule: [cm_libs](https://github.com/cmicali/cm_libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `cm_libs/cm_libs.yml`, so nothing builds differently. **Today one piece Vibe uses lives there: `audio/DSP`, the pitch fader's varispeed.** `core/Common` holds the realtime-effects brackets the prefix header imports. More of Vibe's shared code moves there piece by piece (`docs/future/cm-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in cm_libs, then Vibe bumps the submodule. Read `cm_libs/AGENTS.md` and the piece's own doc first.
 
 ### Third-party code
 
@@ -244,7 +249,7 @@ Read `Vibe/Audio/AGENTS.md` ("The voice bus", "Threading", and "Crossfades, paus
 `VibeMasterBusRender` (`Audio/AudioMasterBus.m`) is the one render function on both platforms. For each slice of output it runs these stages in order:
 
 1. The voice bus, through `VibeVoiceBusRender`.
-2. The varispeed on macOS (`VibeVarispeedRender`, `FX/AudioVarispeed.m`). At zero pitch it passes samples through and records history for a later pitch change.
+2. The varispeed on macOS (`VibeVarispeedRender`, `cm_libs/audio/DSP/AudioVarispeed.m`). At zero pitch it passes samples through and records history for a later pitch change.
 3. The hosted FX chain (`VibeFXChainRender`, `FX/AudioFX.m`). Released effects pass samples through once their tails finish.
 4. The meter, while the equalizer bars want levels or the beta signal probe is capturing (`VibeLevelMeterRender`, `Levels/AudioLevelMeter.m`).
 5. The volume, skipped once settled at full volume. Debug silent mode forces zero output here.
@@ -291,7 +296,7 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | Mixing and real-time code | `Audio/AGENTS.md` (The voice bus, Threading) | `Audio/AudioVoiceBusRender.m`, `Audio/AudioMasterBus.m` |
 | Sample-rate conversion | [audio-quality.md](audio-quality.md) | `Audio/AudioResampler.mm` |
 | Decoder conformance against public test files | the `vibe-audio-quality` skill, [audio-quality.md](audio-quality.md) | `Tests/AudioRender/AudioQualityCorpusTests.m` |
-| DJ effects or pitch | `Audio/FX/AGENTS.md` | `Audio/FX/AudioFX.m`, `Audio/FX/AudioVarispeed.m` |
+| DJ effects or pitch | `Audio/FX/AGENTS.md`, `cm_libs/audio/DSP/AGENTS.md` | `Audio/FX/AudioFX.m`, `cm_libs/audio/DSP/AudioVarispeed.m` |
 | Output devices or bit-perfect output | `Audio/Mac/Devices/AGENTS.md` | `Audio/Mac/Devices/AudioPlayer+Devices.m`, `AudioPlayer+BitPerfect.m` |
 | The iOS audio session and routes | `Audio/iOS/AGENTS.md` | `Audio/iOS/AudioSessionController.m` |
 | Cloud downloads, their order, the loading bar | `Loading/AGENTS.md`, [file-loading-spec.md](file-loading-spec.md) | `Loading/Claim/AudioFileMaterializationCoordinator.m` |

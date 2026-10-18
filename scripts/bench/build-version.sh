@@ -22,6 +22,10 @@ PATCH="$ROOT/scripts/bench/patches/$LABEL.patch"
 if [ ! -d "$SRC" ]; then
     git -C "$ROOT" worktree prune # `make clean` deletes build/ out from under earlier ones
     git -C "$ROOT" worktree add --detach "$SRC" "$REF" >/dev/null
+    # A version with cm_libs needs its submodule, or its pieces drop out.
+    if [ -f "$SRC/.gitmodules" ]; then
+        git -C "$SRC" submodule update --init --recursive >/dev/null
+    fi
     if [ -f "$PATCH" ]; then
         git -C "$SRC" apply "$PATCH"
     fi
