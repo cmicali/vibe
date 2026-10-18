@@ -220,10 +220,6 @@ static void ensureCellAttributes(void) {
     }
 }
 
-+ (void)invalidateCellAttributes {
-    cellAttributesBuilt = NO;
-}
-
 // The row text colors are cached with the attributes, so they rebuild too.
 - (void)refreshRowColors {
     cellAttributesBuilt = NO;

@@ -24,11 +24,8 @@ extern NSString *const kPlaylistColumnLength;
 // layout or a cell font.
 @interface PlaylistTableView : NSTableView
 
-// The PlaylistAppearance effect's hook; the caller reloads the table.
-+ (void)invalidateCellAttributes;
-
-// The PlaylistRowColors effect's hook: the visible rows redraw their fills
-// and push their text colors again, with no reload.
+// The visible rows redraw their fills and push their text colors again. The
+// PlaylistRowColors effect stops here. PlaylistAppearance reloads after it.
 - (void)refreshRowColors;
 
 // Applies the three optional columns (number, artwork, duration) from AppSettings.

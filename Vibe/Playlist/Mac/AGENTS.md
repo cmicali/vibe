@@ -18,9 +18,9 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 **TRAP: every column's attributes must carry a truncating paragraph style.** Cell content is an attributed string, and its paragraph style beats the cell's `lineBreakMode`. The default wraps a long title into a clipped second line, and `PlaylistTextCell`'s own truncation is not enough.
 
-**Cell attributes are cached until the `PlaylistAppearance` effect invalidates them** (`+invalidateCellAttributes`, then `reloadAllTracks`).
+**Cell attributes are cached until the `PlaylistAppearance` effect invalidates them** (`refreshRowColors`, then `reloadAllTracks`).
 
-**TRAP: on macOS 27, `reloadData` clears a view-based table's selection and posts no change.** `reloadAllTracks` is the whole-list reload, and it puts the selection back. The `PlaylistAppearance` effect, the folder-art setting and a grant change all use it. A new whole-list reload must use it too. `ensureCellAttributes` reads the theme's per-column colors (`resolvedPlaylistColorForBase:`, `Common/Mac/Theme/AGENTS.md`) and the playlist font.
+**TRAP: never call `reloadData` on the playlist table.** On macOS 27 it leaks AppKit dependency records (`NSKeyValueDependency`) for every `NSControl` in the visible rows, and they are never freed. It also clears the selection and posts no change. `reloadAllTracks` is the whole-list reload. It reloads every row with `reloadDataForRowIndexes:`, which leaks nothing and keeps the selection. It keeps the row views, so it stamps the playing marking again. A playlist replace, the `PlaylistAppearance` effect, the folder-art setting and a grant change all use it. A new whole-list reload must use it too. `ensureCellAttributes` reads the theme's per-column colors (`resolvedPlaylistColorForBase:`, `Common/Mac/Theme/AGENTS.md`) and the playlist font.
 
 **An evicted thumbnail shows the placeholder, and the cell callback never decodes.** Recovery posts the exact metadata object. `thumbnailDidLoad:` then reloads the art column of only the visible rows holding that object.
 

@@ -40,8 +40,7 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectPlaylistAppearance = 1UL << 16,
     // The row fills and the playing and selected rows' text. PlaylistRowView
     // reads its fill per draw and pushes its text color, so a live drag skips
-    // the cell rebuild. The rebuild also clears the table's selection, which
-    // would hide the selected row being previewed.
+    // the cell rebuild.
     VibeSettingsLiveEffectPlaylistRowColors = 1UL << 17,
     // The background under the rows only, a layer color the cells never read.
     VibeSettingsLiveEffectPlaylistBackground = 1UL << 18,

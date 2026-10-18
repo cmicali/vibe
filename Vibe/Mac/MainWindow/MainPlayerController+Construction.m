@@ -71,7 +71,7 @@
     [self wireWindowAndViews];
     [self buildPitchPanel];
 
-    [self.playlistTableView reloadData];
+    [self.playlistController reloadAllTracks];
     [self updateUI];
     [self syncEqualizerActivity];
 

@@ -35,6 +35,7 @@
 * mac: Added clicking the pitch panel's header to switch the range between 8% and 16%
 * mac: Fixed the waveform's hover line getting lost over the played part
 * mac: Fixed theme changes clearing the playlist selection on macOS 27
+* mac: Fixed memory growth on every playlist open and theme change on macOS 27
 * mac: Improved bit-perfect output to use the device's widest bit depth: cleaner volume changes, and gapless between 16 and 24-bit songs
 * mac: Fixed Ogg Vorbis songs losing their first 3 ms
 * mac: Improved the Settings window: clearer names, reasons under disabled rows, a confirmation before restoring defaults, and a jump bar in the theme editor

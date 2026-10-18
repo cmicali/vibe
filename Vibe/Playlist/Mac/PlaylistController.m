@@ -308,10 +308,10 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 - (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
     // The cursor is reset without its setter, so nothing else announces it.
     [self notifyCurrentIndexDidChange];
-    // reloadData can keep the selection by row index, which would land on an
+    // A row reload keeps the selection by row index, which would land on an
     // unrelated row of the new playlist.
     [self.tableView deselectAll:nil];
-    [self.tableView reloadData];
+    [self reloadAllTracks];
 }
 
 - (void)playlist:(Playlist *)playlist didAppendTracksAtIndexes:(NSIndexSet *)indexes {
@@ -583,7 +583,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 
 - (void)loadTracks:(NSArray<AudioTrack *> *)tracks selectingIndex:(NSUInteger)index {
     [_model replaceAllWithTracks:tracks startingAtIndex:index];
-    // The observer's reloadData keeps the scroll offset, but a new playlist
+    // The observer's reload keeps the scroll offset, but a new playlist
     // starts at its cursor.
     [self scrollCurrentTrackToVisible];
 }
@@ -893,12 +893,18 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     }
 }
 
-// TRAP: on macOS 27, reloadData clears a view-based table's selection. It
-// posts no selection change, so the selection is put back by hand.
+// TRAP: never reloadData. On macOS 27 it leaks AppKit dependency records
+// (NSKeyValueDependency) for every NSControl in the visible rows. A row reload
+// leaks none and keeps the selection. It keeps the row views too, so the
+// playing marking is stamped again.
 - (void)reloadAllTracks {
-    NSIndexSet *selection = [self selectedRows];
-    [self.tableView reloadData];
-    [self.tableView selectRowIndexes:selection byExtendingSelection:NO];
+    NSTableView *tableView = self.tableView;
+    [tableView noteNumberOfRowsChanged];
+    [tableView reloadDataForRowIndexes:[NSIndexSet indexSetWithIndexesInRange:
+                                                NSMakeRange(0, (NSUInteger)tableView.numberOfRows)]
+                         columnIndexes:[NSIndexSet indexSetWithIndexesInRange:
+                                                NSMakeRange(0, (NSUInteger)tableView.numberOfColumns)]];
+    [self refreshRowViewPlayingStates];
 }
 
 - (void)reloadVisibleTracks {

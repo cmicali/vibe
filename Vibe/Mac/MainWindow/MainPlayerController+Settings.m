@@ -156,7 +156,8 @@
         [self.playerContentView applyPlaylistBackground];
     }
     if (effects & VibeSettingsLiveEffectPlaylistAppearance) {
-        [PlaylistTableView invalidateCellAttributes];
+        // The reload keeps the row views, so their fills must redraw too.
+        [self.playlistTableView refreshRowColors];
         [self.playerContentView applyPlaylistBackground];
         [self.playlistTableView applyColumnVisibility];
         [self.playlistController reloadAllTracks];
