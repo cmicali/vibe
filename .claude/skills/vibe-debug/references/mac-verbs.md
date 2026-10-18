@@ -169,7 +169,6 @@ All but `set_analysis` are app-side verbs applied at once. `set_analysis` is a C
 "$V" --debug-cmd set_pause_at_track_end off  # {ok, pauseAtTrackEnd}: writes and requests the EndOfTrack live effect
 "$V" --debug-cmd set_repeat all      # {ok, repeatMode}: off|all|one. Writes and requests the EndOfTrack live effect. Both platforms
 "$V" --debug-cmd set_shuffle on      # {ok, shuffleEnabled}: the same path. Both platforms
-"$V" --debug-cmd set_decoder apple   # {ok, decoder}: apple|dr_mp3, the MPEG decoder for later opens, this session only. Writes no setting. Both platforms. It is iOS's only decoder switch. dump_audio_path reports the decoder in use
 "$V" --debug-cmd set_reopen_playlist on  # {ok, reopenLastPlaylist}: off deletes the container mirror at once; the mirror is written only at quit
 "$V" --debug-cmd set_declick off     # {ok, declick}: Settings > Audio > Declick, applied live. dump_state.settings.declick is the stored choice, player.declick what the player holds. The loopback verifier turns it off around its captures
 ```

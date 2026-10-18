@@ -30,7 +30,6 @@ static const CGFloat kAdvancedPopUpWidth = 200;
 @implementation SettingsAdvancedViewController {
     NSPopUpButton *_refreshRatePopUp;
     VibeSwitch *_allowBitPerfectAnyDeviceSwitch;
-    NSPopUpButton *_mp3DecoderPopUp;
     NSButton *_resetButton;
     NSTextField *_cacheSizeValue;
     NSButton *_clearCacheButton;
@@ -65,12 +64,6 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     }
 
     _allowBitPerfectAnyDeviceSwitch = [self switchWithAction:@selector(allowBitPerfectAnyDeviceChanged:)];
-    // Tagged by AppSettings.appleMPEGDecoder.
-    _mp3DecoderPopUp = [self popUpButtonWithWidth:kAdvancedPopUpWidth action:@selector(mp3DecoderChanged:)];
-    [_mp3DecoderPopUp addItemWithTitle:STR_SETTINGS_MP3_DECODER_DR_MP3];
-    _mp3DecoderPopUp.lastItem.tag = NO;
-    [_mp3DecoderPopUp addItemWithTitle:STR_SETTINGS_MP3_DECODER_APPLE];
-    _mp3DecoderPopUp.lastItem.tag = YES;
 
     _resetButton = [NSButton buttonWithTitle:STR_SETTINGS_RESET_DEFAULTS
                                       target:self action:@selector(confirmResetSettings:)];
@@ -122,7 +115,6 @@ static const CGFloat kAdvancedPopUpWidth = 200;
             [SettingsRowView rowWithTitle:STR_SETTINGS_ALLOW_BIT_PERFECT_ANY_DEVICE
                                   caption:STR_SETTINGS_ALLOW_BIT_PERFECT_ANY_DEVICE_CAPTION
                                   control:_allowBitPerfectAnyDeviceSwitch],
-            [SettingsRowView rowWithTitle:STR_SETTINGS_MP3_DECODER_LABEL control:_mp3DecoderPopUp],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_MAINTENANCE_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_CACHE_LABEL caption:STR_SETTINGS_CACHE_CAPTION
@@ -447,7 +439,6 @@ static NSString *VibeFlagForLanguage(NSString *language) {
     [_refreshRatePopUp selectItemWithTag:AppSettings.sharedInstance.uiUpdateHzCap];
     _allowBitPerfectAnyDeviceSwitch.state = AppSettings.sharedInstance.allowBitPerfectOnAnyDevice
             ? NSControlStateValueOn : NSControlStateValueOff;
-    [_mp3DecoderPopUp selectItemWithTag:AppSettings.sharedInstance.appleMPEGDecoder];
     [SettingsRowView setControl:_resetButton enabled:!AppSettings.sharedInstance.atFactoryDefaults];
     _resetButton.toolTip = _resetButton.enabled ? nil : STR_SETTINGS_RESET_AT_DEFAULTS_TIP;
     [self refreshAudioPath];
@@ -562,11 +553,6 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 - (void)allowBitPerfectAnyDeviceChanged:(id)sender {
     AppSettings.sharedInstance.allowBitPerfectOnAnyDevice = _allowBitPerfectAnyDeviceSwitch.state == NSControlStateValueOn;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
-}
-
-- (void)mp3DecoderChanged:(id)sender {
-    AppSettings.sharedInstance.appleMPEGDecoder = _mp3DecoderPopUp.selectedTag == YES;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectMP3Decoder];
 }
 
 #pragma mark - Cache

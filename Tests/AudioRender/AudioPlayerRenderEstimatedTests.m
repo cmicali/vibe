@@ -45,7 +45,6 @@ static NSData *MP3Frames(NSData *mp3) {
 // `bytes` streaming as playEstimatedStreamOf: does, not yet played. Answers
 // the whole file.
 - (NSURL *)streamEstimated:(NSData *)bytes prefix:(NSUInteger)prefix name:(NSString *)name {
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSURL *source = [self writeBytes:bytes name:[@"whole-" stringByAppendingString:name]];
     [self streamingCopyOf:source prefix:prefix name:name];
     [self installTailWindow:8192];
