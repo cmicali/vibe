@@ -1,23 +1,22 @@
-* Uutta: Viben oma tiedostoselain järjestelmän Tiedostot-valitsimen rinnalla, Dropbox sisäänrakennettuna: kirjaudu sisään selataksesi, hakeaksesi ja toistaaksesi Dropboxiasi, ja toisto alkaa jo kappaleen latautuessa
-* Uutta: sekoitus, kaikkien toisto ja yhden kappaleen toisto, painikkeet ohjainten vieressä (piilotettavissa kohdassa Asetukset > Ulkoasu)
-* Uutta: CUE-listan toisto .cue-tiedostosta tai FLAC-tiedostoon upotetusta CUE-listasta sekä M3U-soittolistat tiedostoselaimessa
-* Uutta: Ogg Opus-, CAF-, W64-, M4B-, M4R- ja ADTS-toisto
-* Uutta: Crossfade-liukusäädin, pois päältä aina 3 sekuntiin asti kymmenesosasekunnin askelin
-* Uutta: 3 kaistaa -aaltomuototyyli
-* Uutta: valinta aaltomuotojen keskittämiseen (tai ei)
-* Uutta: Toistopään viiva -asetus, jossa koko aaltomuoto näkyy täysvärisenä
-* Uutta: tiiviit Toistossa-näkymän asettelut matalille iPad-ikkunoille
-* Parannettu: FLAC-tiedostoissa siirtyminen on lähes välitöntä myös pitkissä tiedostoissa, kuluttaa vähemmän CPU:ta ja muistia ja toimii paremmin eri tiedostojen kanssa
-* Parannettu: WAV- ja AIFF-dekoodaus on nopeampaa ja toimii paremmin eri tiedostojen kanssa
-* Parannettu: toisto kuluttaa vähemmän CPU:ta ja energiaa, ja tunnisteiden ja kansikuvien skannaus on nopeampaa
-* Parannettu: kansioiden avaaminen ei enää jumitu hitaissa pilvikansioissa
-* Parannettu: kelaus ja pyyhkäisy kappaleiden välillä pysyvät sujuvina aaltomuodon latautuessa
-* Korjattu: crossfade ei tehnyt mitään, kun kappale siirtyi seuraavaan; se toimi vain kappaletta vaihdettaessa käsin
-* Korjattu: aaltomuodon nipistyszoomaus saattoi saada toiston hyppäämään taaksepäin
-* Korjattu: kappaleeseen takaisin pyyhkäisy näytti sen vanhan kohdan ennen hyppäämistä alkuun
-* Korjattu: FX-pad avautui joskus vain ympyrän kokoisena muutaman kappaleenvaihdon jälkeen
-* Korjattu: 24- ja 32-bittisten little-endian-AIFF-C-tiedostojen pituus oli väärä toistettaessa
-* Korjattu: siirtyminen matalan bittinopeuden MPEG-2 MP3 -tiedostoissa osui hieman pieleen
-* Korjattu: FLAC-tiedostoille, jotka eivät tallenna pituuttaan, ei näkynyt kestoa
-* Korjattu: Vibe saattoi kaatua luettaessa tunnisteita tietyistä virheellisistä M4A- ja MP3-tiedostoista
-* Korjattu: Vibe kirjoitti diagnostiikkalokia järjestelmälokiin
+* Uutta: Avaa URL toistaa verkkolinkin tai jakolinkin Dropboxista, Google Drivesta tai iCloud Drivesta, ja kopioidun linkin voi toistaa Tiedostot-välilehdeltä
+* Uutta: widgetit aaltomuodolla, isona, lukitusnäytölle ja reunasta reunaan ulottuvalla kansikuvalla, ja niissä on Macin tavoin soittolista-, toisto- ja seuraava-painikkeet
+* Uutta: Spektri-aaltomuototyyli ja Osioittain-väritys, jolla kappaleen jokainen osa pysyy yhdenvärisenä
+* Uutta: 3 kaistaa -teemat: Rekord Bin, Dengine ja Mukautetut värit
+* Uutta: aaltomuodon zoomaus aina yksittäisiin näytteisiin asti
+* Uutta: Ogg Vorbis -tiedostojen ja vapaan bittinopeuden (free format) MP3-tiedostojen toisto
+* Uutta: kansikuvat iCloud- ja Dropbox-kappaleille, joita ei ole ladattu
+* Uutta: Puskuroidaan… -tila, kun kappale odottaa hidasta verkkojakoa tai latausta
+* Uutta: vibe-teemakappale, joka latautuu käynnistettäessä, kunnes toistat tai avaat jotain
+* Muutettu: aaltomuototyylit on nimetty uudelleen: Yksinkertainen on nyt Palkit, Cupertino (yksinkertainen) on nyt Edistyminen, ja neljä Yksityiskohtainen-tyyliä ovat nyt yksi tyyli, jolla on tyyppiasetus
+* Muutettu: Edellinen kappale -painike aloittaa ensimmäisen kappaleen alusta
+* Muutettu: toistopään viiva on hieman läpikuultava
+* Muutettu: Cupertino-teema tummentaa vain toistopainikkeiden takana olevan kansikuvan, ja liukuväri on vaaleampi
+* Parannettu: widgetin toistopää, hypyt ja teema
+* Parannettu: Tiedostot-välilehti ryhmittelee paikat Sijainnit-kohtaan
+* Parannettu: Asetuksissa Kappaleen lopussa ja Ajan näyttö valitaan suoraan paikallaan, ja 3 kaistaa -paletit on nimetty väriensä mukaan
+* Parannettu: toisto verkkojaoista: katkennut yhteys keskeyttää toiston ilmoituksella ”Yhteys katkesi”, hidas palvelin ei enää jumita kappaleenvaihtoja, ja hi-res-kappaleet soivat sujuvasti
+* Parannettu: MP3-, FLAC-, WAV- ja AIFF-kappaleet avautuvat nopeammin
+* Korjattu: monofonisten ja MPEG-2 MP3 -tiedostojen saumaton toisto
+* Korjattu: Opus-tiedostot, joiden otsake asettaa äänenvoimakkuuden, soivat väärällä tasolla
+* Korjattu: vioittunut CAF-tiedosto saattoi jumittaa metatietojen skannauksen
+* Korjattu: vanhempi linkin avaus saattoi korvata uudemman tiedoston avauksen

@@ -1,25 +1,27 @@
-* Novo: nasumična reprodukcija, ponavljanje svega i ponavljanje jedne pjesme u izborniku Reprodukcija (⌥⌘S, ⌘R), s ikonama u retku s podacima o datoteci
-* Novo: reprodukcija CUE listova, iz .cue datoteke ili iz CUE lista ugrađenog u FLAC
-* Novo: reprodukcija formata Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R i ADTS
-* Novo: okno Prečaci tipkovnice u Postavkama za promjenu bilo kojeg prečaca
-* Novo: klizač za crossfade, od isključenog do 3 sekunde u desetinkama sekunde
-* Novo: prilagodljiv stil valnog oblika 3 pojasa i dvije teme koje ga koriste
-* Novo: opcija za centriranje (ili ne) valnih oblika
-* Novo: opcija linije glave reprodukcije, uz cijeli valni oblik u punoj boji
-* Promijenjeno: prozor Postavke preuređen je i ima pretraživanje
-* Poboljšano: premotavanje u FLAC datotekama gotovo je trenutačno čak i u dugima, uz manje opterećenje CPU-a i memorije te bolju kompatibilnost
-* Poboljšano: dekodiranje WAV i AIFF datoteka 1,4x–3,2x je brže, uz bolju kompatibilnost
-* Poboljšano: reprodukcija troši 20–30 % manje CPU-a i 15–25 % manje energije
-* Poboljšano: oznake i omoti skeniraju se 2x brže, a skeniranje zbirke troši 20 % manje CPU-a
-* Poboljšano: brže pokretanje, veliki M3U popisi za reprodukciju i uređivanje vrlo velikih popisa za reprodukciju
-* Poboljšano: Postavi Vibe kao zadani preuzima i CUE i M3U datoteke te nastavlja kad odbijete jednu vrstu datoteke
-* Ispravljeno: crossfade nije radio kad bi jedna pjesma prelazila u sljedeću; radio je samo pri ručnoj promjeni pjesme
-* Ispravljeno: prečaci s jednom tipkom nisu radili na rasporedima AZERTY, grčkom, ćirilici i drugim ne-američkim rasporedima tipkovnice
-* Ispravljeno: trake valnog oblika titrale su tijekom promjene veličine prozora
-* Ispravljeno: 24-bitne i 32-bitne little-endian AIFF-C datoteke reproducirale su se s pogrešnom duljinom
-* Ispravljeno: premotavanje u MP3 datotekama MPEG-2 niske brzine prijenosa završavalo je malo pokraj cilja
-* Ispravljeno: FLAC datoteke koje ne bilježe svoju duljinu nisu prikazivale trajanje
-* Ispravljeno: Vibe se mogao srušiti pri čitanju oznaka iz određenih neispravnih M4A i MP3 datoteka
-* Ispravljeno: Konvertiraj u FLAC dodavao je pucketanje na svakom vrhuncu pune skale u datoteci s pomičnim zarezom
-* Ispravljeno: otvaranje CUE lista ili M3U popisa čije datoteke sve nedostaju nije radilo ništa; Vibe sada javlja da ih nije mogao otvoriti
-* Ispravljeno: Vibe je upisivao dijagnostičke zapise u sistemski dnevnik
+* Novo: Otvori lokaciju… (⌘L) reproducira web-poveznicu ili poveznicu za dijeljenje s Dropboxa, Google Drivea ili iCloud Drivea
+* Novo: stil valnog oblika Spektar s bojenjem Po odjeljcima, tako da svaki dio pjesme zadrži jednu boju
+* Novo: teme RGB, Dark Core, Kinda Blue i Sectioned te ikona aplikacije Dark Core, doprinos korisnika JohnnyFireOne
+* Novo: Premjesti u Smeće (⌘⌫) briše datoteku odabrane pjesme ili pjesme koja se reproducira, uz mogućnost poništavanja
+* Novo: Dodaj na popis pjesama… (⇧⌘O), Prikaži u Finderu (⇧⌘R) i izbornik Prozor sa stavkama Minimiziraj, Širina prozora, Uvijek na vrhu i Zaključaj položaj prozora
+* Novo: status Međuspremanje… dok pjesma čeka sporo mrežno dijeljenje ili preuzimanje
+* Novo: boje teme za tekst retka koji se reproducira i odabranog retka te za trake ekvilajzera retka koji se reproducira, kao i zadani omoti Prozirno, Prozor, Simbol i Prilagođena boja
+* Novo: kliknite zaglavlje ploče za pitch kako biste promijenili njezin raspon između 8 % i 16 %
+* Novo: reprodukcija MP3 datoteka slobodnog formata (free format)
+* Novo: pjesma teme vibe, koja se učitava pri pokretanju dok nešto ne reproducirate ili otvorite
+* Promijenjeno: izbornici prate konvencije macOS-a, uz Uredi > Kopiraj, podizbornik Ponavljanje te podizbornike Preskoči natrag i Preskoči naprijed koji prikazuju svaki pomak u taktovima ili sekundama
+* Promijenjeno: stilovi valnog oblika preimenovani su: Osnovni je sada Stupci, Cupertino (osnovni) je sada Napredak, a četiri stila Detaljni spojena su u jedan s postavkom vrste
+* Promijenjeno: Prethodna pjesma na prvoj pjesmi pokreće je ispočetka
+* Promijenjeno: klizač glasnoće pojavljuje se blizu pokazivača, a postavka teme određuje kada se prikazuje
+* Promijenjeno: linija glave reprodukcije malo je prozirna, a trake ekvilajzera retka koji se reproducira crne su u svijetlom načinu
+* Promijenjeno: tema Cupertino zatamnjuje samo omot iza tipki za reprodukciju, uz svjetliji gradijent
+* Poboljšano: kontrola pitcha zvuči bolje zahvaljujući vlastitom mehanizmu za promjenu visine tona i glatkim promjenama
+* Poboljšano: bitovno točan izlaz koristi najveću dubinu bitova uređaja, za čišće promjene glasnoće i reprodukciju bez praznina između 16-bitnih i 24-bitnih pjesama
+* Poboljšano: reprodukcija s mrežnih dijeljenja: prekinuta veza pauzira uz „Veza je prekinuta”, spori poslužitelj više ne koči promjene pjesama, a hi-res pjesme reproduciraju se glatko
+* Poboljšano: MP3, FLAC, WAV i AIFF pjesme otvaraju se brže
+* Poboljšano: prozor Postavke ima jasnije nazive, razloge ispod onemogućenih redaka, potvrdu prije vraćanja zadanih postavki i traku za skok u uređivaču tema
+* Ispravljeno: reprodukcija bez praznina mono i MPEG-2 MP3 datoteka
+* Ispravljeno: Opus datoteke čije zaglavlje postavlja glasnoću reproducirale su se na pogrešnoj razini
+* Ispravljeno: Ogg Vorbis pjesme gubile su prve 3 ms
+* Ispravljeno: oštećena CAF datoteka mogla je zaustaviti skeniranje metapodataka
+* Ispravljeno: linija pokazivača na valnom obliku gubila se iznad reproduciranog dijela
+* Ispravljeno: u sustavu macOS 27 promjene teme brisale su odabir na popisu pjesama, a memorija je rasla pri svakom otvaranju popisa i promjeni teme

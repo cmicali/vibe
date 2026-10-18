@@ -1,25 +1,27 @@
-* Nytt: blanda, upprepa alla och upprepa en i menyn Uppspelning (⌥⌘S, ⌘R), med sina ikoner på filinformationsraden
-* Nytt: uppspelning av CUE-filer, från en .cue-fil eller en som är inbäddad i en FLAC
-* Nytt: uppspelning av Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R och ADTS
-* Nytt: en panel Kortkommandon i Inställningar där du kan ändra vilket kortkommando som helst
-* Nytt: ett crossfade-reglage, från av upp till 3 sekunder i tiondels sekunder
-* Nytt: anpassningsbar vågformsstil 3-band och två teman som använder den
-* Nytt: alternativ för att centrera vågformer (eller inte)
-* Nytt: ett alternativ för Linje för uppspelningshuvud, med hela vågformen i full färg
-* Ändrat: fönstret Inställningar har fått en ny ordning, med sökning
-* Förbättrat: spolning i FLAC går nästan direkt även i långa filer, med lägre CPU- och minnesanvändning och bättre kompatibilitet
-* Förbättrat: WAV- och AIFF-avkodning är 1,4x–3,2x snabbare, med bättre kompatibilitet
-* Förbättrat: uppspelningen använder 20–30 % mindre CPU och 15–25 % mindre energi
-* Förbättrat: taggar och omslagsbilder skannas 2x snabbare, och biblioteksskanningar använder 20 % mindre CPU
-* Förbättrat: snabbare start, stora M3U-spellistor och redigering av mycket stora spellistor
-* Förbättrat: ”Ange Vibe som standard” tar även över CUE- och M3U-filer och fortsätter när du avböjer en filtyp
-* Åtgärdat: crossfade gjorde ingenting när ett spår spelades vidare till nästa; det fungerade bara när du bytte spår för hand
-* Åtgärdat: kortkommandon med en enda tangent fungerade inte på AZERTY, grekiska, kyrilliska och andra tangentbordslayouter utanför USA
-* Åtgärdat: vågformens staplar böljade medan fönstret ändrade storlek
-* Åtgärdat: 24- och 32-bitars little-endian-AIFF-C-filer spelades upp med fel längd
-* Åtgärdat: spolningar i MP3-filer med MPEG-2 och låg bithastighet hamnade något fel
-* Åtgärdat: FLAC-filer som inte anger sin längd visade ingen speltid
-* Åtgärdat: Vibe kunde krascha när taggar lästes från vissa felaktiga M4A- och MP3-filer
-* Åtgärdat: ”Konvertera till FLAC” lade till ett klick vid varje topp i full skala i en flyttalsfil
-* Åtgärdat: att öppna en CUE-fil eller M3U-spellista där alla filer saknas gjorde ingenting; nu säger Vibe att den inte kunde öppna dem
-* Åtgärdat: Vibe skrev diagnostikloggar till systemloggen
+* Nytt: ”Öppna plats…” (⌘L) spelar upp en webblänk eller en delningslänk från Dropbox, Google Drive eller iCloud Drive
+* Nytt: vågformsstilen Spektrum, med färgläggningen ”Per sektion” så att varje del av ett spår behåller en färg
+* Nytt: temana RGB, Dark Core, Kinda Blue och Sectioned, och appsymbolen för Dark Core, bidrag från JohnnyFireOne
+* Nytt: ”Flytta till papperskorgen” (⌘⌫) raderar filen för det markerade eller spelande spåret, med ”Ångra”
+* Nytt: ”Lägg till i spellista…” (⇧⌘O), ”Visa i Finder” (⇧⌘R) och en Fönster-meny med ”Minimera”, ”Fönsterbredd”, ”Alltid överst” och ”Lås fönstrets position”
+* Nytt: statusen ”Buffrar…” medan ett spår väntar på en långsam nätverksdelning eller nedladdning
+* Nytt: temafärger för texten i den spelande och den markerade raden och för den spelande radens equalizerstaplar, samt standardomslagen ”Genomskinlig”, ”Fönster”, ”Symbol” och ”Anpassad färg”
+* Nytt: klicka på pitchpanelens rubrik för att växla dess omfång mellan 8 % och 16 %
+* Nytt: uppspelning av MP3 i fritt format
+* Nytt: temaspåret vibe, som läses in vid start tills du spelar upp eller öppnar något
+* Ändrat: menyerna följer macOS-konventionerna, med Redigera > Kopiera, en undermeny Upprepa och undermenyer för Hoppa bakåt och Hoppa framåt som visar varje avstånd i takter eller sekunder
+* Ändrat: vågformsstilarna har bytt namn: Enkel heter nu Staplar, Cupertino (enkel) heter nu Förlopp och de fyra Detaljerad-stilarna är nu en med en typinställning
+* Ändrat: ”Föregående spår” på det första spåret startar om det
+* Ändrat: volymreglaget visas nära pekaren, med en temainställning för när det visas
+* Ändrat: linjen för uppspelningshuvudet är lätt genomskinlig, och den spelande radens equalizerstaplar är svarta i ljust läge
+* Ändrat: temat Cupertino gör bara omslagsbilden bakom uppspelningsknapparna mörkare, med en ljusare toning
+* Förbättrat: pitchreglaget låter bättre, med en egen repitch-motor och mjuka ändringar
+* Förbättrat: bitperfekt utmatning använder enhetens största bitdjup, för renare volymändringar och obruten uppspelning mellan 16- och 24-bitarsspår
+* Förbättrat: uppspelning från nätverksdelningar: en bruten anslutning pausar med ”Anslutningen bröts”, en långsam server stoppar inte längre spårbyten och högupplösta spår spelas upp jämnt
+* Förbättrat: MP3-, FLAC-, WAV- och AIFF-spår öppnas snabbare
+* Förbättrat: fönstret Inställningar har tydligare namn, förklaringar under avaktiverade rader, en bekräftelse innan standardinställningarna återställs och ett hoppfält i temaredigeraren
+* Åtgärdat: obruten uppspelning av mono-MP3 och MPEG-2-MP3
+* Åtgärdat: Opus-filer vars filhuvud anger en volym spelades upp på fel nivå
+* Åtgärdat: Ogg Vorbis-spår tappade sina första 3 ms
+* Åtgärdat: en skadad CAF-fil kunde få metadataskanningen att hänga sig
+* Åtgärdat: vågformens hovringslinje försvann över den uppspelade delen
+* Åtgärdat: i macOS 27 rensade temabyten markeringen i spellistan, och minnet växte vid varje öppnad spellista och temabyte

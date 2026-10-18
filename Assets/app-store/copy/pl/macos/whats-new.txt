@@ -1,25 +1,27 @@
-* Nowość: tryb losowy, powtarzanie wszystkich i powtarzanie jednego utworu w menu Odtwarzanie (⌥⌘S, ⌘R), z ikonami w wierszu informacji o pliku
-* Nowość: odtwarzanie plików CUE, z pliku .cue lub z pliku osadzonego w FLAC
-* Nowość: odtwarzanie Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R i ADTS
-* Nowość: panel Skróty klawiszowe w Ustawieniach do zmiany dowolnego skrótu
-* Nowość: suwak crossfade, od wyłączenia do 3 sekund co jedną dziesiątą sekundy
-* Nowość: konfigurowalny styl kształtu fali 3 pasma i dwa motywy, które go używają
-* Nowość: opcja wyśrodkowania (lub nie) kształtów fali
-* Nowość: opcja linii głowicy, z całym kształtem fali w pełnym kolorze
-* Zmiana: okno Ustawień zostało przeorganizowane i ma wyszukiwanie
-* Ulepszenie: przewijanie w FLAC jest niemal natychmiastowe nawet w długich plikach, przy mniejszym użyciu CPU i pamięci oraz lepszej zgodności
-* Ulepszenie: dekodowanie WAV i AIFF jest 1,4x–3,2x szybsze, z lepszą zgodnością
-* Ulepszenie: odtwarzanie zużywa o 20–30% mniej CPU i o 15–25% mniej energii
-* Ulepszenie: tagi i okładki skanują się 2x szybciej, a skanowanie biblioteki zużywa o 20% mniej CPU
-* Ulepszenie: szybsze uruchamianie, duże playlisty M3U i edycja bardzo dużych playlist
-* Ulepszenie: Ustaw Vibe jako domyślny obejmuje też pliki CUE i M3U i działa dalej, gdy odmówisz jednego typu pliku
-* Poprawka: crossfade nie działał, gdy jeden utwór przechodził w następny; działał tylko przy ręcznej zmianie utworu
-* Poprawka: skróty jednoklawiszowe nie działały na układach AZERTY, greckim, cyrylicy i innych nieamerykańskich układach klawiatury
-* Poprawka: słupki kształtu fali falowały podczas zmiany rozmiaru okna
-* Poprawka: 24- i 32-bitowe pliki AIFF-C little-endian były odtwarzane z błędną długością
-* Poprawka: przewijanie w plikach MP3 MPEG-2 o niskiej przepływności trafiało lekko obok
-* Poprawka: pliki FLAC, które nie zapisują swojej długości, nie pokazywały czasu trwania
-* Poprawka: Vibe mógł ulec awarii podczas odczytu tagów z niektórych uszkodzonych plików M4A i MP3
-* Poprawka: Konwertuj do FLAC dodawało kliknięcie przy każdym szczycie pełnej skali w pliku zmiennoprzecinkowym
-* Poprawka: otwarcie arkusza CUE lub playlisty M3U, w których brakowało wszystkich plików, nie robiło nic; Vibe teraz informuje, że nie udało się ich otworzyć
-* Poprawka: Vibe zapisywał dane diagnostyczne w dzienniku systemowym
+* Nowość: Otwórz adres… (⌘L) odtwarza link internetowy lub link udostępniania z Dropboxa, Google Drive albo iCloud Drive
+* Nowość: styl kształtu fali Spektrum z kolorowaniem Według sekcji, dzięki któremu każda część utworu zachowuje jeden kolor
+* Nowość: motywy RGB, Dark Core, Kinda Blue i Sectioned oraz ikona aplikacji Dark Core, autorstwa JohnnyFireOne
+* Nowość: Przenieś do Kosza (⌘⌫) usuwa plik zaznaczonego lub odtwarzanego utworu, z opcją Cofnij
+* Nowość: Dodaj do playlisty… (⇧⌘O), Pokaż w Finderze (⇧⌘R) oraz menu Okno z poleceniami Zminimalizuj, Szerokość okna, Zawsze na wierzchu i Zablokuj położenie okna
+* Nowość: stan Buforowanie…, gdy utwór czeka na wolny udział sieciowy lub pobieranie
+* Nowość: kolory motywu dla tekstu odtwarzanego i zaznaczonego wiersza oraz słupków korektora odtwarzanego wiersza, a także domyślne okładki Przezroczyste, Okno, Symbol i Niestandardowy kolor
+* Nowość: kliknij nagłówek panelu pitch, aby przełączyć jego zakres między 8 % a 16 %
+* Nowość: odtwarzanie plików MP3 typu free format
+* Nowość: utwór motywu vibe, który wczytuje się przy uruchomieniu, dopóki czegoś nie odtworzysz lub nie otworzysz
+* Zmiana: menu są zgodne z konwencjami macOS: Edycja > Kopiuj, podmenu Powtarzanie oraz podmenu Przewiń do tyłu i Przewiń do przodu, które pokazują każdą odległość w taktach lub sekundach
+* Zmiana: style kształtu fali mają nowe nazwy: Prosty to teraz Słupki, Cupertino (prosty) to teraz Postęp, a cztery style Szczegółowy połączono w jeden z ustawieniem Typ
+* Zmiana: Poprzedni utwór na pierwszym utworze odtwarza go od początku
+* Zmiana: suwak głośności pojawia się blisko wskaźnika, a ustawienie motywu decyduje, kiedy jest widoczny
+* Zmiana: linia głowicy jest lekko przezroczysta, a słupki korektora odtwarzanego wiersza są czarne w trybie jasnym
+* Zmiana: motyw Cupertino przyciemnia tylko okładkę za przyciskami odtwarzania i ma jaśniejszy gradient
+* Ulepszenie: suwak pitch brzmi lepiej dzięki własnemu silnikowi zmiany wysokości dźwięku i płynnym zmianom
+* Ulepszenie: wyjście bit-perfect używa największej głębi bitowej urządzenia, co daje czystsze zmiany głośności i odtwarzanie bez przerw między utworami 16- i 24-bitowymi
+* Ulepszenie: odtwarzanie z udziałów sieciowych: zerwane połączenie wstrzymuje odtwarzanie z komunikatem „Utracono połączenie”, wolny serwer nie blokuje już zmiany utworów, a utwory hi-res odtwarzają się płynnie
+* Ulepszenie: utwory MP3, FLAC, WAV i AIFF otwierają się szybciej
+* Ulepszenie: okno Ustawień ma czytelniejsze nazwy, powody pod wyłączonymi wierszami, potwierdzenie przed przywróceniem ustawień domyślnych i pasek skoku w edytorze motywów
+* Poprawka: odtwarzanie bez przerw plików MP3 mono i MPEG-2
+* Poprawka: pliki Opus, których nagłówek ustawia głośność, grały na złym poziomie
+* Poprawka: utwory Ogg Vorbis traciły pierwsze 3 ms
+* Poprawka: uszkodzony plik CAF mógł zablokować skanowanie metadanych
+* Poprawka: linia wskaźnika na kształcie fali ginęła nad odtworzoną częścią
+* Poprawka: w macOS 27 zmiana motywu czyściła zaznaczenie w playliście, a pamięć rosła przy każdym otwarciu playlisty i każdej zmianie motywu
