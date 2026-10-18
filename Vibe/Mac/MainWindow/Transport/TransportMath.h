@@ -2,7 +2,8 @@
 //  TransportMath.h
 //  Vibe
 //
-//  The skip-distance arithmetic, a function of the numbers alone.
+//  The skip distances and the volume's scroll and key steps, functions of the
+//  numbers alone.
 //
 
 #import <Foundation/Foundation.h>
@@ -33,4 +34,16 @@ static inline NSTimeInterval VibeSkipFileSeconds(double bars,
         return bars * 4.0 * 60.0 / bpm;
     }
     return wallClockSeconds * rate;
+}
+
+// The volume an Up or Down press moves, in the slider's 0-1 units. A wheel's
+// line moves it as far, and so do ten points of a trackpad's scroll.
+static const double kVibeVolumeStep = 0.05;
+static const double kVibeScrollPointsPerLine = 10;
+
+// A scroll's volume change. Fingers moving up the trackpad, or a wheel rolled
+// away from the user, turn it up under either scrolling direction.
+static inline double VibeVolumeScrollDelta(double deltaY, BOOL precise, BOOL inverted) {
+    double lines = precise ? deltaY / kVibeScrollPointsPerLine : deltaY;
+    return (inverted ? -lines : lines) * kVibeVolumeStep;
 }

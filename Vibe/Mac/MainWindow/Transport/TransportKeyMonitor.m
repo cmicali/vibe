@@ -12,6 +12,7 @@
 #import "MainPlayerController+Transport.h"
 #import "MainWindow.h"
 #import "ShortcutRules.h"
+#import "TransportMath.h"
 
 // Each flips its effect at keyDown; keyUp decides: a tap latches the flip, a
 // hold reverts to the pre-press state.
@@ -193,10 +194,13 @@ static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modif
     if (playerWindow && [controller.window.firstResponder isKindOfClass:[NSTextView class]]) {
         return event;
     }
-    // Dead while collapsed and swallowed whatever is bound: the table keeps
-    // focus off screen, and an unhandled key reaching it wedges its input
-    // context.
+    // Swallowed while collapsed whatever is bound: the table keeps focus off
+    // screen, and an unhandled key reaching it wedges its input context. Up
+    // and Down move the volume then, and repeat while held.
     if (playerWindow && !((MainWindow *)controller.window).isPlaylistShown && VibeIsPlaylistKey(keyCode, mods)) {
+        if (keyCode == kVibeKeyCodeUpArrow || keyCode == kVibeKeyCodeDownArrow) {
+            [controller moveVolumeBy:keyCode == kVibeKeyCodeUpArrow ? kVibeVolumeStep : -kVibeVolumeStep];
+        }
         return nil;
     }
     // A reserved press passes on too: the arrows are the table's own

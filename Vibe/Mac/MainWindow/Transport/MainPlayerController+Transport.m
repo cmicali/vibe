@@ -335,6 +335,10 @@
     [self.playerContentView volumeSliderDidMove];
 }
 
+- (void)moveVolumeBy:(double)delta {
+    [self.playerContentView moveVolumeBy:delta];
+}
+
 #pragma mark - WaveformViewDelegate: the scrub seek
 
 - (void)waveformView:(WaveformView *)waveformView didSeek:(float)percentage {

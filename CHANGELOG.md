@@ -1,3 +1,7 @@
+# v1.17
+
+* mac: Added scrolling and the Up and Down keys to change the volume
+
 # v1.16
 
 * Added Open URL… to play a web link, or a Dropbox, Google Drive or iCloud Drive share link

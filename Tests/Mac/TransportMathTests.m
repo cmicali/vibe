@@ -80,4 +80,21 @@
                                -VibeSkipFileSeconds(8, 128.0f, 10, 1.0), 1e-9);
 }
 
+#pragma mark - Volume scroll
+
+- (void)testAWheelLineAndTenTrackpadPointsAreOneStep {
+    XCTAssertEqualWithAccuracy(VibeVolumeScrollDelta(1, NO, NO), kVibeVolumeStep, 1e-9);
+    XCTAssertEqualWithAccuracy(VibeVolumeScrollDelta(10, YES, NO), kVibeVolumeStep, 1e-9);
+    XCTAssertEqualWithAccuracy(VibeVolumeScrollDelta(3, YES, NO), 0.015, 1e-9);
+}
+
+// Natural scrolling flips the delta's sign, and the volume follows the
+// fingers, not the content.
+- (void)testUpIsLouderUnderEitherScrollingDirection {
+    XCTAssertGreaterThan(VibeVolumeScrollDelta(4, YES, NO), 0);
+    XCTAssertGreaterThan(VibeVolumeScrollDelta(-4, YES, YES), 0);
+    XCTAssertLessThan(VibeVolumeScrollDelta(-1, NO, NO), 0);
+    XCTAssertLessThan(VibeVolumeScrollDelta(1, NO, YES), 0);
+}
+
 @end

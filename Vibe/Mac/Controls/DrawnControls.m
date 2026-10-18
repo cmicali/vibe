@@ -293,11 +293,15 @@ static const double kSliderAccessibilityStep = 0.05;
 
 // Rounded to the step, so stepping from a dragged value lands on 5% marks.
 - (BOOL)stepForAccessibility:(double)delta {
+    return [self moveToValue:round((_value + delta) / kSliderAccessibilityStep) * kSliderAccessibilityStep];
+}
+
+- (BOOL)moveToValue:(double)value {
     if (!self.isEnabled) {
         return NO;
     }
     double before = _value;
-    self.doubleValue = round((_value + delta) / kSliderAccessibilityStep) * kSliderAccessibilityStep;
+    self.doubleValue = value;
     if (_value == before) {
         return NO;
     }

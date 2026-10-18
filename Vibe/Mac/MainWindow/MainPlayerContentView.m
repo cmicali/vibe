@@ -9,7 +9,10 @@
 #import "ArtworkImageView.h"
 #import "WaveformView.h"
 #import "PlaylistDropZoneView.h"
+#import "PlaylistTableView.h"
 #import "VolumeControlView.h"
+#import "MainWindow.h"
+#import "TransportMath.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
 #import "AppSettings.h"
@@ -316,6 +319,40 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
 
 - (BOOL)volumeDragging {
     return _volumeDragging;
+}
+
+// Only the drag's own mouse-up may clear its hold, so nothing else moves the
+// knob in hand.
+- (void)moveVolumeBy:(double)delta {
+    VibeSlider *slider = _volumeControlView.slider;
+    if (AppSettings.sharedInstance.volumeControl && !_volumeDragging) {
+        [slider moveToValue:slider.doubleValue + delta];
+    }
+}
+
+// A scroll over the header moves the volume while the playlist is collapsed,
+// and scrolls the playlist while it shows. Over the volume control it always
+// moves the volume. The rows' scroll view takes a scroll over them first. One
+// it passes back up must not be sent to it again.
+- (void)scrollWheel:(NSEvent *)event {
+    NSScrollView *playlist = _playlistTableView.enclosingScrollView;
+    BOOL overVolume = AppSettings.sharedInstance.volumeControl
+            && NSMouseInRect([self convertPoint:event.locationInWindow fromView:nil],
+                             _volumeControlView.frame, self.isFlipped);
+    if (overVolume || !((MainWindow *)self.window).isPlaylistShown) {
+        // A trackpad's coast after the fingers lift would keep turning it.
+        if (event.momentumPhase == NSEventPhaseNone) {
+            [self moveVolumeBy:VibeVolumeScrollDelta(event.scrollingDeltaY, event.hasPreciseScrollingDeltas,
+                                                     event.isDirectionInvertedFromDevice)];
+        }
+    }
+    else if (!NSMouseInRect([playlist convertPoint:event.locationInWindow fromView:nil],
+                            playlist.bounds, playlist.isFlipped)) {
+        [playlist scrollWheel:event];
+    }
+    else {
+        [super scrollWheel:event];
+    }
 }
 
 // Sized by the control itself, then placed from its neighbors.

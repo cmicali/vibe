@@ -28,6 +28,10 @@ NS_ASSUME_NONNULL_BEGIN
 // nil is the system's white knob.
 @property (nonatomic, copy, nullable) NSColor *knobColor;
 
+// Sets the value and sends the action when it moved, as a VoiceOver step
+// does. NO when disabled or unmoved.
+- (BOOL)moveToValue:(double)value;
+
 @end
 
 // The small on/off switch, to NSSwitch's measured metrics and colors. A
