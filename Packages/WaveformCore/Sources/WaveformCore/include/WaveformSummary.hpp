@@ -84,7 +84,11 @@ public:
     // when the columns cross more than kMaxReadBlocks or a block that is
     // missing.
     bool columns(double framesPerColumn, int64_t firstIndex, size_t count, int64_t frames, Column *out) const;
-    // The blocks the last read that missed some lacked, which a holder reads
+    // The first and last sample those columns' line runs through, one past
+    // each end of their frames, clamped to the stream: what columns reads.
+    static std::pair<int64_t, int64_t> samplesFor(double framesPerColumn, int64_t firstIndex, size_t count,
+                                                  int64_t frames);
+    // The blocks the reads since the last take lacked, which a holder reads
     // in. Taken once, so a block that cannot be read is asked for again only
     // by a later read.
     std::vector<int64_t> takeLackedBlocks();
@@ -121,7 +125,8 @@ public:
     // Column k of the grid covers [k F, (k + 1) F). count columns from
     // firstIndex into out. The grid counts from frame 0, so a scroll or a
     // window never moves a column's frames. Columns finer than a bin read
-    // the mix's own frames where the detail holds every one they cross.
+    // the mix's own frames block by block, where the detail holds the
+    // block, and the bins elsewhere.
     void columns(double framesPerColumn, int64_t firstIndex, size_t count, Column *out) const;
     // Each grid column's band mean squares under a tent centred on it,
     // halfWidth frames from centre to foot, into bands (low to high per

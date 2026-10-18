@@ -122,16 +122,6 @@ static void SetColumn(float *meanSquares, NSUInteger j, float low, float mid, fl
     meanSquares[j * 3 + 2] = high;
 }
 
-// Every column of [begin, end) holds the same three mean squares.
-static BOOL ColumnsAgree(const float *meanSquares, NSUInteger begin, NSUInteger end) {
-    for (NSUInteger j = begin + 1; j < end; j++) {
-        if (memcmp(meanSquares + j * 3, meanSquares + begin * 3, 3 * sizeof(float)) != 0) {
-            return NO;
-        }
-    }
-    return YES;
-}
-
 - (void)testSectionsSplitWhereTheMixChanges {
     float columns[kVibeWaveformSectionColumns * 3];
     for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
@@ -143,12 +133,10 @@ static BOOL ColumnsAgree(const float *meanSquares, NSUInteger begin, NSUInteger 
             SetColumn(columns, j, shimmer, 0, 1);
         }
     }
-    VibeWaveformSectionMeanSquares(columns, kVibeWaveformSectionColumns, kNoShares);
-    XCTAssertTrue(ColumnsAgree(columns, 0, 200));
-    XCTAssertTrue(ColumnsAgree(columns, 200, kVibeWaveformSectionColumns));
-    XCTAssertGreaterThan(columns[0], columns[2], @"the low section stays low");
-    XCTAssertGreaterThan(columns[200 * 3 + 2], columns[200 * 3], @"the high section stays high");
-    XCTAssertEqualWithAccuracy(columns[2], 0.025f, 1e-6f, @"a section is its columns' mean");
+    NSUInteger starts[kVibeWaveformSectionColumns];
+    XCTAssertEqual(VibeWaveformSectionStarts(columns, kVibeWaveformSectionColumns, kNoShares, starts), 2u);
+    XCTAssertEqual(starts[0], 0u);
+    XCTAssertEqual(starts[1], 200u);
 }
 
 // Kick and hats alternating every column cost the same split or not, so a
@@ -158,8 +146,8 @@ static BOOL ColumnsAgree(const float *meanSquares, NSUInteger begin, NSUInteger 
     for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
         SetColumn(columns, j, j % 2 ? 0 : 1, 0, j % 2 ? 1 : 0);
     }
-    VibeWaveformSectionMeanSquares(columns, kVibeWaveformSectionColumns, kNoShares);
-    XCTAssertTrue(ColumnsAgree(columns, 0, kVibeWaveformSectionColumns));
+    NSUInteger starts[kVibeWaveformSectionColumns];
+    XCTAssertEqual(VibeWaveformSectionStarts(columns, kVibeWaveformSectionColumns, kNoShares, starts), 1u);
 }
 
 // A fill of two columns cannot pay for a section of the minimum length, so it
@@ -171,25 +159,73 @@ static BOOL ColumnsAgree(const float *meanSquares, NSUInteger begin, NSUInteger 
         BOOL silent = j >= 300 && j < 340;
         SetColumn(columns, j, silent || blip ? 0 : 1, blip ? 1 : 0, 0);
     }
-    VibeWaveformSectionMeanSquares(columns, kVibeWaveformSectionColumns, kNoShares);
-    XCTAssertTrue(ColumnsAgree(columns, 0, kVibeWaveformSectionColumns));
+    NSUInteger starts[kVibeWaveformSectionColumns];
+    XCTAssertEqual(VibeWaveformSectionStarts(columns, kVibeWaveformSectionColumns, kNoShares, starts), 1u);
 }
 
 // The mix weighs each band against its share, as the colors do.
 - (void)testSectionsWeighTheBandsByTheirShares {
-    float plain[kVibeWaveformSectionColumns * 3], shared[kVibeWaveformSectionColumns * 3];
+    float columns[kVibeWaveformSectionColumns * 3];
     for (NSUInteger j = 0; j < kVibeWaveformSectionColumns; j++) {
-        SetColumn(plain, j, 1, 0, j < 256 ? 0 : 0.1f);
-        SetColumn(shared, j, 1, 0, j < 256 ? 0 : 0.1f);
+        SetColumn(columns, j, 1, 0, j < 256 ? 0 : 0.1f);
     }
-    VibeWaveformSectionMeanSquares(plain, kVibeWaveformSectionColumns, kNoShares);
-    XCTAssertTrue(ColumnsAgree(plain, 0, kVibeWaveformSectionColumns),
-                  @"highs at a tenth of the lows' energy barely move the mix");
+    NSUInteger starts[kVibeWaveformSectionColumns];
+    XCTAssertEqual(VibeWaveformSectionStarts(columns, kVibeWaveformSectionColumns, kNoShares, starts), 1u,
+                   @"highs at a tenth of the lows' energy barely move the mix");
     const float halfHighs[3] = {1, 1, 0.5f};
-    VibeWaveformSectionMeanSquares(shared, kVibeWaveformSectionColumns, halfHighs);
-    XCTAssertTrue(ColumnsAgree(shared, 0, 256));
-    XCTAssertTrue(ColumnsAgree(shared, 256, kVibeWaveformSectionColumns));
-    XCTAssertNotEqual(shared[2], shared[256 * 3 + 2], @"at half the share the highs count four times over");
+    XCTAssertEqual(VibeWaveformSectionStarts(columns, kVibeWaveformSectionColumns, halfHighs, starts), 2u,
+                   @"at half the share the highs count four times over");
+    XCTAssertEqual(starts[1], 256u);
+}
+
+// Quiet hats, then a kick every fourth cell over them: the split is the
+// first kick, though most cells after it are as quiet as the hats.
+- (void)testSplitLandsOnTheFirstHitBackIn {
+    float levels[200 * 3];
+    for (NSUInteger i = 0; i < 200; i++) {
+        BOOL kick = i >= 77 && (i - 77) % 4 == 0;
+        levels[i * 3] = kick ? 1 : 0.02f;
+        levels[i * 3 + 1] = 0.05f;
+        levels[i * 3 + 2] = 0.1f;
+    }
+    XCTAssertEqual(VibeWaveformSectionSplit(levels, 200), 77u);
+    XCTAssertEqual(VibeWaveformSectionSplit(levels, 1), 0u);
+}
+
+// The levels put the edge 7 cells into a kick that starts at cell 20. The
+// peaks move it back to the attack, through a loud side before it that is not
+// as loud, and through the kick's soft start. Leaving, the edge moves back to the end of the last loud run.
+// Sides alike in their peaks keep the edge where the levels put it.
+- (void)testSnapPutsTheEdgeOnTheHit {
+    float peaks[40];
+    for (NSUInteger i = 0; i < 40; i++) {
+        peaks[i] = i < 20 ? 0.3f : 1.0f;
+    }
+    XCTAssertEqual(VibeWaveformSectionSnapToHit(peaks, 40, 27), 20u);
+    XCTAssertEqual(VibeWaveformSectionSnapToHit(peaks, 40, 14), 20u, @"an edge early of the hit moves on to it");
+    for (NSUInteger i = 0; i < 20; i++) {
+        peaks[i] = i == 19 ? 0.4f : i == 18 ? 0.2f : 0.05f;
+    }
+    XCTAssertEqual(VibeWaveformSectionSnapToHit(peaks, 40, 27), 18u, @"a soft start joins its hit");
+    for (NSUInteger i = 0; i < 40; i++) {
+        peaks[i] = i < 20 ? 1.0f : 0.05f;
+    }
+    XCTAssertEqual(VibeWaveformSectionSnapToHit(peaks, 40, 26), 20u);
+    for (NSUInteger i = 0; i < 40; i++) {
+        peaks[i] = i % 4 ? 0.9f : 1.0f;
+    }
+    XCTAssertEqual(VibeWaveformSectionSnapToHit(peaks, 40, 26), 26u, @"pinned peaks mark no hit");
+}
+
+// The peak shape is absent at rest zoom, whole at deep zoom, and
+// halfway an octave in.
+- (void)testPeakShapeFadesInAsColumnsNarrow {
+    XCTAssertEqual(VibeWaveformPeakShapeWeight(0.5), 0);
+    XCTAssertEqual(VibeWaveformPeakShapeWeight(0.02), 0);
+    XCTAssertEqualWithAccuracy(VibeWaveformPeakShapeWeight(0.01), 0.5, 1e-9);
+    XCTAssertEqual(VibeWaveformPeakShapeWeight(0.005), 1);
+    XCTAssertEqual(VibeWaveformPeakShapeWeight(0.001), 1);
+    XCTAssertEqual(VibeWaveformPeakShapeWeight(0), 0, @"no column, no shape");
 }
 
 // Half a second a column until a track would need more than the grid holds.

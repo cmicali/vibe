@@ -745,6 +745,32 @@ static void VibeInsertBlocks(const Summary &summary, const std::vector<float> &s
     XCTAssertEqualWithAccuracy(coarse.hi, 1, 1e-3);
 }
 
+// A missing block draws only its own columns from the bins. The blocks on
+// either side keep the frames, and the read asks for the one it lacked.
+- (void)testAMissingBlockFallsBackOnlyWhereItIsMissing {
+    std::vector<float> samples;
+    const int64_t blockFrames = wavecore::Detail::kBlockFrames;
+    auto summary = VibeSineSummary(3 * blockFrames, samples);
+    wavecore::Detail &detail = summary->detail();
+    detail.insertBlock(0, std::vector<float>(samples.begin(), samples.begin() + blockFrames));
+    detail.insertBlock(2, std::vector<float>(samples.begin() + 2 * blockFrames, samples.end()));
+    size_t count = size_t(3 * blockFrames / 16);
+    std::vector<Column> read(count), frames(count);
+    summary->columns(16, 0, count, read.data());
+    XCTAssertTrue(detail.takeLackedBlocks() == std::vector<int64_t>({1}));
+    for (int64_t block : {0, 2}) {
+        // A column well inside the block, clear of the edges' columns.
+        size_t c = size_t((block * blockFrames + blockFrames / 2) / 16);
+        Column own;
+        XCTAssertTrue(detail.columns(16, int64_t(c), 1, summary->frames(), &own), @"block %lld", block);
+        XCTAssertEqual(read[c].hi, own.hi, @"block %lld keeps its frames", block);
+        XCTAssertEqual(read[c].lo, own.lo);
+    }
+    size_t missing = size_t((blockFrames + blockFrames / 2) / 16);
+    XCTAssertEqual(read[missing].hi, summary->column(double(missing) * 16, double(missing + 1) * 16).hi,
+                   @"the missing block's columns are the bins'");
+}
+
 // A read keeps the blocks it lacked until they are taken, once. A read too
 // wide for the blocks held answers from the bins and asks for nothing.
 - (void)testAReadAsksForTheBlocksItLacked {

@@ -22,8 +22,8 @@ static CGFloat PhoneMinimum(void) {
 
 #pragma mark - The floor
 
-// A zoom never reads finer than two bins a point, Detailed's two columns,
-// and the content is no wider than the float geometry keeps sharp.
+// A zoom never reads finer than a bin a point, and the content is no wider
+// than the float geometry keeps sharp.
 - (void)testDeepestZoomReadsNoFinerThanABinAndStaysInFloatRange {
     const CGFloat widths[] = {320, 393, 744, 1366};
     const double lengths[] = {44100, kSongFrames, kMixFrames, 24.0 * 3600 * 48000};
@@ -44,10 +44,10 @@ static CGFloat PhoneMinimum(void) {
     }
 }
 
-// A 4:40 song on a phone zooms to under 2% of the track: four seconds across
-// the view.
+// A 4:40 song on a phone zooms to under 1% of the track: about two seconds
+// across the view.
 - (void)testShippingLayoutsAffordRealZoom {
-    XCTAssertLessThan(PhoneMinimum(), 0.02);
+    XCTAssertLessThan(PhoneMinimum(), 0.01);
     XCTAssertGreaterThan(PhoneMinimum(), 0);
     XCTAssertLessThan(VibeWaveformMinimumVisibleFraction(kPadWidth, kSongFrames, VibeWaveformMinimumFramesPerPoint(256)),
                       kVibeWaveformDefaultZoomFraction / 2);

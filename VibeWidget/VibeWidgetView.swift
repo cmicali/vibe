@@ -7,6 +7,10 @@ import WidgetKit
 private let kCornerRadius: CGFloat = 8
 // The scrubber's (kVibePlayheadLineWidth), the height of the strip.
 private let kPlayheadLineWidth: CGFloat = 2
+// The playhead line's share of the strip's height. The waveform's band is the
+// middle 75% (kVibeBarAmplitudeOfHalfHeight). The line reaches half way from
+// the band to the strip's edges. At full height it reached twice as far.
+private let kPlayheadLineHeightShare: CGFloat = 0.875
 
 private let kMediumHeaderHeight: CGFloat = 54
 private let kSmallPadding: CGFloat = 16
@@ -406,8 +410,8 @@ struct VibeWidgetView: View {
                 }
                 if state?.playheadLine == true, entry.played != nil {
                     Rectangle()
-                        .fill(.white.opacity(0.8))
-                        .frame(width: kPlayheadLineWidth)
+                        .fill(.white.opacity(0.68))
+                        .frame(width: kPlayheadLineWidth, height: geometry.size.height * kPlayheadLineHeightShare)
                         .offset(x: max(0, min(geometry.size.width - kPlayheadLineWidth,
                                               geometry.size.width * progress - kPlayheadLineWidth / 2)))
                 }

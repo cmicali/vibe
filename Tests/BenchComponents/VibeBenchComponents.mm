@@ -270,6 +270,12 @@ void VibeBenchComponentsSetAnalyzeTree(VibeBenchComponentsAnalyzeTreeFunction fu
     sAnalyzeTree = function;
 }
 
+static VibeBenchComponentsWaveformProbeFunction sWaveformProbe;
+
+void VibeBenchComponentsSetWaveformProbe(VibeBenchComponentsWaveformProbeFunction function) {
+    sWaveformProbe = function;
+}
+
 // MARK: - Shared fixtures
 
 void VibeBenchComponentsNoise(float *samples, size_t count, uint32_t seed) {
@@ -402,13 +408,15 @@ NSArray<NSString *> *VibeBenchComponentsMakeFiles(NSString *root, NSUInteger cou
 
 static void VibeBenchComponentsUsageText(void) {
     printf("usage: VibeBenchComponents --corpus <dir> [--reps N] [--filter <regex>] [--json <out>] [--list] [--loop <seconds>] [--analyze <dir>]\n"
+           "       VibeBenchComponents --waveform <file> [--help for its options]\n"
            "  --corpus   the corpus root (play/, extra/, library/); default build/bench/corpus\n"
            "  --reps     measured repetitions per benchmark, after one warm-up (default 5)\n"
            "  --filter   ECMAScript regex over benchmark names\n"
            "  --json     write every sample as JSON\n"
            "  --list     print the benchmark names and exit\n"
            "  --loop     run each selected benchmark repeatedly for that long, unmeasured, for a profiler\n"
-           "  --analyze  print tempo and key for every audio file under a folder, and exit\n");
+           "  --analyze  print tempo and key for every audio file under a folder, and exit\n"
+           "  --waveform draw one file's waveform as the iOS scrubber does, and print what it is drawn from\n");
 }
 
 int main(int argc, const char *argv[]) {
@@ -443,6 +451,12 @@ int main(int argc, const char *argv[]) {
                     return 69;
                 }
                 return sAnalyzeTree(@(argv[++i]));
+            } else if (arg == "--waveform" && hasValue) {
+                if (!sWaveformProbe) {
+                    fprintf(stderr, "this version's build has no waveform probe\n");
+                    return 69;
+                }
+                return sWaveformProbe(@(argv[i + 1]), argc - i - 2, argv + i + 2);
             } else if (arg == "--list") {
                 list = YES;
             } else {

@@ -58,6 +58,10 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
 @implementation PlayerViewController {
     // The model's 3 Hz tick is too coarse for a moving waveform.
     CADisplayLink           *_scrollLink;
+    // The position the waveform last showed and the frame it showed it for;
+    // -1 until a frame shows one (VibePlayheadShownPosition).
+    NSTimeInterval           _shownPosition;
+    CFTimeInterval           _shownFrameTime;
     // The waveform provider's bands answer as of the last settings change, so
     // only the change into a style reading them asks for the pages again.
     BOOL                     _waveformBandsWanted;
@@ -449,6 +453,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // the swipe needs those frames, and during a resize each write re-composites
 // the live tree.
 - (void)updateScrollLinkState {
+    // A paused link's next frame starts from the player's position.
+    _shownPosition = -1;
     _scrollLink.paused = !(_playback.isPlaying && _sceneActive && self.isPresented
                            && !_pagerScrolling && !_pagerProgrammaticScrolling
                            && !_windowResizeInFlight && !_routePickerPresenting);
@@ -475,7 +481,10 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     }
     NSTimeInterval duration = _playback.duration;
     if (duration > 0) {
-        _waveformView.progress = _playback.position / duration;
+        _shownPosition = VibePlayheadShownPosition(_shownPosition, link.targetTimestamp - _shownFrameTime,
+                                                   _playback.position);
+        _shownFrameTime = link.targetTimestamp;
+        _waveformView.progress = _shownPosition / duration;
     }
 }
 

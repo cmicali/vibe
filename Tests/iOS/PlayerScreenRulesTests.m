@@ -131,6 +131,36 @@
                    @"stopped, with no open to seek into");
 }
 
+#pragma mark - The playhead
+
+// A player stepping 23 ms every third 60 Hz frame, read every frame: the shown
+// position moves the same amount each frame, where the player's jumps.
+- (void)testTheShownPlayheadMovesEvenlyBetweenThePlayersSteps {
+    double frame = 1.0 / 60, buffer = 1024.0 / 44100;
+    NSTimeInterval shown = -1, lastShown = 0;
+    double smallest = INFINITY, largest = 0;
+    for (int i = 0; i < 600; i++) {
+        double now = 10 + i * frame;
+        NSTimeInterval player = floor(now / buffer) * buffer;
+        shown = VibePlayheadShownPosition(shown, i == 0 ? 0 : frame, player);
+        if (i > 300) {
+            smallest = fmin(smallest, shown - lastShown);
+            largest = fmax(largest, shown - lastShown);
+            XCTAssertEqualWithAccuracy(shown, player, buffer, @"it follows the player");
+        }
+        lastShown = shown;
+    }
+    XCTAssertGreaterThan(smallest, frame * 0.8);
+    XCTAssertLessThan(largest, frame * 1.2, @"the player's own steps are 0 or 23 ms");
+}
+
+- (void)testTheShownPlayheadJumpsToASeek {
+    XCTAssertEqual(VibePlayheadShownPosition(-1, 0.016, 42), 42, @"a first frame takes the player's");
+    XCTAssertEqual(VibePlayheadShownPosition(10, 0.016, 90), 90);
+    XCTAssertEqual(VibePlayheadShownPosition(10, 0.016, 9), 9, @"back as well as forward");
+    XCTAssertEqualWithAccuracy(VibePlayheadShownPosition(10, 0.016, 10.016), 10.016, 1e-9);
+}
+
 #pragma mark - The pager
 
 - (void)testNextDimsOnlyOnTheLastPageUnlessRepeatAll {

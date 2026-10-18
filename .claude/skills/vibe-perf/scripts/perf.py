@@ -116,6 +116,7 @@ def features(src):
             'supportsEnvelopeBake' in renderer.read_text(),
         'VIBE_BENCH_COMPONENTS_APPLE_MPEG': handle is not None and 'appleMPEGDecoder' in handle.read_text(),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_WINDOW': loader is not None and 'NSUInteger cueStart' in loader.read_text(),
+        'VIBE_BENCH_COMPONENTS_SPECTRUM_SECTIONS': three_band is not None and 'VibeSpectrumSections' in three_band.read_text(),
     }
     lines = ['// Written by perf.py from this checkout\'s sources; see VibeBenchComponents.h.']
     lines += [f'#define {name} {int(value)}' for name, value in flags.items()]

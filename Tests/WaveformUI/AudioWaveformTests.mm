@@ -1117,13 +1117,17 @@ static std::vector<CGFloat> VibeVisibleLayerHeights(const VibeTestPicture &pictu
 }
 
 // Zoomed in, the columns resolve a kick every eight bins, which the overview
-// averages into one steady level.
+// averages into one steady level. The peaks follow the kicks, as a real
+// track's do. The deep-zoom peak shape reads them.
 - (void)testThreeBandZoomResolvesKicksTheOverviewAverages {
     std::vector<std::array<float, 3>> bands;
+    std::vector<VibeTestBin> bins;
     for (NSUInteger i = 0; i < 8192; i++) {
-        bands.push_back({i % 8 < 2 ? 0.04f : 0.0001f, 0.0001f, 0.00001f});
+        BOOL kick = i % 8 < 2;
+        bands.push_back({kick ? 0.04f : 0.0001f, 0.0001f, 0.00001f});
+        bins.push_back(kick ? VibeTestBin{-0.5f, 0.5f, 0.04f} : VibeTestBin{-0.05f, 0.05f, 0.0001f});
     }
-    auto waveform = VibeTestWaveform(std::vector<VibeTestBin>(8192, {-0.1f, 0.1f, 0.01f}), bands);
+    auto waveform = VibeTestWaveform(bins, bands);
     // Past the first and last points, whose windows may slide off the track.
     std::vector<CGFloat> overview = [self threeBandHeightsForWaveform:waveform.get() width:1024];
     XCTAssertEqualWithAccuracy(*std::max_element(overview.begin() + 2, overview.end() - 2),
@@ -1328,9 +1332,9 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
     }
 }
 
-// Each half is one section, its shimmer and all. Precise blends the halves
-// across its tent. The coloring is part of the target, so a theme change
-// under the same waveform refills it.
+// Each half is one section, its shimmer and all. Precise's tent stops at the
+// edge between them too. The coloring is part of the target, so a theme
+// change under the same waveform refills it.
 - (void)testSpectrumBySectionColorsEachSectionByItsWholeMix {
     // A frame a bin at 8 Hz: a section column is four bins, and Precise's
     // tent reaches 16 bins each side.
@@ -1348,7 +1352,8 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
     XCTAssertEqual(precise.width, 512u);
     size_t row = precise.height / 2;
     if (precise.width == 512) {
-        XCTAssertNotEqual(precise.rgb(250, row), precise.rgb(100, row), @"Precise blends across the edge");
+        XCTAssertEqual(precise.rgb(250, row), precise.rgb(100, row), @"Precise's tent stops at the edge");
+        XCTAssertNotEqual(precise.rgb(262, row), precise.rgb(100, row));
     }
 
     WaveformTheme *bySection = [WaveformTheme monochromeThemeIsDark:YES];
@@ -1369,6 +1374,88 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
     }
 }
 
+// Quiet hats, then a kick every fourth bin from bin 514. A frame a bin at
+// 8 Hz: a section column is four bins, and Precise's tent reaches 16 bins
+// each side.
+static std::unique_ptr<AudioWaveform> VibeKickBackInWaveform(void) {
+    auto waveform = std::make_unique<AudioWaveform>(1, true, 8);
+    for (NSUInteger i = 0; i < 1024; i++) {
+        BOOL kick = i >= 514 && (i - 514) % 4 == 0;
+        double bands[wavecore::kBandCount] = {kick ? 1.0 : 0.0, 0.0, 0.04};
+        waveform->appendBin(-0.1f, 0.1f, 0.01, bands, 1);
+    }
+    waveform->markComplete();
+    return waveform;
+}
+
+// The grid finds the sections, and each edge moves to the change itself: the
+// first kick back in, not the grid column it falls in.
+- (void)testSpectrumSectionEdgeLandsOnTheFirstKickBackIn {
+    auto waveform = VibeKickBackInWaveform();
+    std::vector<VibeSpectrumSection> sections = VibeSpectrumSections(waveform.get());
+    XCTAssertEqual(sections.size(), 2u);
+    if (sections.size() == 2) {
+        XCTAssertEqual(sections[0].start, 0);
+        XCTAssertEqual(sections[1].start, 514, @"not the grid's 512 or 516");
+        XCTAssertGreaterThan(sections[1].meanSquares[0], sections[1].meanSquares[2]);
+        XCTAssertEqual(sections[0].meanSquares[0], 0, @"no kick colors the hats");
+    }
+}
+
+// The ink down one pixel column of a picture.
+static CGFloat VibeInkAt(const VibeTestPicture &picture, size_t x) {
+    CGFloat ink = 0;
+    for (size_t row = 0; row < picture.height; row++) ink += picture.alpha(x, row) / 255.0;
+    return ink;
+}
+
+// A kick whose peaks jump at once while its low band builds over 12 bins,
+// 70 ms. At deep zoom both styles take the peaks' shape, so the kick stands at
+// nearly full height from the attack. The bins before it stay quiet.
+- (void)testBandStylesTakeThePeaksAttackAtDeepZoom {
+    std::vector<VibeTestBin> bins(1024, {-0.01f, 0.01f, 0.0001f});
+    std::vector<std::array<float, 3>> bands(1024, {1e-6f, 1e-6f, 1e-6f});
+    for (size_t k = 0; k < 40; k++) {
+        float body = 0.7f * fminf((float)(k + 1) / 12, 1);
+        bins[512 + k] = {-0.9f, 0.9f, body * body};
+        bands[512 + k] = {body * body, 1e-4f, 1e-4f};
+    }
+    auto waveform = VibeTestWaveform(bins, bands);
+    for (NSString *style in @[@"spectrum", @"three_band"]) {
+        WaveformRenderer *renderer = [self rendererForStyle:style];
+        renderer.normalizesLevels = YES;
+        CALayer *host = renderer.parentLayer;
+        host.contentsScale = 2;
+        host.bounds = CGRectMake(0, 0, 1024, 80);
+        renderer.theme = [WaveformTheme monochromeThemeIsDark:YES];
+        [renderer updateColors:YES];
+        [renderer updateWaveform:host.bounds progress:1 waveform:waveform.get()];
+        [renderer settleMorphImmediately];
+        VibeTestPicture picture = VibeThreeBandPicture(renderer);
+        XCTAssertEqual(picture.width, 2048u, @"%@: half a bin a pixel, 2.9 ms columns", style);
+        if (picture.width == 2048) {
+            CGFloat plateau = VibeInkAt(picture, 2 * 540);
+            XCTAssertGreaterThan(VibeInkAt(picture, 2 * 512 + 2), plateau * 0.8, @"%@: the attack stands at once", style);
+            XCTAssertLessThan(VibeInkAt(picture, 2 * 500), plateau * 0.1, @"%@: the bins before it stay quiet", style);
+        }
+    }
+}
+
+// Precise's tent stops at the section edge, so the hats before the kick
+// comes back keep their own color right up to it.
+- (void)testSpectrumPreciseColorsStopAtTheSectionEdge {
+    auto waveform = VibeKickBackInWaveform();
+    WaveformTheme *theme = [WaveformTheme monochromeThemeIsDark:YES];
+    theme.flatFill = YES;
+    VibeTestPicture picture = [self spectrumPictureForWaveform:waveform.get() scale:1 theme:theme];
+    XCTAssertEqual(picture.width, 512u);
+    if (picture.width == 512) {
+        size_t row = picture.height / 2;
+        XCTAssertEqual(picture.rgb(255, row), picture.rgb(100, row), @"no kick leaks back across the edge");
+        XCTAssertNotEqual(picture.rgb(259, row), picture.rgb(100, row));
+    }
+}
+
 // Spectrum's outline is the tallest band: 3-Band's outer ring.
 - (void)testSpectrumOutlineIsTheTallestBand {
     std::array<float, 3> bands = {1, 0.01f, 0.0001f};
@@ -1380,13 +1467,6 @@ static uint32_t VibeSRGBOf(VibeColor *color) {
 }
 
 #pragma mark - The convert sweep
-
-// The ink down one pixel column of a picture.
-static CGFloat VibeInkAt(const VibeTestPicture &picture, size_t x) {
-    CGFloat ink = 0;
-    for (size_t row = 0; row < picture.height; row++) ink += picture.alpha(x, row) / 255.0;
-    return ink;
-}
 
 // The convert sweep zeroes a step style's columns over the span in every
 // step, so the notch is a hairline, and the ease brings them back.
