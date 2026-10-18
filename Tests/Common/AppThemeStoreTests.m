@@ -64,7 +64,7 @@
         AppTheme *working = settings.currentTheme;
         working.showTransportButtons = NO;
         [settings currentThemeDidChange];
-        working.showVolumeLabels = NO;
+        working.appIconShape = NO;
         [settings currentThemeDidChange];
         [settings undoThemeEdit];
         XCTAssertTrue(settings.canUndoThemeEdit);
@@ -360,20 +360,20 @@
     AppSettings *settings = self.editingSettings;
     NSString *removed = settings.activeThemeIdentifier;
     [settings applyThemeWithIdentifier:@"vibe"];
-    settings.currentTheme.showVolumeLabels = NO;
+    settings.currentTheme.appIconShape = NO;
     [settings currentThemeDidChange];
     [settings removeUserThemeWithIdentifier:removed fallingBackTo:nil];
     [settings undoThemeEdit];
     XCTAssertEqualObjects(settings.activeThemeIdentifier, @"vibe");
-    XCTAssertFalse(settings.currentTheme.showVolumeLabels);
+    XCTAssertFalse(settings.currentTheme.appIconShape);
     XCTAssertTrue(settings.currentThemeIsModified);
     XCTAssertTrue([settings.orderedThemeIdentifiers containsObject:removed]);
     [settings redoThemeEdit];
     XCTAssertFalse([settings.orderedThemeIdentifiers containsObject:removed]);
-    XCTAssertFalse(settings.currentTheme.showVolumeLabels);
+    XCTAssertFalse(settings.currentTheme.appIconShape);
     [settings undoThemeEdit];
     [settings undoThemeEdit];
-    XCTAssertTrue(settings.currentTheme.showVolumeLabels);
+    XCTAssertTrue(settings.currentTheme.appIconShape);
 }
 
 - (void)testRemovalRedoKeepsFallbackOrderImagesAndPreviousEdits {
@@ -382,7 +382,7 @@
     NSString *path = [self installEditingImageInSettings:settings];
     NSString *fallback = [settings addUserThemeWithRecord:@{@"showTransportButtons": @NO} name:@"Fallback"];
     NSArray *order = settings.orderedThemeIdentifiers;
-    settings.currentTheme.showVolumeLabels = NO;
+    settings.currentTheme.appIconShape = NO;
     [settings currentThemeDidChange];
     [settings removeUserThemeWithIdentifier:removed fallingBackTo:fallback];
     [settings undoThemeEdit];
@@ -398,7 +398,7 @@
     [settings undoThemeEdit];
     XCTAssertEqualObjects(settings.orderedThemeIdentifiers, order);
     XCTAssertEqualObjects(settings.activeThemeIdentifier, removed);
-    XCTAssertFalse(settings.currentTheme.showVolumeLabels);
+    XCTAssertFalse(settings.currentTheme.appIconShape);
     [settings.currentTheme setImageReference:@"" forKey:kVibeThemeImageDefaultArtworkDark];
     [settings currentThemeDidChange];
     XCTAssertFalse(settings.canRedoThemeEdit);
@@ -636,8 +636,9 @@
     [settings factoryReset];
 }
 
-// Themes carried the display choices through 1.14: the active theme's become
-// the app-wide settings, once, and no stored record keeps them.
+// Themes carried the display choices through 1.14, and the volume slider's
+// layout through 1.16: the active theme's become the app-wide settings, once,
+// and no stored record keeps them.
 - (void)testThemeDisplayChoicesMigrateFromTheActiveThemeOnce {
     AppSettings *settings = AppSettings.sharedInstance;
     [settings factoryReset];
@@ -645,7 +646,8 @@
     [defaults setObject:@[
         @{kVibeThemeRecordIdentifierKey: @"user-active", kVibeThemeRecordNameKey: @"Active",
           @"showBPM": @NO, @"keyNotation": @"musical", @"showPlaylistArtworkColumn": @NO,
-          @"dockIcon": @"app_icon", @"windowTint": @"mono"},
+          @"dockIcon": @"app_icon", @"windowTint": @"mono",
+          @"volumeLocation": @"bottom", @"volumeVisibility": @"always", @"showVolumeLabels": @NO},
         @{kVibeThemeRecordIdentifierKey: @"user-other", kVibeThemeRecordNameKey: @"Other",
           @"showKey": @NO},
     ] forKey:@"Appearance.userThemes"];
@@ -656,6 +658,9 @@
     XCTAssertEqualObjects(migrated.keyNotation, @"musical");
     XCTAssertFalse(migrated.showPlaylistArtworkColumn);
     XCTAssertEqualObjects(migrated.dockIcon, @"app_icon");
+    XCTAssertEqualObjects(migrated.volumeLocation, @"bottom");
+    XCTAssertEqualObjects(migrated.volumeVisibility, @"always");
+    XCTAssertFalse(migrated.showVolumeLabels);
     XCTAssertTrue(migrated.showKey, @"an inactive theme's choice is not the user's");
     NSArray *stored = [defaults arrayForKey:@"Appearance.userThemes"];
     XCTAssertEqualObjects(stored[0], (@{kVibeThemeRecordIdentifierKey: @"user-active",
@@ -665,6 +670,26 @@
 
     migrated.showBPM = YES;
     XCTAssertTrue([AppSettings new].showBPM);
+    [settings factoryReset];
+}
+
+// Kinda Blue and Dark Wolf shipped their volume labels off through 1.16, so
+// an unedited one keeps them off, once: either picked since keeps them on.
+- (void)testUneditedBuiltInsKeepTheirVolumeLabelsOffOnce {
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
+    for (NSString *builtIn in @[@"kinda_blue", @"dark_wolf"]) {
+        [settings factoryReset];
+        [defaults removeObjectForKey:@"Appearance.builtInVolumeLabelsRead"];
+        [defaults setObject:builtIn forKey:@"Appearance.activeTheme"];
+        XCTAssertFalse([AppSettings new].showVolumeLabels, @"%@ as 1.16 shipped it", builtIn);
+    }
+
+    [settings factoryReset];
+    [defaults removeObjectForKey:@"Appearance.builtInVolumeLabelsRead"];
+    (void)[AppSettings new];
+    [defaults setObject:@"kinda_blue" forKey:@"Appearance.activeTheme"];
+    XCTAssertTrue([AppSettings new].showVolumeLabels, @"picked after the update");
     [settings factoryReset];
 }
 

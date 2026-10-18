@@ -38,6 +38,15 @@ NS_ASSUME_NONNULL_BEGIN
 #define SETTINGS_VALUE_DOCK_ICON_ALBUM_ART                  @"album_art"
 #define SETTINGS_VALUE_DOCK_ICON_APP_ICON                   @"app_icon"
 
+// The volume slider's place. Top right swaps with the corner readouts on
+// hover (MainWindow/LAYOUT.md).
+#define SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM               @"bottom"
+#define SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT            @"top_right"
+// When the volume slider shows.
+#define SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS             @"always"
+#define SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE        @"hover_close"
+#define SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_EXACT        @"hover_exact"
+
 // A drag on the waveform: drag_window (default) moves the window and only a
 // stationary click seeks; seek scrubs.
 #define SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW                 @"drag_window"
@@ -249,11 +258,9 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (BOOL)declick;
 - (void)setDeclick:(BOOL)declick;
 
-// Volume control, default off: a volume slider in the player window, top
-// right unless the theme moves it (AppTheme.volumeLocation). The theme also
-// sets when it shows (AppTheme.volumeVisibility). `volume` is its position,
-// 0..1, kept while the control is off. The switch requests
-// VibeSettingsLiveEffectVolume; the slider's own drag pushes the player and
+// Volume control, default off: a volume slider in the player window. `volume`
+// is its position, 0..1, kept while the control is off. The switch requests
+// VibeSettingsLiveEffectVolume. The slider's own drag pushes the player and
 // its percentage directly.
 - (BOOL)volumeControl;
 - (void)setVolumeControl:(BOOL)enabled;
@@ -262,6 +269,15 @@ static const double kVibeWaveformGainMaxDB = 12;
 // What the player is told: the stored volume while the control is on, full
 // volume, which passes every sample untouched, otherwise.
 - (double)effectiveVolume;
+// Where the slider sits (top_right, the default, or bottom), when it shows
+// (always, hover_close, the default, or hover_exact), and whether "Vol" and
+// the percentage flank it. Writers request VibeSettingsLiveEffectVolume.
+- (NSString *)volumeLocation;
+- (void)setVolumeLocation:(NSString *)location;
+- (NSString *)volumeVisibility;
+- (void)setVolumeVisibility:(NSString *)visibility;
+- (BOOL)showVolumeLabels;
+- (void)setShowVolumeLabels:(BOOL)show;
 
 // audioFXEnabled and not bitPerfectOutput. Every UI gate reads this; only the
 // player's output-mode rebuild takes the raw choice, beside bitPerfectOutput.

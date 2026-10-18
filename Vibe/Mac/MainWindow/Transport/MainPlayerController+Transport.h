@@ -79,6 +79,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The header's volume slider: stores its position and pushes it to the player.
 - (IBAction)volumeChanged:(VibeSlider *)sender;
+// Up and Down over a collapsed playlist, one step each. The slider moves as a
+// scroll moves it.
+- (void)moveVolumeBySteps:(double)steps;
 
 @end
 

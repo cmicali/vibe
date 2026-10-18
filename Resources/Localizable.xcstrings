@@ -54500,7 +54500,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.show_volume_slider": {
-      "comment": "Settings, Appearance pane, Window group: switch, off by default, that adds a volume slider to the player window. Where it sits and how it looks is the theme's Volume slider group. Off, playback is always at full volume.",
+      "comment": "Settings, Appearance pane, Volume group: switch, off by default, that adds a volume slider to the player window. The rows under it say where it sits and when it shows. Off, playback is always at full volume.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -69380,7 +69380,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.jump.volume": {
-      "comment": "Theme editor: segment of the jump bar that scrolls to the Volume slider card. One short word.",
+      "comment": "Theme editor: segment of the jump bar that scrolls to the Volume card. One short word.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -74774,7 +74774,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.show_volume_labels": {
-      "comment": "Theme editor, Volume slider group: switch that shows or hides the text around the slider — 'Vol' before it and the percentage after it. On by default. Match the other 'Show …' switches in the editor.",
+      "comment": "Settings, Appearance pane, Volume group: switch that shows or hides the text around the volume slider — 'Vol' before it and the percentage after it. On by default. Match the other 'Show …' switches.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75146,7 +75146,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_bar": {
-      "comment": "Theme editor, Volume slider group: row beside the dropdown choosing the color of the volume slider's bar, the filled part of its track — none (the standard system slider), the artwork color, the waveform color, or a custom color. Pairs with 'Knob'.",
+      "comment": "Theme editor, Volume group: row beside the dropdown choosing the color of the volume slider's bar, the filled part of its track — none (the standard system slider), the artwork color, the waveform color, or a custom color. Pairs with 'Knob'.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75332,7 +75332,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_knob": {
-      "comment": "Theme editor, Volume slider group: row beside the dropdown choosing the color of the volume slider's knob, the pill you drag — none (the standard white knob), the bar's color, the artwork color, the waveform color, or a custom color. Pairs with 'Bar'.",
+      "comment": "Theme editor, Volume group: row beside the dropdown choosing the color of the volume slider's knob, the pill you drag — none (the standard white knob), the bar's color, the artwork color, the waveform color, or a custom color. Pairs with 'Bar'.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75704,7 +75704,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location": {
-      "comment": "Theme editor, Volume slider group: row beside the dropdown choosing where the volume slider sits in the player window.",
+      "comment": "Settings, Appearance pane, Volume group: row beside the dropdown choosing where the volume slider sits in the player window.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75890,7 +75890,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.bottom": {
-      "comment": "Theme editor, volume slider location choice: between the elapsed and total time labels, below the waveform.",
+      "comment": "Settings, volume slider location choice: between the elapsed and total time labels, below the waveform.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76076,7 +76076,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.caption": {
-      "comment": "Theme editor: explains the top-right slider location. When the slider appears it replaces the track information. The Show setting controls its visibility.",
+      "comment": "Settings, Appearance pane: explains the top-right slider location. When the slider appears it replaces the track information. The Show setting controls its visibility.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76262,7 +76262,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.top_right": {
-      "comment": "Theme editor: places the slider in the player's top-right corner. It replaces track information when visible. The default.",
+      "comment": "Settings, volume slider location choice: places the slider in the player's top-right corner. It replaces track information when visible. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76448,7 +76448,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_visibility": {
-      "comment": "Theme editor, Volume slider group: dropdown for when the volume slider shows. A verb, like the other 'Show' rows.",
+      "comment": "Settings, Appearance pane, Volume group: dropdown for when the volume slider shows. A verb, like the other 'Show' rows.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -79982,186 +79982,186 @@
       "extractionState": "manual"
     },
     "settings.appearance.volume_section": {
-      "comment": "Theme editor: heading above the player window's volume slider rows — its bar and knob colors, its labels and where it sits.",
+      "comment": "Settings, Appearance pane: heading above the app-wide volume slider switch, its place, when it shows and its labels; theme editor: heading above the slider's bar and knob colors.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Плъзгач за звука"
+            "value": "Сила на звука"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Posuvník hlasitosti"
+            "value": "Hlasitost"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lydstyrkeskyder"
+            "value": "Lydstyrke"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lautstärkeregler"
+            "value": "Lautstärke"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ρυθμιστικό έντασης"
+            "value": "Ένταση"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volume slider"
+            "value": "Volume"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Control deslizante de volumen"
+            "value": "Volumen"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Äänenvoimakkuuden liukusäädin"
+            "value": "Äänenvoimakkuus"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Curseur de volume"
+            "value": "Volume"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klizač glasnoće"
+            "value": "Glasnoća"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hangerőcsúszka"
+            "value": "Hangerő"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Penggeser volume"
+            "value": "Volume"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cursore del volume"
+            "value": "Volume"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "音量スライダー"
+            "value": "音量"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "볼륨 슬라이더"
+            "value": "볼륨"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volumskyveknapp"
+            "value": "Volum"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volumeschuifknop"
+            "value": "Volume"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Suwak głośności"
+            "value": "Głośność"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Controle deslizante de volume"
+            "value": "Volume"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Controlo de deslize do volume"
+            "value": "Volume"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glisor de volum"
+            "value": "Volum"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ползунок громкости"
+            "value": "Громкость"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Posúvač hlasitosti"
+            "value": "Hlasitosť"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volymreglage"
+            "value": "Volym"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แถบเลื่อนระดับเสียง"
+            "value": "ระดับเสียง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ses düzeyi sürgüsü"
+            "value": "Ses düzeyi"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Повзунок гучності"
+            "value": "Гучність"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thanh trượt âm lượng"
+            "value": "Âm lượng"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "音量滑块"
+            "value": "音量"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "音量滑桿"
+            "value": "音量"
           }
         }
       },

@@ -267,9 +267,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self selectValue:theme.playlistTint in:_playlistTintPopUp];
     [self selectValue:theme.volumeBar in:_volumeBarPopUp];
     [self selectValue:theme.volumeKnob in:_volumeKnobPopUp];
-    _volumeLabelsSwitch.state = StateForBOOL(theme.showVolumeLabels);
-    [self selectValue:theme.volumeLocation in:_volumeLocationPopUp];
-    [self selectValue:theme.volumeVisibility in:_volumeVisibilityPopUp];
 
     [self refreshFontValueLabels];
 
@@ -556,16 +553,6 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     [self chooseFromPopUp:_volumeKnobPopUp revealing:SETTINGS_VALUE_WINDOW_TINT_CUSTOM
                     wells:@[_volumeKnobPair] effect:VibeSettingsLiveEffectVolume
                     write:^(AppTheme *theme, NSString *identifier) { theme.volumeKnob = identifier; }];
-}
-
-- (void)volumeLocationChanged:(id)sender {
-    AppSettings.sharedInstance.currentTheme.volumeLocation = _volumeLocationPopUp.selectedItem.representedObject;
-    [self themeFieldDidChange:VibeSettingsLiveEffectVolume];
-}
-
-- (void)volumeVisibilityChanged:(id)sender {
-    AppSettings.sharedInstance.currentTheme.volumeVisibility = _volumeVisibilityPopUp.selectedItem.representedObject;
-    [self themeFieldDidChange:VibeSettingsLiveEffectVolume];
 }
 
 #pragma mark - Editor: waveform

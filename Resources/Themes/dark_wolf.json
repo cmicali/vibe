@@ -36,8 +36,7 @@
     "bar": "custom",
     "barColorDark": "#438681",
     "knob": "custom",
-    "knobColorDark": "#71A08C",
-    "showLabels": false
+    "knobColorDark": "#71A08C"
   },
   "waveform": {
     "barDensity": 0.75,

@@ -42,8 +42,7 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
 
 + (BOOL)atTopRight {
     AppSettings *settings = AppSettings.sharedInstance;
-    return settings.volumeControl && [settings.currentTheme.volumeLocation
-            isEqualToString:SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT];
+    return settings.volumeControl && [settings.volumeLocation isEqualToString:SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT];
 }
 
 - (instancetype)initWithFrame:(NSRect)frame target:(id)target {
@@ -80,7 +79,7 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
 // Both side columns are the wider of "Vol" and "100%" in the current face, so
 // neither clips and the slider sits at the control's center.
 - (void)layoutColumns {
-    BOOL labels = AppSettings.sharedInstance.currentTheme.showVolumeLabels;
+    BOOL labels = AppSettings.sharedInstance.showVolumeLabels;
     CGFloat side = 0, gap = 0;
     [self applyPercentStyle];
     if (labels) {

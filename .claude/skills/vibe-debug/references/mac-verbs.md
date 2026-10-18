@@ -56,6 +56,7 @@ Raw input is for explicit gesture tests on an isolated test desktop, never unatt
 "$V" --debug-cmd drag 728 219 728 299   # the whole left-button gesture in one command (down, 12 dragged steps, up); optional [steps]
 "$V" --debug-cmd mouse_move 400 200  # plain move; add left|right for a lone dragged event
 "$V" --debug-cmd mouse_down 75 122   # primitives (default left; also right); mouse_up likewise
+"$V" --debug-cmd scroll 300 100 -3   # {ok, posted, hitView, windowKey}: one scroll at a window point, sent to the window at once (no activation, no queue). lines by default (a wheel's), `pixels` a trackpad's, `momentum` the coast after the fingers lift. dy is raw: positive is a wheel rolled away under traditional scrolling
 "$V" --debug-cmd key p               # keyDown+keyUp into the key window, else the player window; mods: `key p cmd shift`. With Open URL's window key, keys reach it, not the player, so check window.keyWindow first
 "$V" --debug-cmd key_down w          # one edge (the held W/E/R/T FX); key_up releases. Keys: a-z, 0-9, period, space, tab, return, esc, delete, forward_delete, up/down/left/right
 "$V" --debug-cmd key delete repeat   # `repeat` sets isARepeat, the only way to exercise a repeat guard. `delete` is Backspace, `forward_delete` its twin
