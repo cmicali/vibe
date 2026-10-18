@@ -16,9 +16,22 @@ NS_ASSUME_NONNULL_BEGIN
 // included: the header holds the previous track's art until the answer.
 extern NSNotificationName const FolderArtDidResolveNotification;
 
+// Whether folder art is on, and whether a directory may be read without
+// raising a permission panel. The app answers both (setEnabledProvider:).
+typedef BOOL (^FolderArtEnabledProvider)(void);
+typedef BOOL (^FolderArtAccessProvider)(NSString *directory);
+
 @interface FolderArtResolver : NSObject
 
 + (instancetype)sharedInstance;
+
+// The two answers the resolver takes from the app. The mac installs its
+// Folder art setting and its folder grants at launch. Until then, and on iOS,
+// folder art is off and any directory may be read. Installing re-reads the
+// enabled answer and drops cached images, as folderArtSettingDidChange does.
+// Any thread.
+- (void)setEnabledProvider:(FolderArtEnabledProvider)enabledProvider
+             accessProvider:(FolderArtAccessProvider)accessProvider;
 
 // The row thumbnail, or nil. Never blocks or touches the filesystem, O(1)
 // under the lock, so safe while drawing; an unknown folder schedules a

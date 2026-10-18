@@ -33,7 +33,12 @@
         _root = [NSURL fileURLWithFileSystemRepresentation:resolved isDirectory:YES relativeToURL:nil];
     }
     // The walk never reaches for the resolver itself; AppDelegate installs
-    // this same wiring at launch.
+    // this same wiring at launch, and the resolver's two answers with it.
+    [FolderArtResolver.sharedInstance setEnabledProvider:^BOOL{
+        return YES;
+    } accessProvider:^BOOL(NSString *directory) {
+        return YES;
+    }];
     [FolderWalk setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
                                              NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
         [FolderArtResolver.sharedInstance noteListedDirectories:directories
@@ -44,6 +49,12 @@
 
 - (void)tearDown {
     [FolderWalk setWalkedDirectoriesHandler:nil];
+    // Back to the resolver's own answers: off, and any directory readable.
+    [FolderArtResolver.sharedInstance setEnabledProvider:^BOOL{
+        return NO;
+    } accessProvider:^BOOL(NSString *directory) {
+        return YES;
+    }];
     [NSFileManager.defaultManager removeItemAtURL:_root error:nil];
     [FolderArtResolver.sharedInstance invalidate];
     [super tearDown];

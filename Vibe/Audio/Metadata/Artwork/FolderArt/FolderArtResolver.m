@@ -2,22 +2,15 @@
 // FolderArtResolver.m
 // Vibe
 //
-// The lock covers _directories only and is never held across a stat, read or
-// decode: main takes it on every cell draw. Drawing paths only read cached
+// The lock covers _directories and the two providers, and is never held
+// across a stat, read, decode or provider call: main takes it on every cell draw. Drawing paths only read cached
 // images or schedule a resolve. Bulk updates and invalidation also take it.
 //
 
 #import "FolderArtResolverInternal.h"
 #import "FolderArtEntry.h"
 #import "FolderArtFileIO.h"
-#import "AppSettings.h"
-#if TARGET_OS_OSX
-#import "AppSettings+Mac.h"
-#endif
 #import "FolderArtRules.h"
-#if TARGET_OS_OSX
-#import "FolderAccessManager.h"
-#endif
 #import "PlatformImage.h"
 
 #import <os/lock.h>
@@ -73,20 +66,36 @@ static NSString *const kNoArtMarker = @"";
 }
 
 - (instancetype)init {
+    // Off until the app installs its answers (setEnabledProvider:).
     return [self initWithEnabledProvider:^BOOL{
-#if TARGET_OS_OSX
-        return AppSettings.sharedInstance.useFolderArt;
-#else
-        // Unreachable on iOS; off if that ever changes.
         return NO;
-#endif
     } accessProvider:^BOOL(NSString *directory) {
-#if TARGET_OS_OSX
-        return [FolderAccessManager.sharedInstance canReadInsideDirectory:directory];
-#else
         return YES;
-#endif
     }];
+}
+
+- (void)setEnabledProvider:(FolderArtEnabledProvider)enabledProvider
+            accessProvider:(FolderArtAccessProvider)accessProvider {
+    os_unfair_lock_lock(&_lock);
+    _enabledProvider = [enabledProvider copy];
+    _accessProvider = [accessProvider copy];
+    os_unfair_lock_unlock(&_lock);
+    [self folderArtSettingDidChange];
+}
+
+// Copied under the lock and called outside it, since an app's answer may stat.
+- (FolderArtEnabledProvider)currentEnabledProvider {
+    os_unfair_lock_lock(&_lock);
+    FolderArtEnabledProvider provider = _enabledProvider;
+    os_unfair_lock_unlock(&_lock);
+    return provider;
+}
+
+- (FolderArtAccessProvider)currentAccessProvider {
+    os_unfair_lock_lock(&_lock);
+    FolderArtAccessProvider provider = _accessProvider;
+    os_unfair_lock_unlock(&_lock);
+    return provider;
 }
 
 - (instancetype)initWithEnabledProvider:(FolderArtEnabledProvider)enabledProvider
@@ -311,16 +320,17 @@ static NSString *const kNoArtMarker = @"";
 #pragma mark - Invalidation
 
 - (void)folderArtSettingDidChange {
-    // TRAP: outside init and the test-only invalidate, the only refresh of the
-    // cached useFolderArt, so a writer that skips
-    // VibeSettingsLiveEffectFolderArt is never observed. Not a full wipe.
-    atomic_store_explicit(&_enabledCache, _enabledProvider(), memory_order_relaxed);
+    // TRAP: outside init, setEnabledProvider: and the test-only invalidate,
+    // the only refresh of the cached answer, so a writer of the app's setting
+    // that skips VibeSettingsLiveEffectFolderArt is never observed. Not a
+    // full wipe.
+    atomic_store_explicit(&_enabledCache, [self currentEnabledProvider](), memory_order_relaxed);
     [_thumbnails removeAllObjects];
     [_displayImages removeAllObjects];
 }
 
 - (void)invalidate {
-    atomic_store_explicit(&_enabledCache, _enabledProvider(), memory_order_relaxed);
+    atomic_store_explicit(&_enabledCache, [self currentEnabledProvider](), memory_order_relaxed);
     os_unfair_lock_lock(&_lock);
     NSMutableArray<NSString *> *forgotten = [NSMutableArray array];
     for (NSString *directory in _directories) {
@@ -598,7 +608,7 @@ static NSString *const kNoArtMarker = @"";
     // Unasked-for work must not raise a consent panel, so an ungranted folder
     // is not probed. A later grant clears this answer
     // (MainPlayerController.grantedFoldersDidChange:).
-    if (!_accessProvider(directory)) {
+    if (![self currentAccessProvider](directory)) {
         LogDebug(@"No folder grant for %@ — skipping folder art", directory);
         if ([self settleDirectory:directory artPath:nil answerGeneration:answerGeneration withoutGrant:YES] &&
                 didSettle) {
@@ -655,7 +665,7 @@ static NSString *const kNoArtMarker = @"";
     os_unfair_lock_lock(&_lock);
     uint64_t accessGeneration = _accessGeneration;
     os_unfair_lock_unlock(&_lock);
-    if (!_accessProvider(directory)) {
+    if (![self currentAccessProvider](directory)) {
         os_unfair_lock_lock(&_lock);
         FolderArtEntry *entry = [self currentEntryLocked:directory
                                                 answerGeneration:answerGeneration
