@@ -868,7 +868,6 @@ targets:
         compilerFlags: *third-party-flags
       - path: Vibe/Debug/Oracles/AudioLoadTiming.m
       - path: Vibe/Debug/Seams/AudioLoadingConfiguration+Debug.m
-      - path: Vibe/Debug/Channel/DebugWireFormat.m
       - path: Vibe/Debug/Simulators/VibeFakeCloud.m
       - path: Vibe/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Sandbox.m

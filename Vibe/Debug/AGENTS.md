@@ -10,7 +10,7 @@ Each shared subdirectory matches a section below.
 - **`Verbs/`** holds the verbs both platforms answer, one file per topic, and the protocol they are written against.
 - **`Oracles/`** holds the oracles.
 - **`Simulators/`** holds the simulators.
-- **`Seams/`** holds the `+Debug` categories over shared classes. The next section says why they live here.
+- **`Seams/`** holds the `+Debug` categories over shared classes. The next section says why they live here. **A seam imports nothing from `Channel/` or `Verbs/`.** It belongs to the class it opens, and moves with that class to cm_libs, which has no channel. A parser a seam and the channel share lives in `Util/`, as `IntegerTokenRules.h` does.
 
 `Mac/` and `iOS/` hold each platform's table and verbs. Each has its own `Seams/` for the `+Debug` categories over that shell's classes.
 
