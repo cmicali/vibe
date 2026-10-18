@@ -6,7 +6,7 @@ There are two kinds of benchmark. The app benchmarks launch each release's own a
 
 <!-- performance:begin -->
 
-The app benchmarks ran on an Apple M2 Pro with 32 GB of memory and macOS 27.0.1. The component benchmarks ran on an Apple M4 Max with 64 GB of memory and macOS 27.0. A version marked pre-release was measured before its release was tagged.
+The app benchmarks ran on an Apple M2 Pro with 32 GB of memory and macOS 27.0.1. The component benchmarks ran on an Apple M1 Max with 64 GB of memory and macOS 27.0.1. A version marked pre-release was measured before its release was tagged.
 
 ![Every release](performance/summary.svg)
 
@@ -60,6 +60,8 @@ Four releases cut the CPU it takes to play a file:
 ![Playback CPU](performance/playback-cpu.svg)
 
 ![Playback CPU with effects, pitch and resampling](performance/playback-cpu-extra.svg)
+
+![The pitch fader's converter, CPU per minute of audio](performance/components-pitch.svg)
 
 ## When nothing is playing
 
