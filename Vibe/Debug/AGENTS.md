@@ -6,7 +6,7 @@ How a running app is driven and read from outside, on both platforms. **The verb
 
 Each shared subdirectory matches a section below.
 
-- **`Channel/`** is the transport.
+- **`Channel/`** is the transport. `DebugLogMirror.m` is the other way back from a device: under `--log-stderr` it sets cm_libs' `CMMLogMirror` before `main`, so every message also reaches stderr.
 - **`Verbs/`** holds the verbs both platforms answer, one file per topic, and the protocol they are written against.
 - **`Oracles/`** holds the oracles.
 - **`Simulators/`** holds the simulators.

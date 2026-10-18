@@ -171,7 +171,7 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 
 ## Logging
 
-`LogError`, `LogWarn`, `LogInfo` and `LogDebug` in `Vibe-Prefix.pch` wrap `os_log` under `com.commonwealthrecordings.Vibe`.
+`LogError`, `LogWarn`, `LogInfo` and `LogDebug` wrap `os_log`. They are cm_libs' `core/Common/CMMMacros.h`, which `Vibe-Prefix.pch` imports. Their subsystem is the main bundle's identifier, `com.commonwealthrecordings.Vibe` for both apps. `--log-stderr` mirrors them to stderr in a debug build (`Debug/Channel/DebugLogMirror.m`).
 
 **`VIBE_BETA_DEBUG` (`project.yml`) is the beta switch.** It sets `VIBE_VERBOSE_LOGGING` and the mac's Beta updates default, so a release flips one line. At `VIBE_VERBOSE_LOGGING=1`, info, debug and warn are written at Default level, and Settings > Advanced > Save Debug Info retrieves them. At 0, info and debug must be streamed live. Keep each beta's dSYMs to symbolicate stall stacks.
 
