@@ -1,3 +1,7 @@
+# v1.17
+
+* Fixed 320 kbps MP3s opening slowly
+
 # v1.16
 
 * Added Open URL… to play a web link, or a Dropbox, Google Drive or iCloud Drive share link

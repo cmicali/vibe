@@ -47,9 +47,12 @@
     if (packet) {
         return got >= packet + 7 && memcmp(head + packet, "\x01vorbis", 7) == 0 && [self openVorbisInterleaved:interleaved];
     }
+    if (!mpeg) {
+        return NO;
+    }
     AudioFileTypeID type = VibeFileTypeForExtension(_url.pathExtension);
     BOOL named = type == kAudioFileMP3Type || type == kAudioFileMP2Type || type == kAudioFileMP1Type;
-    return mpeg && [self openMPEGFrom:at to:_size junk:named interleaved:interleaved];
+    return [self openMPEGFrom:at to:_size junk:named interleaved:interleaved];
 }
 
 // Keeps the decoder just opened when it found a file it plays: a length, no
