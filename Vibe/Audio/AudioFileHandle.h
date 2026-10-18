@@ -120,15 +120,8 @@ FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
                                   error:(NSError * _Nullable __autoreleasing * _Nullable)error NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
-// Which decoder MPEG files opened from now on get: dr_mp3 (NO, the default;
-// docs/audio-quality.md) or Apple's (YES). The mac's Settings > Advanced
-// chooses; iOS keeps the default. A handle keeps the decoder it opened with.
-@property (class, atomic) BOOL appleMPEGDecoder;
 // "dr_mp3", "dr_flac", "dr_wav", "libvorbis" or "apple", for the audio-path report.
 @property (nonatomic, readonly) NSString *decoderName;
-// YES for an MPEG file opened under the other appleMPEGDecoder choice than
-// the current one: a handle opened before a change and handed on after it.
-@property (nonatomic, readonly) BOOL decoderChoiceIsStale;
 
 @property (nonatomic, readonly) NSURL *url;
 // For property reads while the handle lives. NULL once one of Vibe's decoders

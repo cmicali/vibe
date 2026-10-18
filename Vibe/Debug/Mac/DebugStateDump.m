@@ -215,7 +215,6 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
             // The saved device's remembered modes, not the player's report.
             @"bitPerfectOutput": @(AppSettings.sharedInstance.bitPerfectOutput),
             @"allowBitPerfectOnAnyDevice": @(AppSettings.sharedInstance.allowBitPerfectOnAnyDevice),
-            @"appleMPEGDecoder": @(AppSettings.sharedInstance.appleMPEGDecoder),
             @"exclusiveOutput": @(AppSettings.sharedInstance.exclusiveOutput),
             @"declick": @(AppSettings.sharedInstance.declick),
             @"pauseAtTrackEnd": @(AppSettings.sharedInstance.pauseAtTrackEnd),

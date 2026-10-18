@@ -28,7 +28,6 @@
 #define SETTING_REOPEN_LAST_PLAYLIST                @"Playlist.reopenLast"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE      @"AudioPlayer.allowBitPerfectOnAnyDevice"
-#define SETTING_APPLE_MPEG_DECODER                  @"AudioPlayer.appleMPEGDecoder"
 #if VIBE_DIRECT_DISTRIBUTION
 #define SETTING_RECEIVE_BETA_UPDATES                @"Updates.receiveBetas"
 // Sparkle's own keys, behind Settings > General's Check for updates.
@@ -93,7 +92,6 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(60),
             SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE: @(NO),
-            SETTING_APPLE_MPEG_DECODER:             @(NO),
 #if VIBE_DIRECT_DISTRIBUTION
             // A beta build keeps its tester on the beta train.
             SETTING_RECEIVE_BETA_UPDATES:           @((BOOL)VIBE_BETA_DEBUG),
@@ -430,14 +428,6 @@ const size_t kVibeUIUpdateHzCapPresetCount =
 
 - (void)setAllowBitPerfectOnAnyDevice:(BOOL)allowed {
     [NSUserDefaults.standardUserDefaults setBool:allowed forKey:SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE];
-}
-
-- (BOOL)appleMPEGDecoder {
-    return [NSUserDefaults.standardUserDefaults boolForKey:SETTING_APPLE_MPEG_DECODER];
-}
-
-- (void)setAppleMPEGDecoder:(BOOL)apple {
-    [NSUserDefaults.standardUserDefaults setBool:apple forKey:SETTING_APPLE_MPEG_DECODER];
 }
 
 #if VIBE_DIRECT_DISTRIBUTION

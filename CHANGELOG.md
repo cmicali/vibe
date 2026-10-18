@@ -1,6 +1,7 @@
 # v1.17
 
 * Fixed 320 kbps MP3s opening slowly
+* mac: Changed MP3 and MP2 files to always play with Vibe's own decoder
 
 # v1.16
 

@@ -62,9 +62,6 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // Pushes effectiveVolume to the player, shows or hides the slider, and
     // dresses it from the theme: tint, labels, and the corner it takes.
     VibeSettingsLiveEffectVolume           = 1UL << 26,
-    // Pushes the MP3 decoder choice to AudioFileHandle, reopens the park and
-    // replays a playing MPEG file where it was, under the new decoder.
-    VibeSettingsLiveEffectMP3Decoder       = 1UL << 27,
     // The menu's key equivalents and the empty-state hints' Open shortcut,
     // under the current layout; also requested on an input source change.
     VibeSettingsLiveEffectShortcuts        = 1UL << 28,

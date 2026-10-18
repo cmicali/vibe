@@ -17,11 +17,11 @@
 // CoreAudio's parser, which never opens it. The file's first bytes name the
 // container. RIFF and RF64 WAVE, Wave64 and AIFF(-C) go to dr_wav. FLAC,
 // behind ID3v2 tags too, goes to dr_flac. Ogg whose first packet is Vorbis's
-// identification goes to libvorbis. With `mpeg`, the dr_mp3 choice, MPEG
-// frames go to dr_mp3, behind ID3v2 tags or in a WAV's data chunk too. NO
-// leaves the file to the parser: BW64, RIFX and every other container, a
-// coding the decoder does not decode, or a stream it cannot open.
-- (BOOL)openOwnDecoderInterleaved:(BOOL)interleaved mpeg:(BOOL)mpeg {
+// identification goes to libvorbis. MPEG frames go to dr_mp3, behind ID3v2
+// tags or in a WAV's data chunk too. NO leaves the file to the parser: BW64,
+// RIFX and every other container, a coding the decoder does not decode, or a
+// stream it cannot open.
+- (BOOL)openOwnDecoderInterleaved:(BOOL)interleaved {
     static const uint8_t wave64[16] = {'r', 'i', 'f', 'f', 0x2E, 0x91, 0xCF, 0x11, 0xA5, 0xD6, 0x28, 0xDB, 0x04, 0xC1, 0x00, 0x00};
     uint8_t head[27 + 255 + 7]; // an Ogg page header, its segment table and the first packet's opening
     UInt32 got = 0;
@@ -38,7 +38,7 @@
     if ((got >= 12 && (memcmp(head, "RIFF", 4) == 0 || memcmp(head, "RF64", 4) == 0) && memcmp(head + 8, "WAVE", 4) == 0)
             || (got >= 12 && memcmp(head, "FORM", 4) == 0 && (memcmp(head + 8, "AIFF", 4) == 0 || memcmp(head + 8, "AIFC", 4) == 0))
             || (got >= sizeof wave64 && memcmp(head, wave64, sizeof wave64) == 0)) {
-        return [self openWAVInterleaved:interleaved] || (mpeg && [self openMPEGInWAVInterleaved:interleaved]);
+        return [self openWAVInterleaved:interleaved] || [self openMPEGInWAVInterleaved:interleaved];
     }
     if (got >= 4 && memcmp(head, "fLaC", 4) == 0) {
         return [self openFLACInterleaved:interleaved];
@@ -46,9 +46,6 @@
     UInt32 packet = got >= 27 && memcmp(head, "OggS", 4) == 0 ? 27 + head[26] : 0;
     if (packet) {
         return got >= packet + 7 && memcmp(head + packet, "\x01vorbis", 7) == 0 && [self openVorbisInterleaved:interleaved];
-    }
-    if (!mpeg) {
-        return NO;
     }
     AudioFileTypeID type = VibeFileTypeForExtension(_url.pathExtension);
     BOOL named = type == kAudioFileMP3Type || type == kAudioFileMP2Type || type == kAudioFileMP1Type;
@@ -126,7 +123,7 @@ typedef struct {
 // WAV's valid bits and states the container. Zeroed for a coding dr_wav does
 // not decode. Only dr_wav's own parse can tell one: a
 // WAVE_FORMAT_EXTENSIBLE's subformat, an AIFF-C's compression type. MPEG in a
-// WAV is one. Under the dr_mp3 choice the MPEG open takes it.
+// WAV is one. The MPEG open takes it.
 static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav, UInt16 aiffSampleSize) {
     UInt32 channels = wav->channels, blockAlign = wav->fmt.blockAlign;
     BOOL aiff = wav->container == drwav_container_aiff;
