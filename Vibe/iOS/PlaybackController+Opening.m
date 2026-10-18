@@ -28,7 +28,7 @@
         return [a.URL.lastPathComponent localizedStandardCompare:b.URL.lastPathComponent];
     }].firstObject;
     if (context) {
-        [_folderSession openURLs:@[context.URL] openInPlace:context.options.openInPlace];
+        [self openURLs:@[context.URL] openInPlace:context.options.openInPlace];
     }
 }
 
