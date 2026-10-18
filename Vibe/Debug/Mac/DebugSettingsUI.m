@@ -1005,4 +1005,49 @@ NSString *VibeDebugSettingsReveal(NSArray<NSString *> *tokens) {
     return VibeClickReply(element, @"revealed");
 }
 
+// A right-click opens the nearest menu up the view chain, since a view with
+// none passes the event to its superview. A disabled control still opens one.
+NSString *VibeDebugSettingsMenu(NSArray<NSString *> *tokens) {
+    BOOL onRow = tokens.count >= 3 && [tokens[2] caseInsensitiveCompare:@"row"] == NSOrderedSame;
+    NSUInteger itemIndex = onRow ? 3 : 2;
+    if (tokens.count < 2 || tokens.count > itemIndex + 1) {
+        return VibeErrorJSON(@"usage: settings_menu <control> [row] [item] — quote names with spaces");
+    }
+    NSString *errorJSON = nil;
+    VibeSettingsElement *element = VibeVisibleSettingsElement(tokens[1], &errorJSON);
+    if (!element) {
+        return errorJSON;
+    }
+    NSView *view = onRow ? element.row : element.view;
+    while (view && !view.menu) {
+        view = view.superview;
+    }
+    NSMenu *menu = view.menu;
+    if (!menu) {
+        return VibeErrorJSON(@"a right-click on '%@' opens no menu", element.name);
+    }
+    [menu update]; // the real validateMenuItem: pass
+    NSMutableArray<NSDictionary *> *items = [NSMutableArray array];
+    for (NSMenuItem *item in menu.itemArray) {
+        if (!item.isSeparatorItem) {
+            [items addObject:@{@"title": item.title, @"enabled": @(item.isEnabled)}];
+        }
+    }
+    NSMutableDictionary *reply = [@{@"ok": @YES, @"control": element.name,
+                                    @"menuOwner": view == element.row ? @"row" : view.className,
+                                    @"items": items} mutableCopy];
+    if (tokens.count > itemIndex) {
+        NSInteger index = [menu indexOfItemWithTitle:tokens[itemIndex]];
+        if (index < 0) {
+            return VibeErrorJSON(@"no item '%@' in that menu", tokens[itemIndex]);
+        }
+        if (![menu itemAtIndex:index].isEnabled) {
+            return VibeErrorJSON(@"'%@' is disabled", tokens[itemIndex]);
+        }
+        [menu performActionForItemAtIndex:index];
+        reply[@"performed"] = tokens[itemIndex];
+    }
+    return VibeJSONString(reply);
+}
+
 #endif

@@ -14,6 +14,7 @@
 #import "Fonts.h"
 #import "Formatters.h"
 #import "NSImage+Util.h"
+#import "PlatformColor.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
@@ -700,18 +701,167 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     return NSFontPanelModeMaskCollection | NSFontPanelModeMaskFace | NSFontPanelModeMaskSize;
 }
 
-// Called per pick while browsing. The store clamps the size.
+// Called per pick while browsing.
 - (void)changeFont:(NSFontManager *)sender {
     if (_fontEditingSlot == VibeFontSlotNone) {
         return;
     }
     NSFont *font = [sender convertFont:[Fonts fontForSlot:_fontEditingSlot bold:NO]];
-    [AppSettings.sharedInstance.currentTheme setFontFace:font.fontName size:font.pointSize
-                                                 forSlot:_fontEditingSlot];
+    [self writeFontFace:font.fontName size:font.pointSize toSlot:_fontEditingSlot];
+}
+
+// An empty face is the built-in font. The store clamps the size.
+- (void)writeFontFace:(NSString *)face size:(CGFloat)size toSlot:(VibeFontSlot)slot {
+    [AppSettings.sharedInstance.currentTheme setFontFace:face size:size forSlot:slot];
     [self themeFieldDidChange:VibeSettingsLiveEffectFonts
             | VibeSettingsLiveEffectPlaylistAppearance
             | VibeSettingsLiveEffectTrackDisplay];
     [self refreshFontValueLabels];
+}
+
+#pragma mark - Editor: copy and paste
+
+// Each well and each color or font row owns its menu. An item finds its view
+// by that menu, so the item holds no reference back to the view.
+- (void)addCopyPasteMenusIn:(NSView *)editor {
+    ForEachDescendantView(editor, ^(NSView *view) {
+        if ([view isKindOfClass:SettingsRowView.class]
+                ? ([self fontButtonIn:view] || [self wellsIn:view shownOnly:NO].count)
+                : [self->_wellBindings objectForKey:(NSColorWell *)view] != nil) {
+            NSMenu *menu = [[NSMenu alloc] init];
+            [menu addItemWithTitle:STR_MENU_EDIT_COPY action:@selector(copyThemeValue:) keyEquivalent:@""].target = self;
+            [menu addItemWithTitle:STR_MENU_EDIT_PASTE action:@selector(pasteThemeValue:) keyEquivalent:@""].target = self;
+            view.menu = menu;
+        }
+    });
+}
+
+- (nullable NSView *)viewWithMenu:(NSMenu *)menu {
+    __block NSView *owner = nil;
+    ForEachDescendantView(_editorStack, ^(NSView *view) {
+        if (view.menu == menu) owner = view;
+    });
+    return owner;
+}
+
+// A font row's Select… button, whose tag is the slot.
+- (nullable NSButton *)fontButtonIn:(NSView *)view {
+    __block NSButton *button = nil;
+    ForEachDescendantView(view, ^(NSView *subview) {
+        if ([subview isKindOfClass:NSButton.class] && ((NSButton *)subview).action == @selector(selectFont:)) {
+            button = (NSButton *)subview;
+        }
+    });
+    return button;
+}
+
+// The well itself, or a row's wells in row order. shownOnly skips the wells
+// that their choice or Single Mode hides.
+- (NSArray<NSColorWell *> *)wellsIn:(NSView *)view shownOnly:(BOOL)shownOnly {
+    NSMutableArray<NSColorWell *> *wells = [NSMutableArray array];
+    void (^collect)(NSView *) = ^(NSView *candidate) {
+        if ([self->_wellBindings objectForKey:(NSColorWell *)candidate]
+                && !(shownOnly && candidate.isHiddenOrHasHiddenAncestor)) {
+            [wells addObject:(NSColorWell *)candidate];
+        }
+    };
+    collect(view);
+    ForEachDescendantView(view, collect);
+    return wells;
+}
+
+// A font copies as "<PostScript name> <size>". The built-in system font has
+// only a private name, which NSFont will not resolve, so it copies as its size
+// alone. Colors copy as the theme file writes them: #RRGGBB when opaque,
+// #RRGGBBAA otherwise. A row's colors are separated by spaces.
+- (nullable NSString *)copyStringFor:(NSView *)view {
+    NSButton *fontButton = [self fontButtonIn:view];
+    if (fontButton) {
+        NSFont *font = [Fonts fontForSlot:(VibeFontSlot)fontButton.tag bold:NO];
+        NSString *size = [NSString stringWithFormat:@"%g", font.pointSize];
+        return [font.fontName hasPrefix:@"."] ? size : [NSString stringWithFormat:@"%@ %@", font.fontName, size];
+    }
+    NSMutableArray<NSString *> *hexes = [NSMutableArray array];
+    for (NSColorWell *well in [self wellsIn:view shownOnly:YES]) {
+        NSString *hex = VibeHexStringFromColor(well.color);
+        if (hex) [hexes addObject:hex];
+    }
+    return hexes.count ? [hexes componentsJoinedByString:@" "] : nil;
+}
+
+- (void)copyThemeValue:(NSMenuItem *)sender {
+    NSString *string = [self copyStringFor:[self viewWithMenu:sender.menu]];
+    if (!string) return;
+    [NSPasteboard.generalPasteboard clearContents];
+    [NSPasteboard.generalPasteboard setString:string forType:NSPasteboardTypeString];
+}
+
+- (void)pasteThemeValue:(NSMenuItem *)sender {
+    NSString *text = [NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString];
+    if (!text || ![self pasteString:text into:[self viewWithMenu:sender.menu]]) {
+        NSBeep();
+    }
+}
+
+// A font row takes "<name> <size>", for any name NSFont resolves, and a lone
+// size takes the slot's built-in font. One color
+// fills every shown well. Otherwise the wells take the colors in row order,
+// and extra colors are dropped, so a copied pair pastes into a Single Mode row.
+- (BOOL)pasteString:(NSString *)text into:(NSView *)view {
+    NSMutableCharacterSet *separators = NSMutableCharacterSet.whitespaceAndNewlineCharacterSet;
+    [separators addCharactersInString:@","];
+    NSArray<NSString *> *words = [[text componentsSeparatedByCharactersInSet:separators]
+            filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]];
+    NSButton *fontButton = [self fontButtonIn:view];
+    if (fontButton) {
+        CGFloat size = words.lastObject.doubleValue;
+        if (size <= 0) return NO;
+        NSString *face = [[words subarrayWithRange:NSMakeRange(0, words.count - 1)] componentsJoinedByString:@" "];
+        NSFont *font = face.length ? [NSFont fontWithName:face size:size] : nil;
+        if (face.length && !font) return NO;
+        [self writeFontFace:font.fontName ?: @"" size:size toSlot:(VibeFontSlot)fontButton.tag];
+        return YES;
+    }
+    NSArray<NSColorWell *> *wells = [self wellsIn:view shownOnly:YES];
+    NSMutableArray<NSColor *> *colors = [NSMutableArray array];
+    for (NSString *word in words) {
+        NSColor *color = VibeColorFromHexString(word);
+        if (!color) return NO;
+        [colors addObject:color];
+    }
+    if (wells.count == 0 || colors.count == 0 || (colors.count > 1 && colors.count < wells.count)) {
+        return NO;
+    }
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    VibeSettingsLiveEffect effect = 0;
+    for (NSUInteger i = 0; i < wells.count; i++) {
+        NSDictionary *binding = [_wellBindings objectForKey:wells[i]];
+        [theme setColor:colors[colors.count == 1 ? 0 : i] forBase:binding[kWellBase]
+                   dark:[binding[kWellDark] boolValue]];
+        effect |= [binding[kWellEffect] unsignedIntegerValue];
+    }
+    [self themeFieldDidChange:effect];
+    [self refreshFromSettings];
+    return YES;
+}
+
+// Validation checks only the pasteboard's types. Paste itself reads the text.
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    if (item.action == @selector(copyThemeValue:)) {
+        return [self copyStringFor:[self viewWithMenu:item.menu]] != nil;
+    }
+    if (item.action == @selector(pasteThemeValue:)) {
+        NSView *view = [self viewWithMenu:item.menu];
+        NSButton *fontButton = [self fontButtonIn:view];
+        NSArray<NSControl *> *targets = fontButton ? @[fontButton] : [self wellsIn:view shownOnly:YES];
+        BOOL enabled = targets.count > 0
+                && [NSPasteboard.generalPasteboard availableTypeFromArray:@[NSPasteboardTypeString]] != nil;
+        for (NSControl *target in targets) {
+            enabled = enabled && target.enabled;
+        }
+        return enabled;
+    }
+    return YES;
 }
 
 // Hidden wells still receive color-panel picks until deactivated.

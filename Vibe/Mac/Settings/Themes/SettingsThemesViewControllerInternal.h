@@ -143,12 +143,16 @@ static NSString *const kChoiceStandard = @"standard";
 
 #pragma mark - Implemented in SettingsThemesViewController+EditorActions.m
 
-@interface SettingsThemesViewController (EditorActions) <NSFontChanging, NSTextFieldDelegate>
+@interface SettingsThemesViewController (EditorActions) <NSFontChanging, NSMenuItemValidation, NSTextFieldDelegate>
 
 - (void)refreshEditorFromSettings;
 
 // Closes the font panel and deactivates every color well.
 - (void)closeEditorPanels;
+
+// Copy and Paste on every color well and on each color or font row, run once
+// the page is built.
+- (void)addCopyPasteMenusIn:(NSView *)editor;
 
 // resolveLayoutStateFromSettings is implemented here too: every conditional
 // row is the editor's. It ends in applyEditorVisibility.
