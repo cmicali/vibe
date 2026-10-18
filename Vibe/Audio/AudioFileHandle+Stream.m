@@ -78,7 +78,11 @@ static AVAudioChannelLayout *VibeMaskLayout(UInt32 mask, UInt32 channels) {
 }
 
 // dr_flac's facts as CoreAudio's parser states them. The source depth is the
-// lossless format's flag, which CoreAudio states for 16, 20 and 24 bits only.
+// lossless format's flag, which names 16, 20, 24 and 32 bits. The parser
+// states no flag for any other depth. Here a depth takes the narrowest flag
+// that holds it. An 8 or 12-bit file states 16, and a 28-bit file states 32.
+// With no flag, bit-perfect output would assume 24 and report a 28-bit file
+// as Active.
 // The packet is the largest block. FLAC orders three to eight channels as
 // WAVE does, so each count is a mask. dr_flac answers the length, STREAMINFO's
 // or, for a stream that leaves it unknown, the end of its last frame
@@ -92,8 +96,8 @@ static AVAudioChannelLayout *VibeMaskLayout(UInt32 mask, UInt32 channels) {
     UInt32 depth = _flac->bitsPerSample, channels = _flac->channels;
     AudioStreamBasicDescription description = {
         .mSampleRate = _flac->sampleRate, .mFormatID = kAudioFormatFLAC,
-        .mFormatFlags = depth == 16 ? kAppleLosslessFormatFlag_16BitSourceData : depth == 20 ? kAppleLosslessFormatFlag_20BitSourceData
-                : depth == 24 ? kAppleLosslessFormatFlag_24BitSourceData : 0,
+        .mFormatFlags = depth <= 16 ? kAppleLosslessFormatFlag_16BitSourceData : depth <= 20 ? kAppleLosslessFormatFlag_20BitSourceData
+                : depth <= 24 ? kAppleLosslessFormatFlag_24BitSourceData : kAppleLosslessFormatFlag_32BitSourceData,
         .mFramesPerPacket = _flac->maxBlockSizeInPCMFrames, .mChannelsPerFrame = channels,
     };
     AVAudioChannelLayout *layout = channels >= 3 && channels <= 8 ? VibeMaskLayout(masks[channels - 3], channels) : nil;
