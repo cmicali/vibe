@@ -83,12 +83,12 @@ Current production values, all reviewable.
 
 | Policy | Value | Where |
 | --- | --- | --- |
-| Slow-open indicator fallback (provider-dataless classification is immediate) | 0.5 s | `AudioPlayer.m` |
+| Slow-open indicator fallback (provider-dataless classification is immediate) | 0.5 s | `AudioPlayerInternal.h` |
 | Open no-progress deadline | 60 s | `AudioFileOpenTimeoutMath.h` |
 | Open progress-silence deadline | 60 s past last movement | `AudioFileOpenTimeoutMath.h` |
 | Foreground transfers (running / pending / grace) | 3 / 1 / 5 s | `AudioLoadingConfiguration.m` |
 | Background transfers (running / pending / grace) | 1 / 6 / 10 s | same |
-| Initial classification probes (running / pending / grace) | 8 / 16 / 5 s | `AudioFileMaterializationCoordinator.m` |
+| Initial classification probes (running / pending / grace) | 8 / 16 / 5 s | `AudioFileMaterializationCoordinator.m`, the grace `AudioLoadingConfiguration.m` |
 | Live handle runs (shared production coordinator) | 6, refused at once, no pending, grace or configuration | `AudioFileMaterializationCoordinator+HandleOpen.m` |
 | Prefetch depth | 1 | `AudioLoadingConfiguration.m` |
 | Metadata attempts per path (total) | 3 | same (`metadataRetryCount` 2) |

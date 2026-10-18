@@ -1,8 +1,8 @@
 # Future: audio quality gaps
 
-**Status: Not built.** This is an audit of the playback path from decode to device, made in October 2026. The vendored libraries hold up. Replacing any of them would not raise quality anyone could measure. The gaps are elsewhere. Two of them are bugs in Apple decoders Vibe still uses. Both were reproduced on macOS 27.0.1 on an M1 Max. [audio-quality.md](../audio-quality.md) has the measurements behind the current choices.
+**Status: Partly built.** Findings 1 and 2 are fixed, and so is bit-perfect output's depth in finding 6. The rest is not built. This is an audit of the playback path from decode to device, made in October 2026. The vendored libraries hold up. Replacing any of them would not raise quality anyone could measure. The gaps are elsewhere. Two of them were bugs in Apple decoders. Both are fixed. Both were reproduced on macOS 27.0.1 on an M1 Max. [audio-quality.md](../audio-quality.md) has the measurements behind the current choices.
 
-**Suggested order:** findings 1 and 2 first. They are bugs. Then 4, then the depth rule in 6. Decide 3 and 5 together. Both need peak handling.
+**Suggested order:** finding 4, then the regular-output half of 6. Decide 3 and 5 together. Both need peak handling.
 
 ## The current choices
 
@@ -13,7 +13,7 @@
 | r8brain | Keep | Its error is already at the floor set by float32 output. libsoxr is LGPL and no better. libsamplerate and Apple's converter measure worse. |
 | The pitch fader's converter | Keep | It measures about −150 dB, the same float32 floor. |
 | Apple's AAC and ALAC decoders | Keep | AAC decodes to float and keeps overs. ALAC is lossless. FAAD2 is GPL. fdk-aac has license problems and no quality advantage. |
-| Apple's Opus decoder | Keep, and fix the gain | It decodes to float and handles pre-skip. See finding 2. |
+| Apple's Opus decoder | Keep | It decodes to float and handles pre-skip. Vibe applies the header's gain. See finding 2. |
 | Apple's Vorbis decoder | Replaced by libvorbis | Its samples are accurate, but its timeline is wrong. See finding 1. |
 
 **Apple's Opus and Vorbis decoders have no 16-bit trap.** Asked for their output formats (`kAudioCodecPropertySupportedOutputFormats`, as `testAppleMPEGDecodersOutputInt16OnlyOnArm64AndAACOutputsFloat` asks the MPEG and AAC decoders), both offer only 32-bit float on arm64. Their decodes of the test files below had 0.01% of samples on the 16-bit grid, the same as the source. Apple's Opus decode matched libopus's to −138 dB, with the same length.
@@ -34,7 +34,7 @@ The 48 kHz files decode 128 frames shorter than Apple's own declared length. The
 - **What a listener got:** about 3 ms cut from the start of every track. On a gapless Vorbis album, every join skipped 3 ms of the next track. At 44.1 kHz the track before the join also ended with 3 ms that should have been trimmed.
 - **Why the tests missed it:** `testOggVorbis` compared the player against `AudioFileHandle`'s own decode. That decode was Apple's. The shift was on both sides.
 
-**Fixed.** libvorbis and libogg are vendored (`Vibe/ThirdParty/vorbis/`, `ogg/`) and decode Ogg Vorbis on both platforms, through the handle's callbacks in `AudioFileHandle+Stream.m`. CoreAudio's parser opens only a Vorbis file libvorbis refuses. So Vorbis now plays on iOS too. `testOggVorbis` checks the decode against the source and against Apple's decode moved by 128 frames. That half is a canary, which fails once Apple's decoder lines up.
+**Fixed.** libvorbis and libogg are vendored (`Vibe/ThirdParty/vorbis/`, `ogg/`) and decode Ogg Vorbis on both platforms. The open is in `AudioFileHandle+Stream.m`, and its reads go through the handle's callbacks in `AudioFileHandle.m`. CoreAudio's parser opens only a Vorbis file libvorbis refuses. So Vorbis now plays on iOS too. `testOggVorbis` checks the decode against the source and against Apple's decode moved by 128 frames. That half is a canary, which fails once Apple's decoder lines up.
 
 ## 2. CoreAudio ignores the Opus header's output gain
 
@@ -119,4 +119,4 @@ The fix is a fixed de-emphasis filter, the standard 50/15 µs shelf, for each fl
 
 ## How the Apple findings were measured
 
-Test signals came from ffmpeg 8.0: a sine plus pink noise, five seconds of stereo float32 at 48 kHz, and a 44.1 kHz copy. They were encoded with libvorbis, ffmpeg's own Vorbis encoder, libopus and ffmpeg's AAC encoder. A small C program read each file through `ExtAudioFile` to float32, as `AudioFileHandle` does for these formats. It reported the declared and decoded lengths, the level and the share of samples on the 16-bit grid. A second program found the lag between two decodes by least-squares alignment, and measured the residual and any frames past the shorter one's end. ffmpeg's decodes were the references.
+Test signals came from ffmpeg 8.0: a sine plus pink noise, five seconds of stereo float32 at 48 kHz, and a 44.1 kHz copy. They were encoded with libvorbis, ffmpeg's own Vorbis encoder, libopus and ffmpeg's AAC encoder. A small C program read each file through `ExtAudioFile` to float32, as `AudioFileHandle` then did for these formats. It reported the declared and decoded lengths, the level and the share of samples on the 16-bit grid. A second program found the lag between two decodes by least-squares alignment, and measured the residual and any frames past the shorter one's end. ffmpeg's decodes were the references.

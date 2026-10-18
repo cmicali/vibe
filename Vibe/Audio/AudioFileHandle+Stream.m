@@ -119,7 +119,7 @@ typedef struct {
 // WAV's valid bits and states the container. Zeroed for a coding dr_wav does
 // not decode. Only dr_wav's own parse can tell one: a
 // WAVE_FORMAT_EXTENSIBLE's subformat, an AIFF-C's compression type. MPEG in a
-// WAV is one. It goes to CoreAudio's parser and dr_mp3.
+// WAV is one. Under the dr_mp3 choice the MPEG open takes it.
 static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav, UInt16 aiffSampleSize) {
     UInt32 channels = wav->channels, blockAlign = wav->fmt.blockAlign;
     BOOL aiff = wav->container == drwav_container_aiff;

@@ -56,7 +56,7 @@ IOS_SIM_SIGN = CODE_SIGNING_ALLOWED=YES CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENT
 endif
 
 # The iOS simulator slice. It catches an AppKit leak into a shared directory.
-# CI builds it on the way to `make test-ios`. arm64 only: the generic destination would add an x86_64 slice, which only an
+# CI does not run it. `make test-ios` builds the same app on the way to its tests. arm64 only: the generic destination would add an x86_64 slice, which only an
 # Intel Mac's simulator runs, and the device build is arm64 anyway. Locked:
 # this and `drive-ios.sh start` write the products directory the touch driver
 # installs from.
@@ -234,7 +234,8 @@ torture:
 	@test -n "$(PLAYLIST)" || { echo "usage: make torture PLAYLIST=<folder of audio files> [APP=<Vibe.app>]"; exit 64; }
 	.claude/skills/vibe-stress/scripts/run-torture.sh "$(APP)" "$(PLAYLIST)" $(ARGS)
 
-# Benchmarks: the vibe-perf skill explains each, docs/performance.md shows them.
+# Compare this working tree's component benchmarks with BASE (default main).
+# The vibe-perf skill explains each benchmark, and docs/performance.md shows them.
 # The component benchmarks (VibeBenchComponents) run the production code in-process, no app,
 # so the Mac can be in use; the app benchmarks launch the real app over and over
 # (about half an hour a version), so leave the Mac be while they run.
@@ -249,7 +250,7 @@ torture:
 bench-components:
 	python3 .claude/skills/vibe-perf/scripts/perf.py compare $(or $(BASE),main) $(ARGS)
 
-# The component benchmarks per release, page redrawn (VERSIONS as above).
+# The component benchmarks per release, page redrawn. VERSIONS is described with bench-components.
 bench-components-releases:
 	python3 .claude/skills/vibe-perf/scripts/perf.py releases $(VERSIONS) $(ARGS)
 

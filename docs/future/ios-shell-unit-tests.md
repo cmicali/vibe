@@ -86,7 +86,7 @@ It pulls in the real `AudioPlayer`, `AppSettings`, both stores, `DropboxMirror` 
 
 | Class | What its tests hold |
 | --- | --- |
-| `WaveformScrubberView` and its categories | The bake is a nonblank bitmap. The playhead sits where `WaveformZoomMath.h` puts it. The zoom stops at the bake's floor and keeps the request. The theme beats the style's palette, and `album_art` reads only the art's color. A slow open keeps its indicator over a landed waveform. Taps, drags, and pinches seek once per gesture. |
+| `WaveformScrubberView` and its categories | A waveform draws and enables scrubbing. The playhead sits where `WaveformZoomMath.h` puts it. The zoom stops at the track's floor and keeps the request. The theme beats the style's palette, and `album_art` reads only the art's color. A slow open keeps its indicator over a landed waveform. Taps, drags, and pinches seek once per gesture. |
 | `EqualizerIndicatorView`, `LoadingIndicatorView` | Demand follows the window, `hidden`, and the source. The alpha and the bar color follow UIKit's hooks. A bar leaves with its window. |
 | `PlaylistTrackCell`, `PlaylistViewController` | The gutter's precedence. The filename's single line takes the title's color. The loading bar follows `CloudTransferRegistry`. The playing row asks for levels only while it is seen and sounding. |
 | `FileRow`, `TrackPageViews`, `MiniPlayerView` | The tile, the icon slot, the opening spinner, and the viewport test. The time control and the card shapes. The strip's lines, its play button, and its delegate. |

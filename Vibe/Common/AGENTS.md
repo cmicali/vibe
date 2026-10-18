@@ -1,6 +1,6 @@
 # Common
 
-**What every other directory is written in terms of, and nothing else. If you can name the feature it belongs to, it belongs there instead.** The featureless helpers are `Vibe/Util/`. **Nothing in `Common/` may import from a feature directory.** The one class importing from `Util/` is `Mac/Theme/AppTheme`, for two featureless categories (`NSData.sha1Hex`, `NSAppearance.isDark`). It lives under `Common/Mac/` because it is macOS-only. `Mac/AGENTS.md` owns the theme store, and `Mac/Theme/AGENTS.md` the record.
+**What every other directory is written in terms of, and nothing else. If you can name the feature it belongs to, it belongs there instead.** The featureless helpers are `Vibe/Util/`. **Nothing in `Common/` may import from a feature directory.** The one class importing from `Util/` is `Mac/Theme/AppTheme`. It uses three featureless categories: `NSData.sha1Hex`, `NSAppearance.isDark` and `NSImage (Util)`'s symbol helpers. It lives under `Common/Mac/` because it is macOS-only. `Mac/AGENTS.md` owns the theme store, and `Mac/Theme/AGENTS.md` the record.
 
 ## The settings store
 

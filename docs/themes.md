@@ -10,7 +10,7 @@ Open **Settings > Themes** (`⌘,`). Click a theme in the list to apply it at on
 
 The **Window appearance** dropdown in **Settings > Appearance** (Follow System, Light or Dark) picks the light or dark look of a theme that has both. A Single Mode theme keeps the window dark and disables that dropdown.
 
-The **Waveform style** dropdown above the theme list changes the waveform's drawing style without opening the editor. The style is part of the theme, so switching themes switches it too. Over a built-in theme, your pick stays across relaunches until you apply a theme again. The **Revert** button beside the theme's name puts the theme's own look back. Over your own theme, the pick simply changes the theme.
+The **Waveform style** dropdown under the theme list changes the waveform's drawing style without opening the editor. The style is part of the theme, so switching themes switches it too. Over a built-in theme, your pick stays across relaunches until you apply a theme again. A changed built-in reads Modified in the list. The **Revert** button under the list puts the theme's own look back. Over your own theme, the pick simply changes the theme.
 
 ## Creating your own
 
@@ -24,7 +24,7 @@ You can also select a built-in theme and click **Customize…**. The editor open
 
 The editor follows the player's layout: **App icon**, **Window** (color modes, background, tint, corner radius), **Player display** (default artwork, the waveform, title and artist fonts and colors), **Playback buttons**, **Track information** (the readouts' font and colors), **Volume slider**, and **Playlist**.
 
-Readout visibility, playlist columns and **Show artwork in Dock** are under **Settings > Appearance**. These settings stay put when you switch themes.
+Readout visibility, playlist columns and the **Dock icon** choice are under **Settings > Appearance**. These settings stay put when you switch themes.
 
 Two things worth knowing:
 

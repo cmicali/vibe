@@ -3,9 +3,10 @@
 //  Vibe
 //
 //  One opened audio file. For reading: a descriptor this process owns and a
-//  decoder over it. dr_flac, dr_wav and libvorbis parse their own containers.
-//  Any other file opens CoreAudio's parser over the descriptor through
-//  AudioFileOpenWithCallbacks, and dr_mp3 or an ExtAudioFile decodes it. For
+//  decoder over it. dr_flac, dr_wav and libvorbis parse their own containers,
+//  and Vibe's MPEG open frames an MPEG file for dr_mp3. Any other file opens
+//  CoreAudio's parser over the descriptor through AudioFileOpenWithCallbacks,
+//  and an ExtAudioFile decodes it. For
 //  writing: an ExtAudioFile encoding PCM into a file it creates. The surface
 //  is AVAudioFile's — the file's facts, a cursor in file frames, reads from
 //  and writes of a PCM buffer — so the player, the bus, the waveform loader,
@@ -29,16 +30,16 @@
 //  unless Apple's is chosen. Apple's arm64 MPEG decoder outputs 16-bit
 //  integers, clipped at full scale and rounded without dither. Its x86_64
 //  decoder outputs float32 but still clips overs.
-//  CoreAudio's parser still finds its packets, priming and length, so gapless
-//  trims and durations are the ones every other reader sees.
+//  Under dr_mp3 the handle frames the stream itself. It states CoreAudio's
+//  facts and length, except where CoreAudio is wrong (AudioFileHandle+MPEG.m).
 //
 //  A FLAC file is decoded by dr_flac, bit-identical to Apple's decode, which
 //  it replaces for its cost and its seeks: Apple's scans the stream from its
 //  start on the first seek into any part not yet read, and never uses the seek
-//  table (docs/audio-quality.md). CoreAudio's parser never opens it. dr_flac
-//  reads the stream through the descriptor itself. It states the file's
-//  format and layout as the parser would. It answers the length, found from
-//  the last frames when STREAMINFO leaves it unknown. The vendored copy
+//  table (docs/audio-quality.md). CoreAudio's parser opens it only when dr_flac
+//  refuses it. dr_flac reads the stream through the handle's reads itself.
+//  It states the file's format and layout as the parser would. It answers
+//  the length, found from the last frames when STREAMINFO leaves it unknown. The vendored copy
 //  carries fixes of its own (ThirdParty/AGENTS.md).
 //
 //  A WAV, W64, RF64 or AIFF file is decoded by dr_wav the same way, when it
@@ -79,8 +80,8 @@ FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 
 // Opens CoreAudio's parser alone, with no decoder: the one open every reader
 // of CoreAudio's verdict on a file shares. The reading inits open it for
-// every file dr_flac, dr_wav and libvorbis do not take, so it refuses what
-// playback refuses (FLAC in Ogg). The files those three take never open it.
+// every file Vibe's decoders do not take, so it refuses what playback
+// refuses (FLAC in Ogg). The files they take never open it.
 // Only `url` and `parser` answer.
 // `interrupted`, held only while the open runs, is asked whenever one of its
 // waits for a streaming file's bytes would block, and YES fails the open with
@@ -123,15 +124,15 @@ FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 // docs/audio-quality.md) or Apple's (YES). The mac's Settings > Advanced
 // chooses; iOS keeps the default. A handle keeps the decoder it opened with.
 @property (class, atomic) BOOL appleMPEGDecoder;
-// "dr_mp3", "dr_flac", "dr_wav" or "apple", for the audio-path report.
+// "dr_mp3", "dr_flac", "dr_wav", "libvorbis" or "apple", for the audio-path report.
 @property (nonatomic, readonly) NSString *decoderName;
 // YES for an MPEG file opened under the other appleMPEGDecoder choice than
 // the current one: a handle opened before a change and handed on after it.
 @property (nonatomic, readonly) BOOL decoderChoiceIsStale;
 
 @property (nonatomic, readonly) NSURL *url;
-// For property reads while the handle lives. NULL once dr_flac or dr_wav has
-// taken the file over, and for a writing handle.
+// For property reads while the handle lives. NULL once one of Vibe's decoders
+// has taken the file over, and for a writing handle.
 @property (nonatomic, readonly, nullable) AudioFileID parser;
 // On the opening thread: NO when the parser's kAudioFilePropertyInfoDictionary
 // must not be read, for a CAF whose info chunk is absent, runs past the file

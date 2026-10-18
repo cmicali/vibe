@@ -9,7 +9,7 @@ Playback uses CoreAudio, AudioToolbox and AVFoundation plus five vendored librar
 - **r8brain-free-src** resamples every file whose rate is not the output's.
 - **dr_mp3** is the default MP3 decoder. The mac's Settings > Advanced can switch to Apple's.
 - **dr_flac** decodes FLAC.
-- **dr_wav** decodes WAV and AIFF.
+- **dr_wav** decodes WAV, W64, RF64 and AIFF.
 - **libvorbis**, with libogg's page reader, decodes Ogg Vorbis.
 
 The three dr_ libraries carry fixes of Vibe's own. `docs/audio-quality.md` has the measurements behind each choice.

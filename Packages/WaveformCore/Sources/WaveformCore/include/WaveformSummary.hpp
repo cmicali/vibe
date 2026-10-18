@@ -132,7 +132,8 @@ public:
     // A snapshot starts without them.
     Detail &detail() const { return detail_; }
 
-    // The archive form: a header and LZFSE-compressed float16 planes. decode
+    // The archive form: a header and float16 planes split into low and high
+    // bytes, the low ones LZ4-compressed and the high ones LZFSE. decode
     // answers null for anything malformed or non-finite.
     std::vector<uint8_t> encode() const;
     static std::unique_ptr<Summary> decode(const void *bytes, size_t length);

@@ -1,16 +1,17 @@
 # v1.16
 
-* Added Open URL… to play a web link or an iCloud Drive share link
+* Added Open URL… to play a web link, or a Dropbox, Google Drive or iCloud Drive share link
 * Added a Buffering… status while a song waits for a slow network share or download
 * Added the Spectrum waveform style for RGB-style waveforms
 * Added By section coloring to the Spectrum waveform, so each part of a song keeps one color
-* Added the Sectioned theme
 * Changed the default playhead line to be slightly see-through
-* Cleaned up waveform styles: Basic is now Bars, Cupertino Basic is now Progress, and the four Detailed styles are one with a type setting
+* Changed the waveform style names: Basic is now Bars, Cupertino Basic is now Progress, and the four Detailed styles are one with a type setting
 * Changed Previous on the first song to restart it
 * Improved network share playback: a dropped connection pauses with "Connection lost", and a slow server no longer stalls track changes
 * Improved hi-res playback from slow network shares
-* Improved how quickly FLAC, WAV and AIFF songs open
+* Improved how quickly MP3, FLAC, WAV and AIFF songs open
+* Added playback of free-format MP3s
+* Fixed gapless playback of mono and MPEG-2 MP3s
 * Fixed a corrupt CAF file stalling the metadata scan
 * Fixed Opus files whose header sets a volume playing at the wrong level
 * Added the vibe theme track, which loads on launch until you play or open something
@@ -24,6 +25,7 @@
 * mac: Added the RGB theme
 * mac: Added the Dark Core theme and its app icon, contributed by JohnnyFireOne
 * mac: Added the Kinda Blue theme
+* mac: Added the Sectioned theme
 * mac: Added Clear, Window, Symbol and Custom color choices for a theme's default artwork
 * mac: Added theme colors for the number, title, artist and duration text of the playing row and selected rows
 * mac: Added a theme color for the playing row's equalizer bars
@@ -41,10 +43,10 @@
 * ios: Added a full-bleed artwork widget with the mac's playlist, play, and next buttons
 * ios: Added the 3-Band themes: Rekord Bin, Dengine, and Custom colors
 * ios: Added album art for iCloud and Dropbox songs that aren't downloaded
-* ios: Added ability to play Dropbox, Google Drive, and iCloud drive share link URLs directly
 * ios: Improved the Files tab: places are grouped under Locations, and a copied link plays from it
 * ios: Improved Settings: On track end and Time display choose in place, and the 3-Band palettes are named by their colors
 * ios: Added Ogg Vorbis playback
+* ios: Added zooming the waveform down to the samples
 
 # v1.15
 

@@ -26,7 +26,7 @@ Each phase builds, passes `make test` and can be verified alone. Read first: the
 - **`+realHomeDirectory`** (`getpwuid`): correct in both modes.
 - **Where state lives**: defaults, the PINCache disk caches (`NSCachesDirectory`), `LastPlaylist.m3u` and `ThemeArt/` (`NSApplicationSupportDirectory/<bundle id>/`), saved window state. Sandboxed, all of it resolves under `~/Library/Containers/com.commonwealthrecordings.Vibe/Data/`.
 - **The debug channel** (`DebugMacEntry.h`, `DebugClient.m`): the client and the app meet in the container's tmp and rely on sharing a container. `scripts/build/reset-state.sh` treats the container as the whole state and says so in its header.
-- **Docs and rules** that state "the app is sandboxed" as a fact: root `AGENTS.md` (the folder-art and no-private-APIs bullets), the directory docs above, `SECURITY.md`, and the website copy if it advertises the sandbox.
+- **Docs and rules** that state "the app is sandboxed" as a fact: root `AGENTS.md` (the folder-art and no-private-APIs bullets), the directory docs above, and the privacy page (`Assets/Web/privacy/index.html`).
 
 ## Phase 1 — The sandbox becomes a per-configuration setting
 
@@ -102,7 +102,7 @@ Sparkle updates a sandboxed build to an unsandboxed one without special handling
 ## Phase 6 — Docs, release, and rollout
 
 - Root `AGENTS.md`: "Building" gains the sandbox column per configuration; the folder-art guarantee's last sentence is restated in terms of *permission panels* (grant or TCC), not grants; `Mac/App/AGENTS.md`, `Convert/AGENTS.md`, `FolderArt/AGENTS.md`, and `Settings/AGENTS.md` each say what their sandbox section does unsandboxed. Every `TRAP:` touched changes in both its copies.
-- `SECURITY.md` and the website say which build is sandboxed.
+- The privacy page says which build is sandboxed.
 - The `vibe-release`, `vibe-debug`, and `vibe-stress` skills: the two entitlement sets, `SANDBOX=0`, the state locations, and a release checklist line to run the Phase 2 list against both variants.
 - **Roll out as its own release**, first to the `beta` channel, with nothing else risky in it, so a migration report is unambiguous.
 - Release notes: what changed, that the first launch re-scans the library, and that the App Store and direct builds keep separate settings.

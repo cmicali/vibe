@@ -5,7 +5,7 @@
 ## Not built
 
 - **Renaming `CloudFileAvailability`.** Wait until there is a writer that is not a file.
-- **One shared table of live availabilities** in place of the lookup block passed to `setRemoteRoot:fetch:read:availability:`. A read-ahead is per handle and needs no lookup. Do it only if the mirror's own stream table can go with it.
+- **One shared table of live availabilities** in place of the lookup block passed to `setRemoteRoot:fetch:read:availability:`. A read-ahead is per handle and needs no lookup. Do it only if the placeholder store's stream table can go with it.
 - **Deleting the two shells' open-deadline relays.** Each shell forwards registry movement to `noteOpenProgressForOpenRequestIdentifier:` (`PlaybackController+PlayerEvents.m`, `MainPlayerController+PlayerEvents.m`). The player could observe `CloudTransferRegistry` directly. It would still match movement to the current open identifier. The deadline still hears only the registry, so a read-ahead's open gets the 60 s no-progress span. A read-ahead must never publish to the registry, since a row shows the loading bar only for a transfer.
 - **Metadata and TagLib reads on a share.** They stay direct, blocking reads on sweep workers. Routing TagLib through a waiting stream is a second project. Revisit only if a share is shown to hang the app.
 - **Read-ahead on local external volumes.** Unmeasured.
@@ -39,24 +39,25 @@ Measured on macOS 27 with a probe that opens a dataless file, `pread`s 64 KB, th
 
 ## Decoder reads
 
-What the open and a seek read, from logging every read of `AudioFileHandle` over 69 files on macOS 27. The iOS simulator gave the same sequences.
+What the open and a seek read, from logging every read of `AudioFileHandle` over 69 files on macOS 27. The iOS simulator gave the same sequences. The MP3, WAV, W64 and Ogg Vorbis rows were redone from the code after Vibe's own decoders took over those opens.
 
 | Format | The open reads | A seek reads |
 | --- | --- | --- |
-| M4A/ALAC with `moov` first, CAF, WAV, W64, AIFF | the head only, at most 354 KB | one region at the target |
+| M4A/ALAC with `moov` first, CAF, AIFF, and a WAV or W64 with `fmt ` first | the head only, at most 354 KB | one region at the target |
 | FLAC with a known total | the head only | with a seek table, 2 to 4 regions before the target. Without one (ffmpeg and afconvert write none), a bisection of 3 to 10 regions reaching 11 % of the file past the target |
-| MP3 with a Xing or Info frame | the head, plus 4 to 128 bytes at the end (an ID3v1 check) | every frame header between the furthest byte read and the target. The parser ignores the Xing table |
+| MP3 with a Xing or Info frame | the head only. Under Apple's decoder, also 4 to 128 bytes at the end (an ID3v1 check) | every frame header between the furthest byte read and the target. The walk ignores the Xing table |
 | M4A with `moov` last (ffmpeg's default) | the head, plus one tail region: 61 KB at 6 minutes, 608 KB at 60 | one region |
 | FLAC with an unknown total | the head, plus 64 KB at the end | as FLAC |
 | WAV with `fmt ` after `data` | the head, plus 24 bytes at the end | one region |
-| WAV, W64, AIFF or CAF with a chunk after its audio | the head, plus each later chunk's header | one region |
-| Ogg Vorbis and Opus, ADTS AAC | the whole file, in order | direct |
+| AIFF or CAF with a chunk after its audio | the head, plus each later chunk's header | one region |
+| Ogg Vorbis | the head, plus 64 KB at the end | a bisection of pages |
+| Opus, ADTS AAC | the whole file, in order | direct |
 
-An MP3 with no Xing, Info or VBRI frame opens on a length estimated from its head (`Audio/AGENTS.md`). Backward seeks stayed within bytes already read. Measure a real library before paying for arbitrary range fetching.
+A downloading MP3 with no Xing, Info or VBRI frame opens on a length estimated from its head (`Audio/AGENTS.md`). A local one reads every frame header at open. Backward seeks stayed within bytes already read. Measure a real library before paying for arbitrary range fetching.
 
 ## Writers that serve the wanted range, each on evidence
 
-- **Dropbox already reads ahead by range.** A ranged read answers the wanted range into a block, pinned to the `rev`. It helps M4A, WAV and FLAC with a seek table. It helps little for MP3 and for FLAC with no seek table. Compare it with sparse storage before adding a mechanism.
+- **Dropbox could seek ahead by range.** A ranged read would answer the wanted range into a block, pinned to the `rev`. It helps M4A, WAV and FLAC with a seek table. It helps little for MP3 and for FLAC with no seek table. Compare it with sparse storage before adding a mechanism.
 - **A File Provider that delivers ranges.** Use the read-ahead over a dataless file and skip the `NSFileCoordinator` download. Only for a provider the probe has shown to stream, since on any other the first read downloads the whole file with no cancel. Dropbox's Mac extension is the likeliest first. Re-run the probe on each Dropbox release.
 - **Another service's own client** is a separate product decision ([Google Drive](ios-google-drive.md)). A sequential client can use today's availability as it is.
 
