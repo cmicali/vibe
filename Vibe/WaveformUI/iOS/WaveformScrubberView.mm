@@ -457,7 +457,7 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 }
 // The play position IS the view's center, so the line never moves: it follows
 // only the theme, the layout and whether there is a waveform to mark.
-static const CGFloat kPlayheadLineOvershoot = 4;
+static const CGFloat kPlayheadLineOvershoot = 8;
 
 - (void)layoutPlayheadLine {
     VibeColor *color = self.waveform ? _renderer.theme.playheadColor : nil;

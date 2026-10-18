@@ -172,8 +172,8 @@ static CGImageRef VibeWaveformProbeNewImage(const ProbeOptions &o, NSString *sty
     CGContextTranslateCTM(context, left, 0);
     if (theme.playheadColor) {
         CGContextSetFillColorWithColor(context, theme.playheadColor.CGColor);
-        // The scrubber's line, 4 pt past the band at each end.
-        CGRect band = CGRectIntersection(CGRectInset([renderer seekHitBandForBounds:host.bounds], 0, -4),
+        // The scrubber's line, 8 pt past the band at each end.
+        CGRect band = CGRectIntersection(CGRectInset([renderer seekHitBandForBounds:host.bounds], 0, -8),
                                          CGRectMake(0, 0, o.width, o.height));
         CGContextFillRect(context, VibePlayheadLineRect(o.width / 2, band, o.width, o.scale));
     }
