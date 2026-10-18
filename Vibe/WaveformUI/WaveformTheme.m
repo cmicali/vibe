@@ -72,6 +72,9 @@ static NSArray<VibeColor *> *VibeBuiltInBandColors(BOOL dengine, BOOL isDark) {
 
 // RGB's highs lean toward cyan to remain visible on black.
 // Each palette's light set is darker for white backgrounds.
+// TRAP: Blue's and Green's low stands farthest from the background, light
+// on dark and dark on white. Most music is mostly low, so a low near the
+// background hides the whole waveform.
 static NSArray<VibeColor *> *VibeBuiltInSpectrumColors(NSString *palette, BOOL isDark) {
     static NSDictionary<NSString *, NSArray<NSArray<VibeColor *> *> *> *palettes;
     static dispatch_once_t once;
@@ -80,12 +83,12 @@ static NSArray<VibeColor *> *VibeBuiltInSpectrumColors(NSString *palette, BOOL i
         NSDictionary<NSString *, NSArray<NSArray<NSString *> *> *> *hex = @{
             SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB: @[@[@"D8300F", @"15802A", @"2A60E0"],
                                                             @[@"FF4018", @"30C828", @"5296FF"]],
-            // Traktor's Ultraviolet sampled at each band's center: navy
-            // lows, teal mids, white highs.
-            SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE: @[@[@"1C1E4A", @"0F7A80", @"4FB8C8"],
-                                                             @[@"292B64", @"18969A", @"FFFFFF"]],
-            SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN: @[@[@"0A4A1F", @"158A3A", @"5DB878"],
-                                                              @[@"0E6B2C", @"2ECC5B", @"C8F0CF"]],
+            // The dark set is the Kinda Blue theme's buttons, info line and artist.
+            SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE: @[@[@"134E6C", @"0075A3", @"367396"],
+                                                             @[@"A8D8F0", @"00A8E8", @"3F86B0"]],
+            // Blue's lightness at a green hue.
+            SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN: @[@[@"136C38", @"008A3A", @"2F8050"],
+                                                              @[@"A8F0C6", @"00C060", @"3F9A68"]],
         };
         NSMutableDictionary *built = [NSMutableDictionary dictionary];
         [hex enumerateKeysAndObjectsUsingBlock:^(NSString *name, NSArray<NSArray<NSString *> *> *sets, BOOL *stop) {

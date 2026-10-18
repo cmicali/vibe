@@ -323,9 +323,11 @@ static NSArray<VibeColor *> *SpectrumPalette(NSString *identifier, BOOL isDark) 
             {SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN, 1},
         };
         for (size_t i = 0; i < sizeof(ramps) / sizeof(ramps[0]); i++) {
+            // The low, which most music is mostly, stands farthest from the background.
             NSArray<VibeColor *> *ramp = SpectrumPalette(ramps[i].identifier, isDark);
-            XCTAssertLessThan(Luminance(ramp[0]), Luminance(ramp[1]), @"%@", ramps[i].identifier);
-            XCTAssertLessThan(Luminance(ramp[1]), Luminance(ramp[2]), @"%@", ramps[i].identifier);
+            NSArray<VibeColor *> *darkToLight = isDark ? ramp.reverseObjectEnumerator.allObjects : ramp;
+            XCTAssertLessThan(Luminance(darkToLight[0]), Luminance(darkToLight[1]), @"%@", ramps[i].identifier);
+            XCTAssertLessThan(Luminance(darkToLight[1]), Luminance(darkToLight[2]), @"%@", ramps[i].identifier);
             for (VibeColor *color in ramp) {
                 CGFloat channels[3];
                 GetRGB(color, &channels[0], &channels[1], &channels[2]);
