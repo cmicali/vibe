@@ -4,7 +4,7 @@
 
 ## The settings store
 
-`AppSettings` is every persisted preference, as properties over `NSUserDefaults`. `AppStats` is every persisted counter. **Every reader imports `AppSettings.h` explicitly and uses `sharedInstance`**, so a file's import list exposes the dependency. That is why `Vibe-Prefix.pch` carries only macros (logging, the realtime-effects brackets, the debug-only signposts, `VibeNotLocalized`) and `HelperMacros.h`, and no feature API. A feature API there would recompile the world and hide a dependency from the file that has it.
+`AppSettings` is every persisted preference, as properties over `NSUserDefaults`. `AppStats` is every persisted counter. **Every reader imports `AppSettings.h` explicitly and uses `sharedInstance`**, so a file's import list exposes the dependency. That is why `Vibe-Prefix.pch` carries only macros (logging, the debug-only signposts, `VibeNotLocalized`), `HelperMacros.h` and `CMMMacros.h`, and no feature API. `Util/CMMMacros.h` holds the realtime-effects brackets. A file that must build without the prefix header imports it explicitly, as the varispeed does, since it moves to cm_libs. A feature API there would recompile the world and hide a dependency from the file that has it.
 
 The macOS half is two categories. `(Mac)` in `Mac/AppSettings+Mac` is every mac-only preference. `(Themes)` in `Mac/Theme/AppSettings+Themes` is the theme store. A mac reader imports `AppSettings+Mac.h` explicitly beside `AppSettings.h`, and that header brings the theme store's. `AppSettingsInternal.h` is the seam between the halves (`Mac/AGENTS.md`). The value ladders a stored setting is snapped to on read are `SettingsRules.h`, so a rule about a setting is testable without a defaults store.
 
