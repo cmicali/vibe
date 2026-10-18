@@ -46,13 +46,13 @@ Today every engine file is a translation unit of the app target. There is no LTO
 
 ### The pieces
 
-The pieces, their groups and their dependencies are listed once, in [cm_libs' plan](https://github.com/cmicali/cm_libs/blob/main/docs/plan.md). In short, the toolbox holds these groups:
+The pieces, their groups and their dependency map are listed once, in [cm_libs' plan](https://github.com/cmicali/cm_libs/blob/main/docs/plan.md). The map is derived from this repo's imports by cm_libs' `scripts/plan/derive-deps.py`. Rerun it after each cut here. In short, the toolbox holds these groups:
 
 | Group | Pieces | Mostly from |
 | --- | --- | --- |
-| `core/` | Common, Graphics | `Util/`, `Common/Platform*`, the prefix header's macros |
+| `core/` | Common, Graphics | `Util/`, `NSURL+Hash`, `Common/Platform*`, the prefix header's macros |
 | `files/` | FileLoading, RemoteFiles, HTTP, ShareLinks, SandboxAccess, DiskCache | `Loading/`, `Mac/App/FolderAccessManager`, the cache helper |
-| `audio/` | DSP, Analysis, Decode, Meter, FX, OutputDevices, Player | `Audio/` |
+| `audio/` | AudioTypes, DSP, Analysis, Decode, Meter, FX, OutputDevices, Player | `Audio/`, `Common/PlayableExtensions` |
 | `media/` | Tags, Metadata, Playlists, FolderScan, PlayQueue | `Audio/Metadata/`, the shared half of `Playlist/`, `iOS/Search/FileSearchIndex` |
 | `waveform/` | Waveform, WaveformStyles, WaveformLoading, WaveformView | `Packages/WaveformCore`, `Audio/Waveform/`, `WaveformUI/` |
 | `ui/` | Controls | `Controls/`, `Mac/Controls/` |
@@ -117,12 +117,13 @@ grep -rln 'AppSettings\|AppTheme\|VibeStrings.h\|FolderAccessManager\|PlaylistFi
 | 18 | CUE and M3U | The readers return `AudioTrack` rows. | They return records, and Vibe mints rows from them. |
 | 19 | The play queue, then Now Playing | Both hold `AudioTrack`. `Playlist` relies on object identity: two entries for one file are two entries. | The queue holds caller-owned entries and keeps object identity. Now Playing takes a snapshot value when it moves. |
 | 22 | Metadata's holder protocol | The metadata loader reads an item's installed metadata and installs results through `AudioTrack (Internal)`'s `installMetadataIfUnresolved:` and `deliverIfMetadataStillInstalled:usingBlock:`. | Metadata declares those three operations as its own protocol, and `AudioTrack` adopts it with the methods it has. The check and the install stay atomic in the row. Decode's playable-item protocol stays free of metadata. |
-| 20 | The link store | It mixes share-link rules with track naming and strings. | The rules and the client move. The store stays. |
+| 20 | The link store | It mixes share-link rules with track naming and strings. | The rules and the client move. The store stays. `LinkClient` also stops importing `LinkStore`. |
+| 23 | The walk's file handler | FolderWalk notes cover-art candidates itself, through Metadata's `FolderArtRules.h`. | FolderScan reports each walked file to a handler, and Metadata's folder art installs it, as FolderWalk's other handlers are installed at launch. |
 | 21 | The shell pieces | The folder-grant panel, the pitch fader and the drawn controls read strings, fonts and `Formatters`. The Sparkle wiring reads the beta setting. | The app pushes each one in. |
 
 These seams add small types: the playable-item protocol, Metadata's holder protocol, the handle protocol, the decode observer block, and later the playlist record. Each one replaces a dependency on an app class.
 
-**Only the cuts the playback and waveform path needs come first:** 1, 3, 4, 6 to 17, 19's queue half, and 22. Cut 2 and seam 20 wait for RemoteFiles and ShareLinks, seam 18 for Playlists, 19's Now Playing half for NowPlaying, and seam 21 for the shell pieces. Cut 5 is needed only if `AudioTrack` ever moves.
+**Only the cuts the playback and waveform path needs come first:** 1, 3, 4, 6 to 17, 19's queue half, and 22. Cut 2 and seam 20 wait for RemoteFiles and ShareLinks, seams 18 and 23 for Playlists and FolderScan, 19's Now Playing half for NowPlaying, and seam 21 for the shell pieces. Cut 5 is needed only if `AudioTrack` ever moves.
 
 **`CodableAudioWaveform` stays with the waveform data**, in the Waveform piece's Objective-C++ part beside the unchanged C++ package. Both views, the style registry, both shells, and the widget publisher hold it, so moving it to the cache would make drawing depend on Decode and FileLoading.
 
