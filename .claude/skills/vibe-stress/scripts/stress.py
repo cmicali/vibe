@@ -1656,6 +1656,8 @@ def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
     Returns (failure_or_None, baseline). `settled: false` is itself a finding:
     work that did not unwind inside the app's deadline, named by counter.
     """
+    # An open Settings window is about 190 views at rest, over the +40 limit.
+    channel.run(["settings_close"], timeout=20)
     code, reply, _ = channel.run(["quiesce"], timeout=40)
     if code != 0 or reply is None:
         check_liveness(channel)
