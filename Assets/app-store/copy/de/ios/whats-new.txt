@@ -1,23 +1,22 @@
-* Neu: Vibes eigener Dateibrowser neben der Dateiauswahl des Systems, mit integriertem Dropbox: melde dich an, um deine Dropbox zu durchsuchen und abzuspielen, wobei die Wiedergabe schon beginnt, während ein Titel noch geladen wird
-* Neu: Zufällige Wiedergabe, Alle wiederholen und Eins wiederholen, mit Tasten neben den Wiedergabetasten (ausblendbar unter Einstellungen > Erscheinungsbild)
-* Neu: Wiedergabe von CUE-Sheets, aus einer .cue-Datei oder einer in eine FLAC-Datei eingebetteten, und M3U-Wiedergabelisten im Dateibrowser
-* Neu: Wiedergabe von Ogg Opus, CAF, W64, M4B, M4R und ADTS
-* Neu: ein Crossfade-Regler von Aus bis 3 Sekunden in Zehntelsekunden
-* Neu: der Wellenform-Stil 3-Band
-* Neu: Option, Wellenformen zu zentrieren (oder nicht)
-* Neu: eine Option für eine Linie an der Abspielposition, bei der die ganze Wellenform in voller Farbe erscheint
-* Neu: kompakte Layouts für „Aktueller Titel“ in niedrigen iPad-Fenstern
-* Verbessert: Spulen in FLAC-Dateien ist auch in langen Dateien fast verzögerungsfrei, mit weniger CPU- und Speicherbedarf und besserer Kompatibilität
-* Verbessert: WAV- und AIFF-Dekodierung ist schneller, mit besserer Kompatibilität
-* Verbessert: die Wiedergabe braucht weniger CPU und Energie, und Tags und Cover werden schneller eingelesen
-* Verbessert: das Öffnen von Ordnern hängt bei langsamen Cloud-Ordnern nicht mehr
-* Verbessert: Scrubben und Wischen zwischen Titeln bleiben flüssig, während eine Wellenform lädt
-* Behoben: Crossfade tat nichts, wenn ein Titel in den nächsten überging; er funktionierte nur beim manuellen Titelwechsel
-* Behoben: Zoomen der Wellenform mit zwei Fingern konnte die Wiedergabe zurückspringen lassen
-* Behoben: beim Zurückwischen zu einem Titel erschien erst seine alte Position, bevor er an den Anfang sprang
-* Behoben: das FX-Pad öffnete sich nach einigen Titelwechseln manchmal nicht größer als sein Kreis
-* Behoben: 24- und 32-Bit-AIFF-C-Dateien in Little-Endian wurden mit falscher Länge abgespielt
-* Behoben: Spulen in MPEG-2-MP3-Dateien mit niedriger Bitrate landete leicht daneben
-* Behoben: FLAC-Dateien, die ihre Länge nicht speichern, zeigten keine Dauer an
-* Behoben: Vibe konnte beim Lesen der Tags bestimmter fehlerhafter M4A- und MP3-Dateien abstürzen
-* Behoben: Vibe schrieb Diagnoseprotokolle ins Systemprotokoll
+* Neu: „URL öffnen“ spielt einen Weblink oder einen Freigabelink von Dropbox, Google Drive oder iCloud Drive ab, und ein kopierter Link lässt sich im Tab „Dateien“ abspielen
+* Neu: Widgets mit Wellenform, im großen Format, für den Sperrbildschirm und mit randlosem Cover, mit den Tasten für Wiedergabeliste, Wiedergabe und nächsten Titel wie auf dem Mac
+* Neu: der Wellenform-Stil Spektrum, mit der Färbung „Nach Abschnitt“, bei der jeder Teil eines Titels eine Farbe behält
+* Neu: die 3-Band-Themen Rekord Bin, Dengine und eigene Farben
+* Neu: zoome die Wellenform bis hinunter zu den einzelnen Samples
+* Neu: Wiedergabe von Ogg Vorbis und MP3 im Free-Format
+* Neu: Cover für iCloud- und Dropbox-Titel, die nicht geladen sind
+* Neu: der Status „Puffern…“, während ein Titel auf eine langsame Netzwerkfreigabe oder einen Download wartet
+* Neu: der Titelsong „vibe“, der beim Start geladen wird, bis du etwas abspielst oder öffnest
+* Geändert: die Wellenform-Stile heißen anders: Einfach heißt jetzt Balken, Cupertino (einfach) heißt jetzt Fortschritt, und die vier Stile Detailliert sind einer mit der Einstellung „Typ“
+* Geändert: „Vorheriger Titel“ startet den ersten Titel neu
+* Geändert: die Linie an der Abspielposition ist leicht durchscheinend
+* Geändert: das Thema Cupertino dunkelt nur noch das Cover hinter den Wiedergabetasten ab, mit einem helleren Verlauf
+* Verbessert: Abspielposition, Sprünge und Thema des Widgets
+* Verbessert: der Tab „Dateien“ fasst Speicherorte unter „Orte“ zusammen
+* Verbessert: in den Einstellungen wählst du „Am Titelende“ und „Zeitanzeige“ direkt an Ort und Stelle, und die 3-Band-Paletten sind nach ihren Farben benannt
+* Verbessert: Wiedergabe von Netzwerkfreigaben: eine abgebrochene Verbindung pausiert mit „Verbindung verloren“, ein langsamer Server hält Titelwechsel nicht mehr auf, und Hi-Res-Titel laufen flüssig
+* Verbessert: MP3-, FLAC-, WAV- und AIFF-Titel öffnen schneller
+* Behoben: lückenlose Wiedergabe von Mono- und MPEG-2-MP3s
+* Behoben: Opus-Dateien, deren Header eine Lautstärke festlegt, wurden mit falschem Pegel abgespielt
+* Behoben: eine beschädigte CAF-Datei konnte den Metadaten-Scan blockieren
+* Behoben: ein älteres Öffnen eines Links konnte ein neueres Öffnen einer Datei ersetzen

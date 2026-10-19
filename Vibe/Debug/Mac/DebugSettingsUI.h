@@ -31,6 +31,11 @@ NSString *VibeDebugSettingsClick(NSArray<NSString *> *tokens);
 // pane and acts on nothing, so a screenshot reaches a long page's lower cards.
 NSString *VibeDebugSettingsReveal(NSArray<NSString *> *tokens);
 
+// settings_menu <control> [row] [item]: lists, after validation, the menu a
+// right-click on that control opens, or on its row with `row`. With an item
+// title, runs that item.
+NSString *VibeDebugSettingsMenu(NSArray<NSString *> *tokens);
+
 // settings_resize <width> <height>: a user resize by other means. Sets the
 // content size (clamped to contentMinSize like a real drag), flushes layout,
 // and replies with the settled frame, so a constraint snap-back is observable.

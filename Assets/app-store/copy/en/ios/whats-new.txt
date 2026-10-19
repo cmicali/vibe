@@ -1,23 +1,22 @@
-* New: Vibe's own file browser, alongside the system Files picker, with Dropbox built in: sign in to browse, search, and play your Dropbox, with playback starting while a track downloads
-* New: shuffle, repeat all, and repeat one, with buttons beside the transport controls (hide them in Settings > Appearance)
-* New: CUE sheet playback, from a .cue file or one embedded in a FLAC, and M3U playlists in the file browser
-* New: Ogg Opus, CAF, W64, M4B, M4R, and ADTS playback
-* New: a crossfade slider, from off up to 3 seconds in tenths of a second
-* New: the 3-Band waveform style
-* New: option to center (or not) waveforms
-* New: a playhead line option, with the whole waveform in full color
-* New: compact now-playing layouts for short iPad windows
-* Improved: FLAC seeking is near-instant even in long files, using less CPU and memory, with better compatibility
-* Improved: WAV and AIFF decoding is faster, with better compatibility
-* Improved: playback uses less CPU and energy, and tags and artwork scan faster
-* Improved: opening folders no longer stalls on slow cloud folders
-* Improved: scrubbing and swiping between tracks stay smooth while a waveform loads
-* Fixed: crossfade did nothing when one track played into the next; it only worked when changing tracks by hand
-* Fixed: pinch-zooming the waveform could make playback jump back
-* Fixed: swiping back to a track showed its old position before jumping to the start
-* Fixed: the FX pad sometimes opened no bigger than its circle after a few track changes
-* Fixed: 24 and 32-bit little-endian AIFF-C files played at the wrong length
-* Fixed: seeks in low-bitrate MPEG-2 MP3 files landed slightly off
-* Fixed: FLAC files that don't record their length showed no duration
-* Fixed: Vibe could crash reading tags from certain malformed M4A and MP3 files
-* Fixed: Vibe wrote diagnostic logging to the system log
+* New: Open URL plays a web link, or a Dropbox, Google Drive, or iCloud Drive share link, and a copied link plays from the Files tab
+* New: waveform, large, Lock Screen, and full-bleed artwork widgets, with the mac's playlist, play, and next buttons
+* New: the Spectrum waveform style, with By section coloring so each part of a song keeps one color
+* New: the 3-Band themes: Rekord Bin, Dengine, and Custom colors
+* New: zoom the waveform all the way down to the samples
+* New: Ogg Vorbis and free-format MP3 playback
+* New: album art for iCloud and Dropbox songs that aren't downloaded
+* New: a Buffering… status while a song waits for a slow network share or download
+* New: the vibe theme track, which loads on launch until you play or open something
+* Changed: the waveform styles are renamed: Basic is now Bars, Cupertino Basic is now Progress, and the four Detailed styles are one with a type setting
+* Changed: Previous on the first song restarts it
+* Changed: the playhead line is slightly see-through
+* Changed: the Cupertino theme darkens only the cover art behind the playback buttons, with a lighter gradient
+* Improved: the widget's playhead, skips, and theme
+* Improved: the Files tab groups places under Locations
+* Improved: in Settings, On track end and Time display choose in place, and the 3-Band palettes are named by their colors
+* Improved: network share playback: a dropped connection pauses with "Connection lost", a slow server no longer stalls track changes, and hi-res songs play smoothly
+* Improved: MP3, FLAC, WAV, and AIFF songs open faster
+* Fixed: gapless playback of mono and MPEG-2 MP3s
+* Fixed: Opus files whose header sets a volume played at the wrong level
+* Fixed: a corrupt CAF file could stall the metadata scan
+* Fixed: an older link open could replace a newer file open

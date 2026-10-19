@@ -12,7 +12,7 @@
 //  TEST_RUNNER_VIBE_FUZZ_SEED re-runs one base seed, and
 //  TEST_RUNNER_VIBE_FUZZ_ITERATIONS multiplies every random mutator's count.
 //  TEST_RUNNER_VIBE_FUZZ_EXPORT names a folder each mutant is also written to,
-//  under the default decoder choice, so another build can decode the same files
+//  so another build can decode the same files
 //  (the vibe-audio-quality skill's comparison with a release).
 //
 //  Budgets at the default count. Each family is a subclass, so the parallel
@@ -413,11 +413,9 @@ static FuzzFamily FuzzFamilyOf(NSString *decoder) {
 }
 
 // Every fixture of `family` the generator wrote, one per coding for dr_wav's and every one for
-// the rest. Each is probed at its own path under dr_mp3's default to learn its family. Only the
+// the rest. Each is probed at its own path to learn its family. Only the
 // family's own are read, and a source over the cap only when FuzzSlice can cut it.
 static NSArray<FuzzSource *> *FuzzCorpus(FuzzFamily family, NSURL *scratch, NSMutableArray<NSString *> *notes) {
-    BOOL priorApple = AudioFileHandle.appleMPEGDecoder;
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSMutableArray<NSString *> *paths = [NSMutableArray array];
     NSString *root = NSProcessInfo.processInfo.environment[@"VIBE_AUDIO_FIXTURES"];
     for (NSString *name in [[NSFileManager.defaultManager contentsOfDirectoryAtPath:root error:NULL] sortedArrayUsingSelector:@selector(compare:)]) {
@@ -488,7 +486,6 @@ static NSArray<FuzzSource *> *FuzzCorpus(FuzzFamily family, NSURL *scratch, NSMu
             }
         }
     }
-    AudioFileHandle.appleMPEGDecoder = priorApple;
     return [byKey.allValues sortedArrayUsingComparator:^NSComparisonResult(FuzzSource *a, FuzzSource *b) { return [a.name compare:b.name]; }];
 }
 
@@ -1203,7 +1200,6 @@ static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition b
     NSURL *_root;
     uint64_t _baseSeed;
     NSUInteger _multiplier;
-    BOOL _priorAppleMPEGDecoder;
     NSUInteger _attachments;
     NSString *_export;
 }
@@ -1216,11 +1212,9 @@ static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition b
     _export = NSProcessInfo.processInfo.environment[@"VIBE_FUZZ_EXPORT"];
     _root = [FuzzScratch() URLByAppendingPathComponent:NSUUID.UUID.UUIDString isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:_root withIntermediateDirectories:YES attributes:nil error:NULL];
-    _priorAppleMPEGDecoder = AudioFileHandle.appleMPEGDecoder;
 }
 
 - (void)tearDown {
-    AudioFileHandle.appleMPEGDecoder = _priorAppleMPEGDecoder;
     [NSFileManager.defaultManager removeItemAtURL:_root error:NULL];
     [super tearDown];
 }
@@ -1271,9 +1265,8 @@ static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition b
     [self addAttachment:attachment];
 }
 
-- (void)fuzzSource:(FuzzSource *)source appleMPEG:(BOOL)appleMPEG {
-    AudioFileHandle.appleMPEGDecoder = appleMPEG;
-    NSString *label = appleMPEG ? [source.name stringByAppendingString:@" (Apple's MPEG decoder)"] : source.name;
+- (void)fuzzSource:(FuzzSource *)source {
+    NSString *label = source.name;
     NSURL *originalURL = [_root URLByAppendingPathComponent:[@"original." stringByAppendingString:source.extension]];
     XCTAssertTrue([source.bytes writeToURL:originalURL atomically:NO]);
     FuzzDecode *reference = [self decode:originalURL budget:kFuzzMaxSourceFrames];
@@ -1292,13 +1285,13 @@ static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition b
         FuzzMutator mutator = kFuzzMutators[m];
         NSUInteger iterations = mutator.named ? 1 : kFuzzIterations[source.family] * _multiplier;
         for (NSUInteger i = 0; i < iterations; i++) {
-            uint64_t seed = _baseSeed ^ sourceHash ^ ((uint64_t)m << 40) ^ ((uint64_t)i << 20) ^ (appleMPEG ? 1ULL << 63 : 0);
+            uint64_t seed = _baseSeed ^ sourceHash ^ ((uint64_t)m << 40) ^ ((uint64_t)i << 20);
             VibeFuzzRandom random = {seed | 1};
             NSMutableData *bytes = [source.bytes mutableCopy];
             // NO: the shape does not apply to this container.
             if (!mutator.mutate(bytes, source, &random, mutator.arg)) break;
             if ([bytes isEqualToData:source.bytes]) continue;
-            if (_export && !appleMPEG) {
+            if (_export) {
                 NSString *name = [NSString stringWithFormat:@"%@-%s-%016llx.%@", source.name.stringByDeletingPathExtension, mutator.name, seed, source.extension];
                 [bytes writeToFile:[_export stringByAppendingPathComponent:name] atomically:NO];
             }
@@ -1339,7 +1332,7 @@ static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition b
         if (mutant.opened && mutator.expect == FuzzExpectNotDrWAV && [mutant.decoder isEqualToString:@"dr_wav"]) {
             [problems addObject:@"dr_wav accepted it"];
         }
-        if (mutator.expect == FuzzExpectDrMP3 && !appleMPEG && [reference.decoder isEqualToString:@"dr_mp3"]
+        if (mutator.expect == FuzzExpectDrMP3 && [reference.decoder isEqualToString:@"dr_mp3"]
                 && ![mutant.decoder isEqualToString:@"dr_mp3"]) {
             [problems addObject:[NSString stringWithFormat:@"dr_mp3 handed a playable stream to %@", mutant.decoder ?: @"nothing"]];
         }
@@ -1360,8 +1353,7 @@ static void FuzzDecodeURL(FuzzDecode *result, NSURL *url, AVAudioFramePosition b
     NSArray<FuzzSource *> *sources = FuzzCorpus(family, _root, skipped);
     XCTSkipIf(sources.count == 0, @"No fixtures of this family; run make test-audio (skipped: %@)", skipped);
     for (FuzzSource *source in sources) {
-        [self fuzzSource:source appleMPEG:NO];
-        if (family == FuzzFamilyMPEG) [self fuzzSource:source appleMPEG:YES];
+        [self fuzzSource:source];
     }
 }
 

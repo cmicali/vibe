@@ -56,6 +56,7 @@ Raw input is for explicit gesture tests on an isolated test desktop, never unatt
 "$V" --debug-cmd drag 728 219 728 299   # the whole left-button gesture in one command (down, 12 dragged steps, up); optional [steps]
 "$V" --debug-cmd mouse_move 400 200  # plain move; add left|right for a lone dragged event
 "$V" --debug-cmd mouse_down 75 122   # primitives (default left; also right); mouse_up likewise
+"$V" --debug-cmd scroll 300 100 -3   # {ok, posted, hitView, windowKey}: one scroll at a window point, sent to the window at once (no activation, no queue). lines by default (a wheel's), `pixels` a trackpad's, `momentum` the coast after the fingers lift. dy is raw: positive is a wheel rolled away under traditional scrolling
 "$V" --debug-cmd key p               # keyDown+keyUp into the key window, else the player window; mods: `key p cmd shift`. With Open URL's window key, keys reach it, not the player, so check window.keyWindow first
 "$V" --debug-cmd key_down w          # one edge (the held W/E/R/T FX); key_up releases. Keys: a-z, 0-9, period, space, tab, return, esc, delete, forward_delete, up/down/left/right
 "$V" --debug-cmd key delete repeat   # `repeat` sets isARepeat, the only way to exercise a repeat guard. `delete` is Backspace, `forward_delete` its twin
@@ -168,7 +169,6 @@ All but `set_analysis` are app-side verbs applied at once. `set_analysis` is a C
 "$V" --debug-cmd set_pause_at_track_end off  # {ok, pauseAtTrackEnd}: writes and requests the EndOfTrack live effect
 "$V" --debug-cmd set_repeat all      # {ok, repeatMode}: off|all|one. Writes and requests the EndOfTrack live effect. Both platforms
 "$V" --debug-cmd set_shuffle on      # {ok, shuffleEnabled}: the same path. Both platforms
-"$V" --debug-cmd set_decoder apple   # {ok, decoder}: apple|dr_mp3, the MPEG decoder for later opens, this session only. Writes no setting. Both platforms. It is iOS's only decoder switch. dump_audio_path reports the decoder in use
 "$V" --debug-cmd set_reopen_playlist on  # {ok, reopenLastPlaylist}: off deletes the container mirror at once; the mirror is written only at quit
 "$V" --debug-cmd set_declick off     # {ok, declick}: Settings > Audio > Declick, applied live. dump_state.settings.declick is the stored choice, player.declick what the player holds. The loopback verifier turns it off around its captures
 ```

@@ -16,14 +16,14 @@
 // Takes the file for the decoder that parses its container, in place of
 // CoreAudio's parser, which never opens it. The file's first bytes name the
 // container. RIFF and RF64 WAVE, Wave64 and AIFF(-C) go to dr_wav. FLAC,
-// behind ID3v2 tags too, goes to dr_flac. Ogg whose first packet is Vorbis's
-// identification goes to libvorbis. With `mpeg`, the dr_mp3 choice, MPEG
-// frames go to dr_mp3, behind ID3v2 tags or in a WAV's data chunk too. NO
-// leaves the file to the parser: BW64, RIFX and every other container, a
-// coding the decoder does not decode, or a stream it cannot open.
-- (BOOL)openOwnDecoderInterleaved:(BOOL)interleaved mpeg:(BOOL)mpeg {
+// behind ID3v2 tags too, goes to dr_flac. Ogg goes to libvorbis, which finds
+// a Vorbis stream among the streams the file starts. MPEG frames go to dr_mp3,
+// behind ID3v2 tags or in a WAV's data chunk too. NO leaves the file to the
+// parser: BW64, RIFX and every other container, a coding the decoder does not
+// decode, or a stream it cannot open.
+- (BOOL)openOwnDecoderInterleaved:(BOOL)interleaved {
     static const uint8_t wave64[16] = {'r', 'i', 'f', 'f', 0x2E, 0x91, 0xCF, 0x11, 0xA5, 0xD6, 0x28, 0xDB, 0x04, 0xC1, 0x00, 0x00};
-    uint8_t head[27 + 255 + 7]; // an Ogg page header, its segment table and the first packet's opening
+    uint8_t head[16]; // the longest magic, Wave64's GUID
     UInt32 got = 0;
     VibeHandleRead((__bridge void *)self, 0, sizeof head, head, &got);
     // Every tag, as dr_flac skips them. Fetched past the read block: a cover
@@ -38,26 +38,28 @@
     if ((got >= 12 && (memcmp(head, "RIFF", 4) == 0 || memcmp(head, "RF64", 4) == 0) && memcmp(head + 8, "WAVE", 4) == 0)
             || (got >= 12 && memcmp(head, "FORM", 4) == 0 && (memcmp(head + 8, "AIFF", 4) == 0 || memcmp(head + 8, "AIFC", 4) == 0))
             || (got >= sizeof wave64 && memcmp(head, wave64, sizeof wave64) == 0)) {
-        return [self openWAVInterleaved:interleaved] || (mpeg && [self openMPEGInWAVInterleaved:interleaved]);
+        return [self openWAVInterleaved:interleaved] || [self openMPEGInWAVInterleaved:interleaved];
     }
     if (got >= 4 && memcmp(head, "fLaC", 4) == 0) {
         return [self openFLACInterleaved:interleaved];
     }
-    UInt32 packet = got >= 27 && memcmp(head, "OggS", 4) == 0 ? 27 + head[26] : 0;
-    if (packet) {
-        return got >= packet + 7 && memcmp(head + packet, "\x01vorbis", 7) == 0 && [self openVorbisInterleaved:interleaved];
+    if (got >= 4 && memcmp(head, "OggS", 4) == 0) {
+        return [self openVorbisInterleaved:interleaved];
     }
     AudioFileTypeID type = VibeFileTypeForExtension(_url.pathExtension);
     BOOL named = type == kAudioFileMP3Type || type == kAudioFileMP2Type || type == kAudioFileMP1Type;
-    return mpeg && [self openMPEGFrom:at to:_size junk:named interleaved:interleaved];
+    return [self openMPEGFrom:at to:_size junk:named interleaved:interleaved];
 }
 
 // Keeps the decoder just opened when it found a file it plays: a length, no
 // failed read, and formats that can be made. NO closes it. A zeroed
-// description is a coding the decoder does not decode.
+// description is a coding the decoder does not decode. dr_wav counts a
+// file's frames from its data, so its length of 0 is a file that holds no
+// audio, which opens and reads nothing. dr_flac's and vorbisfile's 0 is a
+// length they could not find.
 - (BOOL)keepStreamDecoderWithLength:(UInt64)length description:(AudioStreamBasicDescription)description
                              layout:(AVAudioChannelLayout *)layout interleaved:(BOOL)interleaved {
-    if (length == 0 || description.mSampleRate <= 0 || description.mChannelsPerFrame == 0 || _streamReadFailed
+    if ((length == 0 && !_wav) || description.mSampleRate <= 0 || description.mChannelsPerFrame == 0 || _streamReadFailed
             || ![self takeFileFormat:description layout:layout interleaved:interleaved]) {
         [self closeStreamDecoder];
         return NO;
@@ -123,7 +125,7 @@ typedef struct {
 // WAV's valid bits and states the container. Zeroed for a coding dr_wav does
 // not decode. Only dr_wav's own parse can tell one: a
 // WAVE_FORMAT_EXTENSIBLE's subformat, an AIFF-C's compression type. MPEG in a
-// WAV is one. Under the dr_mp3 choice the MPEG open takes it.
+// WAV is one. The MPEG open takes it.
 static AudioStreamBasicDescription VibeWAVDescription(const drwav *wav, UInt16 aiffSampleSize) {
     UInt32 channels = wav->channels, blockAlign = wav->fmt.blockAlign;
     BOOL aiff = wav->container == drwav_container_aiff;
@@ -267,10 +269,12 @@ static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
     return result;
 }
 
-// vorbisfile answers the facts. The rate and the channels are the first
-// stream's. The bus keeps one format per file, so a chained file that changes
-// either is left to CoreAudio's parser. The length is the last page's granule
-// position, which trims the encoder's padding too.
+// vorbisfile answers the facts, the first link's. It skips a Skeleton or a
+// video stream beside the Vorbis one. The bus keeps one format per file, so a
+// chained file plays its leading links that share the first's rate and
+// channels. CoreAudio's reader plays only the first link of such a chain. The
+// length is the last of those links' granule position, which trims the
+// encoder's padding too.
 - (BOOL)openVorbisInterleaved:(BOOL)interleaved {
     _vorbis = calloc(1, sizeof(OggVorbis_File));
     ov_callbacks callbacks = { VibeVorbisRead, VibeVorbisSeek, NULL, VibeVorbisTell };
@@ -284,20 +288,22 @@ static AVAudioChannelLayout *VibeVorbisChannelLayout(UInt32 channels) {
         vorbis_comment_clear(&_vorbis->vc[link]);
     }
     vorbis_info *info = ov_info(_vorbis, 0);
-    BOOL uniform = info != NULL;
-    for (int link = 1; uniform && link < ov_streams(_vorbis); link++) {
-        vorbis_info *next = ov_info(_vorbis, link);
-        uniform = next && next->channels == info->channels && next->rate == info->rate;
-    }
-    if (!uniform) {
+    if (!info) {
         [self closeStreamDecoder];
         return NO;
+    }
+    ogg_int64_t length = 0;
+    for (int link = 0; link < ov_streams(_vorbis); link++) {
+        vorbis_info *next = ov_info(_vorbis, link);
+        if (!next || next->channels != info->channels || next->rate != info->rate) {
+            break;
+        }
+        length += MAX(0, ov_pcm_total(_vorbis, link));
     }
     AudioStreamBasicDescription description = {
         .mSampleRate = (Float64)info->rate, .mFormatID = 'vorb', .mChannelsPerFrame = (UInt32)info->channels,
     };
-    ogg_int64_t length = ov_pcm_total(_vorbis, -1);
-    return [self keepStreamDecoderWithLength:(UInt64)MAX(0, length) description:description
+    return [self keepStreamDecoderWithLength:(UInt64)length description:description
                                       layout:VibeVorbisChannelLayout(description.mChannelsPerFrame) interleaved:interleaved];
 }
 

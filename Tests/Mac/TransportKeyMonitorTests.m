@@ -13,7 +13,7 @@
 // HIToolbox key codes, as the monitor matches them.
 static const unsigned short kKeyA = 0, kKeyS = 1, kKeyQ = 12, kKeyW = 13, kKeyE = 14, kKeyR = 15, kKeyT = 17;
 static const unsigned short kKeyO = 31, kKeyK = 40, kKeyN = 45, kKeyM = 46, kKeySpace = 49, kKeyReturn = 36;
-static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown = 125;
+static const unsigned short kKeyDelete = 51, kKeyForwardDelete = 117, kKeyDown = 125, kKeyUp = 126;
 static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
 
 @interface TransportKeyMonitorTests : XCTestCase
@@ -26,6 +26,7 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
 @property (nonatomic) BOOL delaySendActive;
 @property (nonatomic) BOOL shortDelaySendActive;
 @property (nonatomic) NSMutableArray<NSString *> *commands;
+@property (nonatomic) NSMutableArray<NSNumber *> *volumeMoves;
 // Commands whose menu item is hidden, so performing them answers NO.
 @property (nonatomic) NSSet<NSString *> *hiddenCommands;
 @end
@@ -34,6 +35,7 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
 
 - (void)setUp {
     self.commands = [NSMutableArray array];
+    self.volumeMoves = [NSMutableArray array];
     self.hiddenCommands = [NSSet set];
     AppSettings.sharedInstance.shortcutOverrides = @{};
 }
@@ -46,6 +48,9 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
 - (NSResponder *)firstResponder { return nil; }
 - (id)audioPlayer { return self; }
 - (id)fx { return self.hasFXGraph ? self : nil; }
+- (void)moveVolumeBySteps:(double)steps {
+    [self.volumeMoves addObject:@(steps)];
+}
 - (BOOL)performMenuCommandWithIdentifier:(NSString *)identifier {
     if ([self.hiddenCommands containsObject:identifier]) {
         return NO;
@@ -262,6 +267,24 @@ static const NSEventModifierFlags kCmd = NSEventModifierFlagCommand;
     XCTAssertNil([monitor handleKeyEvent:arrow inWindow:self.window]);
     XCTAssertNil([monitor handleKeyEvent:[self down:76] inWindow:self.window], @"keypad Enter");
     XCTAssertEqualObjects(self.commands, @[]);
+    XCTAssertEqualObjects(self.volumeMoves, @[@-1], @"Down only");
+}
+
+// Collapsed, Up and Down move the volume and repeat while held. Showing, they
+// are the table's, and a modifier makes them ordinary keys.
+- (void)testCollapsedArrowsMoveTheVolume {
+    TransportKeyMonitor *monitor = [[TransportKeyMonitor alloc] initWithController:(id)self];
+    XCTAssertNil([monitor handleKeyEvent:[self down:kKeyUp] inWindow:self.window]);
+    XCTAssertNil([monitor handleKeyEvent:[self key:kKeyUp characters:@"x" type:NSEventTypeKeyDown time:10.05
+            repeat:YES modifiers:0] inWindow:self.window]);
+    XCTAssertNil([monitor handleKeyEvent:[self down:kKeyDown] inWindow:self.window]);
+    NSEvent *shifted = [self key:kKeyUp characters:@"x" type:NSEventTypeKeyDown time:10 repeat:NO
+                       modifiers:NSEventModifierFlagShift];
+    XCTAssertEqual([monitor handleKeyEvent:shifted inWindow:self.window], shifted);
+    self.playlistShown = YES;
+    NSEvent *up = [self down:kKeyUp];
+    XCTAssertEqual([monitor handleKeyEvent:up inWindow:self.window], up);
+    XCTAssertEqualObjects(self.volumeMoves, (@[@1, @1, @-1]));
 }
 
 - (void)testAReservedCharacterBeatsAKeyCodeBinding {

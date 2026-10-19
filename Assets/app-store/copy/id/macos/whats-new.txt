@@ -1,25 +1,27 @@
-* Baru: acak, ulangi semua, dan ulangi satu lagu, di menu Pemutaran (⌥⌘S, ⌘R), dengan ikonnya di baris info file
-* Baru: pemutaran lembar CUE, dari file .cue atau yang tertanam di FLAC
-* Baru: pemutaran Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R, dan ADTS
-* Baru: panel Pintasan Papan Ketik di Pengaturan untuk mengubah pintasan apa pun
-* Baru: penggeser crossfade, dari mati hingga 3 detik dalam kelipatan sepersepuluh detik
-* Baru: gaya bentuk gelombang 3 Pita yang dapat disesuaikan dan dua tema yang menggunakannya
-* Baru: opsi untuk menengahkan (atau tidak) bentuk gelombang
-* Baru: opsi garis kepala pemutar, dengan seluruh bentuk gelombang berwarna penuh
-* Perubahan: jendela Pengaturan ditata ulang, dilengkapi pencarian
-* Peningkatan: pencarian posisi di FLAC hampir instan bahkan di file panjang, dengan CPU dan memori lebih hemat serta kompatibilitas lebih baik
-* Peningkatan: dekode WAV dan AIFF 1,4x–3,2x lebih cepat, dengan kompatibilitas lebih baik
-* Peningkatan: pemutaran memakai CPU 20–30% lebih sedikit dan energi 15–25% lebih sedikit
-* Peningkatan: pemindaian tag dan gambar sampul 2x lebih cepat, dan pemindaian perpustakaan memakai CPU 20% lebih sedikit
-* Peningkatan: peluncuran lebih cepat, daftar putar M3U besar, dan pengeditan daftar putar yang sangat besar
-* Peningkatan: “Jadikan Vibe default” juga mengambil alih file CUE dan M3U, dan tetap berlanjut saat Anda menolak satu jenis file
-* Perbaikan: crossfade tidak berfungsi saat satu lagu berlanjut ke lagu berikutnya; hanya berfungsi saat lagu diganti manual
-* Perbaikan: pintasan satu tombol tidak berfungsi pada tata letak papan ketik AZERTY, Yunani, Sirilik, dan non-AS lainnya
-* Perbaikan: batang bentuk gelombang bergelombang saat ukuran jendela diubah
-* Perbaikan: file AIFF-C little-endian 24 dan 32-bit diputar dengan durasi yang salah
-* Perbaikan: pencarian posisi di file MP3 MPEG-2 berbitrate rendah meleset sedikit
-* Perbaikan: file FLAC yang tidak mencatat durasinya tidak menampilkan durasi
-* Perbaikan: Vibe dapat mogok saat membaca tag dari file M4A dan MP3 tertentu yang rusak
-* Perbaikan: Konversi ke FLAC menambahkan bunyi klik di setiap puncak skala penuh pada file float
-* Perbaikan: membuka lembar CUE atau daftar putar M3U yang semua filenya hilang tidak berbuat apa-apa; kini Vibe memberi tahu bahwa file tersebut tidak dapat dibuka
-* Perbaikan: Vibe menulis log diagnostik ke log sistem
+* Baru: Buka Lokasi… (⌘L) memutar tautan web, atau tautan berbagi Dropbox, Google Drive, atau iCloud Drive
+* Baru: gaya bentuk gelombang Spektrum, dengan pewarnaan Per bagian sehingga setiap bagian lagu tetap satu warna
+* Baru: tema RGB, Dark Core, Kinda Blue, dan Sectioned, serta ikon app Dark Core, kontribusi dari JohnnyFireOne
+* Baru: Pindahkan ke Tong Sampah (⌘⌫) menghapus file lagu yang dipilih atau sedang diputar, dan dapat diurungkan
+* Baru: Tambahkan ke Playlist… (⇧⌘O), Tampilkan di Finder (⇧⌘R), dan menu Jendela berisi Perkecil, Lebar Jendela, Selalu di Atas, dan Kunci Posisi Jendela
+* Baru: status Menyangga… saat lagu menunggu berbagi jaringan atau unduhan yang lambat
+* Baru: warna tema untuk teks baris yang diputar dan yang dipilih serta batang equalizer baris yang diputar, juga sampul bawaan Transparan, Jendela, Simbol, dan Warna kustom
+* Baru: klik header panel pitch untuk mengganti rentangnya antara 8% dan 16%
+* Baru: pemutaran MP3 free format
+* Baru: lagu tema vibe, yang dimuat saat peluncuran hingga Anda memutar atau membuka sesuatu
+* Perubahan: menu mengikuti konvensi macOS, dengan Edit > Salin, submenu Ulangi, serta submenu Lompat Mundur dan Lompat Maju yang menampilkan setiap jarak dalam birama atau detik
+* Perubahan: gaya bentuk gelombang berganti nama: Dasar kini menjadi Batang, Cupertino (dasar) kini menjadi Kemajuan, dan empat gaya Detail kini menjadi satu dengan pengaturan jenis
+* Perubahan: Trek Sebelumnya pada lagu pertama memulai lagu itu dari awal
+* Perubahan: penggeser volume muncul di dekat penunjuk, dengan pengaturan tema untuk kapan penggeser tampil
+* Perubahan: garis kepala pemutar sedikit tembus pandang, dan batang equalizer baris yang diputar berwarna hitam dalam mode terang
+* Perubahan: tema Cupertino hanya menggelapkan gambar sampul di belakang tombol pemutaran, dengan gradien yang lebih terang
+* Peningkatan: kontrol pitch terdengar lebih baik, dengan mesin repitch khusus dan perubahan yang mulus
+* Peningkatan: output bit-perfect memakai kedalaman bit terbesar perangkat, untuk perubahan volume yang lebih bersih dan pemutaran tanpa jeda antara lagu 16 dan 24-bit
+* Peningkatan: pemutaran dari berbagi jaringan: koneksi yang terputus menjeda pemutaran dengan “Koneksi terputus”, server yang lambat tidak lagi menghambat pergantian trek, dan lagu hi-res diputar dengan mulus
+* Peningkatan: lagu MP3, FLAC, WAV, dan AIFF terbuka lebih cepat
+* Peningkatan: jendela Pengaturan memiliki nama yang lebih jelas, alasan di bawah baris yang dinonaktifkan, konfirmasi sebelum memulihkan default, dan bilah lompat di editor tema
+* Perbaikan: pemutaran tanpa jeda MP3 mono dan MPEG-2
+* Perbaikan: file Opus yang header-nya mengatur volume diputar pada tingkat yang salah
+* Perbaikan: lagu Ogg Vorbis kehilangan 3 ms pertamanya
+* Perbaikan: file CAF yang rusak dapat menghentikan pemindaian metadata
+* Perbaikan: garis penunjuk pada bentuk gelombang hilang di atas bagian yang sudah diputar
+* Perbaikan: di macOS 27, pergantian tema menghapus pilihan daftar putar, dan memori bertambah setiap kali daftar putar dibuka dan tema diganti
