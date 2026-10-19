@@ -1,17 +1,17 @@
-# Future: cm_libs, the shared toolbox
+# Future: vibe-libs, the shared toolbox
 
 **Status: planned 2026-10-17 and revised 2026-10-18 after two reviews. The pilot is in review: #314 moves the realtime-effects brackets and #315 takes the varispeed from the submodule. Cuts 1, 3 and 4 are #316 to #318, and the log macros are #319.**
 
-Everything in Vibe that another app could use moves to [cm_libs](https://github.com/cmicali/cm_libs), a public toolbox of small libraries for macOS and iOS apps. Vibe and another app each take only the pieces they want. **cm_libs' [docs/plan.md](https://github.com/cmicali/cm_libs/blob/main/docs/plan.md) is the authority** for the pieces, their dependency map, the build shape, the order of the moves, the performance proof, and what the other app needs when. This doc covers only what changes in Vibe.
+Everything in Vibe that another app could use moves to [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries for macOS and iOS apps. Vibe and another app each take only the pieces they want. **vibe-libs' [docs/plan.md](https://github.com/cmicali/vibe-libs/blob/main/docs/plan.md) is the authority** for the pieces, their dependency map, the build shape, the order of the moves, the performance proof, and what the other app needs when. This doc covers only what changes in Vibe.
 
-The other app is closed source and is never named in this repository or in `cm_libs`. Call it "another app".
+The other app is closed source and is never named in this repository or in `vibe-libs`. Call it "another app".
 
-## How Vibe consumes cm_libs
+## How Vibe consumes vibe-libs
 
-- **A git submodule at `cm_libs/`**, pinned to a commit. `make project` initializes it (`scripts/build/cm-libs-submodule.sh`). Every CI checkout sets `submodules: recursive`.
-- **Templates, compiled in tree.** `project.yml` includes `cm_libs/cm_libs.yml` and lists each piece's template on both app targets, with `templateAttributes` naming the excluded platform. The pieces compile as Vibe's own sources, with the same flags.
-- **Performance is measured for each move**, with the proof in cm_libs' plan: fixed before and after commits, a no-change band per benchmark, and every outlier and rerun reported. Compiling in makes a change unlikely, not impossible.
-- **A change across the repos lands in cm_libs first**, then in Vibe's pin, then through Vibe's gates. The old pin is the rollback.
+- **A git submodule at `vibe-libs/`**, pinned to a commit. `make project` initializes it (`scripts/build/vibe-libs-submodule.sh`). Every CI checkout sets `submodules: recursive`.
+- **Templates, compiled in tree.** `project.yml` includes `vibe-libs/vibe-libs.yml` and lists each piece's template on both app targets, with `templateAttributes` naming the excluded platform. The pieces compile as Vibe's own sources, with the same flags.
+- **Performance is measured for each move**, with the proof in vibe-libs' plan: fixed before and after commits, a no-change band per benchmark, and every outlier and rerun reported. Compiling in makes a change unlikely, not impossible.
+- **A change across the repos lands in vibe-libs first**, then in Vibe's pin, then through Vibe's gates. The old pin is the rollback.
 
 ## What blocks the split, measured on `main`
 
@@ -47,7 +47,7 @@ Only five files in the moving code read `AppSettings`: one in folder art and fou
 
 ## The cuts, as pull requests on `main`
 
-Each is mergeable alone and leaves every check passing. The cm_libs plan names the ones the first path needs. They are 1, 3, 4, 6 to 18, the queue half of 19, 22, and 23.
+Each is mergeable alone and leaves every check passing. The vibe-libs plan names the ones the first path needs. They are 1, 3, 4, 6 to 18, the queue half of 19, 22, and 23.
 
 | # | Cut | Today | The change | Status |
 | --- | --- | --- | --- | --- |
@@ -67,7 +67,7 @@ Cut 5, which retired `AudioTrack`'s two labels, is not planned. `AudioTrack` sta
 
 ## The seams between pieces
 
-The contracts are written in cm_libs' plan. This is Vibe's side of each.
+The contracts are written in vibe-libs' plan. This is Vibe's side of each.
 
 | # | Seam | Today | Vibe's change |
 | --- | --- | --- | --- |
@@ -91,17 +91,17 @@ Done in #315: the submodule script, `submodules: recursive` on every CI checkout
 
 Still to do, each with the move that needs it:
 
-- `scripts/checks/check-layout.sh` substitutes `${excludedPlatform}` for assertions 1 and 2, and checks that no cm_libs file imports a header whose only home is under `Vibe/` or `Tests/`.
+- `scripts/checks/check-layout.sh` substitutes `${excludedPlatform}` for assertions 1 and 2, and checks that no vibe-libs file imports a header whose only home is under `Vibe/` or `Tests/`.
 - `scripts/build/analyze.sh` also drops findings under `/third_party/`, before the vendored libraries move.
 - `VibeTests` and `VibeAudioTests` keep their hand lists until each piece's tests move. The production paths change prefix, and the vendored entries become template references.
 
 ## TRAPs
 
 - **A template's settings replace a value the target takes from a settings group.** They join only the target's own `base`. So Vibe's app targets set their header search paths in `base`.
-- **A checkout without the submodule compiles nothing from cm_libs and fails late.** `make project`, `perf.py` and CI all initialize it. `check-layout` fails fast when it is missing.
+- **A checkout without the submodule compiles nothing from vibe-libs and fails late.** `make project`, `perf.py` and CI all initialize it. `check-layout` fails fast when it is missing.
 - **YAML anchors do not cross `include:` files.** Every `*dr-libs-flags` reference becomes a template reference.
-- **`scripts/build/analyze.sh` drops findings by the substring `/ThirdParty/`.** cm_libs' vendored code sits under `third_party/`.
+- **`scripts/build/analyze.sh` drops findings by the substring `/ThirdParty/`.** vibe-libs' vendored code sits under `third_party/`.
 
 ## Budget
 
-Most of the shared code and its tests leave this repo. Deleted or unified in what remains: the vendored flag anchors and their entries, eleven header search paths, three source entries, the prefix header's macro body, eight renderer name overrides and two registry methods, one link-error table and `VibeStatusForPlayError` consolidated into one header, two accessibility overrides and a duplicated constant, eighteen settings reads, and two imports. New here: `Common/StringRules.h`, `Common/WaveformTheme+Settings`, `WaveformUI/WaveformAccessibility.h`, and one live-effect bit. New types: the small ones the seams add, each argued in cm_libs' plan. Each move reports what it removed from Vibe apart from what it added across both repos. The two hand-kept test source lists stay until each piece's tests move, since the tests compile production sources with their own flags.
+Most of the shared code and its tests leave this repo. Deleted or unified in what remains: the vendored flag anchors and their entries, eleven header search paths, three source entries, the prefix header's macro body, eight renderer name overrides and two registry methods, one link-error table and `VibeStatusForPlayError` consolidated into one header, two accessibility overrides and a duplicated constant, eighteen settings reads, and two imports. New here: `Common/StringRules.h`, `Common/WaveformTheme+Settings`, `WaveformUI/WaveformAccessibility.h`, and one live-effect bit. New types: the small ones the seams add, each argued in vibe-libs' plan. Each move reports what it removed from Vibe apart from what it added across both repos. The two hand-kept test source lists stay until each piece's tests move, since the tests compile production sources with their own flags.

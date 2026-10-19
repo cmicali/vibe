@@ -144,7 +144,6 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
     _events = [NSMutableArray array]; _blockSize = 256;
     _temporary = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]];
     [NSFileManager.defaultManager createDirectoryAtURL:_temporary withIntermediateDirectories:YES attributes:nil error:NULL];
-    _priorAppleMPEGDecoder = AudioFileHandle.appleMPEGDecoder;
 }
 - (void)tearDown {
     if (self.testRun.failureCount && _capture.length) {
@@ -158,7 +157,6 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
         [self finishStream:VibeStreamCancelled]; // a failed test must not strand the fetch
         [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
     }
-    AudioFileHandle.appleMPEGDecoder = _priorAppleMPEGDecoder;
     [NSFileManager.defaultManager removeItemAtURL:_temporary error:NULL];
     [super tearDown];
 }

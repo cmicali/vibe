@@ -297,7 +297,7 @@ static inline NSData *VibeMP3WithInfoFrame(uint32_t frames, BOOL id3v1) {
         uint8_t *out = (uint8_t *)frame.mutableBytes;
         memcpy(out, header, sizeof(header));
         if (i == 0) {
-            const uint32_t fields[3] = {CFSwapInt32HostToBig(3), CFSwapInt32HostToBig(frames + 1),
+            const uint32_t fields[3] = {CFSwapInt32HostToBig(3), CFSwapInt32HostToBig(frames),
                                         CFSwapInt32HostToBig((frames + 1) * 1044)};
             memcpy(out + 36, "Info", 4);
             memcpy(out + 40, fields, sizeof(fields));
@@ -343,7 +343,7 @@ static inline NSData *VibeMP3WithXingFrame(uint32_t frames, uint8_t (^index)(uin
     const uint8_t header[4] = {0xFF, 0xFB, 0x90, 0x00};
     memcpy(out, header, sizeof(header));
     memcpy(out + 36, "Xing", 4);
-    const uint32_t fields[3] = {CFSwapInt32HostToBig(7), CFSwapInt32HostToBig(frames + 1),
+    const uint32_t fields[3] = {CFSwapInt32HostToBig(7), CFSwapInt32HostToBig(frames),
                                 CFSwapInt32HostToBig((uint32_t)(417 + body.length))};
     memcpy(out + 40, fields, sizeof(fields));
     // Entry i is where i percent of the frames starts, in 256ths of the audio.

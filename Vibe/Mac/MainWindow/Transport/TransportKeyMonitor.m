@@ -193,10 +193,13 @@ static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modif
     if (playerWindow && [controller.window.firstResponder isKindOfClass:[NSTextView class]]) {
         return event;
     }
-    // Dead while collapsed and swallowed whatever is bound: the table keeps
-    // focus off screen, and an unhandled key reaching it wedges its input
-    // context.
+    // Swallowed while collapsed whatever is bound: the table keeps focus off
+    // screen, and an unhandled key reaching it wedges its input context. Up
+    // and Down move the volume then, and repeat while held.
     if (playerWindow && !((MainWindow *)controller.window).isPlaylistShown && VibeIsPlaylistKey(keyCode, mods)) {
+        if (keyCode == kVibeKeyCodeUpArrow || keyCode == kVibeKeyCodeDownArrow) {
+            [controller moveVolumeBySteps:keyCode == kVibeKeyCodeUpArrow ? 1 : -1];
+        }
         return nil;
     }
     // A reserved press passes on too: the arrows are the table's own

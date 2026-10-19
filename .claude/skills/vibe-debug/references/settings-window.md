@@ -7,6 +7,7 @@ The settings verbs in detail: reply keys, how `settings_click` names a control, 
 "$V" --debug-cmd dump_settings_ui             # {pane, paneTitle, panes, controls: [{index, kind, name, label, enabled, rect, alpha, effectiveAlpha, hidden, rowTitle?, rowCaption?, + the live value}], toolbar, window, sheet} — the SELECTED pane only
 "$V" --debug-cmd settings_click "Detect key" on  # {ok, control, kind, action, + the live value} — one control of the selected pane BY NAME, no coordinates
 "$V" --debug-cmd settings_reveal "Show key"   # {ok, control, kind, action: "revealed", + the live value} — scrolls that control's card to the top of the pane and acts on nothing: how a screenshot reaches a long page's lower cards
+"$V" --debug-cmd settings_menu "#89" row Copy  # {ok, control, menuOwner, items, performed?} — the menu a right-click on that control opens (on its row with `row`), its items in dump_menu's shape after the real validateMenuItem: pass; an item, matched as settings_click matches a popup's, runs it, and a disabled one is refused
 "$V" --debug-cmd settings_resize 900 600      # {ok, frame, contentMinSize} — frame read after a layout flush; the request is clamped up to contentMinSize
 "$V" --debug-cmd settings_close               # {ok, open, endedSheet} — ends an attached sheet first
 ```

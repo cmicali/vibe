@@ -7,6 +7,21 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.17-beta1</title>
+<pubDate>Mon, 19 Oct 2026 00:03:37 +0000</pubDate>
+<sparkle:version>322</sparkle:version>
+<sparkle:shortVersionString>1.17-beta1</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* Added mouse/trackpad scrolling and up/down keys to change the volume (when enabled)
+* Added Copy and Paste for colors and fonts in the theme editor's right-click menu
+* Moved the volume slider appearance and behavior settings from themes to Settings > Appearance
+* Fixed 320 kbps MP3s opening slowly
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.17-beta1/Vibe-macOS-arm64-1.17-beta1.zip" length="8906632" type="application/octet-stream" sparkle:edSignature="WkwlSFm+R6OU4Dq2jGlhCC8o5R5k/OQoWQtV+pzXijJ1fMhQbL6b7XutLpibPMz5tqN1S3Oi5H58j3O9ykr1Bg=="/>
+</item>
+<item>
 <title>Vibe 1.16</title>
 <pubDate>Sun, 18 Oct 2026 19:31:42 +0000</pubDate>
 <sparkle:version>320</sparkle:version>
