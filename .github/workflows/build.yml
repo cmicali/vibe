@@ -51,7 +51,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive   # cm_libs/
+          submodules: recursive   # vibe-libs/
 
       - name: Check naming vocabulary
         run: make check-vocabulary
@@ -82,7 +82,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive   # cm_libs/
+          submodules: recursive   # vibe-libs/
 
       - name: Show toolchain
         run: |
@@ -130,7 +130,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive   # cm_libs/
+          submodules: recursive   # vibe-libs/
 
       - name: Check string catalog is in sync
         run: make check-strings
@@ -169,7 +169,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive   # cm_libs/
+          submodules: recursive   # vibe-libs/
 
       - uses: ./.github/actions/setup-xcodegen
 
@@ -214,7 +214,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive   # cm_libs/
+          submodules: recursive   # vibe-libs/
 
       - uses: ./.github/actions/setup-xcodegen
 
@@ -254,7 +254,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          submodules: recursive   # cm_libs/
+          submodules: recursive   # vibe-libs/
 
       - uses: ./.github/actions/setup-xcodegen
 

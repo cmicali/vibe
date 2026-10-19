@@ -2699,7 +2699,11 @@ def ios_op_transport(rng, run):
 
 
 def ios_op_burst(rng, run):
+    # The reply comes before the jumps, which land on later main turns. A
+    # later op's own play_index can land under them, and its row check then
+    # fails on the burst's last jump.
     run.perform({"command": ["burst", "100", str(rng.randrange(2**32))]})
+    run.perform({"check": "progress"})
 
 
 def ios_op_fx(rng, run):

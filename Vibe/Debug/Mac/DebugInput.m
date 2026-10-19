@@ -419,6 +419,49 @@ NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *
     return VibeMouseReply(@"drag", window, start, x1, y1);
 }
 
+// One scroll event at a content point, from the window's own dispatch down.
+// lines, the default, is a wheel's. pixels is a trackpad's precise scroll, and
+// momentum the coast after the fingers lift. dy is the raw delta, before the
+// user's scrolling direction. No activation: a scroll reaches a window that is
+// not key.
+NSString *VibeInjectScroll(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+    NSString *usage = @"usage: scroll <x> <y> <dy> [lines|pixels] [momentum]";
+    double x = 0, y = 0, dy = 0;
+    if (tokens.count < 4 || !VibeParseDouble(tokens[1], &x) || !VibeParseDouble(tokens[2], &y)
+            || !VibeParseDouble(tokens[3], &dy)) {
+        return VibeErrorJSON(@"%@", usage);
+    }
+    BOOL pixels = NO, momentum = NO;
+    for (NSUInteger i = 4; i < tokens.count; i++) {
+        NSString *option = tokens[i].lowercaseString;
+        if ([option isEqualToString:@"pixels"]) {
+            pixels = YES;
+        }
+        else if ([option isEqualToString:@"momentum"]) {
+            momentum = YES;
+        }
+        else if (![option isEqualToString:@"lines"]) {
+            return VibeErrorJSON(@"%@", usage);
+        }
+    }
+    NSWindow *window = controller.window;
+    NSPoint location = VibeWindowPointForContentPoint(window, x, y);
+    CGEventRef cg = CGEventCreateScrollWheelEvent2(NULL, pixels ? kCGScrollEventUnitPixel : kCGScrollEventUnitLine,
+                                                   1, (int32_t)lround(dy), 0, 0);
+    // TRAP: an NSEvent made from a CGEvent has no window. NSApp drops it, and
+    // its locationInWindow is the screen point. So the point is placed to read
+    // as the window point (Quartz's origin is the primary screen's top left),
+    // and the window gets the event directly.
+    CGEventSetLocation(cg, CGPointMake(location.x, NSMaxY(NSScreen.screens.firstObject.frame) - location.y));
+    if (momentum) {
+        CGEventSetIntegerValueField(cg, kCGScrollWheelEventMomentumPhase, kCGMomentumScrollPhaseContinue);
+    }
+    NSEvent *event = [NSEvent eventWithCGEvent:cg];
+    CFRelease(cg);
+    [window sendEvent:event];
+    return VibeMouseReply(@"scroll", window, location, x, y);
+}
+
 // Resolves and hit-tests the real control after activation, in the same
 // main-thread turn that queues the whole gesture. The runner checks the
 // resulting pitch; queued events alone are not a pass.

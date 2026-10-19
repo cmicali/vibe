@@ -22,8 +22,9 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
 
 @implementation SettingsAppearanceViewController {
     NSPopUpButton *_appearancePopUp, *_dockIconPopUp, *_keyNotationPopUp, *_timeDisplayPopUp;
+    NSPopUpButton *_volumeLocationPopUp, *_volumeVisibilityPopUp;
     SettingsRowView *_appearanceRow, *_waveformNormalizeRow;
-    VibeSwitch *_trafficLightsSwitch, *_volumeSliderSwitch, *_waveformNormalizeSwitch;
+    VibeSwitch *_trafficLightsSwitch, *_volumeSliderSwitch, *_volumeLabelsSwitch, *_waveformNormalizeSwitch;
     NSSlider *_waveformGainSlider; // a VibeDetentSlider
     NSTextField *_waveformGainValue;
     VibeSwitch *_timeLabelsSwitch, *_statusIconsSwitch, *_fileInfoSwitch, *_showBPMSwitch,
@@ -40,10 +41,25 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
     [self addItem:STR_MENU_APPEARANCE_DARK value:SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK to:_appearancePopUp];
     _appearanceRow = [SettingsRowView rowWithTitle:STR_SETTINGS_APPEARANCE_LABEL control:_appearancePopUp];
     _trafficLightsSwitch = [self switchWithAction:@selector(toggleTrafficLights:)];
-    _volumeSliderSwitch = [self switchWithAction:@selector(toggleVolumeSlider:)];
     _dockIconPopUp = [self popUpButtonWithWidth:kAppearancePanePopUpWidth action:@selector(dockIconChanged:)];
     [self addItem:STR_SETTINGS_DOCK_ICON_ALBUM_ART value:SETTINGS_VALUE_DOCK_ICON_ALBUM_ART to:_dockIconPopUp];
     [self addItem:STR_SETTINGS_THEME_APP_ICON value:SETTINGS_VALUE_DOCK_ICON_APP_ICON to:_dockIconPopUp];
+
+    _volumeSliderSwitch = [self switchWithAction:@selector(volumeSettingChanged:)];
+    _volumeLocationPopUp = [self popUpButtonWithWidth:kAppearancePanePopUpWidth action:@selector(volumeSettingChanged:)];
+    [self addItem:STR_SETTINGS_VOLUME_LOCATION_BOTTOM value:SETTINGS_VALUE_VOLUME_LOCATION_BOTTOM
+               to:_volumeLocationPopUp];
+    [self addItem:STR_SETTINGS_VOLUME_LOCATION_TOP_RIGHT value:SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT
+               to:_volumeLocationPopUp];
+    _volumeVisibilityPopUp = [self popUpButtonWithWidth:kAppearancePanePopUpWidth
+                                                 action:@selector(volumeSettingChanged:)];
+    [self addItem:STR_SETTINGS_VOLUME_VISIBILITY_ALWAYS value:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS
+               to:_volumeVisibilityPopUp];
+    [self addItem:STR_SETTINGS_VOLUME_VISIBILITY_HOVER_CLOSE value:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE
+               to:_volumeVisibilityPopUp];
+    [self addItem:STR_SETTINGS_VOLUME_VISIBILITY_HOVER_EXACT value:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_EXACT
+               to:_volumeVisibilityPopUp];
+    _volumeLabelsSwitch = [self switchWithAction:@selector(volumeSettingChanged:)];
 
     _waveformNormalizeSwitch = [self switchWithAction:@selector(toggleWaveformNormalize:)];
     _waveformNormalizeRow = [SettingsRowView rowWithTitle:STR_SETTINGS_WAVEFORM_NORMALIZE
@@ -78,7 +94,13 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
             [SettingsRowView rowWithTitle:STR_SETTINGS_DOCK_ICON control:_dockIconPopUp],
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS
                                   caption:STR_SETTINGS_SHOW_TRAFFIC_LIGHTS_CAPTION control:_trafficLightsSwitch],
+        ]],
+        [SettingsSectionView sectionWithHeader:STR_SETTINGS_VOLUME_SECTION rows:@[
             [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_VOLUME_SLIDER control:_volumeSliderSwitch],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_VOLUME_LOCATION caption:STR_SETTINGS_VOLUME_LOCATION_CAPTION
+                                  control:_volumeLocationPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_VOLUME_VISIBILITY control:_volumeVisibilityPopUp],
+            [SettingsRowView rowWithTitle:STR_SETTINGS_SHOW_VOLUME_LABELS control:_volumeLabelsSwitch],
         ]],
         [SettingsSectionView sectionWithHeader:STR_SETTINGS_WAVEFORM_SECTION rows:@[
             _waveformNormalizeRow,
@@ -115,8 +137,11 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
     [_appearanceRow setCaption:single ? [NSString stringWithFormat:STR_SETTINGS_APPEARANCE_SINGLE_THEME_CAPTION,
             [settings displayNameForThemeIdentifier:settings.activeThemeIdentifier]] : nil];
     _trafficLightsSwitch.state = StateForBOOL(settings.showTrafficLights);
-    _volumeSliderSwitch.state = StateForBOOL(settings.volumeControl);
     [self selectValue:settings.dockIcon in:_dockIconPopUp];
+    _volumeSliderSwitch.state = StateForBOOL(settings.volumeControl);
+    [self selectValue:settings.volumeLocation in:_volumeLocationPopUp];
+    [self selectValue:settings.volumeVisibility in:_volumeVisibilityPopUp];
+    _volumeLabelsSwitch.state = StateForBOOL(settings.showVolumeLabels);
 
     _waveformNormalizeSwitch.state = StateForBOOL(settings.waveformNormalize);
     _waveformGainSlider.doubleValue = settings.waveformGainDB;
@@ -153,15 +178,26 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrafficLights];
 }
 
-// Volume pushes effectiveVolume: the slider's position while on, 1 otherwise.
-- (void)toggleVolumeSlider:(id)sender {
-    AppSettings.sharedInstance.volumeControl = (_volumeSliderSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectVolume];
-}
-
 - (void)dockIconChanged:(id)sender {
     AppSettings.sharedInstance.dockIcon = _dockIconPopUp.selectedItem.representedObject;
     [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectAppIcon];
+}
+
+// Only the sender's setting is written, as in trackInfoChanged:. Volume
+// relayouts the control and pushes effectiveVolume: the slider's position
+// while on, 1 otherwise.
+- (void)volumeSettingChanged:(id)sender {
+    AppSettings *settings = AppSettings.sharedInstance;
+    if (sender == _volumeSliderSwitch) {
+        settings.volumeControl = (_volumeSliderSwitch.state == NSControlStateValueOn);
+    } else if (sender == _volumeLocationPopUp) {
+        settings.volumeLocation = _volumeLocationPopUp.selectedItem.representedObject;
+    } else if (sender == _volumeVisibilityPopUp) {
+        settings.volumeVisibility = _volumeVisibilityPopUp.selectedItem.representedObject;
+    } else if (sender == _volumeLabelsSwitch) {
+        settings.showVolumeLabels = (_volumeLabelsSwitch.state == NSControlStateValueOn);
+    }
+    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectVolume];
 }
 
 - (void)toggleWaveformNormalize:(id)sender {

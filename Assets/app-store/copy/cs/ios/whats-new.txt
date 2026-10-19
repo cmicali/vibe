@@ -1,23 +1,22 @@
-* Nové: vlastní prohlížeč souborů Vibe vedle systémového výběru Soubory, s integrovaným Dropboxem: přihlaste se, prohlížejte, vyhledávejte a přehrávejte svůj Dropbox, přičemž přehrávání začne už během stahování skladby
-* Nové: náhodné přehrávání, opakování všech skladeb a opakování jedné skladby, s tlačítky vedle ovládání přehrávání (skryjete je v Nastavení > Vzhled)
-* Nové: přehrávání CUE listů ze souboru .cue nebo z CUE vloženého ve FLAC a playlisty M3U v prohlížeči souborů
-* Nové: přehrávání Ogg Opus, CAF, W64, M4B, M4R a ADTS
-* Nové: posuvník crossfade od vypnuto až po 3 sekundy po desetinách sekundy
-* Nové: styl tvaru vlny 3 pásma
-* Nové: volba, zda tvar vlny vycentrovat (nebo ne)
-* Nové: volba čáry přehrávací hlavy, s celým tvarem vlny v plné barvě
-* Nové: kompaktní rozvržení obrazovky Právě hraje pro nízká okna na iPadu
-* Vylepšení: posun ve FLAC je téměř okamžitý i v dlouhých souborech, s menší zátěží CPU a paměti a lepší kompatibilitou
-* Vylepšení: dekódování WAV a AIFF je rychlejší a lépe kompatibilní
-* Vylepšení: přehrávání využívá méně CPU a energie a tagy i obaly se skenují rychleji
-* Vylepšení: otevírání složek se už nezasekává u pomalých cloudových složek
-* Vylepšení: posouvání a přejíždění mezi skladbami zůstává plynulé, zatímco se načítá tvar vlny
-* Opraveno: crossfade nedělal nic, když jedna skladba přecházela do další; fungoval jen při ruční změně skladby
-* Opraveno: přiblížení tvaru vlny sevřením prstů mohlo způsobit skok přehrávání zpět
-* Opraveno: přejetí zpět na skladbu ukázalo její starou polohu, než skočila na začátek
-* Opraveno: FX pad se po několika změnách skladby někdy otevřel jen tak velký jako jeho kruh
-* Opraveno: 24bitové a 32bitové soubory AIFF-C v little-endian se přehrávaly se špatnou délkou
-* Opraveno: posun v souborech MPEG-2 MP3 s nízkým datovým tokem skončil mírně vedle
-* Opraveno: soubory FLAC, které si délku nezaznamenávají, nezobrazovaly dobu trvání
-* Opraveno: Vibe mohl spadnout při čtení tagů z některých poškozených souborů M4A a MP3
-* Opraveno: Vibe zapisoval diagnostické záznamy do systémového logu
+* Nové: Otevřít URL přehraje webový odkaz nebo odkaz ke sdílení z Dropboxu, Google Drive nebo iCloud Drive a zkopírovaný odkaz přehrajete z panelu Soubory
+* Nové: widgety s tvarem vlny, velký widget, widget na zamčenou obrazovku a widget s obalem přes celou plochu, s tlačítky playlistu, přehrávání a další skladby jako na Macu
+* Nové: styl tvaru vlny Spektrum s barvením Podle sekcí, aby si každá část skladby držela jednu barvu
+* Nové: motivy 3 pásma: Rekord Bin, Dengine a Vlastní barvy
+* Nové: přiblížení tvaru vlny až na jednotlivé vzorky
+* Nové: přehrávání Ogg Vorbis a MP3 ve formátu free-format
+* Nové: obaly alb pro skladby z iCloudu a Dropboxu, které nejsou stažené
+* Nové: stav Načítání do mezipaměti…, když skladba čeká na pomalé síťové úložiště nebo na stahování
+* Nové: ústřední skladba vibe, která se načte při spuštění, dokud nic nepřehrajete ani neotevřete
+* Změna: styly tvaru vlny se přejmenovaly: Základní je nyní Sloupce, Cupertino (základní) je nyní Průběh a čtyři styly Detailní jsou jeden styl s nastavením Typ
+* Změna: Předchozí skladba na první skladbě ji spustí znovu od začátku
+* Změna: čára přehrávací hlavy je mírně průhledná
+* Změna: motiv Cupertino ztmavuje jen obal za tlačítky přehrávání, se světlejším přechodem
+* Vylepšení: přehrávací hlava, přeskakování a motiv widgetu
+* Vylepšení: panel Soubory seskupuje místa pod Umístění
+* Vylepšení: v Nastavení se Na konci skladby a Zobrazení času vybírají přímo na místě a palety 3 pásma jsou pojmenované podle svých barev
+* Vylepšení: přehrávání ze síťových úložišť: přerušené připojení pozastaví přehrávání s hlášením „Připojení bylo ztraceno“, pomalý server už nezdržuje změny skladeb a skladby ve vysokém rozlišení hrají plynule
+* Vylepšení: skladby MP3, FLAC, WAV a AIFF se otevírají rychleji
+* Opraveno: přehrávání bez mezer u mono MP3 a MP3 ve formátu MPEG-2
+* Opraveno: soubory Opus, jejichž hlavička nastavuje hlasitost, hrály se špatnou úrovní
+* Opraveno: poškozený soubor CAF mohl zablokovat skenování metadat
+* Opraveno: starší otevření odkazu mohlo nahradit novější otevření souboru

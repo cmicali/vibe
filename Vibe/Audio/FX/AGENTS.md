@@ -1,6 +1,6 @@
 # DJ FX (the master-bus segment) and the pitch stage
 
-This directory holds the DJ FX (`AudioFX`) and the numbers its toggles resolve to (`AudioFXMath.h`). The pitch fader's stage, `AudioVarispeed`, lives in cm_libs' `audio/DSP` piece. This doc keeps how Vibe hosts it.
+This directory holds the DJ FX (`AudioFX`) and the numbers its toggles resolve to (`AudioFXMath.h`). The pitch fader's stage, `AudioVarispeed`, lives in vibe-libs' `audio/DSP` piece. This doc keeps how Vibe hosts it.
 
 `AudioPlayer` owns one `AudioFX` (readonly `fx`). It has the Q low-kill high-pass with its W double-cutoff boost, and three send-returns: E a long reverb wash, R and T BPM-synced ping-pong delays on 1/8- and 1/16-note taps fed through `delayTapBPM`. The topology and threading are `AudioFX.h`'s preamble. The pipeline's half of the API is `AudioFX+Pipeline.h`: the connect, `markDead`, the chain, the render counters and `VibeFXChainRender`. The traps (MatrixReverb's stale header ranges, the frames per slice a directly hosted unit defaults to, the unit that writes back into a lent input buffer) are `TRAP:` comments in `AudioFX.m`.
 
@@ -26,7 +26,7 @@ Both platforms keep the `AudioFX` object from init, so controls and the BPM feed
 
 ## The pitch fader's stage
 
-**`AudioVarispeed` is the pitch fader's stage, and it is not part of the FX segment.** It is Vibe's own code, not an Apple unit, and it lives in cm_libs: `cm_libs/audio/DSP/`. Its kernel, its edges, its zero-pitch bypass and its standalone tests are documented there (`cm_libs/audio/DSP/AGENTS.md`). Read that before changing the stage, and change it there.
+**`AudioVarispeed` is the pitch fader's stage, and it is not part of the FX segment.** It is Vibe's own code, not an Apple unit, and it lives in vibe-libs: `vibe-libs/audio/DSP/`. Its kernel, its edges, its zero-pitch bypass and its standalone tests are documented there (`vibe-libs/audio/DSP/AGENTS.md`). Read that before changing the stage, and change it there.
 
 **Vibe hosts one per source segment**, before the FX segment, at the bus rate. The pipeline pulls nothing itself and frees what the stage replaced once no render is inside (`Audio/AGENTS.md`). At zero pitch the render skips it, so the track is the file exactly (`testZeroPitchIsBitPerfectAndTogglesAreClickFree`). At zero pitch settled the ring is not written (`varispeedHistoryWrites` in `debugRenderCounts` holds flat).
 

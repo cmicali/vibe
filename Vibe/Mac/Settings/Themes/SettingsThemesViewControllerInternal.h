@@ -104,8 +104,7 @@ static NSString *const kChoiceStandard = @"standard";
     NSStackView *_playlistBackgroundColorsPair;
     NSPopUpButton *_playlistTintPopUp;
     NSStackView *_playlistTintPair;
-    NSPopUpButton *_volumeBarPopUp, *_volumeKnobPopUp, *_volumeLocationPopUp, *_volumeVisibilityPopUp;
-    VibeSwitch *_volumeLabelsSwitch;
+    NSPopUpButton *_volumeBarPopUp, *_volumeKnobPopUp;
     NSStackView *_volumeBarPair, *_volumeKnobPair;
     NSTextField *_titleFontValue, *_artistFontValue, *_infoFontValue, *_playlistFontValue;
     NSTextField *_playlistDurationFontValue;
@@ -143,12 +142,16 @@ static NSString *const kChoiceStandard = @"standard";
 
 #pragma mark - Implemented in SettingsThemesViewController+EditorActions.m
 
-@interface SettingsThemesViewController (EditorActions) <NSFontChanging, NSTextFieldDelegate>
+@interface SettingsThemesViewController (EditorActions) <NSFontChanging, NSMenuItemValidation, NSTextFieldDelegate>
 
 - (void)refreshEditorFromSettings;
 
 // Closes the font panel and deactivates every color well.
 - (void)closeEditorPanels;
+
+// Copy and Paste on every color well and on each color or font row, run once
+// the page is built.
+- (void)addCopyPasteMenusIn:(NSView *)editor;
 
 // resolveLayoutStateFromSettings is implemented here too: every conditional
 // row is the editor's. It ends in applyEditorVisibility.
@@ -169,8 +172,6 @@ static NSString *const kChoiceStandard = @"standard";
 - (void)buttonGradientChanged:(id)sender;
 - (void)volumeBarChanged:(id)sender;
 - (void)volumeKnobChanged:(id)sender;
-- (void)volumeLocationChanged:(id)sender;
-- (void)volumeVisibilityChanged:(id)sender;
 - (void)waveformBarSizingChanged:(NSSlider *)sender;
 - (void)waveformTypeChanged:(id)sender;
 - (void)waveformThemeChanged:(id)sender;

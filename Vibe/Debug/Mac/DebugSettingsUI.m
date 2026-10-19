@@ -12,6 +12,7 @@
 #import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "DebugInternal.h"
 #import "DebugWireFormat.h"
 #import "DrawnControls.h"
 #import "PlatformColor.h"
@@ -497,8 +498,8 @@ static VibeSettingsElement *VibeElementForToken(NSArray<VibeSettingsElement *> *
     return nil;
 }
 
-static NSMenuItem *VibeMenuItemForToken(NSPopUpButton *popUp, NSString *token, NSString **errorJSON) {
-    NSArray<NSMenuItem *> *items = popUp.itemArray;
+static NSMenuItem *VibeMenuItemForToken(NSMenu *menu, NSString *token, NSString **errorJSON) {
+    NSArray<NSMenuItem *> *items = menu.itemArray;
     if ([token hasPrefix:@"#"]) {
         NSScanner *scanner = [NSScanner scannerWithString:[token substringFromIndex:1]];
         NSInteger index = 0;
@@ -507,7 +508,7 @@ static NSMenuItem *VibeMenuItemForToken(NSPopUpButton *popUp, NSString *token, N
             return items[(NSUInteger)index];
         }
         *errorJSON = VibeErrorJSON(@"no item %@ in '%@' (it has %lu)",
-                token, popUp.itemArray.firstObject.title ?: @"", (unsigned long)items.count);
+                token, items.firstObject.title ?: @"", (unsigned long)items.count);
         return nil;
     }
     for (NSUInteger pass = 0; pass < 2; pass++) {
@@ -607,7 +608,7 @@ static NSString *VibeChooseMenuItem(VibeSettingsElement *element, NSString *valu
                 element.name, element.name);
     }
     NSString *errorJSON = nil;
-    NSMenuItem *item = VibeMenuItemForToken(popUp, value, &errorJSON);
+    NSMenuItem *item = VibeMenuItemForToken(popUp.menu, value, &errorJSON);
     if (!item) {
         return errorJSON;
     }
@@ -1003,6 +1004,44 @@ NSString *VibeDebugSettingsReveal(NSArray<NSString *> *tokens) {
     NSView *card = [SettingsSectionView sectionContaining:element.view] ?: element.view;
     [SettingsPaneViewController scrollCardToTop:card animated:NO];
     return VibeClickReply(element, @"revealed");
+}
+
+// A right-click opens the nearest menu up the view chain, since a view with
+// none passes the event to its superview. A disabled control still opens one.
+NSString *VibeDebugSettingsMenu(NSArray<NSString *> *tokens) {
+    BOOL onRow = tokens.count >= 3 && [tokens[2] caseInsensitiveCompare:@"row"] == NSOrderedSame;
+    NSUInteger itemIndex = onRow ? 3 : 2;
+    if (tokens.count < 2 || tokens.count > itemIndex + 1) {
+        return VibeErrorJSON(@"usage: settings_menu <control> [row] [item] — quote names with spaces");
+    }
+    NSString *errorJSON = nil;
+    VibeSettingsElement *element = VibeVisibleSettingsElement(tokens[1], &errorJSON);
+    if (!element) {
+        return errorJSON;
+    }
+    NSView *view = onRow ? element.row : element.view;
+    while (view && !view.menu) {
+        view = view.superview;
+    }
+    NSMenu *menu = view.menu;
+    if (!menu) {
+        return VibeErrorJSON(@"a right-click on '%@' opens no menu", element.name);
+    }
+    NSMutableDictionary *reply = [@{@"ok": @YES, @"control": element.name,
+                                    @"menuOwner": view == element.row ? @"row" : view.className,
+                                    @"items": VibeMenuArray(menu)} mutableCopy];
+    if (tokens.count > itemIndex) {
+        NSMenuItem *item = VibeMenuItemForToken(menu, tokens[itemIndex], &errorJSON);
+        if (!item) {
+            return errorJSON;
+        }
+        if (!item.isEnabled) {
+            return VibeErrorJSON(@"menu item '%@' is disabled", item.title);
+        }
+        [menu performActionForItemAtIndex:[menu indexOfItem:item]];
+        reply[@"performed"] = item.title;
+    }
+    return VibeJSONString(reply);
 }
 
 #endif

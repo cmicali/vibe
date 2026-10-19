@@ -108,7 +108,7 @@ jq -s 'map(select(has("controls")))[0]' /tmp/settings-read-check/replies.jsonl  
 
 ### The settings window
 
-Six verbs of its own: `settings_open`, `dump_settings_ui`, `settings_click`, `settings_reveal`, `settings_resize`, `settings_close`. **Never use `click`, `drag` or the `key*` verbs on it.** The mouse verbs post into the player window, and the key verbs into whichever window is key. Replies, control naming and the kind table are in `references/settings-window.md`. Traps:
+Seven verbs of its own: `settings_open`, `dump_settings_ui`, `settings_click`, `settings_reveal`, `settings_menu`, `settings_resize`, `settings_close`. **Never use `click`, `drag` or the `key*` verbs on it.** The mouse verbs post into the player window, and the key verbs into whichever window is key. Replies, control naming and the kind table are in `references/settings-window.md`. Traps:
 
 - A `settings_click` that changes a pane's height starts the 0.12 s coordinated resize. Wait 0.2 s before asserting frames. `paneFillsTabView` is the collapsed-pane oracle, since `dump_settings_ui` still reports plausible rects while nothing can be clicked.
 - **A sheet blocks everything behind it.** `settings_click` refuses and `dump_settings_ui` reports `sheet`. Only `settings_close` clears it. Add Folder, Add Common Folder, an editor image preview click and Set Vibe as Default Music Player raise system panels no verb can dismiss. Leave them to a human.

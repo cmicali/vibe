@@ -23,7 +23,7 @@
 
 #import "HelperMacros.h"
 
-// The log macros and the realtime-effects brackets (cm_libs/core/Common).
+// The log macros and the realtime-effects brackets (vibe-libs/core/Common).
 #import "CMMMacros.h"
 
 // Frame-budget instrumentation, DEBUG only. An interval lands in Instruments'
