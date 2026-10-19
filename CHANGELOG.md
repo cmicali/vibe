@@ -1,5 +1,7 @@
 # v1.17
 
+* Changed MP3, FLAC, WAV, AIFF and Ogg Vorbis files to always play with Vibe's own decoders
+* Improved playback of Ogg Vorbis files that also carry video or a Skeleton stream
 * mac: Added mouse/trackpad scrolling and up/down keys to change the volume (when enabled)
 * mac: Moved the volume slider appearance and behavior settings from themes to Settings > Appearance
 * mac: Added Copy and Paste for colors and fonts in the theme editor's right-click menu

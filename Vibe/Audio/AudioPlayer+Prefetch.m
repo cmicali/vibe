@@ -291,13 +291,12 @@
         VibePlaybackRequest *request = strongSelf.pendingRequest.currentRequest;
         if (request && [key isEqualToString:request.track.sourceKey]) {
             // A play of this track is waiting on its own claim. Deliver on
-            // success only, and never under a decoder choice since changed,
-            // which the play's own open reflects; whichever result consumes
-            // the request first detaches the other.
+            // success only. Whichever result consumes the request first
+            // detaches the other.
             if (prefetchGeneration == strongSelf->_prefetchGeneration) {
                 [strongSelf clearPrefetchOnQueue];
             }
-            if (file && file.length > 0 && !file.decoderChoiceIsStale) {
+            if (file && file.length > 0) {
                 [strongSelf finishPlayOnQueueWithFile:file error:error openRequestId:request.identifier];
             }
             return;
@@ -305,14 +304,7 @@
         if (prefetchGeneration != strongSelf->_prefetchGeneration) {
             return; // a newer prefetch target, or an adoption, superseded this open
         }
-        if (file.decoderChoiceIsStale) {
-            // The decoder changed while this open ran, and a re-prefetch of
-            // its track joined the run instead of restarting it. It has
-            // settled now, so this opens under the current choice.
-            [strongSelf clearPrefetchOnQueue];
-            [strongSelf prefetchOnQueue:track];
-        }
-        else if (file && file.length > 0) {
+        if (file && file.length > 0) {
             strongSelf->_prefetchedFile = file;
             [strongSelf maybeArmSuccessorOnQueue];
         }

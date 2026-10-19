@@ -209,11 +209,6 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (BOOL)allowBitPerfectOnAnyDevice;
 - (void)setAllowBitPerfectOnAnyDevice:(BOOL)allowed;
 
-// AudioFileHandle.appleMPEGDecoder's stored value, default NO (dr_mp3).
-// Changes request VibeSettingsLiveEffectMP3Decoder.
-- (BOOL)appleMPEGDecoder;
-- (void)setAppleMPEGDecoder:(BOOL)apple;
-
 #if VIBE_DIRECT_DISTRIBUTION
 // Whether the updater also offers the feed's beta channel. Compiled out of
 // the Mac App Store build. Default YES in a beta build (VIBE_BETA_DEBUG),
