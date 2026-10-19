@@ -1,23 +1,22 @@
-* Nieuw: Vibe's eigen bestandsbrowser naast de Bestanden-kiezer van het systeem, met Dropbox ingebouwd: log in om je Dropbox te bladeren, te doorzoeken en af te spelen, waarbij het afspelen begint terwijl een nummer wordt gedownload
-* Nieuw: shuffle, alles herhalen en één herhalen, met knoppen naast de afspeelknoppen (verberg ze in Instellingen > Uiterlijk)
-* Nieuw: afspelen van cuesheets, vanuit een .cue-bestand of een in een FLAC ingebed bestand, en M3U-afspeellijsten in de bestandsbrowser
-* Nieuw: afspelen van Ogg Opus, CAF, W64, M4B, M4R en ADTS
-* Nieuw: een crossfade-schuifregelaar, van uit tot 3 seconden in tienden van een seconde
-* Nieuw: de golfvormstijl 3-bands
-* Nieuw: optie om golfvormen te centreren (of niet)
-* Nieuw: een optie voor een afspeelkoplijn, met de hele golfvorm in volle kleur
-* Nieuw: compacte weergaven van Huidig nummer voor lage iPad-vensters
-* Verbeterd: spoelen in FLAC gaat bijna direct, ook in lange bestanden, met minder CPU- en geheugengebruik en betere compatibiliteit
-* Verbeterd: WAV- en AIFF-decodering is sneller, met betere compatibiliteit
-* Verbeterd: afspelen gebruikt minder CPU en energie en tags en illustraties worden sneller gescand
-* Verbeterd: het openen van mappen loopt niet meer vast op trage cloudmappen
-* Verbeterd: scrubben en vegen tussen nummers blijft soepel terwijl een golfvorm wordt geladen
-* Opgelost: crossfade deed niets als het ene nummer in het volgende overging; hij werkte alleen als je zelf van nummer wisselde
-* Opgelost: inzoomen op de golfvorm met twee vingers kon het afspelen terug laten springen
-* Opgelost: terugvegen naar een nummer toonde eerst de oude positie voordat het naar het begin sprong
-* Opgelost: het FX-pad opende na een paar nummerwissels soms niet groter dan zijn cirkel
-* Opgelost: 24- en 32-bits little-endian AIFF-C-bestanden werden met de verkeerde lengte afgespeeld
-* Opgelost: spoelen in MPEG-2 MP3-bestanden met een lage bitrate kwam net iets ernaast uit
-* Opgelost: FLAC-bestanden die hun lengte niet vastleggen, toonden geen duur
-* Opgelost: Vibe kon crashen bij het lezen van tags uit bepaalde beschadigde M4A- en MP3-bestanden
-* Opgelost: Vibe schreef diagnostische logging naar het systeemlogboek
+* Nieuw: ‘Open URL’ speelt een weblink af, of een deellink van Dropbox, Google Drive of iCloud Drive, en een gekopieerde link speel je af vanuit het tabblad Bestanden
+* Nieuw: widgets voor golfvorm, groot, toegangsscherm en illustratie tot de rand, met de knoppen voor afspeellijst, afspelen en volgende van de Mac
+* Nieuw: de golfvormstijl Spectrum, met de kleuring ‘Per sectie’, zodat elk deel van een nummer één kleur houdt
+* Nieuw: de 3-bands-thema’s Rekord Bin, Dengine en Aangepaste kleuren
+* Nieuw: zoom de golfvorm helemaal in tot op de samples
+* Nieuw: afspelen van Ogg Vorbis en free-format MP3
+* Nieuw: albumillustraties voor iCloud- en Dropbox-nummers die niet zijn gedownload
+* Nieuw: een status ‘Bufferen…’ terwijl een nummer wacht op een trage netwerkshare of download
+* Nieuw: het vibe-themanummer, dat bij het opstarten wordt geladen tot je iets afspeelt of opent
+* Gewijzigd: de golfvormstijlen hebben nieuwe namen: ‘Eenvoudig’ heet nu ‘Balken’, ‘Cupertino (eenvoudig)’ heet nu ‘Voortgang’ en de vier ‘Gedetailleerd’-stijlen zijn er nu één met een instelling ‘Type’
+* Gewijzigd: ‘Vorig nummer’ op het eerste nummer start dat nummer opnieuw
+* Gewijzigd: de afspeelkoplijn is iets doorzichtig
+* Gewijzigd: het Cupertino-thema maakt alleen de hoes achter de afspeelknoppen donkerder, met een lichter verloop
+* Verbeterd: de afspeelkop, de sprongen en het thema van de widget
+* Verbeterd: het tabblad Bestanden groepeert plekken onder ‘Locaties’
+* Verbeterd: in Instellingen kies je ‘Aan het einde van het nummer’ en ‘Tijdweergave’ ter plekke, en de 3-bands-paletten zijn naar hun kleuren genoemd
+* Verbeterd: afspelen via netwerkshares: een verbroken verbinding pauzeert met ‘Verbinding verbroken’, een trage server houdt nummerwissels niet meer op en hi-res nummers spelen soepel af
+* Verbeterd: MP3-, FLAC-, WAV- en AIFF-nummers openen sneller
+* Opgelost: naadloos afspelen van mono- en MPEG-2-MP3’s
+* Opgelost: Opus-bestanden waarvan de header een volume instelt, speelden op het verkeerde niveau af
+* Opgelost: een beschadigd CAF-bestand kon de metadatascan laten vastlopen
+* Opgelost: een oudere geopende link kon een nieuwer geopend bestand vervangen

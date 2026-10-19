@@ -99,6 +99,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeDebugCmd(@"settings_reveal <control>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsReveal(tokens);
             }),
+            VibeDebugCmd(@"settings_menu <control> [row] [item]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeDebugSettingsMenu(tokens);
+            }),
             VibeDebugCmd(@"settings_resize <width> <height>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsResize(tokens);
             }),
@@ -228,6 +231,9 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             }),
             VibeDebugCmd(@"drag <x1> <y1> <x2> <y2> [steps]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectDrag(controller, tokens);
+            }),
+            VibeDebugCmd(@"scroll <x> <y> <dy> [lines|pixels] [momentum]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
+                return VibeInjectScroll(controller, tokens);
             }),
             VibeDebugCmd(@"key <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeInjectKey(controller, tokens, YES, YES);

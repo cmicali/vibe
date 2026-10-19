@@ -1,23 +1,22 @@
-* Nytt: Vibes egen filbehandler ved siden av systemets Filer-velger, med Dropbox innebygd: logg inn for å bla gjennom, søke i og spille av Dropbox, og avspillingen starter mens et spor lastes ned
-* Nytt: bland, gjenta alle og gjenta én, med knapper ved siden av avspillingskontrollene (skjul dem i Innstillinger > Utseende)
-* Nytt: avspilling av CUE-ark, fra en .cue-fil eller en som er innebygd i en FLAC, og M3U-spillelister i filbehandleren
-* Nytt: avspilling av Ogg Opus, CAF, W64, M4B, M4R og ADTS
-* Nytt: en crossfade-glidebryter, fra av og opptil 3 sekunder i tideler av et sekund
-* Nytt: bølgeformstilen 3-bånd
-* Nytt: valg for å sentrere bølgeformer (eller ikke)
-* Nytt: et valg for linje for avspillingshode, med hele bølgeformen i full farge
-* Nytt: kompakte Spilles nå-oppsett for lave iPad-vinduer
-* Forbedret: FLAC-spoling er nesten umiddelbar selv i lange filer, med lavere CPU- og minnebruk og bedre kompatibilitet
-* Forbedret: dekoding av WAV og AIFF er raskere, med bedre kompatibilitet
-* Forbedret: avspilling bruker mindre CPU og energi, og tagger og bilder skannes raskere
-* Forbedret: åpning av mapper stopper ikke lenger opp på trege skymapper
-* Forbedret: skrubbing og sveiping mellom spor går jevnt mens en bølgeform lastes inn
-* Rettet: crossfade gjorde ingenting når ett spor gikk over i det neste; den virket bare når du byttet spor for hånd
-* Rettet: klyping for å zoome bølgeformen kunne få avspillingen til å hoppe tilbake
-* Rettet: sveiping tilbake til et spor viste den gamle posisjonen før det hoppet til starten
-* Rettet: FX-padden åpnet seg av og til ikke større enn sirkelen etter noen sporbytter
-* Rettet: 24- og 32-biters little-endian AIFF-C-filer ble spilt av med feil lengde
-* Rettet: hopp i MP3-filer med lav bitrate (MPEG-2) landet litt ved siden av
-* Rettet: FLAC-filer som ikke registrerer lengden sin, viste ingen varighet
-* Rettet: Vibe kunne krasje ved lesing av tagger fra enkelte ugyldige M4A- og MP3-filer
-* Rettet: Vibe skrev diagnoselogging til systemloggen
+* Nytt: Åpne URL spiller av en nettlenke eller en delingslenke fra Dropbox, Google Drive eller iCloud Drive, og en kopiert lenke spilles av fra Filer-fanen
+* Nytt: widgeter for bølgeform, stor størrelse, låseskjermen og heldekkende albumbilde, med knappene for spilleliste, avspilling og neste fra Mac-appen
+* Nytt: bølgeformstilen Spektrum, med fargelegging Etter seksjon, slik at hver del av en sang beholder én farge
+* Nytt: 3-bånd-temaene Rekord Bin, Dengine og Tilpassede farger
+* Nytt: zoom bølgeformen helt ned til samplene
+* Nytt: avspilling av Ogg Vorbis og MP3 i fritt format
+* Nytt: albumbilder for iCloud- og Dropbox-sanger som ikke er lastet ned
+* Nytt: statusen Bufrer… mens en sang venter på en treg nettverksdeling eller nedlasting
+* Nytt: vibe-temasporet, som lastes inn ved oppstart til du spiller av eller åpner noe
+* Endret: bølgeformstilene har fått nye navn: Enkel heter nå Søyler, Cupertino (enkel) heter nå Fremdrift, og de fire Detaljert-stilene er nå én stil med en Type-innstilling
+* Endret: Forrige spor på den første sangen starter den på nytt
+* Endret: linjen for avspillingshodet er litt gjennomsiktig
+* Endret: Cupertino-temaet gjør bare omslaget bak avspillingsknappene mørkere, med en lysere overgang
+* Forbedret: avspillingshodet, hoppene og temaet i widgeten
+* Forbedret: Filer-fanen samler stedene under Steder
+* Forbedret: i Innstillinger velger du Når sporet er ferdig og Tidsvisning direkte, og 3-bånd-palettene har navn etter fargene sine
+* Forbedret: avspilling fra nettverksdelinger: et brudd i forbindelsen setter avspillingen på pause med «Forbindelsen ble brutt», en treg server stopper ikke lenger sporbytter, og hi-res-sanger spilles jevnt
+* Forbedret: MP3-, FLAC-, WAV- og AIFF-sanger åpnes raskere
+* Rettet: sømløs avspilling av mono- og MPEG-2-MP3-filer
+* Rettet: Opus-filer der headeren angir et volum, ble spilt av med feil nivå
+* Rettet: en skadet CAF-fil kunne stoppe metadataskanningen
+* Rettet: en eldre lenke som ble åpnet, kunne erstatte en nyere fil som ble åpnet

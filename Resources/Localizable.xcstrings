@@ -23624,7 +23624,7 @@
       "extractionState": "manual"
     },
     "menu.edit.copy": {
-      "comment": "Edit menu item, ⌘C: copies the selected text in a text field, or otherwise puts the current track's audio file on the clipboard, ready to paste in the Finder. macOS uses this same name in every app. The playlist row menu's 'Copy File' is a separate string.",
+      "comment": "Edit menu item, ⌘C: copies the selected text in a text field, or otherwise puts the current track's audio file on the clipboard, ready to paste in the Finder. It also copies a color or font of the theme editor as text, from its right-click menu. macOS uses this same name in every app. The playlist row menu's 'Copy File' is a separate string.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -24554,7 +24554,7 @@
       "extractionState": "manual"
     },
     "menu.edit.paste": {
-      "comment": "Edit menu item: pastes text into a text field, such as the Open URL address. macOS uses this same name in every app.",
+      "comment": "Edit menu item: pastes text into a text field, such as the Open URL address. It also pastes a color or font onto a row of the theme editor, from its right-click menu. macOS uses this same name in every app.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -45944,7 +45944,7 @@
       "extractionState": "manual"
     },
     "settings.advanced.engine_section": {
-      "comment": "Settings, Advanced pane: heading above Playhead refresh, Allow bit-perfect on any device and MP3 decoder.",
+      "comment": "Settings, Advanced pane: heading above Playhead refresh and Allow bit-perfect on any device.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -47240,564 +47240,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "維護"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.advanced.mp3_decoder.apple": {
-      "comment": "Settings, Advanced pane, MP3 decoder choice: the decoder built into macOS. Apple is a product name and is not translated; translate only 'built-in'.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вграден от Apple"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vestavěný od Applu"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apples indbyggede"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple integriert"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ενσωματωμένος της Apple"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple built-in"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Integrado de Apple"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Applen sisäänrakennettu"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple intégré"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Appleov ugrađeni"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple beépített"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bawaan Apple"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Integrato di Apple"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple内蔵"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple 내장"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apples innebygde"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple ingebouwd"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wbudowany Apple"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Integrado da Apple"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Integrado da Apple"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Integrat Apple"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Встроенный Apple"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vstavaný od Apple"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apples inbyggda"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ในตัวของ Apple"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple yerleşik"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вбудований Apple"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tích hợp của Apple"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple 内置"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apple 內建"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.advanced.mp3_decoder.dr_mp3": {
-      "comment": "Settings, Advanced pane, MP3 decoder choice, the default: Vibe's own decoder, the more accurate of the two. Vibe is a product name; translate only 'recommended'.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (препоръчително)"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (doporučeno)"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (anbefalet)"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (empfohlen)"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (συνιστάται)"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (recommended)"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (recomendado)"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (suositeltu)"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (recommandé)"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (preporučeno)"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (ajánlott)"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (disarankan)"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (consigliato)"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe（推奨）"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe(권장)"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (anbefalt)"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (aanbevolen)"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (zalecany)"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (recomendado)"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (recomendado)"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (recomandat)"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (рекомендуется)"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (odporúčané)"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (rekommenderas)"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (แนะนำ)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (önerilen)"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (рекомендовано)"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe (khuyên dùng)"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe（推荐）"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vibe（建議）"
-          }
-        }
-      },
-      "extractionState": "manual"
-    },
-    "settings.advanced.mp3_decoder_label": {
-      "comment": "Settings, Advanced pane: label beside the dropdown choosing which decoder turns MP3 and MP2 files into audio. Its two choices name the decoders Apple and dr_mp3. Ends with a colon.",
-      "localizations": {
-        "bg": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3 декодер:"
-          }
-        },
-        "cs": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dekodér MP3:"
-          }
-        },
-        "da": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3-dekoder:"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3-Decoder:"
-          }
-        },
-        "el": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Αποκωδικοποιητής MP3:"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3 decoder:"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Decodificador MP3:"
-          }
-        },
-        "fi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3-dekooderi:"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Décodeur MP3 :"
-          }
-        },
-        "hr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3 dekoder:"
-          }
-        },
-        "hu": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3-dekóder:"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dekoder MP3:"
-          }
-        },
-        "it": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Decoder MP3:"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3デコーダ:"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3 디코더:"
-          }
-        },
-        "nb": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3-dekoder:"
-          }
-        },
-        "nl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3-decoder:"
-          }
-        },
-        "pl": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dekoder MP3:"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Decodificador MP3:"
-          }
-        },
-        "pt-PT": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Descodificador MP3:"
-          }
-        },
-        "ro": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Decodor MP3:"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Декодер MP3:"
-          }
-        },
-        "sk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dekodér MP3:"
-          }
-        },
-        "sv": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3-avkodare:"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ตัวถอดรหัส MP3:"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3 kod çözücü:"
-          }
-        },
-        "uk": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Декодер MP3:"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bộ giải mã MP3:"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3 解码器："
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "MP3 解碼器："
           }
         }
       },
@@ -54500,7 +53942,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.show_volume_slider": {
-      "comment": "Settings, Appearance pane, Window group: switch, off by default, that adds a volume slider to the player window. Where it sits and how it looks is the theme's Volume slider group. Off, playback is always at full volume.",
+      "comment": "Settings, Appearance pane, Volume group: switch, off by default, that adds a volume slider to the player window. The rows under it say where it sits and when it shows. Off, playback is always at full volume.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -69380,7 +68822,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.jump.volume": {
-      "comment": "Theme editor: segment of the jump bar that scrolls to the Volume slider card. One short word.",
+      "comment": "Theme editor: segment of the jump bar that scrolls to the Volume card. One short word.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -74774,7 +74216,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.show_volume_labels": {
-      "comment": "Theme editor, Volume slider group: switch that shows or hides the text around the slider — 'Vol' before it and the percentage after it. On by default. Match the other 'Show …' switches in the editor.",
+      "comment": "Settings, Appearance pane, Volume group: switch that shows or hides the text around the volume slider — 'Vol' before it and the percentage after it. On by default. Match the other 'Show …' switches.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75146,7 +74588,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_bar": {
-      "comment": "Theme editor, Volume slider group: row beside the dropdown choosing the color of the volume slider's bar, the filled part of its track — none (the standard system slider), the artwork color, the waveform color, or a custom color. Pairs with 'Knob'.",
+      "comment": "Theme editor, Volume group: row beside the dropdown choosing the color of the volume slider's bar, the filled part of its track — none (the standard system slider), the artwork color, the waveform color, or a custom color. Pairs with 'Knob'.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75332,7 +74774,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_knob": {
-      "comment": "Theme editor, Volume slider group: row beside the dropdown choosing the color of the volume slider's knob, the pill you drag — none (the standard white knob), the bar's color, the artwork color, the waveform color, or a custom color. Pairs with 'Bar'.",
+      "comment": "Theme editor, Volume group: row beside the dropdown choosing the color of the volume slider's knob, the pill you drag — none (the standard white knob), the bar's color, the artwork color, the waveform color, or a custom color. Pairs with 'Bar'.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75704,7 +75146,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location": {
-      "comment": "Theme editor, Volume slider group: row beside the dropdown choosing where the volume slider sits in the player window.",
+      "comment": "Settings, Appearance pane, Volume group: row beside the dropdown choosing where the volume slider sits in the player window.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -75890,7 +75332,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.bottom": {
-      "comment": "Theme editor, volume slider location choice: between the elapsed and total time labels, below the waveform.",
+      "comment": "Settings, volume slider location choice: between the elapsed and total time labels, below the waveform.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76076,7 +75518,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.caption": {
-      "comment": "Theme editor: explains the top-right slider location. When the slider appears it replaces the track information. The Show setting controls its visibility.",
+      "comment": "Settings, Appearance pane: explains the top-right slider location. When the slider appears it replaces the track information. The Show setting controls its visibility.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76262,7 +75704,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_location.top_right": {
-      "comment": "Theme editor: places the slider in the player's top-right corner. It replaces track information when visible. The default.",
+      "comment": "Settings, volume slider location choice: places the slider in the player's top-right corner. It replaces track information when visible. The default.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -76448,7 +75890,7 @@
       "extractionState": "manual"
     },
     "settings.appearance.theme.volume_visibility": {
-      "comment": "Theme editor, Volume slider group: dropdown for when the volume slider shows. A verb, like the other 'Show' rows.",
+      "comment": "Settings, Appearance pane, Volume group: dropdown for when the volume slider shows. A verb, like the other 'Show' rows.",
       "localizations": {
         "bg": {
           "stringUnit": {
@@ -79982,186 +79424,186 @@
       "extractionState": "manual"
     },
     "settings.appearance.volume_section": {
-      "comment": "Theme editor: heading above the player window's volume slider rows — its bar and knob colors, its labels and where it sits.",
+      "comment": "Settings, Appearance pane: heading above the app-wide volume slider switch, its place, when it shows and its labels; theme editor: heading above the slider's bar and knob colors.",
       "localizations": {
         "bg": {
           "stringUnit": {
             "state": "translated",
-            "value": "Плъзгач за звука"
+            "value": "Сила на звука"
           }
         },
         "cs": {
           "stringUnit": {
             "state": "translated",
-            "value": "Posuvník hlasitosti"
+            "value": "Hlasitost"
           }
         },
         "da": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lydstyrkeskyder"
+            "value": "Lydstyrke"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lautstärkeregler"
+            "value": "Lautstärke"
           }
         },
         "el": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ρυθμιστικό έντασης"
+            "value": "Ένταση"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volume slider"
+            "value": "Volume"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Control deslizante de volumen"
+            "value": "Volumen"
           }
         },
         "fi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Äänenvoimakkuuden liukusäädin"
+            "value": "Äänenvoimakkuus"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Curseur de volume"
+            "value": "Volume"
           }
         },
         "hr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klizač glasnoće"
+            "value": "Glasnoća"
           }
         },
         "hu": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hangerőcsúszka"
+            "value": "Hangerő"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Penggeser volume"
+            "value": "Volume"
           }
         },
         "it": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cursore del volume"
+            "value": "Volume"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "音量スライダー"
+            "value": "音量"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "볼륨 슬라이더"
+            "value": "볼륨"
           }
         },
         "nb": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volumskyveknapp"
+            "value": "Volum"
           }
         },
         "nl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volumeschuifknop"
+            "value": "Volume"
           }
         },
         "pl": {
           "stringUnit": {
             "state": "translated",
-            "value": "Suwak głośności"
+            "value": "Głośność"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Controle deslizante de volume"
+            "value": "Volume"
           }
         },
         "pt-PT": {
           "stringUnit": {
             "state": "translated",
-            "value": "Controlo de deslize do volume"
+            "value": "Volume"
           }
         },
         "ro": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glisor de volum"
+            "value": "Volum"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ползунок громкости"
+            "value": "Громкость"
           }
         },
         "sk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Posúvač hlasitosti"
+            "value": "Hlasitosť"
           }
         },
         "sv": {
           "stringUnit": {
             "state": "translated",
-            "value": "Volymreglage"
+            "value": "Volym"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แถบเลื่อนระดับเสียง"
+            "value": "ระดับเสียง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ses düzeyi sürgüsü"
+            "value": "Ses düzeyi"
           }
         },
         "uk": {
           "stringUnit": {
             "state": "translated",
-            "value": "Повзунок гучності"
+            "value": "Гучність"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thanh trượt âm lượng"
+            "value": "Âm lượng"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "音量滑块"
+            "value": "音量"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "音量滑桿"
+            "value": "音量"
           }
         }
       },

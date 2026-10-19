@@ -2,12 +2,12 @@
   "flac": {
     "title": "IETF CELLAR FLAC test files",
     "source": "github.com/ietf-wg-cellar/flac-test-files aa7b0c6cf329",
-    "checked": "2026-10-17",
+    "checked": "2026-10-18",
     "groups": {
       "faulty": {
         "files": 11,
-        "decoded": 9,
-        "refused": 2,
+        "decoded": 8,
+        "refused": 3,
         "valid": 0,
         "exact": 0,
         "warnings": 3,
@@ -41,7 +41,7 @@
   "mp3-iso": {
     "title": "ISO/IEC 14496-26 Layer III conformance",
     "source": "standards.iso.org 14496-26 ed. 2 (2023-01-25)",
-    "checked": "2026-10-17",
+    "checked": "2026-10-18",
     "groups": {
       "": {
         "files": 40,
@@ -60,7 +60,7 @@
   "fate": {
     "title": "FFmpeg FATE audio samples",
     "source": "fate-suite.ffmpeg.org, aac, audio-reference, audiomatch, caf, cover_art, gapless, id3v2, lossless-audio, mp3-conformance, mpegaudio, ogg, ogg-flac, ogg-opus, ogg-vorbis, opus, vorbis, w64, wav",
-    "checked": "2026-10-17",
+    "checked": "2026-10-18",
     "groups": {
       "aac": {
         "files": 48,
@@ -242,12 +242,12 @@
   "wav": {
     "title": "McGill WAVE and AIFF samples, EBU BW64 tests",
     "source": "mmsp.ece.mcgill.ca, ebu/libbw64 d3dae5c74dea",
-    "checked": "2026-10-17",
+    "checked": "2026-10-18",
     "groups": {
       "bw64": {
         "files": 10,
-        "decoded": 7,
-        "refused": 3,
+        "decoded": 6,
+        "refused": 4,
         "valid": 0,
         "exact": 0,
         "warnings": 0,
@@ -256,8 +256,8 @@
       },
       "mcgill-aiff": {
         "files": 27,
-        "decoded": 23,
-        "refused": 4,
+        "decoded": 22,
+        "refused": 5,
         "valid": 0,
         "exact": 0,
         "warnings": 0,
@@ -281,7 +281,7 @@
   "browser": {
     "title": "Chromium and Firefox media tests",
     "source": "chromium e21a6b229410, firefox d0e0fc69c10b",
-    "checked": "2026-10-17",
+    "checked": "2026-10-18",
     "groups": {
       "chromium": {
         "files": 206,
@@ -295,11 +295,11 @@
       },
       "firefox": {
         "files": 287,
-        "decoded": 135,
-        "refused": 152,
+        "decoded": 130,
+        "refused": 157,
         "valid": 0,
         "exact": 0,
-        "warnings": 13,
+        "warnings": 7,
         "known": 0,
         "failures": 0
       }
@@ -310,15 +310,15 @@
   "taglib": {
     "title": "TagLib test data",
     "source": "taglib v2.3.2",
-    "checked": "2026-10-17",
+    "checked": "2026-10-18",
     "groups": {
       "": {
         "files": 71,
-        "decoded": 55,
-        "refused": 16,
+        "decoded": 54,
+        "refused": 17,
         "valid": 0,
         "exact": 0,
-        "warnings": 2,
+        "warnings": 1,
         "known": 0,
         "failures": 0
       }

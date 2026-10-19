@@ -472,9 +472,13 @@ static BOOL VibeITunesGapless(AudioFileHandle *handle, SInt64 end, SInt64 *primi
     // for tags after it, and either count gives each frame a size a frame of
     // the stream can have. A damaged count of one frame played one frame, and
     // a header kept from a shorter stream stopped short.
+    // TRAP: the bytes include the Xing, Info or VBRI frame itself, and the
+    // count does not. Counted against the frames, they failed every 320 kbps
+    // file at 44.1 kHz under 4.5 minutes, and its open walked every frame.
     SInt64 audio = end - first, slack = MAX((SInt64)kVibeMPEGTrailingBytes, audio / 16), bytes = statedBytes ?: audio;
+    SInt64 counted = bytes - (vbr ? frame.bytes : 0);
     BOOL fits = stated > 0 && statedBytes <= audio && (!statedBytes || audio - statedBytes <= slack)
-            && bytes >= stated * frame.smallest && bytes <= stated * frame.largest + (statedBytes ? 0 : slack);
+            && counted >= stated * frame.smallest && counted <= stated * frame.largest + (statedBytes ? 0 : slack);
     if (fits) {
         packets = stated;
     } else if (_availability.partURL && (estimate = [self estimateMPEGPacketsAtRate:frame.rate]) > 0 && !_mpegWalkEnded) {

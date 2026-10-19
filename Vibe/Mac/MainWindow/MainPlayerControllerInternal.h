@@ -92,7 +92,7 @@ NS_ASSUME_NONNULL_BEGIN
 // re-entered nor undone before its files land.
 @property (nonatomic, readonly, getter=isFileMoveInFlight) BOOL fileMoveInFlight;
 
-// A same-track replay's resume hint (the convert swap, an MP3 decoder change),
+// A same-track replay's resume hint (the convert swap),
 // so Now Playing in its Loading gap shows the resume position rather than 0.
 // Written at the replay, read gated on
 // track identity, cleared by the per-track refresh. Weak, so a replaced

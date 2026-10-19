@@ -1,25 +1,27 @@
-* Nouveau : lecture aléatoire, répétition de tout et répétition d’un morceau, dans le menu Lecture (⌥⌘S, ⌘R), avec leurs icônes sur la ligne d’infos du fichier
-* Nouveau : lecture des feuilles CUE, depuis un fichier .cue ou une feuille intégrée à un FLAC
-* Nouveau : lecture d’Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R et ADTS
-* Nouveau : un volet Raccourcis clavier dans Réglages pour modifier n’importe quel raccourci
-* Nouveau : un curseur de crossfade, de désactivé jusqu’à 3 secondes par dixièmes de seconde
-* Nouveau : style de forme d’onde 3 bandes personnalisable et deux thèmes qui l’utilisent
-* Nouveau : option pour centrer (ou non) les formes d’onde
-* Nouveau : une option de ligne de la tête de lecture, avec toute la forme d’onde en pleine couleur
-* Modifié : la fenêtre Réglages est réorganisée, avec une recherche
-* Amélioré : la navigation dans un FLAC est quasi instantanée, même dans les longs fichiers, avec moins de CPU et de mémoire, et une meilleure compatibilité
-* Amélioré : le décodage WAV et AIFF est de 1,4x–3,2x plus rapide, avec une meilleure compatibilité
-* Amélioré : la lecture utilise 20–30 % de CPU et 15–25 % d’énergie en moins
-* Amélioré : l’analyse des tags et des illustrations est 2x plus rapide, et l’analyse de la bibliothèque utilise 20 % de CPU en moins
-* Amélioré : lancement plus rapide, grandes listes de lecture M3U et modification des très grandes listes de lecture
-* Amélioré : « Définir Vibe par défaut » prend aussi en charge les fichiers CUE et M3U, et continue si vous refusez un type de fichier
-* Corrigé : le crossfade ne faisait rien quand un morceau enchaînait le suivant ; il ne fonctionnait qu’en changeant de morceau à la main
-* Corrigé : les raccourcis à une seule touche ne fonctionnaient pas sur les claviers AZERTY, grecs, cyrilliques et autres claviers non américains
-* Corrigé : les barres de la forme d’onde ondulaient pendant le redimensionnement de la fenêtre
-* Corrigé : les fichiers AIFF-C little-endian 24 et 32 bits étaient lus avec une mauvaise durée
-* Corrigé : les positionnements dans les fichiers MP3 MPEG-2 à faible débit tombaient légèrement à côté
-* Corrigé : les fichiers FLAC qui n’enregistrent pas leur durée n’en affichaient aucune
-* Corrigé : Vibe pouvait planter en lisant les tags de certains fichiers M4A et MP3 mal formés
-* Corrigé : « Convertir en FLAC » ajoutait un clic à chaque crête pleine échelle d’un fichier flottant
-* Corrigé : ouvrir une feuille CUE ou une liste M3U dont tous les fichiers sont introuvables ne faisait rien ; Vibe indique maintenant qu’il n’a pas pu les ouvrir
-* Corrigé : Vibe écrivait des journaux de diagnostic dans le journal système
+* Nouveau : Ouvrir l’adresse… (⌘L) lit un lien web, ou un lien de partage Dropbox, Google Drive ou iCloud Drive
+* Nouveau : le style de forme d’onde Spectre, avec la coloration Par section pour que chaque partie d’un morceau garde une seule couleur
+* Nouveau : les thèmes RGB, Dark Core, Kinda Blue et Sectioned, et l’icône d’app de Dark Core, proposés par JohnnyFireOne
+* Nouveau : Placer dans la Corbeille (⌘⌫) supprime le fichier du morceau sélectionné ou en cours de lecture, avec la possibilité d’annuler
+* Nouveau : Ajouter à la liste de lecture… (⇧⌘O), Afficher dans le Finder (⇧⌘R) et un menu Fenêtre avec Placer dans le Dock, Largeur de la fenêtre, Toujours au premier plan et Verrouiller la position de la fenêtre
+* Nouveau : un état « Mise en mémoire tampon… » quand un morceau attend un partage réseau lent ou un téléchargement
+* Nouveau : des couleurs de thème pour le texte des rangées en cours de lecture et sélectionnée, et pour les barres d’égaliseur de la rangée en cours de lecture, ainsi que les pochettes par défaut Transparent, Fenêtre, Symbole et Couleur personnalisée
+* Nouveau : cliquez sur l’en-tête du panneau de pitch pour basculer sa plage entre 8 % et 16 %
+* Nouveau : lecture des MP3 en format libre (free format)
+* Nouveau : le morceau du thème vibe, chargé au lancement jusqu’à ce que vous lisiez ou ouvriez quelque chose
+* Modifié : les menus suivent les conventions de macOS, avec Édition > Copier, un sous-menu Répéter, et des sous-menus Reculer et Avancer qui indiquent chaque durée en mesures ou en secondes
+* Modifié : les styles de forme d’onde sont renommés : Simple devient Barres, Cupertino simple devient Progression, et les quatre styles Détaillé n’en font plus qu’un, avec un réglage de type
+* Modifié : Morceau précédent sur le premier morceau le relance depuis le début
+* Modifié : le curseur de volume apparaît près du pointeur, avec un réglage de thème qui définit quand il s’affiche
+* Modifié : la ligne de la tête de lecture est légèrement transparente, et les barres d’égaliseur de la rangée en cours de lecture sont noires en mode clair
+* Modifié : le thème Cupertino n’assombrit plus que l’illustration derrière les boutons de lecture, avec un dégradé plus léger
+* Amélioré : le contrôle de pitch sonne mieux, grâce à un moteur de repitch maison et à des changements fluides
+* Amélioré : la sortie bit-perfect utilise la plus grande profondeur de bits de l’appareil, pour des changements de volume plus propres et une lecture sans blanc entre morceaux 16 et 24 bits
+* Amélioré : lecture depuis un partage réseau : une connexion coupée met en pause avec « Connexion perdue », un serveur lent ne bloque plus les changements de morceau, et les morceaux haute résolution sont lus sans accroc
+* Amélioré : les morceaux MP3, FLAC, WAV et AIFF s’ouvrent plus vite
+* Amélioré : la fenêtre Réglages a des noms plus clairs, des explications sous les rangées désactivées, une confirmation avant de rétablir les réglages par défaut et une barre de navigation dans l’éditeur de thèmes
+* Corrigé : la lecture sans blanc des MP3 mono et MPEG-2
+* Corrigé : les fichiers Opus dont l’en-tête fixe un volume étaient lus au mauvais niveau
+* Corrigé : les morceaux Ogg Vorbis perdaient leurs 3 premières ms
+* Corrigé : un fichier CAF corrompu pouvait bloquer l’analyse des métadonnées
+* Corrigé : la ligne de survol de la forme d’onde se perdait sur la partie déjà lue
+* Corrigé : sous macOS 27, changer de thème effaçait la sélection de la liste de lecture, et la mémoire augmentait à chaque ouverture de liste de lecture et changement de thème

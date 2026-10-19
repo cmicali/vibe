@@ -28,7 +28,6 @@
 #define SETTING_REOPEN_LAST_PLAYLIST                @"Playlist.reopenLast"
 #define SETTING_UI_UPDATE_HZ_CAP                    @"UI.updateHzCap"
 #define SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE      @"AudioPlayer.allowBitPerfectOnAnyDevice"
-#define SETTING_APPLE_MPEG_DECODER                  @"AudioPlayer.appleMPEGDecoder"
 #if VIBE_DIRECT_DISTRIBUTION
 #define SETTING_RECEIVE_BETA_UPDATES                @"Updates.receiveBetas"
 // Sparkle's own keys, behind Settings > General's Check for updates.
@@ -93,7 +92,6 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_REOPEN_LAST_PLAYLIST:           @(NO),
             SETTING_UI_UPDATE_HZ_CAP:               @(60),
             SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE: @(NO),
-            SETTING_APPLE_MPEG_DECODER:             @(NO),
 #if VIBE_DIRECT_DISTRIBUTION
             // A beta build keeps its tester on the beta train.
             SETTING_RECEIVE_BETA_UPDATES:           @((BOOL)VIBE_BETA_DEBUG),
@@ -101,6 +99,9 @@ const size_t kVibeUIUpdateHzCapPresetCount =
             SETTING_DECLICK:                        @(YES),
             SETTING_VOLUME_CONTROL:                 @(NO),
             SETTING_VOLUME:                         @(1.0),
+            SETTING_VOLUME_LOCATION:                SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT,
+            SETTING_VOLUME_VISIBILITY:              SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE,
+            SETTING_SHOW_VOLUME_LABELS:             @(YES),
             SETTING_ANALYZE_KEY:                    @(NO),
             SETTING_CONVERT_ASKS_WHERE_TO_SAVE:     @(NO),
             SETTING_FOLDER_ART:                     @(YES),
@@ -432,14 +433,6 @@ const size_t kVibeUIUpdateHzCapPresetCount =
     [NSUserDefaults.standardUserDefaults setBool:allowed forKey:SETTING_ALLOW_BIT_PERFECT_ON_ANY_DEVICE];
 }
 
-- (BOOL)appleMPEGDecoder {
-    return [NSUserDefaults.standardUserDefaults boolForKey:SETTING_APPLE_MPEG_DECODER];
-}
-
-- (void)setAppleMPEGDecoder:(BOOL)apple {
-    [NSUserDefaults.standardUserDefaults setBool:apple forKey:SETTING_APPLE_MPEG_DECODER];
-}
-
 #if VIBE_DIRECT_DISTRIBUTION
 - (BOOL)receiveBetaUpdates {
     return [NSUserDefaults.standardUserDefaults boolForKey:SETTING_RECEIVE_BETA_UPDATES];
@@ -562,6 +555,33 @@ const size_t kVibeUIUpdateHzCapPresetCount =
 
 - (double)effectiveVolume {
     return self.volumeControl ? self.volume : 1.0;
+}
+
+- (NSString *)volumeLocation {
+    return VibeNormalizedVolumeLocation([[NSUserDefaults standardUserDefaults] stringForKey:SETTING_VOLUME_LOCATION]);
+}
+
+- (void)setVolumeLocation:(NSString *)location {
+    [[NSUserDefaults standardUserDefaults] setObject:VibeNormalizedVolumeLocation(location)
+                                              forKey:SETTING_VOLUME_LOCATION];
+}
+
+- (NSString *)volumeVisibility {
+    return VibeNormalizedVolumeVisibility([[NSUserDefaults standardUserDefaults]
+            stringForKey:SETTING_VOLUME_VISIBILITY]);
+}
+
+- (void)setVolumeVisibility:(NSString *)visibility {
+    [[NSUserDefaults standardUserDefaults] setObject:VibeNormalizedVolumeVisibility(visibility)
+                                              forKey:SETTING_VOLUME_VISIBILITY];
+}
+
+- (BOOL)showVolumeLabels {
+    return [[NSUserDefaults standardUserDefaults] boolForKey:SETTING_SHOW_VOLUME_LABELS];
+}
+
+- (void)setShowVolumeLabels:(BOOL)show {
+    [[NSUserDefaults standardUserDefaults] setBool:show forKey:SETTING_SHOW_VOLUME_LABELS];
 }
 
 - (BOOL)audioFXAllowed {
