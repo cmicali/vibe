@@ -66,6 +66,8 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 **The swatches are the theme list's, from the cache the list shares** (`SettingsThemesViewController.swatchForThemeIdentifier:dark:`). They take the app's appearance, which the menu draws in. No swatch is made before the menu first opens. A reopen makes only the active theme's again. Each image draws its pixels only when its item first draws.
 
+**TRAP: macOS 27 hides a menu item's image unless the item asks to show it** (`preferredImageVisibility`). Each theme item asks, through KVC, since CI's SDK predates the property. Open Recent's items do not ask, so macOS 27 hides their file icons. `dump_menu` reports each image's `imageVisibility` on macOS 27.
+
 ## Playback
 
 **Play Selected Track (bare Return) is the one Playback item validated against the window.** It enables only while the playlist is showing and a row is selected (`MainWindow/Transport/AGENTS.md`).

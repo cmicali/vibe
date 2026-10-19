@@ -371,6 +371,10 @@ NSArray *VibeMenuArray(NSMenu *menu) {
         }
         if (item.image) {
             node[@"image"] = @YES;
+            // macOS 27 hides an image whose item does not ask to show it.
+            if (@available(macOS 27.0, *)) {
+                node[@"imageVisibility"] = [item valueForKey:@"preferredImageVisibility"];
+            }
         }
         if (item.submenu) {
             node[@"items"] = VibeMenuArray(item.submenu);
