@@ -18,7 +18,7 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 ## Key equivalents
 
-**Every remappable item's key equivalent is set in one place, `applyShortcuts`**, from the effective shortcut. `ShortcutRules.h` holds the defaults table, which `AppSettings.shortcutOverrides` overrides sparsely. The builder passes `@"", 0` for those items, then requests the `Shortcuts` effect. That effect also runs on an input source change.
+**Every remappable item's key equivalent is set in one place, `applyShortcuts`**, from the effective shortcut. `ShortcutRules.h` holds the defaults table, which `AppSettings.shortcutOverrides` overrides sparsely. The builder passes `@"", 0` for those items. The `Shortcuts` effect sets them half a second after the window is up (`AppDelegate`). It runs again on an input source change. The builder sets only the drop hint's shortcut, which the first frame draws (`applyOpenShortcutHint`).
 
 **The fixed system shortcuts are reserved and never remappable**: ⌘, ⌘H ⌥⌘H ⌘Q ⌘W ⌘M ⌘Z ⇧⌘Z ⌘X ⌘C ⌘V ⌘A. They keep their literals in the builder. An override stored before its key was reserved stays stored but does nothing. The key monitor passes the press on, and `applyShortcuts` gives the item no equivalent (`VibeShortcutForMenuItem`). So a ⌘V bound before Edit > Paste existed never shadows Paste.
 
