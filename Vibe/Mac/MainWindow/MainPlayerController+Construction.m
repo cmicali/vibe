@@ -19,7 +19,6 @@
 #import "AppSettings+Mac.h"
 #import "ArtworkDisplayController.h"
 #import "AudioFileConverter.h"
-#import "AudioFileHandle.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
 #import "AudioTrackMetadata.h"
@@ -84,8 +83,6 @@
 }
 
 - (void)buildCollaborators {
-    // Before the player exists, so no file opens with the default decoder.
-    AudioFileHandle.appleMPEGDecoder = AppSettings.sharedInstance.appleMPEGDecoder;
     // The saved device resolves asynchronously (UID, then name): the HAL
     // sweep can stall on Bluetooth or an unavailable coreaudiod, and must
     // block neither the player queue nor first paint.

@@ -44,9 +44,6 @@ static NSString *const kFieldWindowCornerRadius = @"windowCornerRadius";
 static NSString *const kFieldShowTransportButtons = @"showTransportButtons";
 static NSString *const kFieldVolumeBar = @"volumeBar";
 static NSString *const kFieldVolumeKnob = @"volumeKnob";
-static NSString *const kFieldShowVolumeLabels = @"showVolumeLabels";
-static NSString *const kFieldVolumeLocation = @"volumeLocation";
-static NSString *const kFieldVolumeVisibility = @"volumeVisibility";
 static NSString *const kFieldTitleFontFace = @"titleFontFace";
 static NSString *const kFieldTitleFontSize = @"titleFontSize";
 static NSString *const kFieldArtistFontFace = @"artistFontFace";
@@ -379,12 +376,6 @@ NSArray<NSDictionary *> *VibeThemeFieldSpecs(void) {
         [rows addObject:Field(kFieldVolumeKnob, volume, @"knob", SETTINGS_VALUE_VOLUME_KNOB_BAR,
                               LadderField(VibeNormalizedVolumeKnob))];
         AddColorPair(rows, kVibeThemeColorVolumeKnob, volume, @"knobColor");
-        [rows addObject:Field(kFieldShowVolumeLabels, volume, @"showLabels", @YES, BoolField())];
-        [rows addObject:Field(kFieldVolumeLocation, volume, @"location", SETTINGS_VALUE_VOLUME_LOCATION_TOP_RIGHT,
-                              LadderField(VibeNormalizedVolumeLocation))];
-        [rows addObject:Field(kFieldVolumeVisibility, volume, @"visibility",
-                              SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE,
-                              LadderField(VibeNormalizedVolumeVisibility))];
 
         [rows addObject:Field(kFieldWaveformStyle, waveform, @"style",
                               SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT, TextField())];
@@ -968,15 +959,6 @@ static void VibeLoadBuiltInThemes(void) {
 
 - (NSString *)volumeKnob { return [self stringForKey:kFieldVolumeKnob]; }
 - (void)setVolumeKnob:(NSString *)v { [self storeSanitized:v forKey:kFieldVolumeKnob]; }
-
-- (BOOL)showVolumeLabels { return [self boolForKey:kFieldShowVolumeLabels]; }
-- (void)setShowVolumeLabels:(BOOL)v { [self storeSanitized:@(v) forKey:kFieldShowVolumeLabels]; }
-
-- (NSString *)volumeLocation { return [self stringForKey:kFieldVolumeLocation]; }
-- (void)setVolumeLocation:(NSString *)v { [self storeSanitized:v forKey:kFieldVolumeLocation]; }
-
-- (NSString *)volumeVisibility { return [self stringForKey:kFieldVolumeVisibility]; }
-- (void)setVolumeVisibility:(NSString *)v { [self storeSanitized:v forKey:kFieldVolumeVisibility]; }
 
 // Exhaustive, no default: an unhandled new slot must fail the build.
 static void FontSlotKeys(VibeFontSlot slot, NSString **faceKey, NSString **sizeKey) {

@@ -1,25 +1,27 @@
-* Yeni: Karıştır, Tümünü Tekrarla ve Birini Tekrarla, Çalma menüsünde (⌥⌘S, ⌘R) ve simgeleri dosya bilgisi satırında
-* Yeni: CUE sayfası çalma, bir .cue dosyasından veya bir FLAC’e gömülü olandan
-* Yeni: Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R ve ADTS çalma
-* Yeni: Ayarlar’da, her kestirmeyi değiştirmenizi sağlayan Klavye Kestirmeleri bölümü
-* Yeni: kapalıdan 3 saniyeye kadar, saniyenin onda biri adımlarla ayarlanan crossfade kaydırıcısı
-* Yeni: özelleştirilebilir 3 Bant dalga biçimi stili ve onu kullanan iki tema
-* Yeni: dalga biçimlerini ortalama (ya da ortalamama) seçeneği
-* Yeni: oynatma kafası çizgisi seçeneği, dalga biçiminin tamamı renkli olarak
-* Değişiklik: Ayarlar penceresi yeniden düzenlendi ve arama eklendi
-* İyileştirme: FLAC’te konum atlama uzun dosyalarda bile neredeyse anında, daha az CPU ve bellek kullanarak ve daha iyi uyumlulukla
-* İyileştirme: WAV ve AIFF kod çözme 1,4x–3,2x daha hızlı ve daha iyi uyumlu
-* İyileştirme: çalma %20–30 daha az CPU ve %15–25 daha az enerji kullanıyor
-* İyileştirme: etiketler ve resimler 2 kat hızlı taranıyor, kitaplık taramaları %20 daha az CPU kullanıyor
-* İyileştirme: daha hızlı açılış, büyük M3U çalma listeleri ve çok büyük çalma listelerinin düzenlenmesi
-* İyileştirme: Varsayılan Yap artık CUE ve M3U dosyalarını da kapsıyor ve bir dosya türünü reddettiğinizde devam ediyor
-* Düzeltme: bir parça diğerine kendiliğinden geçerken crossfade hiçbir şey yapmıyordu; yalnızca parçalar elle değiştirildiğinde çalışıyordu
-* Düzeltme: tek tuşlu kestirmeler AZERTY, Yunanca, Kiril ve ABD dışı diğer klavye düzenlerinde çalışmıyordu
-* Düzeltme: pencere yeniden boyutlandırılırken dalga biçimi çubukları dalgalanıyordu
-* Düzeltme: 24 ve 32 bit little-endian AIFF-C dosyaları yanlış uzunlukta çalınıyordu
-* Düzeltme: düşük bit hızlı MPEG-2 MP3 dosyalarında konum atlama hafifçe yanlış yere iniyordu
-* Düzeltme: uzunluğunu kaydetmeyen FLAC dosyaları süre göstermiyordu
-* Düzeltme: Vibe, bozuk biçimli bazı M4A ve MP3 dosyalarının etiketlerini okurken çökebiliyordu
-* Düzeltme: FLAC’e Dönüştür, float dosyalarda tam ölçekli her tepe noktasına bir tıkırtı ekliyordu
-* Düzeltme: tüm dosyaları eksik olan bir CUE sayfasını veya M3U çalma listesini açmak hiçbir şey yapmıyordu; Vibe artık bunları açamadığını söylüyor
-* Düzeltme: Vibe sistem günlüğüne tanılama kaydı yazıyordu
+* Yeni: Konumu Aç… (⌘L) bir web bağlantısını ya da bir Dropbox, Google Drive veya iCloud Drive paylaşım bağlantısını çalıyor
+* Yeni: Spektrum dalga biçimi stili ve parçanın her bölümünü tek bir renkte tutan Bölüme göre renklendirme
+* Yeni: JohnnyFireOne’ın katkısıyla RGB, Dark Core, Kinda Blue ve Sectioned temaları ile Dark Core’un uygulama simgesi
+* Yeni: Çöp Sepeti’ne Taşı (⌘⌫), seçili ya da çalan parçanın dosyasını Geri Al desteğiyle siliyor
+* Yeni: Çalma Listesine Ekle… (⇧⌘O), Finder’da Göster (⇧⌘R) ve Küçült, Pencere Genişliği, Her Zaman Üstte ve Pencere Konumunu Kilitle seçeneklerini içeren bir Pencere menüsü
+* Yeni: bir parça yavaş bir ağ paylaşımını ya da indirmeyi beklerken Arabelleğe alınıyor… durumu
+* Yeni: çalan ve seçili satırların metni ile çalan satırın ekolayzer çubukları için tema renkleri ve Şeffaf, Pencere, Simge ve Özel renk varsayılan kapakları
+* Yeni: pitch panelinin başlığına tıklamak, aralığını %8 ile %16 arasında değiştiriyor
+* Yeni: serbest biçimli (free-format) MP3 çalma
+* Yeni: siz bir şey çalana ya da açana kadar açılışta yüklenen vibe tema parçası
+* Değişiklik: menüler macOS kurallarına uyuyor: Düzenle > Kopyala, bir Tekrarla alt menüsü ve her mesafeyi ölçü ya da saniye olarak gösteren Geri Atla ve İleri Atla alt menüleri
+* Değişiklik: dalga biçimi stillerinin adları değişti: Basit artık Çubuklar, Cupertino (basit) artık İlerleme, dört Ayrıntılı stil de artık Tür ayarı olan tek bir stil
+* Değişiklik: ilk parçadayken Önceki Parça, parçayı baştan başlatıyor
+* Değişiklik: ses düzeyi sürgüsü işaretçinin yakınında beliriyor ve ne zaman görüneceği bir tema ayarıyla seçiliyor
+* Değişiklik: oynatma kafası çizgisi biraz saydam ve çalan satırın ekolayzer çubukları açık modda siyah
+* Değişiklik: Cupertino teması daha açık bir gradyanla yalnızca çalma düğmelerinin arkasındaki kapak resmini koyulaştırıyor
+* İyileştirme: pitch fader’ı özel bir repitch motoru ve yumuşak geçişlerle daha iyi ses veriyor
+* İyileştirme: bit düzeyinde kusursuz çıkış, daha temiz ses düzeyi değişiklikleri ve 16 ile 24 bit parçalar arasında boşluksuz çalma için aygıtın en geniş bit derinliğini kullanıyor
+* İyileştirme: ağ paylaşımından çalma: kopan bağlantı “Bağlantı kesildi” ile duraklıyor, yavaş bir sunucu artık parça değişikliklerinde takılmaya yol açmıyor ve yüksek çözünürlüklü parçalar akıcı çalıyor
+* İyileştirme: MP3, FLAC, WAV ve AIFF parçalar daha hızlı açılıyor
+* İyileştirme: Ayarlar penceresinde artık daha anlaşılır adlar, devre dışı satırların altında açıklamalar, varsayılanlara sıfırlamadan önce bir onay ve tema düzenleyicide bir atlama çubuğu var
+* Düzeltme: mono ve MPEG-2 MP3 dosyalarında boşluksuz çalma
+* Düzeltme: başlığı ses düzeyi belirleyen Opus dosyaları yanlış seviyede çalınıyordu
+* Düzeltme: Ogg Vorbis parçalarının ilk 3 ms’si kayboluyordu
+* Düzeltme: bozuk bir CAF dosyası meta veri taramasını durdurabiliyordu
+* Düzeltme: dalga biçiminin üzerine gelme çizgisi, çalınmış bölümün üzerinde kayboluyordu
+* Düzeltme: macOS 27’de tema değişiklikleri çalma listesi seçimini temizliyordu ve her çalma listesi açılışında ve tema değişikliğinde bellek kullanımı artıyordu

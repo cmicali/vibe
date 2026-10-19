@@ -32,8 +32,7 @@
     "bar": "custom",
     "barColorDark": "#3F86B0",
     "knob": "custom",
-    "knobColorDark": "#8CC4E4",
-    "showLabels": false
+    "knobColorDark": "#8CC4E4"
   },
   "waveform": {
     "spectrumPalette": "blue",

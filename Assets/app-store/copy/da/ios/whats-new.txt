@@ -1,23 +1,22 @@
-* Nyt: Vibes egen filbrowser ved siden af systemets Filer-vælger, med Dropbox indbygget: log ind for at gennemse, søge i og afspille din Dropbox, og afspilningen starter, mens et nummer hentes
-* Nyt: bland, gentag alle og gentag ét nummer, med knapper ved siden af afspilningsknapperne (skjul dem i Indstillinger > Udseende)
-* Nyt: afspilning af CUE-ark, fra en .cue-fil eller et, der er indlejret i en FLAC, og M3U-afspilningslister i filbrowseren
-* Nyt: afspilning af Ogg Opus, CAF, W64, M4B, M4R og ADTS
-* Nyt: en crossfade-skyder fra slukket op til 3 sekunder i tiendedele af et sekund
-* Nyt: bølgeformstilen 3-bånd
-* Nyt: mulighed for at centrere bølgeformer (eller ej)
-* Nyt: en indstilling for en afspilningshovedlinje, med hele bølgeformen i fuld farve
-* Nyt: kompakte layouts til skærmen Afspiller nu i lave iPad-vinduer
-* Forbedret: FLAC-spoling er næsten øjeblikkelig selv i lange filer, bruger mindre CPU og hukommelse og har bedre kompatibilitet
-* Forbedret: afkodning af WAV og AIFF er hurtigere med bedre kompatibilitet
-* Forbedret: afspilning bruger mindre CPU og energi, og tags og illustrationer scannes hurtigere
-* Forbedret: åbning af mapper hænger ikke længere på langsomme skymapper
-* Forbedret: skrubning og strygning mellem numre forbliver flydende, mens en bølgeform indlæses
-* Rettet: crossfade gjorde ingenting, når ét nummer gik over i det næste; det virkede kun, når du skiftede nummer manuelt
-* Rettet: knibezoom på bølgeformen kunne få afspilningen til at springe tilbage
-* Rettet: stryg tilbage til et nummer viste dets gamle position, før det sprang til starten
-* Rettet: FX-paddet åbnede nogle gange ikke større end sin cirkel efter nogle få nummerskift
-* Rettet: 24- og 32-bit little-endian AIFF-C-filer blev afspillet med forkert længde
-* Rettet: spoling i MPEG-2 MP3-filer med lav bitrate landede en smule ved siden af
-* Rettet: FLAC-filer, der ikke registrerer deres længde, viste ingen varighed
-* Rettet: Vibe kunne gå ned ved læsning af tags fra visse ødelagte M4A- og MP3-filer
-* Rettet: Vibe skrev diagnostisk logning til systemloggen
+* Nyt: Åbn URL afspiller et weblink eller et delingslink fra Dropbox, Google Drive eller iCloud Drive, og et kopieret link kan afspilles fra fanen Filer
+* Nyt: widgets med bølgeform, i stor størrelse, til låseskærmen og med omslag fra kant til kant, med Mac'ens knapper til spilleliste, afspil og næste
+* Nyt: bølgeformstilen Spektrum med farvningen Efter sektion, så hver del af et nummer beholder én farve
+* Nyt: 3-bånd-temaerne Rekord Bin, Dengine og Tilpassede farver
+* Nyt: zoom bølgeformen helt ned til de enkelte samples
+* Nyt: afspilning af Ogg Vorbis og MP3 i free format
+* Nyt: albumbilleder til iCloud- og Dropbox-numre, der ikke er hentet
+* Nyt: statussen Bufferer…, mens et nummer venter på en langsom netværksdeling eller en download
+* Nyt: temanummeret vibe, som indlæses ved start, indtil du afspiller eller åbner noget
+* Ændret: bølgeformstilene har fået nye navne: Enkel hedder nu Søjler, Cupertino (enkel) hedder nu Forløb, og de fire Detaljeret-stile er nu én med en Type-indstilling
+* Ændret: Forrige nummer på det første nummer starter det forfra
+* Ændret: afspilningshovedets linje er let gennemsigtig
+* Ændret: temaet Cupertino gør kun omslaget bag afspilningsknapperne mørkere, med en lysere gradient
+* Forbedret: widgettens afspilningshoved, spring og tema
+* Forbedret: fanen Filer samler steder under Lokaliteter
+* Forbedret: i Indstillinger vælges Ved nummerets slutning og Tidsvisning direkte på stedet, og 3-bånd-paletterne er opkaldt efter deres farver
+* Forbedret: afspilning fra netværksdelinger: en afbrudt forbindelse sætter på pause med “Forbindelsen blev afbrudt”, en langsom server forsinker ikke længere nummerskift, og hi-res-numre afspilles flydende
+* Forbedret: MP3-, FLAC-, WAV- og AIFF-numre åbner hurtigere
+* Rettet: afspilning uden pauser af mono- og MPEG-2-MP3-filer
+* Rettet: Opus-filer, hvis header angiver en lydstyrke, blev afspillet med forkert niveau
+* Rettet: en beskadiget CAF-fil kunne få metadatascanningen til at gå i stå
+* Rettet: en ældre åbning af et link kunne erstatte en nyere åbning af en fil

@@ -1,10 +1,4 @@
-* Added By section coloring to the Spectrum waveform, so each part of a song keeps one color
-* Added the Sectioned theme
-* Added playback of free-format MP3s
-* Changed the default playhead line to be slightly see-through
-* Improved how quickly MP3, FLAC, WAV and AIFF songs open
-* Improved bit-perfect output to use the device's widest bit depth: cleaner volume changes, and gapless between 16 and 24-bit songs
-* Fixed gapless playback of mono and MPEG-2 MP3s
-* Fixed Opus files whose header sets a volume playing at the wrong level
-* Fixed Ogg Vorbis songs losing their first 3 ms
-* Fixed memory growth on every playlist open and theme change on macOS 27
+* Added mouse/trackpad scrolling and up/down keys to change the volume (when enabled)
+* Added Copy and Paste for colors and fonts in the theme editor's right-click menu
+* Moved the volume slider appearance and behavior settings from themes to Settings > Appearance
+* Fixed 320 kbps MP3s opening slowly

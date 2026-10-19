@@ -1,23 +1,22 @@
-* Novo: Vibeov vlastiti preglednik datoteka uz sistemski birač Datoteke, s ugrađenim Dropboxom: prijavite se za pregledavanje, pretraživanje i reprodukciju svog Dropboxa, a reprodukcija počinje dok se pjesma preuzima
-* Novo: nasumična reprodukcija, ponavljanje svega i ponavljanje jedne pjesme, s tipkama pokraj kontrola reprodukcije (sakrijte ih u Postavke > Izgled)
-* Novo: reprodukcija CUE listova, iz .cue datoteke ili iz CUE lista ugrađenog u FLAC, te M3U popisi za reprodukciju u pregledniku datoteka
-* Novo: reprodukcija formata Ogg Opus, CAF, W64, M4B, M4R i ADTS
-* Novo: klizač za crossfade, od isključenog do 3 sekunde u desetinkama sekunde
-* Novo: stil valnog oblika 3 pojasa
-* Novo: opcija za centriranje (ili ne) valnih oblika
-* Novo: opcija linije glave reprodukcije, uz cijeli valni oblik u punoj boji
-* Novo: kompaktni rasporedi zaslona reprodukcije za niske iPad prozore
-* Poboljšano: premotavanje u FLAC datotekama gotovo je trenutačno čak i u dugima, uz manje opterećenje CPU-a i memorije te bolju kompatibilnost
-* Poboljšano: dekodiranje WAV i AIFF datoteka brže je, uz bolju kompatibilnost
-* Poboljšano: reprodukcija troši manje CPU-a i energije, a oznake i omoti skeniraju se brže
-* Poboljšano: otvaranje mapa više ne zastaje na sporim oblačnim mapama
-* Poboljšano: premotavanje i listanje među pjesmama ostaju glatki dok se valni oblik učitava
-* Ispravljeno: crossfade nije radio kad bi jedna pjesma prelazila u sljedeću; radio je samo pri ručnoj promjeni pjesme
-* Ispravljeno: zumiranje valnog oblika štipanjem moglo je vratiti reprodukciju unatrag
-* Ispravljeno: listanje natrag na pjesmu prikazivalo je njezin stari položaj prije skoka na početak
-* Ispravljeno: FX pad se nakon nekoliko promjena pjesme ponekad otvarao veličine samo svog kruga
-* Ispravljeno: 24-bitne i 32-bitne little-endian AIFF-C datoteke reproducirale su se s pogrešnom duljinom
-* Ispravljeno: premotavanje u MP3 datotekama MPEG-2 niske brzine prijenosa završavalo je malo pokraj cilja
-* Ispravljeno: FLAC datoteke koje ne bilježe svoju duljinu nisu prikazivale trajanje
-* Ispravljeno: Vibe se mogao srušiti pri čitanju oznaka iz određenih neispravnih M4A i MP3 datoteka
-* Ispravljeno: Vibe je upisivao dijagnostičke zapise u sistemski dnevnik
+* Novo: Otvori URL reproducira web-poveznicu ili poveznicu za dijeljenje s Dropboxa, Google Drivea ili iCloud Drivea, a kopirana poveznica reproducira se iz kartice Datoteke
+* Novo: widgeti s valnim oblikom, veliki, za zaključani zaslon i s omotom preko cijele površine, s tipkama za popis pjesama, reprodukciju i sljedeću pjesmu kao na Macu
+* Novo: stil valnog oblika Spektar s bojenjem Po odjeljcima, tako da svaki dio pjesme zadrži jednu boju
+* Novo: teme 3 pojasa: Rekord Bin, Dengine i Prilagođene boje
+* Novo: zumiranje valnog oblika sve do pojedinačnih uzoraka
+* Novo: reprodukcija formata Ogg Vorbis i MP3 datoteka slobodnog formata (free format)
+* Novo: omoti za pjesme s iClouda i Dropboxa koje nisu preuzete
+* Novo: status Međuspremanje… dok pjesma čeka sporo mrežno dijeljenje ili preuzimanje
+* Novo: pjesma teme vibe, koja se učitava pri pokretanju dok nešto ne reproducirate ili otvorite
+* Promijenjeno: stilovi valnog oblika preimenovani su: Osnovni je sada Stupci, Cupertino (osnovni) je sada Napredak, a četiri stila Detaljni spojena su u jedan s postavkom vrste
+* Promijenjeno: Prethodna pjesma na prvoj pjesmi pokreće je ispočetka
+* Promijenjeno: linija glave reprodukcije malo je prozirna
+* Promijenjeno: tema Cupertino zatamnjuje samo omot iza tipki za reprodukciju, uz svjetliji gradijent
+* Poboljšano: glava reprodukcije, preskakanje i tema widgeta
+* Poboljšano: kartica Datoteke grupira mjesta pod Lokacije
+* Poboljšano: u Postavkama se Na kraju pjesme i Prikaz vremena biraju na licu mjesta, a palete 3 pojasa nazvane su po svojim bojama
+* Poboljšano: reprodukcija s mrežnih dijeljenja: prekinuta veza pauzira uz „Veza je prekinuta”, spori poslužitelj više ne koči promjene pjesama, a hi-res pjesme reproduciraju se glatko
+* Poboljšano: MP3, FLAC, WAV i AIFF pjesme otvaraju se brže
+* Ispravljeno: reprodukcija bez praznina mono i MPEG-2 MP3 datoteka
+* Ispravljeno: Opus datoteke čije zaglavlje postavlja glasnoću reproducirale su se na pogrešnoj razini
+* Ispravljeno: oštećena CAF datoteka mogla je zaustaviti skeniranje metapodataka
+* Ispravljeno: starije otvaranje poveznice moglo je zamijeniti novije otvaranje datoteke

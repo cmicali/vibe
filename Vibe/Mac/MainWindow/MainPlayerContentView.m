@@ -9,7 +9,9 @@
 #import "ArtworkImageView.h"
 #import "WaveformView.h"
 #import "PlaylistDropZoneView.h"
+#import "PlaylistTableView.h"
 #import "VolumeControlView.h"
+#import "TransportMath.h"
 #import "NSView+DarkMode.h"
 #import "Fonts.h"
 #import "AppSettings.h"
@@ -17,10 +19,6 @@
 #import "VibeStrings.h"
 
 #pragma mark - Layout
-
-static BOOL VolumeAlwaysShown(AppTheme *theme) {
-    return [theme.volumeVisibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS];
-}
 
 @implementation MainPlayerContentView
 
@@ -245,7 +243,8 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     BOOL volumeShown = settings.volumeControl;
     BOOL corner = VolumeControlView.atTopRight;
     BOOL volumeUp = volumeShown
-            && (VolumeAlwaysShown(theme) || _volumeDragging || CursorIsIn(self, _volumeHoverArea.rect));
+            && ([settings.volumeVisibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS]
+                || _volumeDragging || CursorIsIn(self, _volumeHoverArea.rect));
     CGFloat volume = volumeUp ? 1.0 : 0.0;
     CGFloat readouts = (volumeUp && corner) ? 0.0 : 1.0;
     CGFloat hint = (volumeUp && !corner) ? 0.0 : kDropHintAlpha;
@@ -318,6 +317,32 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     return _volumeDragging;
 }
 
+// Only the drag's own mouse-up may clear its hold, so nothing else moves the
+// knob in hand.
+- (void)moveVolumeBySteps:(double)steps {
+    if (AppSettings.sharedInstance.volumeControl && !_volumeDragging) {
+        [_volumeControlView.slider moveBySteps:steps];
+    }
+}
+
+// A scroll anywhere outside the playlist moves the volume, while the control
+// hides as well as while it shows. The rows' scroll view takes a scroll over
+// them first, and one it passes back up must not move the volume. Collapsed,
+// the scroll view is zero high, so nothing is over it.
+- (void)scrollWheel:(NSEvent *)event {
+    NSScrollView *playlist = _playlistTableView.enclosingScrollView;
+    if (!AppSettings.sharedInstance.volumeControl
+            || NSMouseInRect([playlist convertPoint:event.locationInWindow fromView:nil],
+                             playlist.bounds, playlist.isFlipped)) {
+        [super scrollWheel:event];
+    }
+    // A trackpad's coast after the fingers lift would keep turning it.
+    else if (event.momentumPhase == NSEventPhaseNone) {
+        [self moveVolumeBySteps:VibeVolumeScrollSteps(event.scrollingDeltaY, event.hasPreciseScrollingDeltas,
+                                                      event.isDirectionInvertedFromDevice)];
+    }
+}
+
 // Sized by the control itself, then placed from its neighbors.
 - (void)layoutVolumeControl {
     [_volumeControlView layoutColumns];
@@ -335,7 +360,7 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
     AppSettings *settings = AppSettings.sharedInstance;
     if (VolumeControlView.atTopRight) {
         // A bare slider has no text inset of its own, so it ends at the ink.
-        CGFloat inset = settings.currentTheme.showVolumeLabels ? 0 : kLabelInkInset;
+        CGFloat inset = settings.showVolumeLabels ? 0 : kLabelInkInset;
         NSFont *title = [Fonts titleFont];
         frame.origin.x = NSMaxX(_totalTimeTextField.frame) - inset - frame.size.width;
         frame.origin.y = round(NSMaxY(_titleTextField.frame) - (title.ascender - title.capHeight));
@@ -355,11 +380,11 @@ static NSView *FadeTarget(NSView *view, BOOL animated) {
 // panel. There is no area when the slider is off or always shown.
 - (void)placeVolumeHoverArea {
     AppSettings *settings = AppSettings.sharedInstance;
-    AppTheme *theme = settings.currentTheme;
+    NSString *visibility = settings.volumeVisibility;
     NSRect rect = NSZeroRect;
-    if (settings.volumeControl && !VolumeAlwaysShown(theme)) {
+    if (settings.volumeControl && ![visibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_ALWAYS]) {
         rect = _volumeControlView.frame;
-        if ([theme.volumeVisibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE]) {
+        if ([visibility isEqualToString:SETTINGS_VALUE_VOLUME_VISIBILITY_HOVER_CLOSE]) {
             rect = NSInsetRect(rect, -kVolumeHoverOutsetX, -kVolumeHoverOutsetY);
         }
         rect = NSIntersectionRect(rect, self.bounds);

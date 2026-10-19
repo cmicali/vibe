@@ -49,7 +49,6 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels);
     NSArray<AudioTrack *> *_chain;
     NSUInteger _nextPrefetch;
     void (^_outputModesProvider)(NSString *, BOOL *, BOOL *);
-    BOOL _priorAppleMPEGDecoder; // a test's choice is undone at tearDown
     // The remote file streamingCopyOf: stands up: its bytes, its first
     // fetch's part file and availability, and that fetch's fate.
     NSData *_streamBytes;
