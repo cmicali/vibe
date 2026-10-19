@@ -6,7 +6,7 @@ There are two kinds of benchmark. The app benchmarks launch each release's own a
 
 <!-- performance:begin -->
 
-The app benchmarks ran on an Apple M2 Pro with 32 GB of memory and macOS 27.0.1. The component benchmarks ran on an Apple M4 Max with 64 GB of memory and macOS 27.0. A version marked pre-release was measured before its release was tagged.
+The app benchmarks ran on an Apple M2 Pro with 32 GB of memory and macOS 27.0.1. The component benchmarks ran on an Apple M1 Max with 64 GB of memory and macOS 27.0.1. A version marked pre-release was measured before its release was tagged.
 
 ![Every release](performance/summary.svg)
 
@@ -51,7 +51,7 @@ Four releases cut the CPU it takes to play a file:
 - 1.12 made the UI's playback updates cheaper. Formatting the time readout had been most of each update.
 - 1.14 brought Vibe's own engine, and its MP3 decoder and resampler.
 - 1.15 brought Vibe's FLAC, WAV and AIFF decoders, and slowed the player's timer from 100 checks a second to 10.
-- 1.16 replaces Apple's Varispeed with Vibe's own pitch converter. It sounds much cleaner. It costs about three times as much CPU as Apple's. That's still a fraction of a percent of a core. [Audio quality](audio-quality.md#the-pitch-fader) has the numbers. 1.16 isn't on these charts yet.
+- 1.16 replaces Apple's Varispeed with Vibe's own pitch converter. It sounds much cleaner. It costs about three times as much CPU as Apple's. That's still a fraction of a percent of a core. [Audio quality](audio-quality.md#the-pitch-fader) has the numbers. Playing FLAC 24/192 at +8% pitch went from 6.8% of a core to 7.2%.
 
 **Why:** a music player should cost close to nothing during playback. The savings matter most on a laptop battery.
 
@@ -60,6 +60,8 @@ Four releases cut the CPU it takes to play a file:
 ![Playback CPU](performance/playback-cpu.svg)
 
 ![Playback CPU with effects, pitch and resampling](performance/playback-cpu-extra.svg)
+
+![The pitch fader's converter, CPU per minute of audio](performance/components-pitch.svg)
 
 ## When nothing is playing
 
@@ -157,7 +159,7 @@ One version takes about half an hour on an M4 Max, and longer on a slower Mac. T
 ### What is held fixed
 
 - **The build.** `build-version.sh` checks the tag out into its own worktree and builds that version's Release configuration. That means `-Os`, `NDEBUG` and no `NSAssert`. It adds `DEBUG=1` back to compile in the debug command channel. It sets `VIBE_VERBOSE_LOGGING=0`, because betas carry logging a release doesn't. It turns off the App Sandbox. The build gets its own bundle ID, `com.commonwealthrecordings.Vibe.bench`, and its own process name, `VibeBenchApp`. Other tools (vibe-debug's `launch.sh`) kill any process named `Vibe`. That would end a run partway through.
-- **The state.** Every scenario starts from an empty home (`CFFIXED_USER_HOME`). Caches start cold unless the scenario says warm. `cfprefsd` keeps preferences in the real home whatever that variable says. So the runner resets the bench bundle ID's preferences before every scenario, then seeds them. Nothing touches the installed app's container.
+- **The state.** Every scenario starts from an empty home (`CFFIXED_USER_HOME`). Caches start cold unless the scenario says warm. `cfprefsd` keeps preferences in the real home whatever that variable says. So the runner resets the bench bundle ID's preferences before every scenario, then seeds them. The seeds mark the theme track as played. So 1.16 and later launch with nothing loaded, like every launch after a user's first. Nothing touches the installed app's container.
 - **The audio device.** Every run plays through the built-in speakers, silently. Each launch passes `--silent`. The output unit drives the device and its clock, and the samples are zeroed after the meter. Every version's saved output device is seeded as the speakers (`AudioPlayer.deviceUID`, the same key in all of them). Bit-perfect and exclusive output are off in the builds that have them (1.12 on). The runner won't open a file until `dump_state` shows the app on the speakers with bit-perfect off. Every launch also passes `-NSAppSleepDisabled YES`. The runs don't use `--no-audio-hw`. Its debug pump stands in for the device with a 20 ms timer. In 1.8 that pump drives AVAudioEngine's offline rendering, where a track switch or seek under load can take tens of seconds that no real device shows.
 - **The corpus.** `bench.py` generates it with ffmpeg into `build/bench/corpus`, the same every time (1.4 GB). The audio is pink noise under a 120 BPM kick. It's broadband. Lossless files barely compress, and decoding is at its worst. Each tagged format carries a 1000 px cover. WAV has none. There are fifteen playback files. The everyday formats are 3 minutes long: MP3 320k and V0, AAC 256k, FLAC 16/44.1, 24/96 and 24/192, and WAV 24/96. MP3 at its worst is an hour at 320k and at V0, ten minutes of VBR with no Xing header, and a 48 kHz file, the one MP3 that isn't resampled. The resampler gets awkward ratios: FLAC 24/88.2, 24/176.4, 24/352.8 and 16/22.05 mono. There's also a 600-file library of 30 albums with 20 tracks each, in MP3, FLAC and AAC, each with a 600 px cover. `results.json` records a hash of the corpus.
 - **The load.** Before every scenario, the runner waits until the whole machine has been at least 80% idle for three seconds (`top`, or `ARGS="--idle <percent>"`). It records that idle level in `results.json`. Another workload would inflate every number, unevenly, and show up as a regression.

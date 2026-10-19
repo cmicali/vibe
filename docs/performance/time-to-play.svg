@@ -2,16 +2,16 @@
 <style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.s0{fill:#2a78d6;stroke:#2a78d6}.s1{fill:#eb6834;stroke:#eb6834}.s2{fill:#1baf7a;stroke:#1baf7a}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.s0{fill:#3987e5;stroke:#3987e5}.s1{fill:#d95926;stroke:#d95926}.s2{fill:#199e70;stroke:#199e70}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
 <rect class="bg" width="720" height="318" rx="10"/>
 <text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">Time to play a file never opened before</text>
-<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Milliseconds. Lower is better. The numbers in the key are 1.15&#x27;s.</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Milliseconds. Lower is better. The numbers in the key are 1.16&#x27;s.</text>
 <rect class="s0" x="24" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">First file after launch</text>
-<text class="m" x="162.0" y="68.0" font-size="12" text-anchor="start" font-weight="600">42</text>
+<text class="m" x="162.0" y="68.0" font-size="12" text-anchor="start" font-weight="600">31</text>
 <rect class="s1" x="197.8799999999999" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="217.9" y="68.0" font-size="12" text-anchor="start">Track switch, mean of 6 formats</text>
-<text class="m" x="397.3" y="68.0" font-size="12" text-anchor="start" font-weight="600">3</text>
+<text class="m" x="397.3" y="68.0" font-size="12" text-anchor="start" font-weight="600">6</text>
 <rect class="s2" x="426.23999999999984" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="446.2" y="68.0" font-size="12" text-anchor="start">Switch to an MP3 with no Xing header</text>
-<text class="m" x="655.3" y="68.0" font-size="12" text-anchor="start" font-weight="600">14</text>
+<text class="m" x="655.3" y="68.0" font-size="12" text-anchor="start" font-weight="600">9</text>
 <line class="a" x1="52.0" y1="274.0" x2="696.0" y2="274.0" stroke-width="1"/>
 <text class="q" x="44.0" y="278.0" font-size="11" text-anchor="end">0</text>
 <line class="g" x1="52.0" y1="229.0" x2="696.0" y2="229.0" stroke-width="1"/>
@@ -22,39 +22,43 @@
 <text class="q" x="44.0" y="143.0" font-size="11" text-anchor="end">60</text>
 <line class="g" x1="52.0" y1="94.0" x2="696.0" y2="94.0" stroke-width="1"/>
 <text class="q" x="44.0" y="98.0" font-size="11" text-anchor="end">80</text>
-<text class="m" x="92.2" y="292.0" font-size="11" text-anchor="middle">1.8</text>
-<text class="m" x="172.8" y="292.0" font-size="11" text-anchor="middle">1.9</text>
-<text class="m" x="253.2" y="292.0" font-size="11" text-anchor="middle">1.10</text>
-<text class="m" x="333.8" y="292.0" font-size="11" text-anchor="middle">1.11</text>
-<text class="m" x="414.2" y="292.0" font-size="11" text-anchor="middle">1.12</text>
-<text class="m" x="494.8" y="292.0" font-size="11" text-anchor="middle">1.13</text>
-<text class="m" x="575.2" y="292.0" font-size="11" text-anchor="middle">1.14</text>
-<text class="t" x="655.8" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.15</text>
-<path class="ln s0" stroke-width="2" d="M92.2,120.9 L172.8,123.5 L253.2,121.1 L333.8,124.4 L414.2,122.6 L494.8,134.1 L575.2,190.3 L655.8,178.8"/>
-<circle class="s0 ring" cx="92.2" cy="120.9" r="3.5" stroke-width="2"><title>1.8, First file after launch: 68</title></circle>
-<circle class="s0 ring" cx="172.8" cy="123.5" r="3.5" stroke-width="2"><title>1.9, First file after launch: 67</title></circle>
-<circle class="s0 ring" cx="253.2" cy="121.1" r="3.5" stroke-width="2"><title>1.10, First file after launch: 68</title></circle>
-<circle class="s0 ring" cx="333.8" cy="124.4" r="3.5" stroke-width="2"><title>1.11, First file after launch: 66</title></circle>
-<circle class="s0 ring" cx="414.2" cy="122.6" r="3.5" stroke-width="2"><title>1.12, First file after launch: 67</title></circle>
-<circle class="s0 ring" cx="494.8" cy="134.1" r="3.5" stroke-width="2"><title>1.13, First file after launch: 62</title></circle>
-<circle class="s0 ring" cx="575.2" cy="190.3" r="3.5" stroke-width="2"><title>1.14, First file after launch: 37</title></circle>
-<circle class="s0 ring" cx="655.8" cy="178.8" r="3.5" stroke-width="2"><title>1.15, First file after launch: 42</title></circle>
-<path class="ln s1" stroke-width="2" d="M92.2,193.2 L172.8,191.9 L253.2,192.4 L333.8,187.2 L414.2,194.0 L494.8,190.3 L575.2,259.2 L655.8,266.1"/>
-<circle class="s1 ring" cx="92.2" cy="193.2" r="3.5" stroke-width="2"><title>1.8, Track switch, mean of 6 formats: 36</title></circle>
-<circle class="s1 ring" cx="172.8" cy="191.9" r="3.5" stroke-width="2"><title>1.9, Track switch, mean of 6 formats: 36</title></circle>
-<circle class="s1 ring" cx="253.2" cy="192.4" r="3.5" stroke-width="2"><title>1.10, Track switch, mean of 6 formats: 36</title></circle>
-<circle class="s1 ring" cx="333.8" cy="187.2" r="3.5" stroke-width="2"><title>1.11, Track switch, mean of 6 formats: 39</title></circle>
-<circle class="s1 ring" cx="414.2" cy="194.0" r="3.5" stroke-width="2"><title>1.12, Track switch, mean of 6 formats: 36</title></circle>
-<circle class="s1 ring" cx="494.8" cy="190.3" r="3.5" stroke-width="2"><title>1.13, Track switch, mean of 6 formats: 37</title></circle>
-<circle class="s1 ring" cx="575.2" cy="259.2" r="3.5" stroke-width="2"><title>1.14, Track switch, mean of 6 formats: 7</title></circle>
-<circle class="s1 ring" cx="655.8" cy="266.1" r="3.5" stroke-width="2"><title>1.15, Track switch, mean of 6 formats: 3</title></circle>
-<path class="ln s2" stroke-width="2" d="M92.2,172.7 L172.8,168.1 L253.2,176.1 L333.8,174.4 L414.2,167.1 L494.8,173.2 L575.2,213.3 L655.8,242.7"/>
-<circle class="s2 ring" cx="92.2" cy="172.7" r="3.5" stroke-width="2"><title>1.8, Switch to an MP3 with no Xing header: 45</title></circle>
-<circle class="s2 ring" cx="172.8" cy="168.1" r="3.5" stroke-width="2"><title>1.9, Switch to an MP3 with no Xing header: 47</title></circle>
-<circle class="s2 ring" cx="253.2" cy="176.1" r="3.5" stroke-width="2"><title>1.10, Switch to an MP3 with no Xing header: 44</title></circle>
-<circle class="s2 ring" cx="333.8" cy="174.4" r="3.5" stroke-width="2"><title>1.11, Switch to an MP3 with no Xing header: 44</title></circle>
-<circle class="s2 ring" cx="414.2" cy="167.1" r="3.5" stroke-width="2"><title>1.12, Switch to an MP3 with no Xing header: 48</title></circle>
-<circle class="s2 ring" cx="494.8" cy="173.2" r="3.5" stroke-width="2"><title>1.13, Switch to an MP3 with no Xing header: 45</title></circle>
-<circle class="s2 ring" cx="575.2" cy="213.3" r="3.5" stroke-width="2"><title>1.14, Switch to an MP3 with no Xing header: 27</title></circle>
-<circle class="s2 ring" cx="655.8" cy="242.7" r="3.5" stroke-width="2"><title>1.15, Switch to an MP3 with no Xing header: 14</title></circle>
+<text class="m" x="87.8" y="292.0" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="159.3" y="292.0" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="230.9" y="292.0" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="302.4" y="292.0" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="374.0" y="292.0" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="445.6" y="292.0" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="517.1" y="292.0" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="588.7" y="292.0" font-size="11" text-anchor="middle">1.15</text>
+<text class="t" x="660.2" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.16</text>
+<path class="ln s0" stroke-width="2" d="M87.8,120.9 L159.3,123.5 L230.9,121.1 L302.4,124.4 L374.0,122.6 L445.6,134.1 L517.1,190.3 L588.7,178.8 L660.2,203.8"/>
+<circle class="s0 ring" cx="87.8" cy="120.9" r="3.5" stroke-width="2"><title>1.8, First file after launch: 68</title></circle>
+<circle class="s0 ring" cx="159.3" cy="123.5" r="3.5" stroke-width="2"><title>1.9, First file after launch: 67</title></circle>
+<circle class="s0 ring" cx="230.9" cy="121.1" r="3.5" stroke-width="2"><title>1.10, First file after launch: 68</title></circle>
+<circle class="s0 ring" cx="302.4" cy="124.4" r="3.5" stroke-width="2"><title>1.11, First file after launch: 66</title></circle>
+<circle class="s0 ring" cx="374.0" cy="122.6" r="3.5" stroke-width="2"><title>1.12, First file after launch: 67</title></circle>
+<circle class="s0 ring" cx="445.6" cy="134.1" r="3.5" stroke-width="2"><title>1.13, First file after launch: 62</title></circle>
+<circle class="s0 ring" cx="517.1" cy="190.3" r="3.5" stroke-width="2"><title>1.14, First file after launch: 37</title></circle>
+<circle class="s0 ring" cx="588.7" cy="178.8" r="3.5" stroke-width="2"><title>1.15, First file after launch: 42</title></circle>
+<circle class="s0 ring" cx="660.2" cy="203.8" r="3.5" stroke-width="2"><title>1.16, First file after launch: 31</title></circle>
+<path class="ln s1" stroke-width="2" d="M87.8,193.2 L159.3,191.9 L230.9,192.4 L302.4,187.2 L374.0,194.0 L445.6,190.3 L517.1,259.2 L588.7,266.1 L660.2,260.6"/>
+<circle class="s1 ring" cx="87.8" cy="193.2" r="3.5" stroke-width="2"><title>1.8, Track switch, mean of 6 formats: 36</title></circle>
+<circle class="s1 ring" cx="159.3" cy="191.9" r="3.5" stroke-width="2"><title>1.9, Track switch, mean of 6 formats: 36</title></circle>
+<circle class="s1 ring" cx="230.9" cy="192.4" r="3.5" stroke-width="2"><title>1.10, Track switch, mean of 6 formats: 36</title></circle>
+<circle class="s1 ring" cx="302.4" cy="187.2" r="3.5" stroke-width="2"><title>1.11, Track switch, mean of 6 formats: 39</title></circle>
+<circle class="s1 ring" cx="374.0" cy="194.0" r="3.5" stroke-width="2"><title>1.12, Track switch, mean of 6 formats: 36</title></circle>
+<circle class="s1 ring" cx="445.6" cy="190.3" r="3.5" stroke-width="2"><title>1.13, Track switch, mean of 6 formats: 37</title></circle>
+<circle class="s1 ring" cx="517.1" cy="259.2" r="3.5" stroke-width="2"><title>1.14, Track switch, mean of 6 formats: 7</title></circle>
+<circle class="s1 ring" cx="588.7" cy="266.1" r="3.5" stroke-width="2"><title>1.15, Track switch, mean of 6 formats: 3</title></circle>
+<circle class="s1 ring" cx="660.2" cy="260.6" r="3.5" stroke-width="2"><title>1.16, Track switch, mean of 6 formats: 6</title></circle>
+<path class="ln s2" stroke-width="2" d="M87.8,172.7 L159.3,168.1 L230.9,176.1 L302.4,174.4 L374.0,167.1 L445.6,173.2 L517.1,213.3 L588.7,242.7 L660.2,252.7"/>
+<circle class="s2 ring" cx="87.8" cy="172.7" r="3.5" stroke-width="2"><title>1.8, Switch to an MP3 with no Xing header: 45</title></circle>
+<circle class="s2 ring" cx="159.3" cy="168.1" r="3.5" stroke-width="2"><title>1.9, Switch to an MP3 with no Xing header: 47</title></circle>
+<circle class="s2 ring" cx="230.9" cy="176.1" r="3.5" stroke-width="2"><title>1.10, Switch to an MP3 with no Xing header: 44</title></circle>
+<circle class="s2 ring" cx="302.4" cy="174.4" r="3.5" stroke-width="2"><title>1.11, Switch to an MP3 with no Xing header: 44</title></circle>
+<circle class="s2 ring" cx="374.0" cy="167.1" r="3.5" stroke-width="2"><title>1.12, Switch to an MP3 with no Xing header: 48</title></circle>
+<circle class="s2 ring" cx="445.6" cy="173.2" r="3.5" stroke-width="2"><title>1.13, Switch to an MP3 with no Xing header: 45</title></circle>
+<circle class="s2 ring" cx="517.1" cy="213.3" r="3.5" stroke-width="2"><title>1.14, Switch to an MP3 with no Xing header: 27</title></circle>
+<circle class="s2 ring" cx="588.7" cy="242.7" r="3.5" stroke-width="2"><title>1.15, Switch to an MP3 with no Xing header: 14</title></circle>
+<circle class="s2 ring" cx="660.2" cy="252.7" r="3.5" stroke-width="2"><title>1.16, Switch to an MP3 with no Xing header: 9</title></circle>
 </svg>

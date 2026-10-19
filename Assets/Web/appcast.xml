@@ -7,6 +7,59 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.17-beta1</title>
+<pubDate>Mon, 19 Oct 2026 00:03:37 +0000</pubDate>
+<sparkle:version>322</sparkle:version>
+<sparkle:shortVersionString>1.17-beta1</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+<sparkle:channel>beta</sparkle:channel>
+<description sparkle:format="markdown"><![CDATA[
+* Added mouse/trackpad scrolling and up/down keys to change the volume (when enabled)
+* Added Copy and Paste for colors and fonts in the theme editor's right-click menu
+* Moved the volume slider appearance and behavior settings from themes to Settings > Appearance
+* Fixed 320 kbps MP3s opening slowly
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.17-beta1/Vibe-macOS-universal-1.17-beta1.zip" length="10502288" type="application/octet-stream" sparkle:edSignature="d3sE4+kD7jJB3srzMD6odoixphZGsc4JRLggT790cNJ4qz5lSZnPNjic35tgvDSl1SDQhCJdu9+cpbBxXjuMBQ=="/>
+</item>
+<item>
+<title>Vibe 1.16</title>
+<pubDate>Sun, 18 Oct 2026 19:31:42 +0000</pubDate>
+<sparkle:version>320</sparkle:version>
+<sparkle:shortVersionString>1.16</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+
+<description sparkle:format="markdown"><![CDATA[
+* New: Open Location… (⌘L) plays a web link, or a Dropbox, Google Drive, or iCloud Drive share link
+* New: the Spectrum waveform style, with By section coloring so each part of a song keeps one color
+* New: the RGB, Dark Core, Kinda Blue, and Sectioned themes, and Dark Core's app icon, contributed by JohnnyFireOne
+* New: Move to Trash (⌘⌫) deletes the selected or playing song's file, with Undo
+* New: Add to Playlist… (⇧⌘O), Show in Finder (⇧⌘R), and a Window menu with Minimize, Window Width, Always on Top, and Lock Window Position
+* New: a Buffering… status while a song waits for a slow network share or download
+* New: theme colors for the playing and selected rows' text and the playing row's equalizer bars, and Clear, Window, Symbol, and Custom default artwork
+* New: click the pitch panel's header to switch its range between 8% and 16%
+* New: free-format MP3 playback
+* New: the vibe theme track, which loads on launch until you play or open something
+* Changed: the menus follow macOS conventions, with Edit > Copy, a Repeat submenu, and Skip Back and Skip Forward submenus that show each distance in bars or seconds
+* Changed: the waveform styles are renamed: Basic is now Bars, Cupertino Basic is now Progress, and the four Detailed styles are one with a type setting
+* Changed: Previous on the first song restarts it
+* Changed: the volume slider appears near the pointer, with a theme setting for when it shows
+* Changed: the playhead line is slightly see-through, and the playing row's equalizer bars are black in light mode
+* Changed: the Cupertino theme darkens only the cover art behind the playback buttons, with a lighter gradient
+* Improved: the pitch fader sounds better, with a custom repitch engine and smooth changes
+* Improved: bit-perfect output uses the device's widest bit depth, for cleaner volume changes and gapless playback between 16 and 24-bit songs
+* Improved: network share playback: a dropped connection pauses with "Connection lost", a slow server no longer stalls track changes, and hi-res songs play smoothly
+* Improved: MP3, FLAC, WAV, and AIFF songs open faster
+* Improved: the Settings window has clearer names, reasons under disabled rows, a confirmation before restoring defaults, and a jump bar in the theme editor
+* Fixed: gapless playback of mono and MPEG-2 MP3s
+* Fixed: Opus files whose header sets a volume played at the wrong level
+* Fixed: Ogg Vorbis songs lost their first 3 ms
+* Fixed: a corrupt CAF file could stall the metadata scan
+* Fixed: the waveform's hover line got lost over the played part
+* Fixed: on macOS 27, theme changes cleared the playlist selection, and memory grew on every playlist open and theme change
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.16/Vibe-macOS-universal-1.16.zip" length="10453565" type="application/octet-stream" sparkle:edSignature="tyMPGTqbtdfBzwmZoeMFJwRVMpQtf1xxOFeAMppvIcXgwYUL4qYQ9leH1j6QG1h+ITxJy+wLyXb93I7EoP5SBw=="/>
+</item>
+<item>
 <title>Vibe 1.16-beta12</title>
 <pubDate>Sun, 18 Oct 2026 01:56:47 +0000</pubDate>
 <sparkle:version>319</sparkle:version>

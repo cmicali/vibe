@@ -7,7 +7,6 @@
 #import "ArtworkDisplayController.h"
 #import "PlaylistController.h"
 #import "MainPlayerControllerInternal.h"
-#import "MainPlayerController+PlayerEvents.h"
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Playlist.h"
@@ -16,10 +15,7 @@
 #import "MainWindow.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
-#import "AudioFileFormat.h"
-#import "AudioFileHandle.h"
 #import "AudioTrack.h"
-#import "AudioTrackMetadata.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
 #import "WaveformView.h"
@@ -104,15 +100,6 @@
     }
     if (effects & VibeSettingsLiveEffectDeclick) {
         self.audioPlayer.declick = settings.declick;
-    }
-    // A reset requests every effect; an unchanged choice reopens nothing.
-    if ((effects & VibeSettingsLiveEffectMP3Decoder)
-            && AudioFileHandle.appleMPEGDecoder != settings.appleMPEGDecoder) {
-        AudioFileHandle.appleMPEGDecoder = settings.appleMPEGDecoder;
-        // The parked next track was opened with the old decoder: reopen it.
-        [self.audioPlayer prefetchTrack:nil];
-        [self applyEndOfTrackAction];
-        [self replayCurrentMPEGTrack];
     }
     if (effects & VibeSettingsLiveEffectVolume) {
         self.audioPlayer.volume = (float)settings.effectiveVolume;
@@ -213,21 +200,6 @@
         }
         [self updateFXIndicators];
         [MainMenuBuilder applyFXMenuVisibility];
-    }
-}
-
-// The decoder choice reaches a handle only at its open, so the playing MPEG
-// file reopens where it was. The sniffed codec decides, the extension only
-// before the metadata has landed.
-- (void)replayCurrentMPEGTrack {
-    AudioTrack *track = self.playlistController.currentTrack;
-    VibeAudioFileFormat format = track.metadata.fileType;
-    NSString *extension = track.url.pathExtension.lowercaseString;
-    BOOL mpeg = format ? ([format isEqualToString:VibeAudioFileFormatMP3] || [format isEqualToString:VibeAudioFileFormatMP2])
-                       : ([extension isEqualToString:@"mp3"] || [extension isEqualToString:@"mp2"]);
-    VibePendingPlaybackIntent intent = {0};
-    if (mpeg && [self.audioPlayer getPlaybackIntent:&intent forTrack:track]) {
-        [self replayTrack:track intent:intent];
     }
 }
 

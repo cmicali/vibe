@@ -77,6 +77,7 @@ NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> 
 NSString *VibeResetShortcuts(MainPlayerController *controller);
 NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *tokens);
+NSString *VibeInjectScroll(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeTestGesture(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeSelectPlaylistRows(MainPlayerController *controller, NSArray<NSString *> *tokens);
 

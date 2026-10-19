@@ -121,7 +121,7 @@ enum { kVibeReadBlock = 64 * 1024, kVibeStreamReadSmall = 4096, kVibeStreamReadF
 // decoder.
 @interface AudioFileHandle (Stream)
 
-- (BOOL)openOwnDecoderInterleaved:(BOOL)interleaved mpeg:(BOOL)mpeg;
+- (BOOL)openOwnDecoderInterleaved:(BOOL)interleaved;
 - (void)closeStreamDecoder;
 - (BOOL)readStreamIntoBuffer:(AVAudioPCMBuffer *)buffer frameCount:(AVAudioFrameCount)wanted error:(NSError **)error;
 

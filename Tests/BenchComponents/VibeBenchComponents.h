@@ -34,7 +34,7 @@
 #define VIBE_BENCH_COMPONENTS_VIBE_RESAMPLER 1            // the resampler is VibeResampler*; VibeConverter* before
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_DRAW 1             // registry construction
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE 0             // the separate envelope bake
-#define VIBE_BENCH_COMPONENTS_APPLE_MPEG 1                // the selectable MPEG decoder
+#define VIBE_BENCH_COMPONENTS_APPLE_MPEG 0                // the selectable MPEG decoder (1.14 to 1.16)
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_WINDOW 1           // loader CUE windows
 #define VIBE_BENCH_COMPONENTS_SPECTRUM_SECTIONS 1         // VibeSpectrumSections answers By section's sections
 #endif

@@ -1,23 +1,22 @@
-* Nové: vlastný prehliadač súborov Vibe popri systémovom výbere Súborov, s vstavaným Dropboxom: prihláste sa, prehliadajte, vyhľadávajte a prehrávajte svoj Dropbox, pričom prehrávanie sa spustí počas sťahovania skladby
-* Nové: náhodné prehrávanie, opakovanie všetkého a opakovanie jednej skladby s tlačidlami vedľa ovládacích prvkov prehrávania (skryjete ich v Nastavenia > Vzhľad)
-* Nové: prehrávanie CUE zoznamov zo súboru .cue alebo z CUE vloženého v FLAC a playlisty M3U v prehliadači súborov
-* Nové: prehrávanie Ogg Opus, CAF, W64, M4B, M4R a ADTS
-* Nové: posuvník crossfade od vypnutého až do 3 sekúnd po desatinách sekundy
-* Nové: štýl vlnového priebehu 3 pásma
-* Nové: voľba, či vlnový priebeh vycentrovať (alebo nie)
-* Nové: možnosť Čiara prehrávacej hlavy s celým vlnovým priebehom v plnej farbe
-* Nové: kompaktné rozloženia obrazovky Práve hrá pre nízke okná iPadu
-* Vylepšenie: posun vo FLAC je takmer okamžitý aj v dlhých súboroch, s nižšou záťažou CPU a pamäte a lepšou kompatibilitou
-* Vylepšenie: dekódovanie WAV a AIFF je rýchlejšie, s lepšou kompatibilitou
-* Vylepšenie: prehrávanie zaťažuje CPU a spotrebúva energiu menej a tagy a obaly sa skenujú rýchlejšie
-* Vylepšenie: otváranie priečinkov sa už nezasekáva na pomalých cloudových priečinkoch
-* Vylepšenie: posúvanie a potiahnutie medzi skladbami zostáva plynulé, kým sa načítava vlnový priebeh
-* Opravené: crossfade nič nerobil, keď jedna skladba plynule prešla do ďalšej; fungoval iba pri ručnej zmene skladieb
-* Opravené: priblíženie vlnového priebehu štipnutím mohlo spôsobiť skok prehrávania späť
-* Opravené: pri potiahnutí späť na skladbu sa najprv zobrazila jej stará pozícia a až potom skočila na začiatok
-* Opravené: FX pad sa po niekoľkých zmenách skladby občas otvoril len v rozmere svojho kruhu
-* Opravené: 24- a 32-bitové súbory AIFF-C little-endian sa prehrávali so zlou dĺžkou
-* Opravené: posuny v súboroch MP3 MPEG-2 s nízkym dátovým tokom pristáli mierne vedľa
-* Opravené: súbory FLAC, ktoré neuvádzajú dĺžku, nezobrazovali trvanie
-* Opravené: Vibe mohol zlyhať pri čítaní tagov z určitých poškodených súborov M4A a MP3
-* Opravené: Vibe zapisoval diagnostické záznamy do systémového záznamu
+* Nové: „Otvoriť URL“ prehrá webový odkaz alebo odkaz na zdieľanie z Dropboxu, Google Drive či iCloud Drive a skopírovaný odkaz sa prehrá z karty Súbory
+* Nové: widgety s vlnovým priebehom, veľký, na zamknutú obrazovku a s obalom cez celú plochu, s tlačidlami playlistu, prehrávania a ďalšej skladby ako na Macu
+* Nové: štýl vlnového priebehu Spektrum s farbením „Podľa sekcií“, aby si každá časť skladby zachovala jednu farbu
+* Nové: témy 3 pásma: Rekord Bin, Dengine a vlastné farby
+* Nové: priblíženie vlnového priebehu až na úroveň vzoriek
+* Nové: prehrávanie Ogg Vorbis a MP3 vo voľnom formáte
+* Nové: obaly pre skladby z iCloudu a Dropboxu, ktoré nie sú stiahnuté
+* Nové: stav „Načítavanie do medzipamäte…“, kým skladba čaká na pomalé sieťové zdieľanie alebo sťahovanie
+* Nové: tematická skladba vibe, ktorá sa načíta pri spustení, kým niečo neprehráte alebo neotvoríte
+* Zmena: štýly vlnového priebehu sú premenované: Základný je teraz Stĺpce, Cupertino (základný) je teraz Priebeh a štyri štýly Detailný sú jeden s nastavením typu
+* Zmena: „Predchádzajúca skladba“ na prvej skladbe ju spustí od začiatku
+* Zmena: čiara prehrávacej hlavy je mierne priehľadná
+* Zmena: téma Cupertino stmavuje iba obal za tlačidlami prehrávania, so svetlejším prechodom
+* Vylepšenie: prehrávacia hlava, preskakovanie a téma widgetu
+* Vylepšenie: karta Súbory zoskupuje miesta pod Umiestnenia
+* Vylepšenie: v Nastaveniach sa „Na konci skladby“ a „Zobrazenie času“ vyberajú priamo na mieste a palety 3 pásma sú pomenované podľa svojich farieb
+* Vylepšenie: prehrávanie zo sieťových zdieľaní: prerušené pripojenie pozastaví prehrávanie s hlásením „Pripojenie sa stratilo“, pomalý server už nebrzdí zmeny skladieb a skladby vo vysokom rozlíšení hrajú plynulo
+* Vylepšenie: skladby MP3, FLAC, WAV a AIFF sa otvárajú rýchlejšie
+* Opravené: prehrávanie bez medzier pri mono MP3 a MP3 MPEG-2
+* Opravené: súbory Opus, ktorých hlavička nastavuje hlasitosť, sa prehrávali so zlou úrovňou
+* Opravené: poškodený súbor CAF mohol zastaviť skenovanie metadát
+* Opravené: otvorenie staršieho odkazu mohlo nahradiť novšie otvorenie súboru

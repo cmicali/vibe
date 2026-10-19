@@ -466,7 +466,10 @@ def reset_prefs():
     """Every scenario starts from these preferences and no others: the saved
     output device is the built-in speakers, with bit-perfect and exclusive
     output off for them (the same keys in every version; 1.8-1.11 have no
-    bit-perfect and ignore those).
+    bit-perfect and ignore those). The theme track is marked spent. From 1.16
+    an unspent theme track loads on launch. Only a user's first launch loads
+    it. Unspent, it added 10 MB to 1.16's idle memory. Earlier versions ignore
+    the key.
 
     TRAP: CFFIXED_USER_HOME moves caches but not preferences, which cfprefsd
     keeps in the real home, so they are reset here, through cfprefsd, for the
@@ -478,6 +481,7 @@ def reset_prefs():
         'AudioPlayer.deviceName': speakers()[1],
         'AudioPlayer.outputModesByDeviceUID': {SPEAKERS_UID: {'bitPerfect': False, 'exclusive': False}},
         'AudioPlayer.allowBitPerfectOnAnyDevice': False,
+        'Welcome.trackSpent': True,
     }
     subprocess.run(['defaults', 'import', BUNDLE_ID, '-'], input=plistlib.dumps(seed), check=True)
 

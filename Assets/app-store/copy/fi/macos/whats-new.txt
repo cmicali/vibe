@@ -1,25 +1,27 @@
-* Uutta: sekoitus, kaikkien toisto ja yhden kappaleen toisto Toisto-valikossa (⌥⌘S, ⌘R), kuvakkeineen tiedostotietorivillä
-* Uutta: CUE-listan toisto .cue-tiedostosta tai FLAC-tiedostoon upotetusta CUE-listasta
-* Uutta: Ogg Opus-, Ogg Vorbis-, CAF-, W64-, M4B-, M4R- ja ADTS-toisto
-* Uutta: Näppäinoikotiet-osio Asetuksissa, jossa minkä tahansa oikotien voi vaihtaa
-* Uutta: Crossfade-liukusäädin, pois päältä aina 3 sekuntiin asti kymmenesosasekunnin askelin
-* Uutta: muokattava 3 kaistaa -aaltomuototyyli ja kaksi sitä käyttävää teemaa
-* Uutta: valinta aaltomuotojen keskittämiseen (tai ei)
-* Uutta: Toistopään viiva -asetus, jossa koko aaltomuoto näkyy täysvärisenä
-* Muutettu: Asetukset-ikkuna on järjestetty uudelleen, ja siinä on haku
-* Parannettu: FLAC-tiedostoissa siirtyminen on lähes välitöntä myös pitkissä tiedostoissa, kuluttaa vähemmän CPU:ta ja muistia ja toimii paremmin eri tiedostojen kanssa
-* Parannettu: WAV- ja AIFF-dekoodaus on 1,4x–3,2x nopeampaa ja toimii paremmin eri tiedostojen kanssa
-* Parannettu: toisto kuluttaa 20–30 % vähemmän CPU:ta ja 15–25 % vähemmän energiaa
-* Parannettu: tunnisteiden ja kansikuvien skannaus on 2x nopeampaa, ja kirjastoskannaukset kuluttavat 20 % vähemmän CPU:ta
-* Parannettu: nopeampi käynnistys, suuret M3U-soittolistat ja erittäin suurten soittolistojen muokkaus
-* Parannettu: Aseta Vibe oletukseksi ottaa haltuunsa myös CUE- ja M3U-tiedostot ja jatkaa, vaikka kieltäytyisit yhdestä tiedostotyypistä
-* Korjattu: crossfade ei tehnyt mitään, kun kappale siirtyi seuraavaan; se toimi vain kappaletta vaihdettaessa käsin
-* Korjattu: yhden näppäimen oikotiet eivät toimineet AZERTY-, kreikkalaisella, kyrillisellä eikä muilla ei-yhdysvaltalaisilla näppäimistöasetteluilla
-* Korjattu: aaltomuodon palkit väreilivät ikkunan kokoa muutettaessa
-* Korjattu: 24- ja 32-bittisten little-endian-AIFF-C-tiedostojen pituus oli väärä toistettaessa
-* Korjattu: siirtyminen matalan bittinopeuden MPEG-2 MP3 -tiedostoissa osui hieman pieleen
-* Korjattu: FLAC-tiedostoille, jotka eivät tallenna pituuttaan, ei näkynyt kestoa
-* Korjattu: Vibe saattoi kaatua luettaessa tunnisteita tietyistä virheellisistä M4A- ja MP3-tiedostoista
-* Korjattu: Muunna FLAC-muotoon lisäsi naksahduksen float-tiedoston jokaiseen täysimittaiseen huippuun
-* Korjattu: sellaisen CUE-listan tai M3U-soittolistan avaaminen, jonka tiedostot puuttuivat kaikki, ei tehnyt mitään; nyt Vibe kertoo, ettei se voinut avata niitä
-* Korjattu: Vibe kirjoitti diagnostiikkalokia järjestelmälokiin
+* Uutta: Avaa sijainti… (⌘L) toistaa verkkolinkin tai jakolinkin Dropboxista, Google Drivesta tai iCloud Drivesta
+* Uutta: Spektri-aaltomuototyyli ja Osioittain-väritys, jolla kappaleen jokainen osa pysyy yhdenvärisenä
+* Uutta: teemat RGB, Dark Core, Kinda Blue ja Sectioned sekä Dark Coren sovelluskuvake, tekijänä JohnnyFireOne
+* Uutta: Siirrä roskakoriin (⌘⌫) poistaa valitun tai soivan kappaleen tiedoston, ja Kumoa palauttaa sen
+* Uutta: Lisää soittolistaan… (⇧⌘O), Näytä Finderissa (⇧⌘R) sekä Ikkuna-valikko, jossa ovat Pienennä, Ikkunan leveys, Aina päällimmäisenä ja Lukitse ikkunan sijainti
+* Uutta: Puskuroidaan… -tila, kun kappale odottaa hidasta verkkojakoa tai latausta
+* Uutta: teemavärit soivan ja valitun rivin tekstille ja soivan rivin taajuuskorjainpalkeille sekä oletuskansikuvat Läpinäkyvä, Ikkuna, Symboli ja Mukautettu väri
+* Uutta: napsauta pitch-paneelin otsikkoa, niin sen alue vaihtuu 8 %:n ja 16 %:n välillä
+* Uutta: vapaan bittinopeuden (free format) MP3-tiedostojen toisto
+* Uutta: vibe-teemakappale, joka latautuu käynnistettäessä, kunnes toistat tai avaat jotain
+* Muutettu: valikot noudattavat macOSin käytäntöjä, ja niissä ovat Muokkaa > Kopioi sekä alivalikot Toisto, Hyppää taaksepäin ja Hyppää eteenpäin, joista kaksi viimeistä näyttävät jokaisen hypyn pituuden tahteina tai sekunteina
+* Muutettu: aaltomuototyylit on nimetty uudelleen: Yksinkertainen on nyt Palkit, Cupertino (yksinkertainen) on nyt Edistyminen, ja neljä Yksityiskohtainen-tyyliä ovat nyt yksi tyyli, jolla on tyyppiasetus
+* Muutettu: Edellinen kappale -painike aloittaa ensimmäisen kappaleen alusta
+* Muutettu: äänenvoimakkuuden liukusäädin tulee näkyviin osoittimen lähelle, ja teema-asetus määrää, milloin se näkyy
+* Muutettu: toistopään viiva on hieman läpikuultava, ja soivan rivin taajuuskorjainpalkit ovat mustia vaaleassa ulkoasussa
+* Muutettu: Cupertino-teema tummentaa vain toistopainikkeiden takana olevan kansikuvan, ja liukuväri on vaaleampi
+* Parannettu: pitch-säädin kuulostaa paremmalta oman repitch-moottorin ja pehmeiden muutosten ansiosta
+* Parannettu: bittitarkka lähtö käyttää laitteen suurinta bittisyvyyttä, joten äänenvoimakkuuden muutokset ovat puhtaampia ja 16- ja 24-bittisten kappaleiden välinen toisto on saumatonta
+* Parannettu: toisto verkkojaoista: katkennut yhteys keskeyttää toiston ilmoituksella ”Yhteys katkesi”, hidas palvelin ei enää jumita kappaleenvaihtoja, ja hi-res-kappaleet soivat sujuvasti
+* Parannettu: MP3-, FLAC-, WAV- ja AIFF-kappaleet avautuvat nopeammin
+* Parannettu: Asetukset-ikkunassa on selkeämmät nimet, syyt pois käytöstä olevien rivien alla, vahvistus ennen oletusten palauttamista ja hyppypalkki teemaeditorissa
+* Korjattu: monofonisten ja MPEG-2 MP3 -tiedostojen saumaton toisto
+* Korjattu: Opus-tiedostot, joiden otsake asettaa äänenvoimakkuuden, soivat väärällä tasolla
+* Korjattu: Ogg Vorbis -kappaleista puuttuivat ensimmäiset 3 ms
+* Korjattu: vioittunut CAF-tiedosto saattoi jumittaa metatietojen skannauksen
+* Korjattu: aaltomuodon osoitinviiva katosi toistetun osan päällä
+* Korjattu: macOS 27:ssä teeman vaihto tyhjensi soittolistan valinnan, ja muistinkäyttö kasvoi jokaisella soittolistan avauksella ja teeman vaihdolla

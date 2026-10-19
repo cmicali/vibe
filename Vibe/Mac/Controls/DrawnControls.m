@@ -62,7 +62,7 @@ static void DrawDimmedWhenDisabled(NSControl *control, void (^draw)(void)) {
 static const CGFloat kSliderTrackHeight = 4;
 static const CGFloat kSliderKnobWidth = 18;
 static const CGFloat kSliderKnobHeight = 14;
-static const double kSliderAccessibilityStep = 0.05;
+static const double kSliderStep = 0.05;
 
 @implementation VibeSlider {
     double _value;
@@ -284,20 +284,28 @@ static const double kSliderAccessibilityStep = 0.05;
 }
 
 - (BOOL)accessibilityPerformIncrement {
-    return [self stepForAccessibility:kSliderAccessibilityStep];
+    return [self stepForAccessibility:kSliderStep];
 }
 
 - (BOOL)accessibilityPerformDecrement {
-    return [self stepForAccessibility:-kSliderAccessibilityStep];
+    return [self stepForAccessibility:-kSliderStep];
 }
 
 // Rounded to the step, so stepping from a dragged value lands on 5% marks.
 - (BOOL)stepForAccessibility:(double)delta {
+    return [self moveToValue:round((_value + delta) / kSliderStep) * kSliderStep];
+}
+
+- (BOOL)moveBySteps:(double)steps {
+    return [self moveToValue:_value + steps * kSliderStep];
+}
+
+- (BOOL)moveToValue:(double)value {
     if (!self.isEnabled) {
         return NO;
     }
     double before = _value;
-    self.doubleValue = round((_value + delta) / kSliderAccessibilityStep) * kSliderAccessibilityStep;
+    self.doubleValue = value;
     if (_value == before) {
         return NO;
     }

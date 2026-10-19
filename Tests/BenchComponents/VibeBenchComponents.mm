@@ -16,6 +16,7 @@
 #import "VibeBenchComponents.h"
 
 #import <AVFAudio/AVFAudio.h>
+#import <AudioToolbox/AudioFile.h>
 #import <QuartzCore/QuartzCore.h>
 
 #import "AppSettings.h"
@@ -212,7 +213,13 @@ NSString *VibeBenchComponentsFile(NSString *name) {
 #if VIBE_BENCH_COMPONENTS_FILE_HANDLE
     BOOL ok = [_handle readIntoBuffer:buffer frameCount:frames error:nil];
 #else
-    BOOL ok = [_file readIntoBuffer:buffer frameCount:frames error:nil];
+    NSError *error = nil;
+    BOOL ok = [_file readIntoBuffer:buffer frameCount:frames error:&error];
+    // AVAudioFile fails a read that starts at the end with kAudioFileEndOfFileError. That read is the end.
+    if (!ok && buffer.frameLength == 0 && error.code == kAudioFileEndOfFileError &&
+        [error.domain isEqualToString:NSOSStatusErrorDomain]) {
+        return NO;
+    }
 #endif
     VibeBenchComponentsRequire(ok, "audio read failed");
     return buffer.frameLength > 0;

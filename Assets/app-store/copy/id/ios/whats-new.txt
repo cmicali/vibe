@@ -1,23 +1,22 @@
-* Baru: penjelajah file milik Vibe, di samping pemilih Files sistem, dengan Dropbox bawaan: masuk untuk menjelajah, mencari, dan memutar Dropbox Anda, dengan pemutaran dimulai saat lagu masih diunduh
-* Baru: acak, ulangi semua, dan ulangi satu lagu, dengan tombol di samping kontrol pemutaran (sembunyikan di Pengaturan > Penampilan)
-* Baru: pemutaran lembar CUE, dari file .cue atau yang tertanam di FLAC, serta daftar putar M3U di penjelajah file
-* Baru: pemutaran Ogg Opus, CAF, W64, M4B, M4R, dan ADTS
-* Baru: penggeser crossfade, dari mati hingga 3 detik dalam kelipatan sepersepuluh detik
-* Baru: gaya bentuk gelombang 3 Pita
-* Baru: opsi untuk menengahkan (atau tidak) bentuk gelombang
-* Baru: opsi garis kepala pemutar, dengan seluruh bentuk gelombang berwarna penuh
-* Baru: tata letak Sedang Diputar yang ringkas untuk jendela iPad yang pendek
-* Peningkatan: pencarian posisi di FLAC hampir instan bahkan di file panjang, dengan CPU dan memori lebih hemat serta kompatibilitas lebih baik
-* Peningkatan: dekode WAV dan AIFF lebih cepat, dengan kompatibilitas lebih baik
-* Peningkatan: pemutaran memakai CPU dan energi lebih sedikit, dan pemindaian tag serta gambar sampul lebih cepat
-* Peningkatan: membuka folder tidak lagi tersendat pada folder cloud yang lambat
-* Peningkatan: menggeser posisi dan menggesek antarlagu tetap mulus saat bentuk gelombang dimuat
-* Perbaikan: crossfade tidak berfungsi saat satu lagu berlanjut ke lagu berikutnya; hanya berfungsi saat lagu diganti manual
-* Perbaikan: mencubit untuk memperbesar bentuk gelombang dapat membuat pemutaran melompat mundur
-* Perbaikan: menggesek kembali ke sebuah lagu menampilkan posisi lamanya sebelum melompat ke awal
-* Perbaikan: pad FX terkadang terbuka tidak lebih besar dari lingkarannya setelah beberapa kali pergantian lagu
-* Perbaikan: file AIFF-C little-endian 24 dan 32-bit diputar dengan durasi yang salah
-* Perbaikan: pencarian posisi di file MP3 MPEG-2 berbitrate rendah meleset sedikit
-* Perbaikan: file FLAC yang tidak mencatat durasinya tidak menampilkan durasi
-* Perbaikan: Vibe dapat mogok saat membaca tag dari file M4A dan MP3 tertentu yang rusak
-* Perbaikan: Vibe menulis log diagnostik ke log sistem
+* Baru: Buka URL memutar tautan web, atau tautan berbagi Dropbox, Google Drive, atau iCloud Drive, dan tautan yang disalin dapat diputar dari tab File
+* Baru: widget bentuk gelombang, besar, Layar Terkunci, dan gambar sampul penuh, dengan tombol daftar putar, putar, dan berikutnya seperti di Mac
+* Baru: gaya bentuk gelombang Spektrum, dengan pewarnaan Per bagian sehingga setiap bagian lagu tetap satu warna
+* Baru: tema 3 Pita: Rekord Bin, Dengine, dan Warna kustom
+* Baru: perbesar bentuk gelombang hingga ke tingkat sampel
+* Baru: pemutaran Ogg Vorbis dan MP3 free format
+* Baru: sampul album untuk lagu iCloud dan Dropbox yang belum diunduh
+* Baru: status Menyangga… saat lagu menunggu berbagi jaringan atau unduhan yang lambat
+* Baru: lagu tema vibe, yang dimuat saat peluncuran hingga Anda memutar atau membuka sesuatu
+* Perubahan: gaya bentuk gelombang berganti nama: Dasar kini menjadi Batang, Cupertino (dasar) kini menjadi Kemajuan, dan empat gaya Detail kini menjadi satu dengan pengaturan jenis
+* Perubahan: Trek Sebelumnya pada lagu pertama memulai lagu itu dari awal
+* Perubahan: garis kepala pemutar sedikit tembus pandang
+* Perubahan: tema Cupertino hanya menggelapkan gambar sampul di belakang tombol pemutaran, dengan gradien yang lebih terang
+* Peningkatan: kepala pemutar, lompatan, dan tema widget
+* Peningkatan: tab File mengelompokkan tempat di bawah Lokasi
+* Peningkatan: di Pengaturan, Saat trek berakhir dan Tampilan waktu dipilih langsung di tempat, dan palet 3 Pita dinamai sesuai warnanya
+* Peningkatan: pemutaran dari berbagi jaringan: koneksi yang terputus menjeda pemutaran dengan “Koneksi terputus”, server yang lambat tidak lagi menghambat pergantian trek, dan lagu hi-res diputar dengan mulus
+* Peningkatan: lagu MP3, FLAC, WAV, dan AIFF terbuka lebih cepat
+* Perbaikan: pemutaran tanpa jeda MP3 mono dan MPEG-2
+* Perbaikan: file Opus yang header-nya mengatur volume diputar pada tingkat yang salah
+* Perbaikan: file CAF yang rusak dapat menghentikan pemindaian metadata
+* Perbaikan: pembukaan tautan yang lebih lama dapat menggantikan pembukaan file yang lebih baru

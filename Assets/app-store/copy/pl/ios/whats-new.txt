@@ -1,23 +1,22 @@
-* Nowość: własna przeglądarka plików Vibe obok systemowego selektora Pliki, z wbudowanym Dropboksem: zaloguj się, aby przeglądać, przeszukiwać i odtwarzać swój Dropbox, a odtwarzanie rozpoczyna się jeszcze w trakcie pobierania utworu
-* Nowość: tryb losowy, powtarzanie wszystkich i powtarzanie jednego utworu, z przyciskami obok elementów sterujących odtwarzaniem (ukryjesz je w Ustawienia > Wygląd)
-* Nowość: odtwarzanie plików CUE, z pliku .cue lub z pliku osadzonego w FLAC, oraz playlisty M3U w przeglądarce plików
-* Nowość: odtwarzanie Ogg Opus, CAF, W64, M4B, M4R i ADTS
-* Nowość: suwak crossfade, od wyłączenia do 3 sekund co jedną dziesiątą sekundy
-* Nowość: styl kształtu fali 3 pasma
-* Nowość: opcja wyśrodkowania (lub nie) kształtów fali
-* Nowość: opcja linii głowicy, z całym kształtem fali w pełnym kolorze
-* Nowość: kompaktowe układy ekranu Teraz odtwarzane dla niskich okien iPada
-* Ulepszenie: przewijanie w FLAC jest niemal natychmiastowe nawet w długich plikach, przy mniejszym użyciu CPU i pamięci oraz lepszej zgodności
-* Ulepszenie: dekodowanie WAV i AIFF jest szybsze, z lepszą zgodnością
-* Ulepszenie: odtwarzanie zużywa mniej CPU i energii, a tagi i okładki skanują się szybciej
-* Ulepszenie: otwieranie folderów nie zawiesza się już na wolnych folderach w chmurze
-* Ulepszenie: przeciąganie suwaka i przesuwanie między utworami pozostają płynne podczas wczytywania kształtu fali
-* Poprawka: crossfade nie działał, gdy jeden utwór przechodził w następny; działał tylko przy ręcznej zmianie utworu
-* Poprawka: powiększanie kształtu fali szczypnięciem mogło cofnąć odtwarzanie
-* Poprawka: po przesunięciu z powrotem do utworu najpierw widać było jego starą pozycję, a potem następował skok na początek
-* Poprawka: pad FX czasem otwierał się nie większy niż jego kółko po kilku zmianach utworu
-* Poprawka: 24- i 32-bitowe pliki AIFF-C little-endian były odtwarzane z błędną długością
-* Poprawka: przewijanie w plikach MP3 MPEG-2 o niskiej przepływności trafiało lekko obok
-* Poprawka: pliki FLAC, które nie zapisują swojej długości, nie pokazywały czasu trwania
-* Poprawka: Vibe mógł ulec awarii podczas odczytu tagów z niektórych uszkodzonych plików M4A i MP3
-* Poprawka: Vibe zapisywał dane diagnostyczne w dzienniku systemowym
+* Nowość: Otwórz URL odtwarza link internetowy lub link udostępniania z Dropboxa, Google Drive albo iCloud Drive, a skopiowany link odtworzysz z karty Pliki
+* Nowość: widżety z kształtem fali, duży, na ekranie blokady i z okładką na całą powierzchnię, z przyciskami playlisty, odtwarzania i następnego utworu jak na Macu
+* Nowość: styl kształtu fali Spektrum z kolorowaniem Według sekcji, dzięki któremu każda część utworu zachowuje jeden kolor
+* Nowość: motywy 3 pasma: Rekord Bin, Dengine i Niestandardowe kolory
+* Nowość: powiększanie kształtu fali aż do pojedynczych próbek
+* Nowość: odtwarzanie Ogg Vorbis i plików MP3 typu free format
+* Nowość: okładki albumów dla utworów z iCloud i Dropboxa, które nie zostały pobrane
+* Nowość: stan Buforowanie…, gdy utwór czeka na wolny udział sieciowy lub pobieranie
+* Nowość: utwór motywu vibe, który wczytuje się przy uruchomieniu, dopóki czegoś nie odtworzysz lub nie otworzysz
+* Zmiana: style kształtu fali mają nowe nazwy: Prosty to teraz Słupki, Cupertino (prosty) to teraz Postęp, a cztery style Szczegółowy połączono w jeden z ustawieniem Typ
+* Zmiana: Poprzedni utwór na pierwszym utworze odtwarza go od początku
+* Zmiana: linia głowicy jest lekko przezroczysta
+* Zmiana: motyw Cupertino przyciemnia tylko okładkę za przyciskami odtwarzania i ma jaśniejszy gradient
+* Ulepszenie: głowica, przeskoki i motyw widżetu
+* Ulepszenie: karta Pliki grupuje miejsca w sekcji Miejsca
+* Ulepszenie: w Ustawieniach Po zakończeniu utworu i Wyświetlanie czasu wybiera się na miejscu, a palety 3 pasma mają nazwy od swoich kolorów
+* Ulepszenie: odtwarzanie z udziałów sieciowych: zerwane połączenie wstrzymuje odtwarzanie z komunikatem „Utracono połączenie”, wolny serwer nie blokuje już zmiany utworów, a utwory hi-res odtwarzają się płynnie
+* Ulepszenie: utwory MP3, FLAC, WAV i AIFF otwierają się szybciej
+* Poprawka: odtwarzanie bez przerw plików MP3 mono i MPEG-2
+* Poprawka: pliki Opus, których nagłówek ustawia głośność, grały na złym poziomie
+* Poprawka: uszkodzony plik CAF mógł zablokować skanowanie metadanych
+* Poprawka: otwarcie starszego linku mogło zastąpić nowsze otwarcie pliku
