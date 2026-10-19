@@ -1,25 +1,27 @@
-* Nyt: bland, gentag alle og gentag ét nummer i menuen Afspilning (⌥⌘S, ⌘R), med deres ikoner på linjen med filoplysninger
-* Nyt: afspilning af CUE-ark, fra en .cue-fil eller et, der er indlejret i en FLAC
-* Nyt: afspilning af Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R og ADTS
-* Nyt: en rude med Tastaturgenveje i Indstillinger, hvor du kan ændre enhver genvej
-* Nyt: en crossfade-skyder fra slukket op til 3 sekunder i tiendedele af et sekund
-* Nyt: tilpasselig bølgeformstil 3-bånd og to temaer, der bruger den
-* Nyt: mulighed for at centrere bølgeformer (eller ej)
-* Nyt: en indstilling for en afspilningshovedlinje, med hele bølgeformen i fuld farve
-* Ændret: vinduet Indstillinger er omorganiseret og har søgning
-* Forbedret: FLAC-spoling er næsten øjeblikkelig selv i lange filer, bruger mindre CPU og hukommelse og har bedre kompatibilitet
-* Forbedret: afkodning af WAV og AIFF er 1,4x–3,2x hurtigere med bedre kompatibilitet
-* Forbedret: afspilning bruger 20–30 % mindre CPU og 15–25 % mindre energi
-* Forbedret: tags og illustrationer scannes 2x hurtigere, og biblioteksscanninger bruger 20 % mindre CPU
-* Forbedret: hurtigere start, store M3U-afspilningslister og redigering af meget store afspilningslister
-* Forbedret: Indstil Vibe som standard tager også CUE- og M3U-filer og fortsætter, selv om du afviser én filtype
-* Rettet: crossfade gjorde ingenting, når ét nummer gik over i det næste; det virkede kun, når du skiftede nummer manuelt
-* Rettet: genveje med én tast virkede ikke på AZERTY-, græske, kyrilliske og andre ikke-amerikanske tastaturlayouts
-* Rettet: bølgeformens streger bølgede, mens vinduet blev ændret i størrelse
-* Rettet: 24- og 32-bit little-endian AIFF-C-filer blev afspillet med forkert længde
-* Rettet: spoling i MPEG-2 MP3-filer med lav bitrate landede en smule ved siden af
-* Rettet: FLAC-filer, der ikke registrerer deres længde, viste ingen varighed
-* Rettet: Vibe kunne gå ned ved læsning af tags fra visse ødelagte M4A- og MP3-filer
-* Rettet: Konverter til FLAC tilføjede et klik ved hver fuldskala-top i en float-fil
-* Rettet: åbning af et CUE-ark eller en M3U-afspilningsliste, hvor alle filerne mangler, gjorde ingenting; nu fortæller Vibe, at filerne ikke kunne åbnes
-* Rettet: Vibe skrev diagnostisk logning til systemloggen
+* Nyt: Åbn adresse… (⌘L) afspiller et weblink eller et delingslink fra Dropbox, Google Drive eller iCloud Drive
+* Nyt: bølgeformstilen Spektrum med farvningen Efter sektion, så hver del af et nummer beholder én farve
+* Nyt: temaerne RGB, Dark Core, Kinda Blue og Sectioned samt Dark Cores appikon, bidraget af JohnnyFireOne
+* Nyt: Flyt til papirkurv (⌘⌫) sletter filen for det valgte eller spillende nummer, og det kan fortrydes
+* Nyt: Tilføj til spilleliste… (⇧⌘O), Vis i Finder (⇧⌘R) og menuen Vindue med Minimer, Vinduesbredde, Altid forrest og Lås vinduets placering
+* Nyt: statussen Bufferer…, mens et nummer venter på en langsom netværksdeling eller en download
+* Nyt: temafarver til teksten i den spillende og de valgte rækker og til equalizerbjælkerne i den spillende række samt standardomslagene Gennemsigtig, Vindue, Symbol og Tilpasset farve
+* Nyt: klik på pitchpanelets overskrift for at skifte dets område mellem 8 % og 16 %
+* Nyt: afspilning af MP3 i free format
+* Nyt: temanummeret vibe, som indlæses ved start, indtil du afspiller eller åbner noget
+* Ændret: menuerne følger macOS' konventioner med Rediger > Kopier, en Gentag-undermenu og undermenuerne Hop tilbage og Hop frem, som viser hver afstand i takter eller sekunder
+* Ændret: bølgeformstilene har fået nye navne: Enkel hedder nu Søjler, Cupertino (enkel) hedder nu Forløb, og de fire Detaljeret-stile er nu én med en Type-indstilling
+* Ændret: Forrige nummer på det første nummer starter det forfra
+* Ændret: lydstyrkeskyderen vises nær markøren, med en temaindstilling for, hvornår den vises
+* Ændret: afspilningshovedets linje er let gennemsigtig, og equalizerbjælkerne i den spillende række er sorte i lys tilstand
+* Ændret: temaet Cupertino gør kun omslaget bag afspilningsknapperne mørkere, med en lysere gradient
+* Forbedret: pitch-faderen lyder bedre med en egen repitch-motor og bløde ændringer
+* Forbedret: bitperfekt output bruger enhedens største bitdybde, så lydstyrkeændringer bliver renere, og afspilning uden pauser virker mellem 16- og 24-bit-numre
+* Forbedret: afspilning fra netværksdelinger: en afbrudt forbindelse sætter på pause med “Forbindelsen blev afbrudt”, en langsom server forsinker ikke længere nummerskift, og hi-res-numre afspilles flydende
+* Forbedret: MP3-, FLAC-, WAV- og AIFF-numre åbner hurtigere
+* Forbedret: vinduet Indstillinger har tydeligere navne, begrundelser under deaktiverede rækker, en bekræftelse før nulstilling til standard og en springbjælke i temaeditoren
+* Rettet: afspilning uden pauser af mono- og MPEG-2-MP3-filer
+* Rettet: Opus-filer, hvis header angiver en lydstyrke, blev afspillet med forkert niveau
+* Rettet: Ogg Vorbis-numre mistede deres første 3 ms
+* Rettet: en beskadiget CAF-fil kunne få metadatascanningen til at gå i stå
+* Rettet: bølgeformens hover-linje forsvandt over den afspillede del
+* Rettet: på macOS 27 ryddede temaskift markeringen i spillelisten, og hukommelsesforbruget voksede ved hver åbning af en spilleliste og hvert temaskift

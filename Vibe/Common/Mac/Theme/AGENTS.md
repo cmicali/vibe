@@ -23,7 +23,7 @@ The theme record. The store that holds it is `AppSettings+Themes`, in this direc
 
 ## What a theme is not
 
-**A theme is how the window looks, never what it shows.** The readouts are `AppSettings` (`Mac/Settings/Themes/AGENTS.md`): time labels and remaining time, status icons, file info, BPM, key, key notation and Camelot colors. So are the playlist's number, artwork and duration columns, and the Dock tile. A theme switch must never hide what the user chose to see. Version-1 records carried these fields. A record or import still naming one drops it at the gate as an unknown key (`../AGENTS.md`, Migrations). **One exception is deliberate:** a theme whose volume slider is `always` shown in the top-right corner keeps the codec and BPM lines hidden, because the slider takes their place.
+**A theme is how the window looks, never what it shows.** The readouts are `AppSettings` (`Mac/Settings/Themes/AGENTS.md`): time labels and remaining time, status icons, file info, BPM, key, key notation and Camelot colors. So are the playlist's number, artwork and duration columns, and the Dock tile. A theme switch must never hide what the user chose to see. Version-1 records carried these fields. So are the volume slider's place, when it shows and its labels. A record or import still naming one drops it at the gate as an unknown key (`../AGENTS.md`, Migrations).
 
 ## The built-ins
 
@@ -57,7 +57,7 @@ The theme record. The store that holds it is `AppSettings+Themes`, in this direc
 
 ## The volume slider
 
-`volumeBar` (`mono`/`artwork`/`waveform`/`custom`, default `waveform`, with the `kVibeThemeColorVolumeBar` pair), `volumeKnob` (the same ladder plus `bar`, the default, whatever color the bar draws, the system accent under None; with the `kVibeThemeColorVolumeKnob` pair), `showVolumeLabels` (default on) and `volumeLocation` (`top_right`, the default, or `bottom`) travel as `volume.bar`, `volume.barColor`, `volume.knob`, `volume.knobColor`, `volume.showLabels` and `volume.location`. `volumeVisibility` travels as `volume.visibility`. Its values are `always`, `hover_close` (the default) and `hover_exact`. The pairs' unset slots draw the system accent and the white knob, so Custom starts from None's look. The dice roll both colors but never the labels, the location or the visibility, which are layout, not look.
+`volumeBar` (`mono`/`artwork`/`waveform`/`custom`, default `waveform`, with the `kVibeThemeColorVolumeBar` pair) and `volumeKnob` (the same ladder plus `bar`, the default, whatever color the bar draws, the system accent under None; with the `kVibeThemeColorVolumeKnob` pair) travel as `volume.bar`, `volume.barColor`, `volume.knob` and `volume.knobColor`. The pairs' unset slots draw the system accent and the white knob, so Custom starts from None's look. The dice roll both colors.
 
 ## Images
 

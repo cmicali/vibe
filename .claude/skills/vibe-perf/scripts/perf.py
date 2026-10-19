@@ -169,7 +169,7 @@ def tool_spec(src, dumped):
         'ENABLE_APP_SANDBOX': 'NO', 'ENABLE_HARDENED_RUNTIME': 'NO', 'GCC_TREAT_WARNINGS_AS_ERRORS': 'NO'})
     tool = {'type': 'tool', 'platform': 'macOS', 'sources': sources, 'settings': settings,
             'dependencies': [d for d in app.get('dependencies', []) if 'sdk' in d]}
-    # cm_libs' pieces reach the app as templates. The dump keeps the templates
+    # vibe-libs' pieces reach the app as templates. The dump keeps the templates
     # with their paths rewritten from the root, so the tool takes them as they
     # are, and the include they came from goes: it resolves against the spec's
     # own folder, and the dumped spec is written elsewhere.
@@ -224,7 +224,7 @@ def build(ref=None):
         if not src.exists():
             sh('git', '-C', str(ROOT), 'worktree', 'prune')
             sh('git', '-C', str(ROOT), 'worktree', 'add', '--detach', str(src), sha, stdout=subprocess.DEVNULL)
-        # A ref from before cm_libs has no submodule. One from after needs it
+        # A ref from before vibe-libs has no submodule. One from after needs it
         # checked out, or its pieces drop out of the build.
         if (src / '.gitmodules').exists():
             sh('git', '-C', str(src), 'submodule', 'update', '--init', '--recursive', stdout=subprocess.DEVNULL)

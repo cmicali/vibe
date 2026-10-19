@@ -1,25 +1,27 @@
-* Novedad: reproducción aleatoria, repetir todo y repetir una en el menú Reproducción (⌥⌘S, ⌘R), con sus iconos en la línea de información del archivo
-* Novedad: reproducción de hojas CUE, desde un archivo .cue o desde una incrustada en un FLAC
-* Novedad: reproducción de Ogg Opus, Ogg Vorbis, CAF, W64, M4B, M4R y ADTS
-* Novedad: un panel “Funciones rápidas de teclado” en Ajustes para cambiar cualquier función rápida
-* Novedad: un control deslizante de crossfade, desde desactivado hasta 3 segundos en décimas de segundo
-* Novedad: estilo de forma de onda 3 bandas personalizable y dos temas que lo usan
-* Novedad: opción para centrar (o no) las formas de onda
-* Novedad: una opción de línea del cabezal, con toda la forma de onda a todo color
-* Cambio: la ventana de Ajustes se ha reorganizado y tiene búsqueda
-* Mejora: el desplazamiento en FLAC es casi instantáneo incluso en archivos largos, con menos uso de CPU y memoria y mejor compatibilidad
-* Mejora: la decodificación de WAV y AIFF es entre 1,4x y 3,2x más rápida, con mejor compatibilidad
-* Mejora: la reproducción usa entre un 20 y un 30% menos de CPU y entre un 15 y un 25% menos de energía
-* Mejora: las etiquetas y carátulas se analizan 2x más rápido, y los análisis de la biblioteca usan un 20% menos de CPU
-* Mejora: arranque más rápido, listas M3U grandes más ágiles y edición de listas de reproducción muy grandes
-* Mejora: “Establecer Vibe por omisión” también reclama los archivos CUE y M3U, y continúa aunque rechaces un tipo de archivo
-* Corrección: el crossfade no hacía nada cuando una pista pasaba a la siguiente; solo funcionaba al cambiar de pista a mano
-* Corrección: las funciones rápidas de una sola tecla no funcionaban en distribuciones AZERTY, griegas, cirílicas y otras no estadounidenses
-* Corrección: las barras de la forma de onda ondulaban al cambiar el tamaño de la ventana
-* Corrección: los archivos AIFF-C little-endian de 24 y 32 bits se reproducían con una duración incorrecta
-* Corrección: los desplazamientos en archivos MP3 MPEG-2 de baja tasa de bits caían ligeramente fuera de lugar
-* Corrección: los archivos FLAC que no registran su duración no mostraban ninguna
-* Corrección: Vibe podía cerrarse inesperadamente al leer las etiquetas de ciertos archivos M4A y MP3 dañados
-* Corrección: Convertir a FLAC añadía un chasquido en cada pico de escala completa de un archivo de coma flotante
-* Corrección: abrir una hoja CUE o una lista M3U con todos sus archivos ausentes no hacía nada; ahora Vibe avisa de que no pudo abrirlos
-* Corrección: Vibe escribía registros de diagnóstico en el registro del sistema
+* Novedad: Abrir ubicación… (⌘L) reproduce un enlace web o un enlace compartido de Dropbox, Google Drive o iCloud Drive
+* Novedad: el estilo de forma de onda Espectro, con el color Por secciones para que cada parte de una pista conserve un color
+* Novedad: los temas RGB, Dark Core, Kinda Blue y Sectioned, y el icono de app de Dark Core, aportados por JohnnyFireOne
+* Novedad: Trasladar a la Papelera (⌘⌫) elimina el archivo de la pista seleccionada o en reproducción, y se puede deshacer
+* Novedad: Añadir a la lista de reproducción… (⇧⌘O), Mostrar en el Finder (⇧⌘R) y un menú Ventana con Minimizar, Ancho de la ventana, Siempre visible y Bloquear la posición de la ventana
+* Novedad: el estado Almacenando en búfer… mientras una pista espera a una carpeta de red lenta o a una descarga
+* Novedad: colores de tema para el texto de las filas en reproducción y seleccionadas y para las barras del ecualizador de la fila en reproducción, y las portadas predeterminadas Transparente, Ventana, Símbolo y Color personalizado
+* Novedad: haz clic en la cabecera del panel de pitch para cambiar su rango entre el 8% y el 16%
+* Novedad: reproducción de MP3 de formato libre
+* Novedad: la pista vibe, la sintonía de la app, que se carga al iniciar hasta que reproduzcas o abras algo
+* Cambio: los menús siguen las convenciones de macOS, con Edición > Copiar, un submenú Repetir y los submenús Retroceder y Avanzar, que muestran cada distancia en compases o segundos
+* Cambio: los estilos de forma de onda cambian de nombre: Básico ahora es Barras, Cupertino básico ahora es Progreso, y los cuatro estilos Detallado son uno solo con un ajuste Tipo
+* Cambio: Pista anterior en la primera pista la reinicia
+* Cambio: el control deslizante de volumen aparece cerca del puntero, con un ajuste del tema para elegir cuándo se muestra
+* Cambio: la línea del cabezal es ligeramente transparente, y las barras del ecualizador de la fila en reproducción son negras en el modo claro
+* Cambio: el tema Cupertino solo oscurece la portada detrás de los botones de reproducción, con un degradado más suave
+* Mejora: el fader de pitch suena mejor, con un motor de repitch propio y cambios suaves
+* Mejora: la salida bit-perfect usa la mayor profundidad de bits del dispositivo, para cambios de volumen más limpios y reproducción sin pausas entre pistas de 16 y 24 bits
+* Mejora: reproducción desde carpetas de red: una conexión caída pausa con “Conexión perdida”, un servidor lento ya no atasca los cambios de pista y las pistas de alta resolución se reproducen con fluidez
+* Mejora: las pistas MP3, FLAC, WAV y AIFF se abren más rápido
+* Mejora: la ventana de Ajustes tiene nombres más claros, motivos bajo las filas desactivadas, una confirmación antes de restablecer los valores por omisión y una barra de saltos en el editor de temas
+* Corrección: la reproducción sin pausas de MP3 mono y MPEG-2
+* Corrección: los archivos Opus cuya cabecera fija un volumen se reproducían a un nivel incorrecto
+* Corrección: a las pistas Ogg Vorbis les faltaban sus primeros 3 ms
+* Corrección: un archivo CAF dañado podía bloquear el análisis de metadatos
+* Corrección: la línea que sigue al puntero sobre la forma de onda se perdía sobre la parte ya reproducida
+* Corrección: en macOS 27, los cambios de tema borraban la selección de la lista de reproducción, y la memoria crecía con cada apertura de lista y cada cambio de tema

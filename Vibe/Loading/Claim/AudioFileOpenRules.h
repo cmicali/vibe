@@ -51,8 +51,8 @@ static inline NSString *VibeStandardizedAudioOpenPath(NSURL *url) {
 // The bytes at a file's end its open reads, with room, for a stream to fetch
 // ahead of its download (a placeholder store's tail window); 0 for none. Every
 // open that reads past its head reads one region at the end (measured,
-// docs/future/streaming-any-source.md). Under Apple's MP3 decoder, CoreAudio's
-// parser opens an MP3 and its ID3v1 check reads 4–128 bytes, an APE footer a
+// docs/future/streaming-any-source.md). CoreAudio's parser opens an MP3 the
+// MPEG open refuses. Its ID3v1 check reads 4–128 bytes, and an APE footer a
 // few KB more. dr_mp3's open reads none. A FLAC with no length or an Ogg
 // Vorbis file reads 64 KB. 128 KB is twice the largest. A container of chunks reads further.
 // Its open walks every chunk header to the end, so the window must reach the

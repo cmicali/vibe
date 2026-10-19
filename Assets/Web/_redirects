@@ -2,6 +2,6 @@
 # TRAP: Download redirects must be temporary. Their targets change each release.
 /support   https://github.com/cmicali/vibe/issues   301
 /support/  https://github.com/cmicali/vibe/issues   301
-/download         https://github.com/cmicali/vibe/releases/download/v1.15/Vibe-macOS-universal-1.15.dmg   302
-/download/        https://github.com/cmicali/vibe/releases/download/v1.15/Vibe-macOS-universal-1.15.dmg   302
-/download/latest  https://github.com/cmicali/vibe/releases/download/v1.15/Vibe-macOS-universal-1.15.dmg   302
+/download         https://github.com/cmicali/vibe/releases/download/v1.16/Vibe-macOS-universal-1.16.dmg   302
+/download/        https://github.com/cmicali/vibe/releases/download/v1.16/Vibe-macOS-universal-1.16.dmg   302
+/download/latest  https://github.com/cmicali/vibe/releases/download/v1.16/Vibe-macOS-universal-1.16.dmg   302

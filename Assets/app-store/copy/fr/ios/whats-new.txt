@@ -1,23 +1,22 @@
-* Nouveau : le navigateur de fichiers de Vibe, en plus du sélecteur Fichiers du système, avec Dropbox intégré : connectez-vous pour parcourir, rechercher et lire votre Dropbox, la lecture démarrant pendant le téléchargement d’un morceau
-* Nouveau : lecture aléatoire, répétition de tout et répétition d’un morceau, avec des boutons à côté des commandes de lecture (à masquer dans Réglages > Apparence)
-* Nouveau : lecture des feuilles CUE, depuis un fichier .cue ou une feuille intégrée à un FLAC, et listes de lecture M3U dans le navigateur de fichiers
-* Nouveau : lecture d’Ogg Opus, CAF, W64, M4B, M4R et ADTS
-* Nouveau : un curseur de crossfade, de désactivé jusqu’à 3 secondes par dixièmes de seconde
-* Nouveau : le style de forme d’onde 3 bandes
-* Nouveau : option pour centrer (ou non) les formes d’onde
-* Nouveau : une option de ligne de la tête de lecture, avec toute la forme d’onde en pleine couleur
-* Nouveau : des dispositions compactes de l’écran À l’écoute pour les fenêtres d’iPad peu hautes
-* Amélioré : la navigation dans un FLAC est quasi instantanée, même dans les longs fichiers, avec moins de CPU et de mémoire, et une meilleure compatibilité
-* Amélioré : le décodage WAV et AIFF est plus rapide, avec une meilleure compatibilité
-* Amélioré : la lecture utilise moins de CPU et d’énergie, et les tags et illustrations sont analysés plus vite
-* Amélioré : l’ouverture de dossiers ne se bloque plus sur les dossiers cloud lents
-* Amélioré : le défilement et le balayage entre les morceaux restent fluides pendant le chargement d’une forme d’onde
-* Corrigé : le crossfade ne faisait rien quand un morceau enchaînait le suivant ; il ne fonctionnait qu’en changeant de morceau à la main
-* Corrigé : zoomer sur la forme d’onde en pinçant pouvait faire reculer la lecture
-* Corrigé : revenir à un morceau en balayant affichait son ancienne position avant de sauter au début
-* Corrigé : le pad FX s’ouvrait parfois sans dépasser son cercle après quelques changements de morceau
-* Corrigé : les fichiers AIFF-C little-endian 24 et 32 bits étaient lus avec une mauvaise durée
-* Corrigé : les positionnements dans les fichiers MP3 MPEG-2 à faible débit tombaient légèrement à côté
-* Corrigé : les fichiers FLAC qui n’enregistrent pas leur durée n’en affichaient aucune
-* Corrigé : Vibe pouvait planter en lisant les tags de certains fichiers M4A et MP3 mal formés
-* Corrigé : Vibe écrivait des journaux de diagnostic dans le journal système
+* Nouveau : Ouvrir l’URL lit un lien web, ou un lien de partage Dropbox, Google Drive ou iCloud Drive, et un lien copié se lit depuis l’onglet Fichiers
+* Nouveau : des widgets forme d’onde, grand format, écran verrouillé et illustration plein cadre, avec les boutons liste de lecture, lecture et suivant comme sur le Mac
+* Nouveau : le style de forme d’onde Spectre, avec la coloration Par section pour que chaque partie d’un morceau garde une seule couleur
+* Nouveau : les thèmes 3 bandes : Rekord Bin, Dengine et Couleurs personnalisées
+* Nouveau : zoomez sur la forme d’onde jusqu’aux échantillons
+* Nouveau : lecture d’Ogg Vorbis et des MP3 en format libre (free format)
+* Nouveau : l’illustration d’album des morceaux iCloud et Dropbox non téléchargés
+* Nouveau : un état « Mise en mémoire tampon… » quand un morceau attend un partage réseau lent ou un téléchargement
+* Nouveau : le morceau du thème vibe, chargé au lancement jusqu’à ce que vous lisiez ou ouvriez quelque chose
+* Modifié : les styles de forme d’onde sont renommés : Simple devient Barres, Cupertino simple devient Progression, et les quatre styles Détaillé n’en font plus qu’un, avec un réglage de type
+* Modifié : Morceau précédent sur le premier morceau le relance depuis le début
+* Modifié : la ligne de la tête de lecture est légèrement transparente
+* Modifié : le thème Cupertino n’assombrit plus que l’illustration derrière les boutons de lecture, avec un dégradé plus léger
+* Amélioré : la tête de lecture, les sauts et le thème du widget
+* Amélioré : l’onglet Fichiers regroupe les lieux sous Emplacements
+* Amélioré : dans Réglages, À la fin du morceau et Affichage du temps se choisissent sur place, et les palettes 3 bandes portent le nom de leurs couleurs
+* Amélioré : lecture depuis un partage réseau : une connexion coupée met en pause avec « Connexion perdue », un serveur lent ne bloque plus les changements de morceau, et les morceaux haute résolution sont lus sans accroc
+* Amélioré : les morceaux MP3, FLAC, WAV et AIFF s’ouvrent plus vite
+* Corrigé : la lecture sans blanc des MP3 mono et MPEG-2
+* Corrigé : les fichiers Opus dont l’en-tête fixe un volume étaient lus au mauvais niveau
+* Corrigé : un fichier CAF corrompu pouvait bloquer l’analyse des métadonnées
+* Corrigé : l’ouverture d’un ancien lien pouvait remplacer l’ouverture plus récente d’un fichier

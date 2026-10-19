@@ -1,10 +1,10 @@
 name: Vibe
 
-# cm_libs, the shared toolbox, is a git submodule at cm_libs/ (`make project`
+# vibe-libs, the shared toolbox, is a git submodule at vibe-libs/ (`make project`
 # updates it). Its spec gives one template per piece. A target lists the
-# pieces it compiles in under `templates:` (cm_libs/AGENTS.md).
+# pieces it compiles in under `templates:` (vibe-libs/AGENTS.md).
 include:
-  - path: cm_libs/cm_libs.yml
+  - path: vibe-libs/vibe-libs.yml
 
 options:
   bundleIdPrefix: com.commonwealthrecordings
@@ -32,8 +32,8 @@ settingGroups:
   # Keep the app and widget versions together. Release scripts read the built app.
   # A stable release also sets VIBE_BETA_DEBUG to 0 (vibe-release).
   vibe-version:
-    MARKETING_VERSION: "1.16-beta12"
-    CURRENT_PROJECT_VERSION: 319
+    MARKETING_VERSION: "1.17-beta1"
+    CURRENT_PROJECT_VERSION: 322
 
   vibe-header-paths:
     HEADER_SEARCH_PATHS: &vibe-header-search-paths
@@ -64,7 +64,7 @@ settingGroups:
 # ---- PROJECT-LEVEL settings (== PBXProject build configs) ----
 settings:
   base:
-    CMM_ROOT: "$(SRCROOT)/cm_libs"   # where cm_libs' templates find their headers
+    CMM_ROOT: "$(SRCROOT)/vibe-libs" # where vibe-libs' templates find their headers
     ALWAYS_SEARCH_USER_PATHS: NO
     CLANG_ANALYZER_NONNULL: YES
     CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION: YES_AGGRESSIVE
@@ -159,7 +159,7 @@ targets:
   Vibe:
     type: application
     platform: macOS
-    # cm_libs' pieces, compiled in as this target's own sources.
+    # vibe-libs' pieces, compiled in as this target's own sources.
     templates: [CMMDSP]
     templateAttributes:
       excludedPlatform: iOS
@@ -459,7 +459,7 @@ targets:
     settings:
       groups: [vibe-version]
       base:
-        # TRAP: in base, not in a settings group. A cm_libs template's header
+        # TRAP: in base, not in a settings group. A vibe-libs template's header
         # paths join a target's base setting but replace a group's, which
         # silently drops TagLib's and WaveformCore's.
         HEADER_SEARCH_PATHS: *vibe-header-search-paths
@@ -1108,7 +1108,7 @@ targetTemplates:
         compilerFlags: *r8brain-flags
       - path: Vibe/Audio/FX/AudioFX.m
         compilerFlags: *render-path-flags
-      - path: cm_libs/audio/DSP/AudioVarispeed.m
+      - path: vibe-libs/audio/DSP/AudioVarispeed.m
         compilerFlags: *render-path-flags
       - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m

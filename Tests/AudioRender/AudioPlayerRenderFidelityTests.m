@@ -235,9 +235,8 @@ static NSInteger VibeBestLag(NSData *decoded, NSData *source, NSUInteger channel
 // A chained Ogg file is whole Ogg streams one after another. A chain whose
 // streams share their rate and channels plays as one track: both streams'
 // frames in order, their length together, every seek exact. The bus keeps
-// one format per file. So a chain whose channels change goes to CoreAudio's
-// parser, and libvorbis never decodes it. macOS 27's parser then plays the
-// first stream alone, and iOS's refuses Vorbis.
+// one format per file. So a chain whose channels change plays its first
+// stream alone, as macOS 27's parser does.
 - (void)testOggVorbisChains {
     NSURL *lossy = [self optionalFixture:@"lossy.ogg"], *paged = [self optionalFixture:@"paged.ogg"];
     NSURL *surround = [self optionalFixture:@"surround.ogg"];
@@ -254,8 +253,29 @@ static NSInteger VibeBestLag(NSData *decoded, NSData *source, NSUInteger channel
 
     NSMutableData *changing = [[NSData dataWithContentsOfURL:lossy] mutableCopy];
     [changing appendData:[NSData dataWithContentsOfURL:surround]];
-    AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:[self writeBytes:changing name:@"chain-2-then-6.ogg"] error:NULL];
-    XCTAssertNotEqualObjects(file.decoderName, @"libvorbis", @"a chain whose channels change");
+    AudioFileHandle *file = [self open:[self writeBytes:changing name:@"chain-2-then-6.ogg"] decoder:@"libvorbis"];
+    XCTAssertEqual(file.length, (AVAudioFramePosition)(one.length / (2 * sizeof(float))), @"a chain whose channels change");
+    XCTAssertEqualObjects([self readToEnd:file], one, @"its first stream alone");
+}
+// An Ogg file can start other streams beside its Vorbis one: a Skeleton, or
+// a video. libvorbis decodes the Vorbis stream and skips the rest, so the
+// file plays as the Vorbis stream alone.
+- (void)testOggVorbisBesideASkeletonStream {
+    NSURL *lossy = [self optionalFixture:@"lossy.ogg"];
+    NSData *alone = [self readToEnd:[self open:lossy decoder:@"libvorbis"]];
+    uint8_t page[27 + 1 + 64] = {'O', 'g', 'g', 'S', 0, 0x02}; // a beginning of stream
+    memcpy(page + 14, "SKEL", 4); // its own serial number
+    page[26] = 1;
+    page[27] = 64;
+    memcpy(page + 28, "fishead", 8); // Skeleton's header packet
+    ogg_page skeleton = {.header = page, .header_len = 28, .body = page + 28, .body_len = 64};
+    ogg_page_checksum_set(&skeleton);
+    NSMutableData *bytes = [NSMutableData dataWithBytes:page length:sizeof page];
+    [bytes appendData:[NSData dataWithContentsOfURL:lossy]];
+    AudioFileHandle *file = [self open:[self writeBytes:bytes name:@"skeleton.ogg"] decoder:@"libvorbis"];
+    NSData *decoded = [self readToEnd:file];
+    XCTAssertEqualObjects(decoded, alone);
+    [self assertSeeksOf:file match:decoded block:256 name:@"skeleton.ogg"];
 }
 - (void)testOpus { [self checkLossy:@"lossy.opus" tolerance:0]; }
 // The Opus file with its OpusHead output gain set to `q78` (dB × 256), and
@@ -359,10 +379,8 @@ static NSData *VibeStereoFold(const AudioChannelLayout *layout, UInt32 channels)
 // one. The MPEG open states CoreAudio's length too, but for a mono
 // or an MPEG-2 file with an Info frame, which CoreAudio misses. It then
 // trims the LAME tag's priming and remainder, and the two such fixtures play
-// their source's two seconds exactly. A WAV past dr_wav's rates goes to the
-// parser.
+// their source's two seconds exactly.
 - (void)testOwnDecodersStateWhatCoreAudioStates {
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSURL *folder = [self fixture:@"noise-48000-24-2.wav"].URLByDeletingLastPathComponent;
     NSSet *extensions = [NSSet setWithArray:@[@"wav", @"wave", @"bwf", @"w64", @"aif", @"aiff", @"flac", @"mp3", @"mp2"]];
     NSUInteger compared = 0, wide = 0, mpeg = 0;
@@ -372,10 +390,6 @@ static NSData *VibeStereoFold(const AudioChannelLayout *layout, UInt32 channels)
         AudioFileHandle *file = [[AudioFileHandle alloc] initForReading:url error:NULL];
         if (!file) continue;
         const AudioStreamBasicDescription *ours = file.fileFormat.streamDescription;
-        if (ours->mFormatID != kAudioFormatFLAC && ours->mSampleRate > 384000) { // dr_wav's DRWAV_MAX_SAMPLE_RATE
-            XCTAssertEqualObjects(file.decoderName, @"apple", @"%@, past dr_wav's rates, goes to the parser", name);
-            continue;
-        }
         XCTAssertTrue([file.decoderName hasPrefix:@"dr_"], @"%@ opened with %@", name, file.decoderName);
         BOOL folds = NO;
         if ([self assertFactsOf:file matchCoreAudioOf:url folds:&folds]) {
@@ -439,8 +453,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     const double fullRMS = 1.0 / 32768 / sqrt(12), fullMax = 1.0 / 16384, limitedRMS = 1.0 / 2048 / sqrt(12);
     double rms[2], worst[2];
     for (NSUInteger apple = 0; apple < 2; apple++) {
-        AudioFileHandle.appleMPEGDecoder = apple;
-        AVAudioPCMBuffer *decoded = [self read:url];
+        AVAudioPCMBuffer *decoded = apple ? VibeReadWithAVAudioFile(url, NULL) : [self read:url];
         XCTAssertEqual(decoded.format.channelCount, 1u);
         NSUInteger frames = MIN(decoded.frameLength - kLayer3DecoderDelay, referenceFrames);
         XCTAssertGreaterThan(frames, 200000u);
@@ -471,9 +484,8 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 - (void)testDrMP3DecodesWhatAppleRoundsTo16Bits {
     for (NSString *name in @[@"cbr.mp3", @"vbr.mp3", @"lossy.mp2", @"hot.mp3", @"mp3-in.wav", @"mp2-in.wav"]) {
         NSURL *url = [self optionalFixture:name];
-        AudioFileHandle.appleMPEGDecoder = YES;
-        AVAudioPCMBuffer *apple = [self read:url];
-        AudioFileHandle.appleMPEGDecoder = NO;
+        AVAudioPCMBuffer *apple = VibeReadWithAVAudioFile(url, NULL);
+        XCTAssertNotNil(apple, @"%@", name);
         AudioFileHandle *file = [self open:url decoder:@"dr_mp3"];
         AVAudioPCMBuffer *decoded = [self read:url];
         XCTAssertEqual(decoded.frameLength, apple.frameLength, @"%@", name);
@@ -498,17 +510,16 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         if ([url.pathExtension isEqualToString:@"wav"]) continue;
         NSData *bytes = [NSData dataWithContentsOfURL:url];
         NSURL *truncated = [self writeBytes:[bytes subdataWithRange:NSMakeRange(0, bytes.length / 2)] name:[@"truncated-" stringByAppendingString:name]];
-        NSUInteger frames[2];
-        for (NSUInteger apple = 0; apple < 2; apple++) {
-            AudioFileHandle.appleMPEGDecoder = apple;
-            AudioFileHandle *partial = [[AudioFileHandle alloc] initForReading:truncated error:NULL];
-            AVAudioPCMBuffer *chunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:partial.processingFormat frameCapacity:4096];
-            frames[apple] = 0;
-            while ([partial readIntoBuffer:chunk error:NULL] && chunk.frameLength) frames[apple] += chunk.frameLength;
-            // An Info frame states the whole file's bytes, so dr_mp3's
-            // length is what the cut file holds.
-            if (!apple) XCTAssertEqual(partial.length, (AVAudioFramePosition)frames[0], @"%@ truncated", name);
-        }
+        NSUInteger frames[2] = {0, 0};
+        AudioFileHandle *partial = [[AudioFileHandle alloc] initForReading:truncated error:NULL];
+        AVAudioPCMBuffer *chunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:partial.processingFormat frameCapacity:4096];
+        while ([partial readIntoBuffer:chunk error:NULL] && chunk.frameLength) frames[0] += chunk.frameLength;
+        // An Info frame states the whole file's bytes, so dr_mp3's length is
+        // what the cut file holds.
+        XCTAssertEqual(partial.length, (AVAudioFramePosition)frames[0], @"%@ truncated", name);
+        AVAudioFile *applePartial = [[AVAudioFile alloc] initForReading:truncated error:NULL];
+        AVAudioPCMBuffer *appleChunk = [[AVAudioPCMBuffer alloc] initWithPCMFormat:applePartial.processingFormat frameCapacity:4096];
+        while ([applePartial readIntoBuffer:appleChunk error:NULL] && appleChunk.frameLength) frames[1] += appleChunk.frameLength;
         XCTAssertEqual(frames[0], frames[1], @"%@ truncated", name);
         XCTAssertGreaterThan(frames[0], 0u);
         XCTAssertLessThan(frames[0], decoded.frameLength);
@@ -521,7 +532,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // runs; the first read once it is complete settles either length; and either
 // then decodes and seeks exactly as the whole file.
 - (void)testAnMP3WithoutAVBRHeaderOpensWhileItStreams {
-    AudioFileHandle.appleMPEGDecoder = NO;
     for (NSString *name in @[@"cbr-noinfo.mp3", @"vbr-noxing.mp3"]) {
         NSURL *source = [self optionalFixture:name];
         AudioFileHandle *whole = [self open:source decoder:@"dr_mp3"];
@@ -577,7 +587,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 }
 // Private bits must not be read as scfsi scalefactor-reuse flags.
 - (void)testDrMP3IgnoresPrivateBits {
-    AudioFileHandle.appleMPEGDecoder = NO;
     for (NSString *name in @[@"cbr.mp3", @"mono.mp3"]) {
         NSURL *url = [self optionalFixture:name];
         NSMutableData *bytes = [[NSData dataWithContentsOfURL:url] mutableCopy];
@@ -598,7 +607,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // seeks need: every seek still reads what the continuous decode holds there.
 - (void)testDrMP3SeeksExactlyWhereTheReservoirReachesFurthest {
     NSURL *url = [self optionalFixture:@"lsf-8k.mp3"];
-    AudioFileHandle.appleMPEGDecoder = NO;
     AudioFileHandle *file = [self open:url decoder:@"dr_mp3"];
     XCTAssertEqual(file.fileFormat.streamDescription->mFramesPerPacket, 576u);
     [self assertSeeksOf:file match:[self readToEnd:file] block:576 name:@"8 kbps MPEG-2"];
@@ -607,7 +615,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // empty because decoders transform it differently at 8 kHz.
 - (void)testDrMP3DecodesMixedBlocksAt8kHzAsFFmpegDoes {
     NSString *referencePath = [self optionalFixture:@"mixed-8k.f32"].path;
-    AudioFileHandle.appleMPEGDecoder = NO;
     AVAudioPCMBuffer *decoded = [self read:[self fixture:@"mixed-8k.mp3"]];
     XCTAssertEqual(decoded.format.sampleRate, 8000);
     NSData *referenceBytes = [NSData dataWithContentsOfFile:referencePath];
@@ -624,7 +631,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // a bound of its own. dr_mp3 gave all three windows the highest one.
 - (void)testDrMP3BoundsIntensityStereoPerWindowInMixedBlocks {
     NSString *referencePath = [self optionalFixture:@"mixed-is.f32"].path;
-    AudioFileHandle.appleMPEGDecoder = NO;
     AVAudioPCMBuffer *decoded = [self read:[self fixture:@"mixed-is.mp3"]];
     XCTAssertEqual(decoded.format.channelCount, 2u);
     NSData *referenceBytes = [NSData dataWithContentsOfFile:referencePath];
@@ -645,7 +651,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // a CBR stream decodes exactly as it did, length included.
 - (void)testDrMP3PlaysFreeFormat {
     NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSMutableData *bytes = [[NSData dataWithContentsOfURL:url] mutableCopy];
     uint8_t *b = bytes.mutableBytes;
     NSUInteger frames = 0;
@@ -675,7 +680,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // stream plays on past it.
 - (void)testDrMP3MeasuresEachFreeFormatFrameUpToItsLargest {
     NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSData *source = [NSData dataWithContentsOfURL:url];
     NSMutableData *bytes = [source mutableCopy];
     uint8_t *b = bytes.mutableBytes;
@@ -704,7 +708,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // CoreAudio's parser, played each whole.
 - (void)testDrMP3TrustsAStatedCountOnlyWhenTheFileBearsItOut {
     NSURL *cbrURL = [self optionalFixture:@"cbr.mp3"], *plainURL = [self optionalFixture:@"cbr-noinfo.mp3"];
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSData *cbr = [NSData dataWithContentsOfURL:cbrURL], *plain = [NSData dataWithContentsOfURL:plainURL];
     NSUInteger cbrStart = VibeID3v2Length(cbr, 0), plainStart = VibeID3v2Length(plain, 0);
     AVAudioFramePosition frames = (AVAudioFramePosition)(plain.length - plainStart) / 576 * 1152;
@@ -736,7 +739,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // one's last, and for the filterbank's history after it.
 - (void)testDrMP3PlaysAStreamThatChangesMode {
     NSURL *monoURL = [self optionalFixture:@"mono-noinfo.mp3"], *stereoURL = [self optionalFixture:@"cbr-noinfo.mp3"];
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSData *mono = [NSData dataWithContentsOfURL:monoURL], *stereo = [NSData dataWithContentsOfURL:stereoURL];
     NSUInteger monoStart = VibeID3v2Length(mono, 0), stereoStart = VibeID3v2Length(stereo, 0);
     NSMutableData *joined = [[mono subdataWithRange:NSMakeRange(monoStart, mono.length - monoStart)] mutableCopy];
@@ -764,7 +766,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // the chain ends at the tag. Each variant keeps every undamaged frame.
 - (void)testDrMP3KeepsTheFramesBetweenDamageAndATrailingTag {
     NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSMutableData *bytes = [[NSData dataWithContentsOfURL:url] mutableCopy];
     NSUInteger start = VibeID3v2Length(bytes, 0), frames = (bytes.length - start) / 576;
     XCTAssertEqual((bytes.length - start) % 576, 0u, @"192 kbps at 48 kHz: 576-byte frames");
@@ -789,7 +790,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // finish and play the stream untrimmed.
 - (void)testAnID3FrameSizePastItsTagEndsTheGaplessSearch {
     NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSData *source = [NSData dataWithContentsOfURL:url];
     NSUInteger start = VibeID3v2Length(source, 0);
     for (NSNumber *claimed in @[@0xFFFFFFF6u, @0x7FFFFFFFu, @64u]) {
@@ -819,7 +819,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // length.
 - (void)testDrMP3ReadsTheITunesGaplessComment {
     NSURL *url = [self optionalFixture:@"cbr-noinfo.mp3"];
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSData *source = [NSData dataWithContentsOfURL:url];
     NSUInteger start = VibeID3v2Length(source, 0);
     NSData *audio = [source subdataWithRange:NSMakeRange(start, source.length - start)];
@@ -866,7 +865,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // overlap reaches and the filterbank's 480 frames of history differ.
 - (void)testDrMP3BoundsADamagedFrame {
     NSURL *url = [self optionalFixture:@"cbr.mp3"];
-    AudioFileHandle.appleMPEGDecoder = NO;
     NSMutableData *bytes = [[NSData dataWithContentsOfURL:url] mutableCopy];
     NSArray<NSNumber *> *offsets = [self packetOffsetsOf:url];
     uint8_t *frame = (uint8_t *)bytes.mutableBytes + offsets[offsets.count / 2].unsignedIntegerValue;
@@ -1010,6 +1008,31 @@ static const NSUInteger kLayer3DecoderDelay = 529;
         XCTAssertEqual(slice.floatChannelData[0][0], (float)(((frame * 7919) & 0xFFFF) - 32768) / 32768, @"seek to %@", target);
     }
 }
+// A file in a container and coding Vibe decodes reaches CoreAudio's parser
+// only once Vibe's decoder refused it. Playback refuses it too, rather than
+// hand it to Apple's decoder. A FLAC whose STREAMINFO is not its first
+// metadata block is one. RFC 9639 forbids it, dr_flac refuses it, and CoreAudio
+// plays it. The last checks are a canary. They fail once CoreAudio refuses
+// the file too, and the test then proves nothing.
+- (void)testAFileVibesDecoderRefusesIsNotHandedToApple {
+    NSData *flac = [NSData dataWithContentsOfURL:[self fixture:@"lossless.flac"]];
+    XCTAssertEqual(memcmp(flac.bytes, "fLaC", 4), 0);
+    NSMutableData *padded = [NSMutableData dataWithBytes:"fLaC" length:4];
+    const uint8_t padding[8] = {0x01, 0, 0, 4}; // a PADDING block of four bytes, not the last
+    [padded appendBytes:padding length:sizeof padding];
+    [padded appendData:[flac subdataWithRange:NSMakeRange(4, flac.length - 4)]];
+    NSURL *url = [self writeBytes:padded name:@"streaminfo-second.flac"];
+    NSError *error = nil;
+    XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:&error]);
+    XCTAssertEqual(error.code, kAudioFileUnsupportedDataFormatError, @"%@", error);
+    ExtAudioFileRef reader = NULL;
+    SInt64 length = 0;
+    UInt32 size = sizeof(length);
+    XCTAssertEqual(ExtAudioFileOpenURL((__bridge CFURLRef)url, &reader), noErr, @"CoreAudio no longer opens it");
+    ExtAudioFileGetProperty(reader, kExtAudioFileProperty_FileLengthFrames, &size, &length);
+    ExtAudioFileDispose(reader);
+    XCTAssertGreaterThan(length, 0, @"CoreAudio no longer plays it");
+}
 // What damages files in the wild, done to lossless.flac, Apple's encode: an
 // ID3v2 tag in front, a seek table two frames stale and one with a garbage
 // offset decode and seek as the clean file does. A damaged frame, one lost with
@@ -1124,12 +1147,12 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     [self assertSeekOf:file to:(k + 2) * block match:whole name:@"cut, past the end"];
     [self assertSeekOf:file to:(k - 1) * block match:whole name:@"cut, after the end"];
 
-    // A STREAMINFO allowing no block has no frame dr_flac could play, and is left to Apple's decoder at once, never searched for a length.
+    // A STREAMINFO allowing no block has no frame dr_flac could play, and is refused at once, never searched for a length.
     NSMutableData *noBlocks = [bytes mutableCopy];
     [self clearLengthOfFLAC:noBlocks];
     memset((uint8_t *)noBlocks.mutableBytes + 8 + 2, 0, 2);
     AudioFileHandle *refused = [[AudioFileHandle alloc] initForReading:[self writeBytes:noBlocks name:@"no-blocks.flac"] error:NULL];
-    XCTAssertFalse([refused.decoderName isEqualToString:@"dr_flac"], @"no blocks");
+    XCTAssertNil(refused, @"no blocks");
 
     // A file of unknown length, as a streamed encode leaves it, with a stray 8-channel frame header past its last frame: the length found
     // ends at the last frame, and after reading to the end, a seek back reads the last frame.
@@ -1154,7 +1177,7 @@ static const NSUInteger kLayer3DecoderDelay = 529;
 // ADPCM stream ends at its fact chunk's count, short of the last block's padding
 // Apple plays. An ima4 packet's decode depends on every packet before it, and
 // its seeks still land where a read from the start does, where Apple's do not.
-// A WAV holding MPEG goes to dr_mp3, or to Apple's decoder when it is chosen.
+// A WAV holding MPEG goes to dr_mp3.
 - (void)testDrWAVDecodesAsAppleDoes {
     self.continueAfterFailure = YES;
     NSArray<NSString *> *names = @[@"noise-44100-16-1.wav", @"noise-96000-24-2.wav", @"noise-48000-32-2.wav", @"noise-48000-24-8.wav",
@@ -1199,8 +1222,6 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     XCTAssertEqualObjects([self readToEnd:interleaved], [self appleDecodeOf:[self fixture:@"lossless.aiff"]], @"interleaved, as the waveform reads");
     NSURL *mpeg = [self optionalFixture:@"mp3-in.wav"];
     [self open:mpeg decoder:@"dr_mp3"];
-    AudioFileHandle.appleMPEGDecoder = YES;
-    [self open:mpeg decoder:@"apple"];
     XCTSkipIf(missing.count, @"Optional encoder fixtures %@ unavailable; install ffmpeg and regenerate", missing);
 }
 // The body of a RIFF or IFF file's first chunk of that ID.
@@ -1272,6 +1293,36 @@ static const NSUInteger kLayer3DecoderDelay = 529;
     [fmtLast appendData:[wave subdataWithRange:NSMakeRange(fmt.location - 8, fmt.length + 8)]];
     [self setContainerSizeOf:fmtLast bigEndian:NO];
     XCTAssertEqualObjects([self readToEnd:open(fmtLast, @"fmt-last.wav")], waveReference, @"fmt after the data");
+    // RF64 should state 0xFFFFFFFF and hold its sizes in ds64. EBU's own test
+    // files state the real size, and CoreAudio reads them.
+    NSMutableData *rf64 = [NSMutableData dataWithBytes:"RF64\0\0\0\0WAVEds64" length:16];
+    uint64_t ds64[3] = {0, CFSwapInt64HostToLittle(data.length), CFSwapInt64HostToLittle(waveReference.length / (2 * sizeof(float)))};
+    uint32_t ds64Size = CFSwapInt32HostToLittle(28), table = 0;
+    [rf64 appendBytes:&ds64Size length:4];
+    [rf64 appendBytes:ds64 length:sizeof ds64];
+    [rf64 appendBytes:&table length:4];
+    [rf64 appendData:[wave subdataWithRange:NSMakeRange(fmt.location - 8, fmt.length + 8)]];
+    [rf64 appendBytes:"data" length:4];
+    [rf64 appendBytes:&placeholder length:4];
+    [rf64 appendData:[wave subdataWithRange:data]];
+    uint64_t riffSize = CFSwapInt64HostToLittle(rf64.length - 8);
+    [rf64 replaceBytesInRange:NSMakeRange(20, 8) withBytes:&riffSize];
+    [self setContainerSizeOf:rf64 bigEndian:NO];
+    XCTAssertEqualObjects([self readToEnd:open(rf64, @"rf64-sized.wav")], waveReference, @"RF64 stating its real size");
+    // A fmt chunk of 17 bytes is too short for cbSize, and its pad byte follows.
+    NSURL *monoURL = [self fixture:@"noise-44100-16-1.wav"];
+    NSData *mono = [NSData dataWithContentsOfURL:monoURL];
+    NSRange monoFmt = [self chunk:"fmt " of:mono bigEndian:NO], monoData = [self chunk:"data" of:mono bigEndian:NO];
+    NSMutableData *oddFmt = [[mono subdataWithRange:NSMakeRange(0, 12)] mutableCopy];
+    uint32_t seventeen = CFSwapInt32HostToLittle(17);
+    [oddFmt appendBytes:"fmt " length:4];
+    [oddFmt appendBytes:&seventeen length:4];
+    [oddFmt appendData:[mono subdataWithRange:NSMakeRange(monoFmt.location, 16)]];
+    [oddFmt appendBytes:"\0\0" length:2]; // the 17th byte and the pad
+    [oddFmt appendData:[mono subdataWithRange:NSMakeRange(monoData.location - 8, monoData.length + 8)]];
+    [self setContainerSizeOf:oddFmt bigEndian:NO];
+    XCTAssertEqualObjects([self readToEnd:open(oddFmt, @"fmt-17.wav")], [self readToEnd:[self open:monoURL decoder:@"dr_wav"]],
+                          @"a fmt chunk of 17 bytes");
 
     NSURL *imaURL = [self optionalFixture:@"wav-ima-adpcm.wav"];
     NSData *ima = [NSData dataWithContentsOfURL:imaURL];

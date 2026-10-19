@@ -145,8 +145,8 @@ static VibeEmbeddedArtExtractionResult Extract(NSURL *url, NSData *__autoreleasi
 
 #pragma mark - Formats
 
-// 39 frames of 1152 at 44.1 kHz, the Info frame among them.
-static const NSTimeInterval kMP3Duration = 39 * 1152 / 44100.0;
+// The 38 frames of 1152 at 44.1 kHz that the Info frame counts. The count leaves the Info frame out.
+static const NSTimeInterval kMP3Duration = 38 * 1152 / 44100.0;
 
 - (void)testMP3WithID3v23 {
     [self assertFixture:VibeTagFixtureMP3ID3v23 fileType:VibeAudioFileFormatMP3 rate:44100 duration:kMP3Duration];
@@ -158,7 +158,9 @@ static const NSTimeInterval kMP3Duration = 39 * 1152 / 44100.0;
 
 - (void)testMP3WithID3v1Only {
     [self assertFixture:VibeTagFixtureMP3ID3v1 fileType:VibeAudioFileFormatMP3 rate:44100 duration:kMP3Duration];
-    XCTAssertEqualObjects(Parse([_dir URLByAppendingPathComponent:@"id3v1.mp3"], NULL).bitrate, @320);
+    // TagLib divides the Info frame's bytes by the counted frames' time. The
+    // bytes include the Info frame, so this 38-frame stream reads as 328.
+    XCTAssertEqualWithAccuracy(Parse([_dir URLByAppendingPathComponent:@"id3v1.mp3"], NULL).bitrate.doubleValue, 320, 10);
 }
 
 // TagLib 2 reads an MPEG file's APE tag only under TAGLIB_WITH_APE, which
