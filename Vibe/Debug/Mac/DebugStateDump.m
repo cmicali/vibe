@@ -6,6 +6,7 @@
 //
 
 #import "DebugInternal.h"
+#include <CommonCrypto/CommonDigest.h>
 #import "PlatformColor.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
@@ -332,6 +333,27 @@ NSString *VibeViewTreeDump(void) {
     return VibeJSONString(@{@"windows": windows});
 }
 
+// The first 8 hex digits of a SHA-1 of the image's pixels at 1x, so a script
+// can tell a redrawn swatch from an unchanged one. Draws a copy, so the
+// image's own cached rendering is untouched.
+static NSString *_Nullable VibeImageDigest(NSImage *image) {
+    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
+            pixelsWide:(NSInteger)image.size.width pixelsHigh:(NSInteger)image.size.height
+            bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
+            colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+    if (!rep) {
+        return nil;
+    }
+    [NSGraphicsContext saveGraphicsState];
+    NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
+    NSImage *copy = [image copy];
+    [copy drawInRect:NSMakeRect(0, 0, image.size.width, image.size.height)];
+    [NSGraphicsContext restoreGraphicsState];
+    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
+    CC_SHA1(rep.bitmapData, (CC_LONG)(rep.bytesPerRow * rep.pixelsHigh), digest);
+    return [NSString stringWithFormat:@"%02x%02x%02x%02x", digest[0], digest[1], digest[2], digest[3]];
+}
+
 NSArray *VibeMenuArray(NSMenu *menu) {
     // Delegate-built menus (Output, Open Recent, Themes) populate only when
     // displayed, and [menu update] alone does not call menuNeedsUpdate:.
@@ -371,6 +393,7 @@ NSArray *VibeMenuArray(NSMenu *menu) {
         }
         if (item.image) {
             node[@"image"] = @YES;
+            node[@"imageDigest"] = VibeImageDigest(item.image);
             // macOS 27 hides an image whose item does not ask to show it.
             if (@available(macOS 27.0, *)) {
                 node[@"imageVisibility"] = [item valueForKey:@"preferredImageVisibility"];

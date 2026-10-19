@@ -64,9 +64,9 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 **Theme** is rebuilt whole on every open by `MainPlayerController.menuNeedsUpdate:`. It holds one checkmarked item per theme, with the theme's swatch (`representedObject` the stable id, identifier `view_theme_<id>`), then the nil-targeted **Edit Themes…** (`menu_edit_themes`, `AppDelegate.showThemeSettings:`). Edit Themes… is owned like Settings…, so it has no validation domain. Selecting a theme applies it and requests `ThemeApply`.
 
-**The swatches are the theme list's, from the cache the list shares** (`SettingsThemesViewController.swatchForThemeIdentifier:dark:`). They take the app's appearance, which the menu draws in. No swatch is made before the menu first opens. A reopen makes only the active theme's again. Each image draws its pixels only when its item first draws.
+**The swatches are the theme list's, from the cache the list shares** (`SettingsThemesViewController.swatchForThemeIdentifier:dark:`). They take the app's appearance, which the menu draws in. No swatch is made before the menu first opens. A reopen draws again only the swatches whose theme records changed. Each image draws its pixels only when its item first draws.
 
-**TRAP: macOS 27 hides a menu item's image unless the item asks to show it** (`preferredImageVisibility`). Each theme item asks, through KVC, since CI's SDK predates the property. Open Recent's items do not ask, so macOS 27 hides their file icons. `dump_menu` reports each image's `imageVisibility` on macOS 27.
+**TRAP: macOS 27 hides a menu item's image unless the item asks to show it** (`preferredImageVisibility`). Each theme item asks, through KVC, since CI's SDK predates the property. Open Recent's items do not ask, so macOS 27 hides their file icons. `dump_menu` reports each image's `imageVisibility` on macOS 27, and an `imageDigest` of its pixels.
 
 ## Playback
 
