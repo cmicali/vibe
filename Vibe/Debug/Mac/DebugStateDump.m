@@ -369,6 +369,9 @@ NSArray *VibeMenuArray(NSMenu *menu) {
         if (item.state != NSControlStateValueOff) {
             node[@"state"] = @(item.state);
         }
+        if (item.image) {
+            node[@"image"] = @YES;
+        }
         if (item.submenu) {
             node[@"items"] = VibeMenuArray(item.submenu);
         }

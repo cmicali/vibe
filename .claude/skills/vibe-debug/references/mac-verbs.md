@@ -12,7 +12,7 @@ Every macOS channel verb with its arguments and reply schema, plus the verbs who
 "$V" --debug-cmd block_decoder 0.8   # {ok, heldSeconds}: every decode turn of the current bus waits at its start for 0<seconds<=5, as a stalled read would. A hold longer than the rings buffered underruns (dump_audio_path's bus underrunFrames)
 "$V" --debug-cmd dump_now_playing_artwork # {artwork: art|thumbnail|placeholder|other|null, placeholderSide?: dark|light|both, placeholderReference?, windowAppearance}: which image the published artwork came from, by identity
 "$V" --debug-cmd dump_view_tree      # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}: AppKit bottom-left frames
-"$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, items}]}: live enabled and checkmark state from validateMenuItem
+"$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, image, items}]}: live enabled and checkmark state from validateMenuItem; image is true when the item carries one
 "$V" --debug-cmd dump_now_playing    # {playbackState, hasInfo, title, artist, duration, elapsed, rate, hasArtwork}: always hasInfo: 0 under --no-audio-hw
 "$V" --debug-cmd dump_build          # {version, git, built, pid, path}: the answering instance's identity (both platforms)
 "$V" --debug-cmd dump_stats          # {filesOpened, foldersOpened, secondsPlayed}: AppStats lifetime counters

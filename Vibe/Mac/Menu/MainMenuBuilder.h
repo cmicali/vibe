@@ -22,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
               openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController;
 
 // A context menu's item: a title, an SF Symbol and no key equivalent. The
-// menu bar carries no images, as Apple's own menus do not.
+// menu bar carries no symbols, as Apple's own menus do not.
 + (NSMenuItem *)symbolItemWithTitle:(NSString *)title
                          symbolName:(NSString *)symbolName
                              action:(SEL)action

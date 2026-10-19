@@ -2,7 +2,7 @@
 
 This directory holds the menu bar's builder (`MainMenuBuilder`) and the controllers of the Open Recent and Output submenus. It also holds the menu validation rules (`MenuValidationRules.h`) and the default shortcuts (`ShortcutRules.h`).
 
-**The menus are Vibe, File, Edit, View, Playback, FX, Convert, Output and Window, in Apple's order.** There is no Help menu, since the app ships no help book. Output stays top level for quick access while playing. **The menu bar carries no images**, as Apple's own menus do not. The context menus keep their SF Symbols (`symbolItemWithTitle:`).
+**The menus are Vibe, File, Edit, View, Playback, FX, Convert, Output and Window, in Apple's order.** There is no Help menu, since the app ships no help book. Output stays top level for quick access while playing. **The menu bar carries no symbols**, as Apple's own menus do not. Its only images show content: Open Recent's file icons and View > Theme's swatches. The context menus keep their SF Symbols (`symbolItemWithTitle:`).
 
 There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `AppDelegate.applicationWillFinishLaunching:` calls it **after `MainPlayerController` exists**. There is one builder method per top-level menu. The window-body context menu and the playlist row menu build their own items with `symbolItemWithTitle:`. The window-body items share the menu bar's identifiers, and so its validation. The row menu's act on the **clicked** row under its own actions and identifiers (`Playlist/Mac/AGENTS.md`).
 
@@ -62,7 +62,9 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 **Show Playlist and Show Pitch Control retitle themselves Hide while shown** (`VibeViewToggleTitle`), as a panel's View item does. They carry no checkmark. **Show Pitch Control and the P key are disabled while bit-perfect output is on** (`AppSettings.pitchControlAllowed`), since that mode has no varispeed. `togglePitchPanel:` refuses the reveal itself, so the debug verb cannot bypass it. Menu validation and the window's launch restore read the same answer.
 
-**Theme** is rebuilt whole on every open by `MainPlayerController.menuNeedsUpdate:`. It holds one checkmarked item per theme (`representedObject` the stable id, identifier `view_theme_<id>`), then the nil-targeted **Edit Themes…** (`menu_edit_themes`, `AppDelegate.showThemeSettings:`). Edit Themes… is owned like Settings…, so it has no validation domain. Selecting a theme applies it and requests `ThemeApply`.
+**Theme** is rebuilt whole on every open by `MainPlayerController.menuNeedsUpdate:`. It holds one checkmarked item per theme, with the theme's swatch (`representedObject` the stable id, identifier `view_theme_<id>`), then the nil-targeted **Edit Themes…** (`menu_edit_themes`, `AppDelegate.showThemeSettings:`). Edit Themes… is owned like Settings…, so it has no validation domain. Selecting a theme applies it and requests `ThemeApply`.
+
+**The swatches are the theme list's, from the cache the list shares** (`SettingsThemesViewController.swatchForThemeIdentifier:dark:`). They take the app's appearance, which the menu draws in. No swatch is made before the menu first opens. A reopen makes only the active theme's again. Each image draws its pixels only when its item first draws.
 
 ## Playback
 

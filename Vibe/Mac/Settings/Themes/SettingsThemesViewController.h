@@ -7,6 +7,12 @@
 
 @interface SettingsThemesViewController : SettingsPaneViewController
 
+// The theme at a glance: its window color behind three bars of its waveform
+// colors. The theme list and View > Theme share one cache, which holds each
+// theme per appearance. The pixels are drawn only when the image first draws.
+// Main thread only.
++ (NSImage *)swatchForThemeIdentifier:(NSString *)identifier dark:(BOOL)dark;
+
 // The editor page, over the active theme. A built-in opens as it is and is
 // copied into a new theme by its first edit. The window's history drives it.
 @property (readonly, nonatomic) BOOL editorShown;
