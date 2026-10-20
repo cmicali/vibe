@@ -1,8 +1,8 @@
-# Future: cm_libs, the shared toolbox
+# Future: vibe-libs, the shared toolbox
 
-**Status: planned 2026-10-17, nothing moved.** The toolbox repo is [cmicali/cm_libs](https://github.com/cmicali/cm_libs), and its `docs/plan.md` holds the same plan from the toolbox's side. Everything in Vibe that another app could use moves to `cm_libs`, a public toolbox of small libraries for macOS and iOS apps. That starts with the audio engine, waveform data and drawing, and the caches, and goes on to file loading, tags, playlists, controls and app plumbing. Vibe and another app consume it. Each app takes only the pieces it wants. The vendored third-party code becomes pieces of its own, so an app can take TagLib or dr_flac without the engine. Non-audio pieces join later.
+**Status: planned 2026-10-17, nothing moved.** The toolbox repo is [cmicali/vibe-libs](https://github.com/cmicali/vibe-libs), and its `docs/plan.md` holds the same plan from the toolbox's side. Everything in Vibe that another app could use moves to `vibe-libs`, a public toolbox of small libraries for macOS and iOS apps. That starts with the audio engine, waveform data and drawing, and the caches, and goes on to file loading, tags, playlists, controls and app plumbing. Vibe and another app consume it. Each app takes only the pieces it wants. The vendored third-party code becomes pieces of its own, so an app can take TagLib or dr_flac without the engine. Non-audio pieces join later.
 
-The other app is closed source and is never named in this repository or in `cm_libs`. Call it "another app".
+The other app is closed source and is never named in this repository or in `vibe-libs`. Call it "another app".
 
 ## What came before
 
@@ -23,12 +23,12 @@ Only five files in the moving code read `AppSettings`: one in folder art, four i
 
 ## Decisions
 
-1. **The name is `cm_libs`. The prefix for new code is `CMM`.** `CM` alone is CoreMedia's.
+1. **The name is `vibe-libs`. The one prefix is `Vibe`, for moved code and new code alike.** The vibe-libs plan records the earlier prefix and when it was retired.
 2. **No rename.** Moves are pure `git mv`, with history carried by `git filter-repo`. The `Vibe` C prefix stays. The unprefixed classes (`AudioPlayer`, `AudioFileHandle`, `WaveformView`) are listed by a check. A scripted prefix is a later PR if ever wanted. The rename the earlier plan folded into the move would touch 441 names, 678 files and 88 of #294's 111 files.
 3. **#294 merged here first.** The waveform data moves once.
 4. **Extraction first, and the playback and waveform path first.** A move changes no API, language, or platform. Portable rewrites, new tag fields, and other redesigns are separate work. The playback and waveform path moves first, and the other app builds its first slice on it. Every other piece moves when a second app needs it.
-5. **Pieces are cut by job, not by Vibe's directories.** Split a piece when that saves a consumer a dependency. Merge parts that only work together. The rules and the full list of about thirty pieces are in the cm_libs plan.
-6. **Compile in tree.** Apps add `cm_libs` as a git submodule, include `cm_libs.yml`, and list the templates they want. The sources compile into the app exactly as today. Static libraries and SwiftPM are later switches, with their triggers below.
+5. **Pieces are cut by job, not by Vibe's directories.** Split a piece when that saves a consumer a dependency. Merge parts that only work together. The rules and the full list of about thirty pieces are in the vibe-libs plan.
+6. **Compile in tree.** Apps add `vibe-libs` as a git submodule, include `vibe-libs.yml`, and list the templates they want. The sources compile into the app exactly as today. Static libraries and SwiftPM are later switches, with their triggers below.
 
 ## The build shape
 
@@ -46,7 +46,7 @@ Today every engine file is a translation unit of the app target. There is no LTO
 
 ### The pieces
 
-The pieces, their groups and their dependency map are listed once, in [cm_libs' plan](https://github.com/cmicali/cm_libs/blob/main/docs/plan.md). The map is derived from this repo's imports by cm_libs' `scripts/plan/derive-deps.py`. Rerun it after each cut here. In short, the toolbox holds these groups:
+The pieces, their groups and their dependency map are listed once, in [vibe-libs' plan](https://github.com/cmicali/vibe-libs/blob/main/docs/plan.md). The map is derived from this repo's imports by vibe-libs' `scripts/plan/derive-deps.py`. Rerun it after each cut here. In short, the toolbox holds these groups:
 
 | Group | Pieces | Mostly from |
 | --- | --- | --- |
@@ -74,7 +74,7 @@ Every test bundle in the toolbox's own project sets `USE_HEADERMAP: NO`, `ALWAYS
 
 ### Imports, not a prefix header
 
-Under compile-in there is one prefix header per app target, so a prefix header per piece cannot exist. The 33 engine files that use the macros import `CMMMacros.h` explicitly. Vibe's pch keeps its framework imports and imports that header, so app code is unchanged.
+Under compile-in there is one prefix header per app target, so a prefix header per piece cannot exist. The 33 engine files that use the macros import `VibeMacros.h` explicitly. Vibe's pch keeps its framework imports and imports that header, so app code is unchanged.
 
 ### When to switch shapes later
 
@@ -103,7 +103,7 @@ grep -rln 'AppSettings\|AppTheme\|VibeStrings.h\|FolderAccessManager\|PlaylistFi
 | 9 | `WaveformTheme+Settings` | `themeForAppTheme:` and `themeForSettings:widget:` map Vibe's stores onto the theme. | A category in `Vibe/Common/WaveformTheme+Settings`, precedent `AppSettings+Themes`. `WaveformTheme` then imports only `PlatformColor.h`. |
 | 10 | Mac `WaveformView` pushed | Nine `AppSettings` reads. | Pushed properties the renderer already has, a `dragSeeks` BOOL, and a `themeProvider` block. One shell method `applyWaveformSettings` pushes everything. One new live-effect bit for the drag popup. Precedent `AudioPlayer.declick`. |
 | 11 | iOS scrubber pushed | Six reads. | `syncWaveformStyle` takes the resolved identifier. `centered` and `drawsPlayheadLine` pushed. A `themeProvider` block replaces three `themeForSettings:` calls. |
-| 12 | `CMMMacros.h` | The pch's macro body is what the libraries use. | Move it to `CMMMacros.h` beside `HelperMacros.h`. The pch keeps the framework imports and imports it. `VibeWorkTally` moves beside it. |
+| 12 | `VibeMacros.h` | The pch's macro body is what the libraries use. | Move it to `VibeMacros.h` beside `HelperMacros.h`. The pch keeps the framework imports and imports it. `VibeWorkTally` moves beside it. |
 
 **The seams between pieces.** These come from the import graph of the shared code on `origin/main`, and follow the twelve cuts above.
 
@@ -133,10 +133,10 @@ These seams add small types: the playable-item protocol, Metadata's holder proto
 
 ## The moves, in order
 
-The moves are planned in [cm_libs' plan](https://github.com/cmicali/cm_libs/blob/main/docs/plan.md). Each move is a pull request there, plus one here that bumps the submodule and deletes what moved. Each is `git mv` only, and each passes the acceptance test. In order:
+The moves are planned in [vibe-libs' plan](https://github.com/cmicali/vibe-libs/blob/main/docs/plan.md). Each move is a pull request there, plus one here that bumps the submodule and deletes what moved. Each is `git mv` only, and each passes the acceptance test. In order:
 
 1. Phase 0: the license and eight build experiments. The repo rename and its docs are done (2026-10-17).
-2. The pilot, DSP with the varispeed, after cut 12 alone. The pilot moves `CMMMacros.h` to cm_libs with it, as the first file of `core/Common`, and Vibe's prefix header imports it from the submodule.
+2. The pilot, DSP with the varispeed, after cut 12 alone. The pilot moves `VibeMacros.h` to vibe-libs with it, as the first file of `core/Common`, and Vibe's prefix header imports it from the submodule.
 3. The cuts and seams the playback and waveform path needs, here.
 4. The path moves: `third_party/` without Sparkle, `core/`, FileLoading and DiskCache, `audio/`, Tags, Metadata and PlayQueue, then `waveform/` and the indicators. The other app's first slice starts after this.
 5. The tag fields: album, album artist, genre, year, track and disc numbers, composer, the compilation flag, and a release identifier. The metadata archive's version moves, which costs every Vibe user one re-parse, so it ships in an announced release. Vibe reads none of the fields.
@@ -164,4 +164,4 @@ The moves are planned in [cm_libs' plan](https://github.com/cmicali/cm_libs/blob
 
 Most of the shared code and its tests leave this repo. Deleted or unified in what remains: the vendored flag anchors and their entries, eleven header search paths, three source entries, the prefix header's macro body, eight renderer name overrides and two registry methods, one link-error table and `VibeStatusForPlayError` consolidated into one header, `AudioTrack.durationString`, two accessibility overrides and a duplicated constant, one catalog key, eighteen settings reads, and two imports. New here: `Common/StringRules.h`, `Common/WaveformTheme+Settings`, `WaveformUI/WaveformAccessibility.h`, one live-effect bit. New types: the small ones the seams add, each argued above. The two hand-kept test source lists are not consolidated yet. The tests must keep compiling production sources for verbose logging, the `-O2` render path and the decoy. They shrink as each piece's tests move.
 
-**Not done here.** Artwork keeps handing out `NSImage` and `UIImage`. WaveformStyles stays Objective-C++ until its later rewrite into portable C++. Windows support and the move of Vibe's release and test scripts into the toolbox come later, as cm_libs' plan says.
+**Not done here.** Artwork keeps handing out `NSImage` and `UIImage`. WaveformStyles stays Objective-C++ until its later rewrite into portable C++. Windows support and the move of Vibe's release and test scripts into the toolbox come later, as vibe-libs' plan says.
