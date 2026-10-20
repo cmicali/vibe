@@ -5,7 +5,7 @@
 <text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Percent of one core. Lower is better. The numbers in the key are 1.16&#x27;s.</text>
 <rect class="s0" x="24" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">Paused</text>
-<text class="m" x="89.1" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.29</text>
+<text class="m" x="89.1" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.27</text>
 <rect class="s1" x="135.24" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="155.2" y="68.0" font-size="12" text-anchor="start">Idle, nothing loaded</text>
 <text class="m" x="264.0" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.04</text>
@@ -30,24 +30,24 @@
 <text class="m" x="517.1" y="292.0" font-size="11" text-anchor="middle">1.14</text>
 <text class="m" x="588.7" y="292.0" font-size="11" text-anchor="middle">1.15</text>
 <text class="t" x="660.2" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.16</text>
-<path class="ln s0" stroke-width="2" d="M87.8,114.4 L159.3,109.1 L230.9,114.2 L302.4,112.9 L374.0,141.2 L445.6,142.1 L517.1,242.8 L588.7,260.0 L660.2,252.9"/>
-<circle class="s0 ring" cx="87.8" cy="114.4" r="3.5" stroke-width="2"><title>1.8, Paused: 2.22</title></circle>
-<circle class="s0 ring" cx="159.3" cy="109.1" r="3.5" stroke-width="2"><title>1.9, Paused: 2.29</title></circle>
-<circle class="s0 ring" cx="230.9" cy="114.2" r="3.5" stroke-width="2"><title>1.10, Paused: 2.22</title></circle>
-<circle class="s0 ring" cx="302.4" cy="112.9" r="3.5" stroke-width="2"><title>1.11, Paused: 2.24</title></circle>
-<circle class="s0 ring" cx="374.0" cy="141.2" r="3.5" stroke-width="2"><title>1.12, Paused: 1.84</title></circle>
-<circle class="s0 ring" cx="445.6" cy="142.1" r="3.5" stroke-width="2"><title>1.13, Paused: 1.83</title></circle>
-<circle class="s0 ring" cx="517.1" cy="242.8" r="3.5" stroke-width="2"><title>1.14, Paused: 0.43</title></circle>
-<circle class="s0 ring" cx="588.7" cy="260.0" r="3.5" stroke-width="2"><title>1.15, Paused: 0.19</title></circle>
-<circle class="s0 ring" cx="660.2" cy="252.9" r="3.5" stroke-width="2"><title>1.16, Paused: 0.29</title></circle>
-<path class="ln s1" stroke-width="2" d="M87.8,271.0 L159.3,271.3 L230.9,271.0 L302.4,271.3 L374.0,271.3 L445.6,271.1 L517.1,271.0 L588.7,271.0 L660.2,271.3"/>
-<circle class="s1 ring" cx="87.8" cy="271.0" r="3.5" stroke-width="2"><title>1.8, Idle, nothing loaded: 0.04</title></circle>
-<circle class="s1 ring" cx="159.3" cy="271.3" r="3.5" stroke-width="2"><title>1.9, Idle, nothing loaded: 0.04</title></circle>
-<circle class="s1 ring" cx="230.9" cy="271.0" r="3.5" stroke-width="2"><title>1.10, Idle, nothing loaded: 0.04</title></circle>
-<circle class="s1 ring" cx="302.4" cy="271.3" r="3.5" stroke-width="2"><title>1.11, Idle, nothing loaded: 0.04</title></circle>
-<circle class="s1 ring" cx="374.0" cy="271.3" r="3.5" stroke-width="2"><title>1.12, Idle, nothing loaded: 0.04</title></circle>
+<path class="ln s0" stroke-width="2" d="M87.8,108.3 L159.3,106.8 L230.9,108.9 L302.4,108.6 L374.0,138.1 L445.6,137.1 L517.1,242.2 L588.7,259.7 L660.2,254.6"/>
+<circle class="s0 ring" cx="87.8" cy="108.3" r="3.5" stroke-width="2"><title>1.8, Paused: 2.30</title></circle>
+<circle class="s0 ring" cx="159.3" cy="106.8" r="3.5" stroke-width="2"><title>1.9, Paused: 2.32</title></circle>
+<circle class="s0 ring" cx="230.9" cy="108.9" r="3.5" stroke-width="2"><title>1.10, Paused: 2.29</title></circle>
+<circle class="s0 ring" cx="302.4" cy="108.6" r="3.5" stroke-width="2"><title>1.11, Paused: 2.30</title></circle>
+<circle class="s0 ring" cx="374.0" cy="138.1" r="3.5" stroke-width="2"><title>1.12, Paused: 1.89</title></circle>
+<circle class="s0 ring" cx="445.6" cy="137.1" r="3.5" stroke-width="2"><title>1.13, Paused: 1.90</title></circle>
+<circle class="s0 ring" cx="517.1" cy="242.2" r="3.5" stroke-width="2"><title>1.14, Paused: 0.44</title></circle>
+<circle class="s0 ring" cx="588.7" cy="259.7" r="3.5" stroke-width="2"><title>1.15, Paused: 0.20</title></circle>
+<circle class="s0 ring" cx="660.2" cy="254.6" r="3.5" stroke-width="2"><title>1.16, Paused: 0.27</title></circle>
+<path class="ln s1" stroke-width="2" d="M87.8,271.2 L159.3,271.2 L230.9,271.3 L302.4,270.9 L374.0,271.0 L445.6,271.1 L517.1,271.0 L588.7,270.9 L660.2,271.4"/>
+<circle class="s1 ring" cx="87.8" cy="271.2" r="3.5" stroke-width="2"><title>1.8, Idle, nothing loaded: 0.04</title></circle>
+<circle class="s1 ring" cx="159.3" cy="271.2" r="3.5" stroke-width="2"><title>1.9, Idle, nothing loaded: 0.04</title></circle>
+<circle class="s1 ring" cx="230.9" cy="271.3" r="3.5" stroke-width="2"><title>1.10, Idle, nothing loaded: 0.04</title></circle>
+<circle class="s1 ring" cx="302.4" cy="270.9" r="3.5" stroke-width="2"><title>1.11, Idle, nothing loaded: 0.04</title></circle>
+<circle class="s1 ring" cx="374.0" cy="271.0" r="3.5" stroke-width="2"><title>1.12, Idle, nothing loaded: 0.04</title></circle>
 <circle class="s1 ring" cx="445.6" cy="271.1" r="3.5" stroke-width="2"><title>1.13, Idle, nothing loaded: 0.04</title></circle>
 <circle class="s1 ring" cx="517.1" cy="271.0" r="3.5" stroke-width="2"><title>1.14, Idle, nothing loaded: 0.04</title></circle>
-<circle class="s1 ring" cx="588.7" cy="271.0" r="3.5" stroke-width="2"><title>1.15, Idle, nothing loaded: 0.04</title></circle>
-<circle class="s1 ring" cx="660.2" cy="271.3" r="3.5" stroke-width="2"><title>1.16, Idle, nothing loaded: 0.04</title></circle>
+<circle class="s1 ring" cx="588.7" cy="270.9" r="3.5" stroke-width="2"><title>1.15, Idle, nothing loaded: 0.04</title></circle>
+<circle class="s1 ring" cx="660.2" cy="271.4" r="3.5" stroke-width="2"><title>1.16, Idle, nothing loaded: 0.04</title></circle>
 </svg>

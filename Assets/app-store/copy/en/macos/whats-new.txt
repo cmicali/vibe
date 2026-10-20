@@ -1,4 +1,7 @@
 * Added mouse/trackpad scrolling and up/down keys to change the volume (when enabled)
 * Added Copy and Paste for colors and fonts in the theme editor's right-click menu
+* Added each theme's swatch to the View > Theme menu
+* Changed MP3, FLAC, WAV, AIFF and Ogg Vorbis files to always play with Vibe's own decoders
 * Moved the volume slider appearance and behavior settings from themes to Settings > Appearance
+* Improved playback of Ogg Vorbis files that also carry video or a Skeleton stream
 * Fixed 320 kbps MP3s opening slowly

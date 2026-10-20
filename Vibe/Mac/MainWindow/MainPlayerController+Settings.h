@@ -106,6 +106,9 @@ typedef NS_ENUM(NSInteger, VibeShortcutAssignment) {
 - (void)resetShortcuts;
 // The whole override set at once, for undo; resetShortcuts is it with none.
 - (void)setShortcutOverrides:(NSDictionary<NSString *, NSNumber *> *)overrides;
+// The drop hint's half of the Shortcuts effect. Launch sets it with the menu,
+// and the key equivalents after the window is up.
+- (void)applyOpenShortcutHint;
 
 // Pushes the theme's fonts into Fonts, which may not read a setting.
 // buildContentInWindow: runs it before any label exists.

@@ -117,7 +117,9 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 
     NSApp.mainMenu = mainMenu;
 
-    [player applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
+    // The key equivalents come after launch (AppDelegate). The first frame
+    // draws the drop hint, which names Open's shortcut.
+    [player applyOpenShortcutHint];
     // Labels and key equivalents follow the layout. The menu outlives this
     // observer's owner question: both last the process.
     __weak MainPlayerController *weakPlayer = player;
