@@ -18,7 +18,7 @@ In 1.14, Vibe's own audio engine replaced Apple's AVAudioEngine. It plays straig
 
 **Why:** Vibe's engine keeps the output running when the track changes. The next track only has to open its file and start decoding. With AVAudioEngine, a track switch took about 36 ms.
 
-**The data:** a track switch now takes about 3 ms. The first file after launch still has to start the output. It takes about 40 ms. The slow case is an MP3 with no Xing header. That file has no frame count and no seek table. Opening it takes more work. App launch has stayed near 200 ms in every release. It has crept up by about 10 ms since 1.8.
+**The data:** a track switch now takes about 5 ms. The first file after launch still has to start the output. It takes about 40 ms. The slow case is an MP3 with no Xing header. That file has no frame count and no seek table. Opening it takes more work. App launch went from 195 ms in 1.8 to 208 ms in 1.15. 1.16 takes 230 ms.
 
 ![Time to play a file never opened before](performance/time-to-play.svg)
 
@@ -51,7 +51,7 @@ Four releases cut the CPU it takes to play a file:
 - 1.12 made the UI's playback updates cheaper. Formatting the time readout had been most of each update.
 - 1.14 brought Vibe's own engine, and its MP3 decoder and resampler.
 - 1.15 brought Vibe's FLAC, WAV and AIFF decoders, and slowed the player's timer from 100 checks a second to 10.
-- 1.16 replaces Apple's Varispeed with Vibe's own pitch converter. It sounds much cleaner. It costs about three times as much CPU as Apple's. That's still a fraction of a percent of a core. [Audio quality](audio-quality.md#the-pitch-fader) has the numbers. Playing FLAC 24/192 at +8% pitch went from 6.8% of a core to 7.2%.
+- 1.16 replaces Apple's Varispeed with Vibe's own pitch converter. It sounds much cleaner. It costs about three times as much CPU as Apple's. That's still a fraction of a percent of a core. [Audio quality](audio-quality.md#the-pitch-fader) has the numbers. Playing FLAC 24/192 at +8% pitch went from 7.0% of a core to 7.3%.
 
 **Why:** a music player should cost close to nothing during playback. The savings matter most on a laptop battery.
 
@@ -69,7 +69,7 @@ When it's paused or idle, Vibe should do close to nothing. With nothing loaded, 
 
 **Why:** an app that wakes the CPU often keeps it from sleeping, even if each wakeup is cheap. That costs battery.
 
-**The data:** CPU while paused went from 2.2% of a core to 0.19%. 1.14 got one thing wrong. Its player timer ran 100 times a second whenever a track was loaded, playing or paused. That took wakeups while playing from 7 a second to 105. It also raised the energy of playing FLAC 24/192 from 9.9 mW to 16.5 mW, even though CPU went down. In 1.15 the timer runs 10 times a second. It goes back to 100 only when a fade, a track change or the end of a file is coming up. Wakeups while playing dropped to 15, and FLAC 24/192 now takes 4.0 mW.
+**The data:** CPU while paused went from 2.3% of a core to 0.2%. 1.14 got one thing wrong. Its player timer ran 100 times a second whenever a track was loaded, playing or paused. That took wakeups while playing from 7 a second to 104. It also raised the energy of playing FLAC 24/192 from 9.8 mW to 16.6 mW, even though CPU went down. In 1.15 the timer runs 10 times a second. It goes back to 100 only when a fade, a track change or the end of a file is coming up. Wakeups while playing dropped to 16. FLAC 24/192 now takes 3.9 mW.
 
 ![CPU wakeups](performance/wakeups.svg)
 
@@ -81,7 +81,7 @@ A new track gets a waveform and a tempo. Both come from one pass that decodes th
 
 **Why:** the pass is mostly decoding. The faster decoders did most of the work. Tempo detection works in samples. A 96 kHz file cost twice as much as the same music at 48 kHz. On 150 test tracks converted to 96 kHz, tempo accuracy stayed at 82.3%.
 
-**The data:** a 3-minute MP3 went from 250 ms to 118 ms with the new MP3 decoder. A 3-minute FLAC went from 279 ms to 61 ms with the new FLAC decoder. A 60-minute MP3 went from 4.8 s to 2.1 s.
+**The data:** a 3-minute MP3 went from 251 ms to 117 ms with the new MP3 decoder. A 3-minute FLAC went from 287 ms to 60 ms with the new FLAC decoder. A 60-minute MP3 went from 4.8 s to 2.1 s.
 
 ![Waveform and tempo for a 3-minute file](performance/waveform.svg)
 
@@ -91,7 +91,7 @@ Vibe has no library to import. When you open a folder, it lists the files right 
 
 **Why:** you can open any folder and play right away, and the second time is faster.
 
-**The data:** since 1.10, reading a file's tags also makes the smaller copies of its cover that the app shows. That's the jump at 1.10 in the second chart. 1.15 halved that cost. It decodes the JPEG at a smaller size first, then scales it with vImage. 1.15 also made the disk cache faster. A first scan of the 600-file library takes 0.36 s. A scan with a full cache takes 0.08 s.
+**The data:** since 1.10, reading a file's tags also makes the smaller copies of its cover that the app shows. That's the jump at 1.10 in the second chart. 1.15 halved that cost. It decodes the JPEG at a smaller size first, then scales it with vImage. 1.15 also made the disk cache faster. A first scan of the 600-file library takes 0.34 s. A scan with a full cache takes 0.08 s.
 
 ![A 600-file library](performance/library.svg)
 
@@ -99,7 +99,7 @@ Vibe has no library to import. When you open a folder, it lists the files right 
 
 ## Memory
 
-Peak memory fell from 107 MB to 68 MB in 1.10. That release fixed several leaks and reworked library and artwork loading. It's 64 MB now. Idle memory went up from 30 MB to 41 MB in 1.14 with the new engine. It's back down to 37 MB.
+Peak memory fell from 107 MB to 66 MB in 1.10. That release fixed several leaks and reworked library and artwork loading. It's 62 MB now. Idle memory went up from 30 MB to 37 MB in 1.14 with the new engine. It's 38 MB now.
 
 ![Memory](performance/memory.svg)
 

@@ -58,8 +58,8 @@
 - (void)debugBeginLayoutSamplingForSeconds:(NSTimeInterval)seconds;
 - (NSDictionary *)debugLayoutSamples;
 // Class-level: it needs no root. seconds of 0 runs until replaced and logs
-// a report every five seconds, the device's road, since --log-stderr is all
-// a phone offers.
+// a report every five seconds, the device's road, since the device console
+// (OS_ACTIVITY_DT_MODE) is all a phone offers.
 + (void)debugBeginFrameProbeForSeconds:(NSTimeInterval)seconds;
 + (NSDictionary *)debugFrameProbeReport;
 @end

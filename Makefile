@@ -35,7 +35,9 @@ help:
 # Under the build lock (scripts/build/build-lock.sh), taken per command: sessions
 # share one checkout, and rewriting the project under another session's
 # xcodebuild fails that build or feeds it a half-written project.
+# It first brings in the vibe-libs submodule for a fresh clone or worktree.
 project:
+	@scripts/build/vibe-libs-submodule.sh
 	scripts/build/build-lock.sh xcodegen generate
 
 # The macOS app. `project` has already regenerated, so build.sh skips its own.

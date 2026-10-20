@@ -1,0 +1,3 @@
+[submodule "vibe-libs"]
+	path = vibe-libs
+	url = https://github.com/cmicali/vibe-libs.git

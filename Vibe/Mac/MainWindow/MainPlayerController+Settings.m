@@ -63,6 +63,12 @@
     [self applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
 }
 
+- (void)applyOpenShortcutHint {
+    VibeShortcut open = VibeShortcutEffective(kVibeMenuOpen, AppSettings.sharedInstance.shortcutOverrides);
+    [self.playerContentView setOpenShortcut:open == kVibeShortcutNone
+            ? nil : [MainMenuBuilder displayStringForShortcut:open]];
+}
+
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects {
     [self applySettingsLiveEffects:effects updatingOutputModes:YES];
 }
@@ -185,9 +191,7 @@
     }
     if (effects & VibeSettingsLiveEffectShortcuts) {
         [MainMenuBuilder applyShortcuts];
-        VibeShortcut open = VibeShortcutEffective(kVibeMenuOpen, settings.shortcutOverrides);
-        [self.playerContentView setOpenShortcut:open == kVibeShortcutNone
-                ? nil : [MainMenuBuilder displayStringForShortcut:open]];
+        [self applyOpenShortcutHint];
     }
     if (effects & VibeSettingsLiveEffectConvertMenu) {
         [MainMenuBuilder applyConvertMenuVisibility];
