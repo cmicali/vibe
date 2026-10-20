@@ -116,7 +116,9 @@ Copyright (c) 2002 (libogg) and 2002-2020 (libvorbis), Xiph.org Foundation.
 Licensed under the BSD 3-Clause license. The full texts are vendored at
 `Vibe/ThirdParty/ogg/LICENSE.txt` and `Vibe/ThirdParty/vorbis/LICENSE.txt`
 (upstream's `COPYING`, renamed so the build leaves them out of the bundles).
-Both are unmodified. The license, as libvorbis states it:
+libogg is unmodified. libvorbis's `vorbisfile.c` carries one fix of Vibe's
+own (`Vibe/ThirdParty/AGENTS.md`), which the license permits. The license,
+as libvorbis states it:
 
 ```
 Copyright (c) 2002-2020 Xiph.org Foundation

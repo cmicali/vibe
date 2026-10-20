@@ -12,7 +12,7 @@ Playback uses CoreAudio, AudioToolbox and AVFoundation plus five vendored librar
 - **dr_wav** decodes WAV, W64, RF64 and AIFF.
 - **libvorbis**, with libogg's page reader, decodes Ogg Vorbis.
 
-The three dr_ libraries carry fixes of Vibe's own. `docs/audio-quality.md` has the measurements behind each choice.
+The three dr_ libraries and libvorbis carry fixes of Vibe's own. `docs/audio-quality.md` has the measurements behind each choice.
 
 The playable formats are listed once, in `Common/PlayableExtensions`. FLAC in Ogg is refused at the parser open, because CoreAudio truncates it (`AudioFileHandle.m`).
 
@@ -113,7 +113,7 @@ Every directory directly under `Vibe/` except `Mac/`, `iOS/` and `ThirdParty/` i
 - **`Vibe/Util/`** — featureless helpers, with `Mac/` and `iOS/` halves. **`Vibe/Debug/`** — the debug channel, with `Mac/` and `iOS/` command tables.
 - **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, sandbox grants, stats, the debug info report), `MainWindow/` (`MainPlayerController`; layout and chrome are its `LAYOUT.md`; `Transport/` carries its own doc), `Menu/`, `Controls/`, `Settings/` (`Themes/` is the theme list and editor), `About/`, `Convert/` (the FLAC converter and its file round trip, with a doc).
 - **`Vibe/iOS/`** — the iPhone/iPad app shell: `PlaybackController` (the model), the tab shell, the Playlist tab and the mini player; `Files/` is the Files tab's browser and Recents, `Player/` the now-playing card, `Search/` Favorites and search, `Settings/` the settings screens, `Widget/` the widget's app side, each with a doc. The top-level `VibeWidget/` is the widget extension, with its own doc. The iOS halves of shared subsystems live under those subsystems, not here.
-- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain-free-src, dr_mp3, dr_flac, and dr_wav (the last three modified; its `AGENTS.md` lists how), libvorbis and libogg (unmodified), and the prebuilt Sparkle framework, the direct download's updater.
+- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis and libogg, and the prebuilt Sparkle framework, the direct download's updater. dr_mp3, dr_flac, dr_wav and libvorbis are modified, and its `AGENTS.md` lists how.
 
 ## Cross-directory guarantees
 
