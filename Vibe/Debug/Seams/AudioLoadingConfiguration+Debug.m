@@ -4,7 +4,7 @@
 //
 
 #import "AudioLoadingConfiguration+Debug.h"
-#import "DebugWireFormat.h"
+#import "IntegerTokenRules.h"
 
 #if DEBUG
 
