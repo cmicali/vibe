@@ -5,6 +5,7 @@
 
 #import "WaveformScrubberViewInternal.h"
 #import "WaveformRendererRegistry.h"
+#import "WaveformTheme+Settings.h"
 #import "WaveformZoomMath.h"
 #import "UIView+DarkMode.h"
 #import "AppSettings.h"

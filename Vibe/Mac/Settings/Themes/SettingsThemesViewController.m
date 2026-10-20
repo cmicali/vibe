@@ -21,6 +21,7 @@
 #import "AppTheme+Archive.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme.h"
+#import "WaveformTheme+Settings.h"
 #import "MainPlayerController+Settings.h"
 #import "SettingsWindowController.h" // the toolbar navigation control follows the pane's pages
 #import "SettingsRules.h"
