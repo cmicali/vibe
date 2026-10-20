@@ -7,6 +7,9 @@
 //  stall, failure, interruption and orphaned thread.
 //
 
+#include <fcntl.h>
+#include <sys/stat.h>
+
 #import "AudioFileHandleStreamingTestCase.h"
 
 @interface AudioFileHandleReadAheadTests : AudioFileHandleStreamingTestCase
