@@ -2,7 +2,7 @@
 
 **Code with no feature.** That is the whole admission test, and it is stricter than it sounds. If you can name the feature a file serves, it belongs in that feature's directory, however utility-shaped it looks. `Mac/` (AppKit) and `iOS/` (UIKit) have their own `AGENTS.md`.
 
-**`Util/` may not call anything stateful**: a singleton, a setting, a grant or a panel. Stateless code is fair game wherever it lives. `HelperMacros.h` and `CMMMacros.h` reach every translation unit through the `.pch`, so anything added to either is paid for everywhere. `CMMMacros.h` must stay free of `#if DEBUG` and of any app type, because files outside the app import it on their own.
+**`Util/` may not call anything stateful**: a singleton, a setting, a grant or a panel. Stateless code is fair game wherever it lives. `HelperMacros.h` and `VibeMacros.h` reach every translation unit through the `.pch`, so anything added to either is paid for everywhere. `VibeMacros.h` must stay free of `#if DEBUG` and of any app type, because files outside the app import it on their own.
 
 Two placements are not what the file names suggest.
 - `NSURL+Hash` also carries `NSData (Hash)`'s `sha1Hex`. It is the one spelling of the hex SHA-1 that the cache key's path hash and `AppTheme`'s content-addressed artwork names share. It sits under the URL's name because the two are one rule. It is one of the three categories `Common/` reaches for. The others are `Mac/NSView+DarkMode`'s `NSAppearance (DarkMode)` and `Mac/NSImage+Util`.

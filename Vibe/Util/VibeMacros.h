@@ -1,5 +1,5 @@
 //
-//  CMMMacros.h
+//  VibeMacros.h
 //
 //  Macros a file imports explicitly, so it builds without an app's prefix
 //  header.

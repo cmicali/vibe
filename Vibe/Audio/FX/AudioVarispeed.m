@@ -4,7 +4,7 @@
 //
 
 #import "AudioVarispeed.h"
-#import "CMMMacros.h"
+#import "VibeMacros.h"
 #import <Accelerate/Accelerate.h>
 #include <simd/simd.h>
 #include <stdatomic.h>
