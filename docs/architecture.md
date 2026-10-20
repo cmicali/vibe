@@ -83,7 +83,6 @@ Tests/                 unit tests, laid out like Vibe/
 Resources/             string catalogs, built-in themes, the app icon, the welcome track
 docs/                  docs for users and contributors (docs/README.md lists them)
 scripts/               build, check, string, release, App Store, web, and benchmark scripts
-functions/             the website's Cloudflare Pages Functions, which count update checks
 project.yml            the XcodeGen spec for every target
 Makefile               every build, test, and check command
 ```

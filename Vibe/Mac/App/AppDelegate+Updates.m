@@ -83,7 +83,7 @@ static NSArray<NSString *> *UpdateCheckPeriods(NSDate *date) {
 }
 
 // Appended to the feed URL at every check, for the site's update-check counts
-// (functions/appcast.xml.js). The app version is already in Sparkle's
+// (Assets/Web/functions/appcast.xml.js). The app version is already in Sparkle's
 // User-Agent. Nothing here identifies the Mac, and the privacy policy lists
 // every key.
 - (NSArray<NSDictionary<NSString *, NSString *> *> *)feedParametersForUpdater:(SPUUpdater *)updater
