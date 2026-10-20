@@ -3,7 +3,6 @@
 //
 
 #import "WaveformRendererRegistry.h"
-#import "AppSettings.h"
 #import "WaveformRenderer.h"
 #import "DetailedWaveformRenderer.h"
 #import "SonicCirrusWaveformRenderer.h"

@@ -6,6 +6,7 @@
 #import <Foundation/Foundation.h>
 #import "AppSettings.h"
 #import "VibeStrings.h"
+#import "WaveformTheme.h"
 #if TARGET_OS_OSX
 #import "AppSettings+Mac.h"
 #endif
