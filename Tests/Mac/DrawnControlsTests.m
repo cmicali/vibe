@@ -126,6 +126,18 @@ static const CGFloat kKnobHalf = 9;
     XCTAssertFalse([slider accessibilityPerformDecrement]);
 }
 
+// The spoken value is whatever the shell installs; the control formats nothing.
+- (void)testTheSpokenValueComesFromTheInstalledFormatter {
+    VibeSlider *slider = [self sliderAt:0.5 dark:YES];
+    XCTAssertNil(slider.accessibilityValueDescription);
+    slider.accessibilityValueFormatter = ^NSString *(double value) {
+        return [NSString stringWithFormat:@"%.0f of 100", value * 100];
+    };
+    XCTAssertEqualObjects(slider.accessibilityValueDescription, @"50 of 100");
+    slider.doubleValue = 0.25;
+    XCTAssertEqualObjects(slider.accessibilityValueDescription, @"25 of 100");
+}
+
 // The scroll and arrow keys' move: 5% a step, unrounded, clamped, and NO
 // when it did not move.
 - (void)testAMoveIsExactAndClamps {
