@@ -98,6 +98,13 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     // Before the restore, which may name a link. From here a link's
     // placeholder is dataless, and opening it streams it.
     [LinkStore.shared installAsRemoteBackend];
+    // Folder art asks the app whether it is on and whether a folder's grant
+    // covers a directory, so the resolver reads no setting or grant itself.
+    [FolderArtResolver.sharedInstance setEnabledProvider:^BOOL{
+        return AppSettings.sharedInstance.useFolderArt;
+    } accessProvider:^BOOL(NSString *directory) {
+        return [FolderAccessManager.sharedInstance canReadInsideDirectory:directory];
+    }];
     // Installed before any open can run. The walk reports; acting on it
     // (the grant panel, folder art) belongs to the app layer.
     [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {

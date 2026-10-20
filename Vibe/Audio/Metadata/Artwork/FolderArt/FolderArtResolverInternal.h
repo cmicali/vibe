@@ -9,8 +9,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-typedef BOOL (^FolderArtEnabledProvider)(void);
-typedef BOOL (^FolderArtAccessProvider)(NSString *directory);
 typedef NSArray<NSString *> * _Nullable (^FolderArtDirectoryLister)(NSString *directory);
 typedef BOOL (^FolderArtFileInfoProvider)(NSString *path,
                                           unsigned long long * _Nullable size);
