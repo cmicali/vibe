@@ -18,7 +18,6 @@
 
 @interface AudioTrackMetadataCache ()
 @property (nonatomic, readonly) AudioLoadingConfiguration *loadingConfiguration;
-- (instancetype)initWithLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
 - (void)applyLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration;
 + (NSString *)cacheName;
 - (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;
@@ -49,15 +48,13 @@
 }
 
 - (instancetype)init {
-    return [self initWithLoadingConfiguration:
-            [AudioLoadingConfiguration productionConfiguration]];
+    return [self initWithRootPath:nil];
 }
 
-- (instancetype)initWithLoadingConfiguration:(AudioLoadingConfiguration *)loadingConfiguration {
+- (instancetype)initWithRootPath:(NSString *)rootPath {
     self = [super init];
     if (self) {
-        NSParameterAssert(loadingConfiguration);
-        _loadingConfiguration = [loadingConfiguration copy];
+        _loadingConfiguration = [[AudioLoadingConfiguration productionConfiguration] copy];
         _currentLoader = nil;
         _parseCoordinator = [[MetadataParseCoordinator alloc] init];
         _cacheQueue = dispatch_queue_create("com.vibe.metadatacache",
@@ -67,7 +64,7 @@
         // workers. A loader can run before this lands; it re-reads the
         // property at each use.
         dispatch_async(_cacheQueue, ^{
-            self.metadataCache = [PINCache audioCacheWithName:AudioTrackMetadataCache.cacheName rootPath:nil];
+            self.metadataCache = [PINCache audioCacheWithName:AudioTrackMetadataCache.cacheName rootPath:rootPath];
         });
     }
     return self;

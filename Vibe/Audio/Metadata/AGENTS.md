@@ -2,7 +2,7 @@
 
 Tags, their disk cache, the playlist scan and embedded artwork. The artwork classes live in `Artwork/`. `Artwork/FolderArt/` is the sidecar-cover fallback, and it has its own `AGENTS.md`.
 
-- `AudioTrackMetadataCache` is the facade, and `AudioTrackMetadataLoader` the one sweep behind it (private).
+- `AudioTrackMetadataCache` is the facade, and `AudioTrackMetadataLoader` the one sweep behind it (private). Its disk cache sits under the root `initWithRootPath:` names, as the waveform cache's does. Nil, which `init` passes, is the user's Caches directory.
 - The loader is one object in three files. `AudioTrackMetadataLoader.m` is its life and the sweep's stage 1. `+Materialization.m` is the lane: priority marks, the two slots, the foreground gate and each completion's settlement. `+Parse.m` is the cache read, the parse, installation, settlement and publication, with the display-art rendition's sidecar. `AudioTrackMetadataLoader.h` is the API the cache and the tests use. `AudioTrackMetadataLoaderInternal.h` holds its ivars and the methods its files share. `MetadataScanEntry` holds its two records, the scan entry and the priority mark. Its debug category is `Vibe/Debug/Seams/AudioTrackMetadataLoader+Debug.m`.
 - `MetadataParseCoordinator` is the per-path owner/waiter table and nothing else.
 - `AudioTrackMetadata` is the immutable tags plus the display-facing art API.
