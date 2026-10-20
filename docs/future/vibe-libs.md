@@ -1,6 +1,6 @@
 # Future: vibe-libs, the shared toolbox
 
-**Status: planned 2026-10-17 and revised 2026-10-18 after two reviews. The pilot is in review: #314 moves the realtime-effects brackets and #315 takes the varispeed from the submodule. Cuts 1, 3 and 4 are #316 to #318, and the log macros are #319.**
+**Status: planned 2026-10-17 and revised 2026-10-18 after two reviews. The pilot is in review: #314 moves the realtime-effects brackets and #315 takes the varispeed from the submodule. Cuts 1, 3 and 4 are #316 to #318, and the log macros are #319. Revised 2026-10-20 after a third review: the shell pieces join on a second track, as cuts 24 to 29, and the one prefix is `Vibe`.**
 
 Everything in Vibe that another app could use moves to [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries for macOS and iOS apps. Vibe and another app each take only the pieces they want. **vibe-libs' [docs/plan.md](https://github.com/cmicali/vibe-libs/blob/main/docs/plan.md) is the authority** for the pieces, their dependency map, the build shape, the order of the moves, the performance proof, and what the other app needs when. This doc covers only what changes in Vibe.
 
@@ -28,26 +28,26 @@ Only five files in the moving code read `AppSettings`: one in folder art and fou
 
 | Group | Pieces | Mostly from |
 | --- | --- | --- |
-| `core/` | Common, Graphics | `Util/`, `NSURL+Hash`, `Common/Platform*`, the prefix header's macros |
+| `core/` | Common, Graphics | `Util/`, `NSURL+Hash`, `Common/Platform*`, the prefix header's macros, `Common/Mac/Theme/Fonts` |
 | `files/` | FileLoading, RemoteFiles, HTTP, ShareLinks, SandboxAccess, DiskCache | `Loading/`, `Mac/App/FolderAccessManager`, the cache helper |
 | `audio/` | AudioTypes, DSP, Analysis, Decode, Meter, FX, OutputDevices, Player | `Audio/`, `Common/PlayableExtensions` |
 | `media/` | Tags, Metadata, Playlists, FolderScan, PlayQueue | `Audio/Metadata/`, the shared half of `Playlist/`, `iOS/Search/FileSearchIndex` |
 | `waveform/` | Waveform, WaveformStyles, WaveformLoading, WaveformView | `Packages/WaveformCore`, `Audio/Waveform/`, `WaveformUI/` |
-| `ui/` | Controls | `Controls/`, `Mac/Controls/` |
+| `ui/` | Controls, SettingsWindow, Shortcuts | `Controls/`, `Mac/Controls/`, `Mac/About/VibeLinkLabel`, the window, sidebar, pane base and form views of `Mac/Settings/`, the shortcut encoding of `Mac/Menu/ShortcutRules.h` and the Shortcuts pane |
 | `system/` | NowPlaying, AppOpening, Updates | `NowPlaying/`, `Mac/App/OpenBurstCoalescer`, `OpenRequestCoordinator`, the Sparkle wiring |
 | `dev/` | DebugChannel, iOSDriver | `Debug/Channel/`, `Tests/iOSDriver/` |
 | `tools/strings` | the strings extraction and catalog checks | `scripts/strings/` |
 | `third_party/` | each vendored library, Sparkle included | `ThirdParty/` |
 
-**What stays in Vibe:** both shells, the playlist row (`AudioTrack`), the playlist table, settings, strings, themes, the link store, Dropbox, Convert to FLAC, the debug verbs and their command tables, and the widget.
+**What stays in Vibe:** both shells, the playlist row (`AudioTrack`), the playlist table, the settings store and every pane's content, strings, themes and the Themes pane, the main menu and its command table, the About window, the link store, Dropbox, Convert to FLAC, the debug verbs and their command tables, and the widget.
 
 **Moves with its users, no source change:** `Util/StallWatch`, `NSString+CPPStrings`, `VibeWeakProxy`, `NSView+DarkMode`, `UIView+DarkMode`, `HelperMacros.h`, the platform aliases, `PlayableExtensions`, the debug seams, simulators and `AudioLoadTiming`. Convert is wholly `Vibe/Mac/Convert/` and stays. `AudioFileHandle`'s writing half stays in the engine. `VibeWidget/` is untouched.
 
-**After the moves, `project.yml`** drops the `Vibe/Audio`, `Vibe/WaveformUI` and `Vibe/Controls` entries, the four vendored flag anchors and their 22 entries, and the eleven TagLib header search paths. `Vibe/Loading` keeps only `iOS/Dropbox` and the link store. `Vibe/ThirdParty` goes.
+**After the moves, `project.yml`** drops the `Vibe/Audio`, `Vibe/WaveformUI` and `Vibe/Controls` entries, the four vendored flag anchors and their 22 entries, and the eleven TagLib header search paths. `Vibe/Loading` keeps only `iOS/Dropbox` and the link store. `Vibe/ThirdParty` goes. `Vibe/Mac/Settings` keeps the panes and the window subclass. `Vibe/Mac/Controls` keeps the artwork view and the pitch controls.
 
 ## The cuts, as pull requests on `main`
 
-Each is mergeable alone and leaves every check passing. The vibe-libs plan names the ones the first path needs. They are 1, 3, 4, 6 to 18, the queue half of 19, 22, and 23.
+Each is mergeable alone and leaves every check passing. The vibe-libs plan names the ones the first path needs. They are 1, 3, 4, 6 to 18, the queue half of 19, 22, and 23. The shell track needs 24 to 29.
 
 | # | Cut | Today | The change | Status |
 | --- | --- | --- | --- | --- |
@@ -61,9 +61,17 @@ Each is mergeable alone and leaves every check passing. The vibe-libs plan names
 | 9 | `WaveformTheme+Settings` | `themeForAppTheme:` and `themeForSettings:widget:` map Vibe's stores onto the theme. | A category in `Vibe/Common/WaveformTheme+Settings`, precedent `AppSettings+Themes`. `WaveformTheme` then imports only `PlatformColor.h`. | |
 | 10 | Mac `WaveformView` pushed | Nine `AppSettings` reads. | Pushed properties, a `dragSeeks` BOOL, and a `themeProvider` block. One shell method, `applyWaveformSettings`, pushes them. One new live-effect bit for the drag popup. | |
 | 11 | iOS scrubber pushed | Six reads. | `syncWaveformStyle` takes the resolved identifier. `centered` and `drawsPlayheadLine` are pushed. A `themeProvider` block replaces three `themeForSettings:` calls. | |
-| 12 | `CMMMacros.h` | The pch's macro body is what the libraries use. | Moves in parts: the realtime brackets first, then the log macros. The signposts and the work tally need their own design, since they are debug-only. | brackets #314, logs #319 |
+| 12 | `CMMMacros.h` | The pch's macro body is what the libraries use. | Moves in parts: the realtime brackets first, then the log macros. The signposts and the work tally need their own design, since they are debug-only. The header is renamed `VibeMacros.h` on the pilot's branches before they merge, with `CMM_ROOT` and the template names (vibe-libs' plan, Decided). | brackets #314, logs #319 |
+| 24 | Pane effects sink | `SettingsPaneViewController` holds `MainPlayerController` and calls `applySettingsLiveEffects:` once. | A block over an opaque integer, supplied by the controller. `VibeSettingsLiveEffect` stays here. | |
+| 25 | Settings window split | `SettingsWindowController` lists the nine panes, reads 34 strings, and names the Themes and Audio panes. | The generic window takes its panes as a list and its strings pushed in. A Vibe subclass supplies the panes and the Themes toolbar items. | |
+| 26 | Drawn slider formatter | `VibeSlider` calls `Formatters.percentString:` for its accessibility value. | One formatter block. | |
+| 27 | Fonts' slots | `Fonts` imports `AppTheme` for `VibeFontSlot` and `applyThemeFonts:`. | `Fonts` keeps a face-and-size table keyed by an integer slot. The enum, the five slots, and the theme push move beside `AppTheme`. | |
+| 28 | Shortcut encoding | `ShortcutRules.h` mixes the key-code-or-character encoding with Vibe's commands, their defaults, and the menu rules. | The encoding, the modifier mask, and the matching move. The command table stays. The Shortcuts pane takes rows of identifier, label, and default. | |
+| 29 | Color-pair row | The theme editor builds dark and light wells bound to an `AppTheme` base, seeds them, and copies and pastes them as hex. | The row, the seeding, and copy and paste move into `SettingsFormViews`, bound to a read block and a write block. The editor calls it. | |
 
 Cut 5, which retired `AudioTrack`'s two labels, is not planned. `AudioTrack` stays in Vibe.
+
+**The shell track** is cuts 24 to 29 and then four moves: the mac controls, `Fonts` with Graphics, the settings window, and the shortcuts. It runs beside Phase 2, since it touches none of the path's files. The theme record, its store, and the Themes pane stay here. The generic half of `DebugSettingsUI`, the walk from a row title to its controls, moves as the settings window's debug seam, and the theme verbs stay in the command tables. The order and the done-when are in vibe-libs' plan.
 
 ## The seams between pieces
 
@@ -104,4 +112,4 @@ Still to do, each with the move that needs it:
 
 ## Budget
 
-Most of the shared code and its tests leave this repo. Deleted or unified in what remains: the vendored flag anchors and their entries, eleven header search paths, three source entries, the prefix header's macro body, eight renderer name overrides and two registry methods, one link-error table and `VibeStatusForPlayError` consolidated into one header, two accessibility overrides and a duplicated constant, eighteen settings reads, and two imports. New here: `Common/StringRules.h`, `Common/WaveformTheme+Settings`, `WaveformUI/WaveformAccessibility.h`, and one live-effect bit. New types: the small ones the seams add, each argued in vibe-libs' plan. Each move reports what it removed from Vibe apart from what it added across both repos. The two hand-kept test source lists stay until each piece's tests move, since the tests compile production sources with their own flags.
+Most of the shared code and its tests leave this repo. Deleted or unified in what remains: the vendored flag anchors and their entries, eleven header search paths, three source entries, the prefix header's macro body, eight renderer name overrides and two registry methods, one link-error table and `VibeStatusForPlayError` consolidated into one header, two accessibility overrides and a duplicated constant, eighteen settings reads, and two imports. New here: `Common/StringRules.h`, `Common/WaveformTheme+Settings`, `WaveformUI/WaveformAccessibility.h`, and one live-effect bit. The shell track deletes the form views, the pane base, the sidebar and the generic window, about 2,650 lines, five clean controls and the drawn controls, `Fonts`' table, the shortcut encoding, and the walker's generic half. New for it: the window subclass with the pane list, the font slot enum beside the theme, and the command table on its own. New types: the small ones the seams add, each argued in vibe-libs' plan. Each move reports what it removed from Vibe apart from what it added across both repos. The two hand-kept test source lists stay until each piece's tests move, since the tests compile production sources with their own flags.
