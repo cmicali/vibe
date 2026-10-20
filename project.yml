@@ -64,7 +64,7 @@ settingGroups:
 # ---- PROJECT-LEVEL settings (== PBXProject build configs) ----
 settings:
   base:
-    CMM_ROOT: "$(SRCROOT)/vibe-libs" # where vibe-libs' templates find their headers
+    VIBE_LIBS_ROOT: "$(SRCROOT)/vibe-libs" # where vibe-libs' templates find their headers
     ALWAYS_SEARCH_USER_PATHS: NO
     CLANG_ANALYZER_NONNULL: YES
     CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION: YES_AGGRESSIVE
@@ -163,7 +163,7 @@ targets:
     type: application
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources.
-    templates: [CMMDSP]
+    templates: [VibeLibsDSP]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -539,7 +539,7 @@ targets:
   VibeiOS:
     type: application
     platform: iOS
-    templates: [CMMDSP]
+    templates: [VibeLibsDSP]
     templateAttributes:
       excludedPlatform: Mac
     sources:

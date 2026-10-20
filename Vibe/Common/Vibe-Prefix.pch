@@ -24,7 +24,7 @@
 #import "HelperMacros.h"
 
 // The log macros and the realtime-effects brackets (vibe-libs/core/Common).
-#import "CMMMacros.h"
+#import "VibeMacros.h"
 
 // Frame-budget instrumentation, DEBUG only. An interval lands in Instruments'
 // Points of Interest track, under Animation Hitches, and is also tallied by
