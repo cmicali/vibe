@@ -4,11 +4,12 @@
 # targets, and within any subsystem Mac/ and iOS/ are the only platform
 # markers.
 #
-# Six assertions. The first three read project.yml, which settles which
+# Seven assertions. The first three read project.yml, which settles which
 # SOURCES compile; the fourth reads the imports, which settles which HEADERS may
 # be named, since Xcode's project-wide headermap resolves any header from any
 # target; the fifth keeps the agent instructions loadable; the sixth keeps a
-# test target's debug seams whole.
+# test target's debug seams whole; the seventh keeps the vibe-libs submodule
+# present and reached only by header name.
 #   1. every exclude is on the whitelist — no feature-named exclude anywhere;
 #   2. no Vibe path names the other platform, and every shared entry carries
 #      its platform exclude;
@@ -19,7 +20,8 @@
 #   6. every +Debug seam header a test target reaches through its imports has
 #      its .m in that target, when the seam has one and the target compiles
 #      the class. A selector resolves at run time, so neither the compiler
-#      nor the linker catches the gap.
+#      nor the linker catches the gap;
+#   7. vibe-libs/ is checked out, and no file imports one of its headers by path.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -305,6 +307,20 @@ for t in VibeTests VibeAudioTests; do
         echo "$missing" >&2
     fi
 done
+
+# 7. vibe-libs. project.yml includes vibe-libs/vibe-libs.yml, so a checkout without
+#    the submodule fails late, in xcodegen or the build. A Vibe file names a
+#    piece's header by its name: the piece's template puts it on the path, and
+#    a relative path would tie the file to where the submodule sits.
+if [ ! -f vibe-libs/vibe-libs.yml ]; then
+    fail "vibe-libs/ is not checked out — run 'make project' or 'git submodule update --init vibe-libs'"
+fi
+by_path=$(grep -rnE '^[[:space:]]*#[[:space:]]*(import|include)[[:space:]]+"[^"]*vibe-libs/' Vibe Tests \
+    --include='*.h' --include='*.m' --include='*.mm' --include='*.c' --include='*.cpp' --include='*.pch' 2>/dev/null || true)
+if [ -n "$by_path" ]; then
+    fail "a file imports a vibe-libs header by path — import it by its name:"
+    echo "$by_path" >&2
+fi
 
 if [ "$status" -eq 0 ]; then
     echo "✅ layout OK"

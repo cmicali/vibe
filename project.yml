@@ -1,5 +1,11 @@
 name: Vibe
 
+# vibe-libs, the shared toolbox, is a git submodule at vibe-libs/ (`make project`
+# updates it). Its spec gives one template per piece. A target lists the
+# pieces it compiles in under `templates:` (vibe-libs/AGENTS.md).
+include:
+  - path: vibe-libs/vibe-libs.yml
+
 options:
   bundleIdPrefix: com.commonwealthrecordings
   deploymentTarget:
@@ -58,6 +64,7 @@ settingGroups:
 # ---- PROJECT-LEVEL settings (== PBXProject build configs) ----
 settings:
   base:
+    VIBE_LIBS_ROOT: "$(SRCROOT)/vibe-libs" # where vibe-libs' templates find their headers
     ALWAYS_SEARCH_USER_PATHS: NO
     CLANG_ANALYZER_NONNULL: YES
     CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION: YES_AGGRESSIVE
@@ -152,6 +159,10 @@ targets:
   Vibe:
     type: application
     platform: macOS
+    # vibe-libs' pieces, compiled in as this target's own sources.
+    templates: [VibeLibsDSP]
+    templateAttributes:
+      excludedPlatform: iOS
     sources:
       # One recursive entry per top-level subsystem rather than `- path: Vibe`,
       # so a new top-level boundary is a deliberate edit.
@@ -446,8 +457,12 @@ targets:
                 - "audio/ogg"
 
     settings:
-      groups: [vibe-version, vibe-header-paths]
+      groups: [vibe-version]
       base:
+        # TRAP: in base, not in a settings group. A vibe-libs template's header
+        # paths join a target's base setting but replace a group's, which
+        # silently drops TagLib's and WaveformCore's.
+        HEADER_SEARCH_PATHS: *vibe-header-search-paths
         PRODUCT_NAME: "$(TARGET_NAME)"
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
@@ -521,6 +536,9 @@ targets:
   VibeiOS:
     type: application
     platform: iOS
+    templates: [VibeLibsDSP]
+    templateAttributes:
+      excludedPlatform: Mac
     sources:
       # A new file in a shared directory joins this target automatically, so it
       # must be AppKit-free or TARGET_OS_OSX-guarded; CI's iOS builds
@@ -657,8 +675,10 @@ targets:
         UTExportedTypeDeclarations: *cue-sheet-export
         UTImportedTypeDeclarations: *ogg-audio-import
     settings:
-      groups: [vibe-version, vibe-header-paths]
+      groups: [vibe-version]
       base:
+        # In base, not in a group: see the Vibe target.
+        HEADER_SEARCH_PATHS: *vibe-header-search-paths
         PRODUCT_NAME: Vibe
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe
         SDKROOT: iphoneos
@@ -1088,7 +1108,7 @@ targetTemplates:
         compilerFlags: *r8brain-flags
       - path: Vibe/Audio/FX/AudioFX.m
         compilerFlags: *render-path-flags
-      - path: Vibe/Audio/FX/AudioVarispeed.m
+      - path: vibe-libs/audio/DSP/AudioVarispeed.m
         compilerFlags: *render-path-flags
       - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioFileFormat.m
