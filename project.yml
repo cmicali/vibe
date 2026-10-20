@@ -26,8 +26,8 @@ settingGroups:
   # Keep the app and widget versions together. Release scripts read the built app.
   # A stable release also sets VIBE_BETA_DEBUG to 0 (vibe-release).
   vibe-version:
-    MARKETING_VERSION: "1.17-beta1"
-    CURRENT_PROJECT_VERSION: 322
+    MARKETING_VERSION: "1.17"
+    CURRENT_PROJECT_VERSION: 323
 
   vibe-header-paths:
     HEADER_SEARCH_PATHS: &vibe-header-search-paths
@@ -97,7 +97,7 @@ settings:
     GCC_NO_COMMON_BLOCKS: YES
     # The beta switch: 1 for a beta, 0 for a stable release. It sets
     # VIBE_VERBOSE_LOGGING below and the Beta updates default on the mac.
-    VIBE_BETA_DEBUG: 1
+    VIBE_BETA_DEBUG: 0
     # At 1, info and debug use Default level and all timed steps are logged.
     # At 0, info and debug need live streaming. Only slow timed steps are logged.
     VIBE_VERBOSE_LOGGING: $(VIBE_BETA_DEBUG)
