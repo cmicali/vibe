@@ -24,6 +24,7 @@
 #import "MainPlayerController+Settings.h"
 #import "SettingsWindowController.h" // the toolbar navigation control follows the pane's pages
 #import "SettingsRules.h"
+#import "StringRules.h"
 #import "VibeStrings.h"
 
 static const NSUInteger kThemeListRowCount = 10;
@@ -369,16 +370,15 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     _waveformPreviewKey = key;
     for (NSImageView *preview in _waveformPreviews) {
         preview.image = image;
-        preview.accessibilityLabel = [WaveformRendererRegistry displayNameForIdentifier:style];
+        preview.accessibilityLabel = VibeWaveformStyleDisplayName(style);
     }
 }
 
 - (NSPopUpButton *)waveformStylePopUpButton {
     NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                action:@selector(waveformStyleChanged:)];
-    for (NSString *identifier in [WaveformRendererRegistry styleIdentifiers]) {
-        [self addItem:[WaveformRendererRegistry displayNameForIdentifier:identifier]
-                value:identifier to:popUp];
+    for (NSString *identifier in VibeWaveformStylesByDisplayName([WaveformRendererRegistry styleIdentifiers])) {
+        [self addItem:VibeWaveformStyleDisplayName(identifier) value:identifier to:popUp];
     }
     return popUp;
 }

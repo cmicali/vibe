@@ -11,10 +11,24 @@
 #import "CupertinoWaveformRenderer.h"
 #import "OversamplingDetailedWaveformRenderer.h"
 #import "ThreeBandWaveformRenderer.h"
-#import "VibeStrings.h"
 
 static NSString *const kWiggleIdentifier = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
 static NSString *const kCupertinoBasicIdentifier = @"cupertino_basic";
+
+// The registry's order, which styleIdentifiers keeps. Wiggle, Detailed's
+// class under its own identifier, comes last.
+static NSArray<Class> *RegisteredRenderers(void) {
+    return @[BasicWaveformRenderer.class,
+             CupertinoWaveformRenderer.class,
+             CupertinoBasicWaveformRenderer.class,
+             SonicCirrusWaveformRenderer.class,
+             DetailedWaveformRenderer.class,
+             x2OversamplingDetailedWaveformRenderer.class,
+             x4OversamplingDetailedWaveformRenderer.class,
+             x8OversamplingDetailedWaveformRenderer.class,
+             ThreeBandWaveformRenderer.class,
+             SpectrumWaveformRenderer.class];
+}
 
 // The Detailed family in its Type chooser's order.
 static NSArray<NSString *> *DetailedTypeIdentifiers(void) {
@@ -70,16 +84,7 @@ static AudioWaveform *VibePreviewWaveform(void) {
     static dispatch_once_t onceToken;
     dispatch_once(&onceToken, ^{
         NSMutableDictionary<NSString *, Class> *registry = [NSMutableDictionary new];
-        for (Class renderer in @[BasicWaveformRenderer.class,
-                                 CupertinoWaveformRenderer.class,
-                                 CupertinoBasicWaveformRenderer.class,
-                                 SonicCirrusWaveformRenderer.class,
-                                 DetailedWaveformRenderer.class,
-                                 x2OversamplingDetailedWaveformRenderer.class,
-                                 x4OversamplingDetailedWaveformRenderer.class,
-                                 x8OversamplingDetailedWaveformRenderer.class,
-                                 ThreeBandWaveformRenderer.class,
-                                 SpectrumWaveformRenderer.class]) {
+        for (Class renderer in RegisteredRenderers()) {
             // A nil key raises; in Release an unoverridden subclass costs one
             // style, not the registry.
             NSString *identifier = [renderer styleIdentifier];
@@ -101,13 +106,19 @@ static AudioWaveform *VibePreviewWaveform(void) {
 }
 
 + (NSArray<NSString *> *)styleIdentifiers {
-    NSMutableSet<NSString *> *styles = [NSMutableSet set];
-    for (NSString *identifier in [self availableIdentifiers]) {
-        [styles addObject:[self styleIdentifierForIdentifier:identifier]];
+    NSDictionary<NSString *, Class> *renderers = [self renderersByIdentifier];
+    NSMutableArray<NSString *> *identifiers = [NSMutableArray array];
+    for (Class renderer in RegisteredRenderers()) {
+        NSString *identifier = [renderer styleIdentifier];
+        if (renderers[identifier]) [identifiers addObject:identifier];
     }
-    return [styles.allObjects sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
-        return [[self displayNameForIdentifier:a] localizedStandardCompare:[self displayNameForIdentifier:b]];
-    }];
+    [identifiers addObject:kWiggleIdentifier];
+    NSMutableArray<NSString *> *styles = [NSMutableArray array];
+    for (NSString *identifier in identifiers) {
+        NSString *style = [self styleIdentifierForIdentifier:identifier];
+        if (![styles containsObject:style]) [styles addObject:style];
+    }
+    return styles;
 }
 
 + (NSString *)styleIdentifierForIdentifier:(NSString *)identifier {
@@ -117,17 +128,6 @@ static AudioWaveform *VibePreviewWaveform(void) {
 + (NSArray<NSString *> *)typeIdentifiersForIdentifier:(NSString *)identifier {
     NSArray<NSString *> *types = DetailedTypeIdentifiers();
     return [types containsObject:identifier] ? types : @[];
-}
-
-// Three keys, not one format string, so each reaches the translator in
-// context. Detailed's type is the style's own name.
-+ (NSString *)typeDisplayNameForIdentifier:(NSString *)identifier {
-    NSDictionary<NSString *, NSString *> *names = @{
-        x2OversamplingDetailedWaveformRenderer.styleIdentifier: STR_WAVEFORM_TYPE_OVERSAMPLED_X2,
-        x4OversamplingDetailedWaveformRenderer.styleIdentifier: STR_WAVEFORM_TYPE_OVERSAMPLED_X4,
-        x8OversamplingDetailedWaveformRenderer.styleIdentifier: STR_WAVEFORM_TYPE_OVERSAMPLED_X8,
-    };
-    return names[identifier] ?: [self displayNameForIdentifier:identifier];
 }
 
 + (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier {
@@ -266,11 +266,6 @@ static AudioWaveform *VibePreviewWaveform(void) {
         return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark wiggle:YES];
     }
     return [[renderer alloc] initWithLayer:layer bounds:bounds isDark:isDark];
-}
-
-+ (NSString *)displayNameForIdentifier:(NSString *)identifier {
-    if ([identifier isEqualToString:kWiggleIdentifier]) return STR_WAVEFORM_STYLE_WIGGLE;
-    return [[self renderersByIdentifier][identifier] displayName] ?: identifier;
 }
 
 + (NSString *)resolveStyleIdentifier:(NSString *)identifier {

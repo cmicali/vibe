@@ -353,11 +353,8 @@ static inline void VibePlaceHoverColumn(CALayer *lit, CALayer *played, CGRect co
 
 // Metadata for the class's default registry entry. Variants may share a class;
 // persist and compare the resolved registry identifier, never this class key.
-// displayName is localized and must never be used as a key.
+// Its name is Vibe's (Common/StringRules.h).
 + (NSString *)styleIdentifier;
-
-// Localized, user-visible name. Display only.
-+ (NSString *)displayName;
 
 // Whether the style draws the bands, which a waveform holds only when its
 // decode was asked for them. A style that paints a band palette reads them.

@@ -5,7 +5,6 @@
 
 #import "SonicCirrusWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
-#import "VibeStrings.h"
 #import "PlatformColor.h"
 
 #include <vector>
@@ -39,10 +38,6 @@ static const CGFloat kBottomBarSpacing = 2;         // gap between the top basel
 
 + (NSString *)styleIdentifier {
     return @"sonic_cirrus";
-}
-
-+ (NSString *)displayName {
-    return STR_WAVEFORM_STYLE_SONIC_CIRRUS;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
