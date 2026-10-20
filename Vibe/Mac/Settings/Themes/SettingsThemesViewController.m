@@ -51,8 +51,6 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     NSMutableArray<NSImageView *> *_waveformPreviews;
     NSArray *_waveformPreviewKey;
     BOOL _editorShown;
-    // Theme list swatches by "identifier|dark" or "|light", the active theme's excepted.
-    NSMutableDictionary<NSString *, NSImage *> *_swatches;
     // TRAP: reloadData and the programmatic reselect both post
     // selection-changed; treated as activations, they recurse
     // refreshFromSettings into a stack overflow.
@@ -438,26 +436,29 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     // A built-in that diverged says so on its own row, beside Revert.
     BOOL modified = _activeThemeModified && [identifier isEqualToString:settings.activeThemeIdentifier];
     cell.textField.stringValue = modified ? [NSString stringWithFormat:STR_SETTINGS_THEME_MODIFIED, name] : name;
-    cell.imageView.image = [self swatchForThemeIdentifier:identifier dark:tableView.isDark];
+    cell.imageView.image = [SettingsThemesViewController swatchForThemeIdentifier:identifier
+                                                                             dark:tableView.isDark];
     cell.toolTip = cell.textField.stringValue;
     return cell;
 }
 
-// The theme at a glance: its window color behind three bars of its waveform
-// color. Only the active theme changes, so it is drawn from its working record
-// every time and its cached entries dropped; every other theme's is cached.
-- (NSImage *)swatchForThemeIdentifier:(NSString *)identifier dark:(BOOL)dark {
+// Each entry keeps the record it was drawn from, and a different record draws
+// again. So an edit, an undo or a restored removal can never show a stale
+// swatch, whichever theme was active at the time. The active theme draws from
+// its working record, which holds a built-in's unsaved divergence.
++ (NSImage *)swatchForThemeIdentifier:(NSString *)identifier dark:(BOOL)dark {
+    // "identifier|dark" or "|light" to @[record, image].
+    static NSMutableDictionary<NSString *, NSArray *> *swatches;
     AppSettings *settings = AppSettings.sharedInstance;
     NSString *key = [identifier stringByAppendingString:dark ? @"|dark" : @"|light"];
     BOOL active = [identifier isEqualToString:settings.activeThemeIdentifier];
-    if (active) {
-        [_swatches removeObjectForKey:[identifier stringByAppendingString:@"|dark"]];
-        [_swatches removeObjectForKey:[identifier stringByAppendingString:@"|light"]];
-    } else if (_swatches[key]) {
-        return _swatches[key];
+    NSDictionary *record = active ? settings.currentTheme.dictionaryRepresentation
+            : [settings recordForThemeIdentifier:identifier];
+    NSArray *entry = swatches[key];
+    if ([entry.firstObject isEqualToDictionary:record]) {
+        return entry.lastObject;
     }
-    AppTheme *theme = active ? settings.currentTheme
-            : [[AppTheme alloc] initWithRecord:[settings recordForThemeIdentifier:identifier]];
+    AppTheme *theme = active ? settings.currentTheme : [[AppTheme alloc] initWithRecord:record];
     NSColor *fill = VibeWindowBackgroundTakesColor(theme.windowBackgroundStyle)
             ? [theme displayColorForBase:kVibeThemeColorWindowBackground dark:dark]
             : [theme.windowTint isEqualToString:SETTINGS_VALUE_WINDOW_TINT_CUSTOM]
@@ -482,10 +483,8 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
         }
         return YES;
     }];
-    if (!active) {
-        if (!_swatches) _swatches = [NSMutableDictionary dictionary];
-        _swatches[key] = swatch;
-    }
+    if (!swatches) swatches = [NSMutableDictionary dictionary];
+    swatches[key] = @[record, swatch];
     return swatch;
 }
 

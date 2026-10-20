@@ -5,6 +5,7 @@
 * mac: Added mouse/trackpad scrolling and up/down keys to change the volume (when enabled)
 * mac: Moved the volume slider appearance and behavior settings from themes to Settings > Appearance
 * mac: Added Copy and Paste for colors and fonts in the theme editor's right-click menu
+* mac: Added each theme's swatch to the View > Theme menu
 * Fixed 320 kbps MP3s opening slowly
 
 # v1.16
