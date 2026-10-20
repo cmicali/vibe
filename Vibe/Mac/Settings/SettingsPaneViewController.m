@@ -165,8 +165,9 @@ static const CGFloat kInlineTitleInset = 10;
     NSArray<SettingsRowView *> *_rows;
     // The layout signature the last measurement was taken at.
     NSString *_measuredLayoutSignature;
+    void (^_effectsSink)(NSUInteger effects);
     // A drag's coalesced effects, waiting for their apply.
-    VibeSettingsLiveEffect _pendingDragEffects;
+    NSUInteger _pendingDragEffects;
     BOOL _dragApplyScheduled;
     CFTimeInterval _lastDragApply;
     NSArray<NSString *> *_searchHeaders;
@@ -179,10 +180,10 @@ static const CGFloat kInlineTitleInset = 10;
     BOOL _dropReadable;
 }
 
-- (instancetype)initWithPlayerController:(MainPlayerController *)playerController {
+- (instancetype)initWithEffectsSink:(void (^)(NSUInteger))sink {
     self = [super initWithNibName:nil bundle:nil];
     if (self) {
-        _playerController = playerController;
+        _effectsSink = [sink copy];
         _dropSequence = NSNotFound;
     }
     return self;
@@ -615,7 +616,13 @@ static void AppendLayoutText(NSView *view, NSMutableString *signature) {
 
 static const CFTimeInterval kSettingsDragInterval = 1.0 / 30;
 
-- (void)applyLiveEffectsDuringDrag:(VibeSettingsLiveEffect)effects {
+- (void)applyLiveEffects:(NSUInteger)effects {
+    if (_effectsSink) {
+        _effectsSink(effects);
+    }
+}
+
+- (void)applyLiveEffectsDuringDrag:(NSUInteger)effects {
     _pendingDragEffects |= effects;
     if (_dragApplyScheduled) {
         return;
@@ -630,15 +637,15 @@ static const CFTimeInterval kSettingsDragInterval = 1.0 / 30;
 }
 
 - (void)applyPendingDragEffects {
-    VibeSettingsLiveEffect effects = _pendingDragEffects;
+    NSUInteger effects = _pendingDragEffects;
     _pendingDragEffects = 0;
     _dragApplyScheduled = NO;
     _lastDragApply = CACurrentMediaTime();
-    [self.playerController applySettingsLiveEffects:effects];
+    [self applyLiveEffects:effects];
     [self didApplyDragEffects:effects];
 }
 
-- (void)didApplyDragEffects:(VibeSettingsLiveEffect)effects {
+- (void)didApplyDragEffects:(NSUInteger)effects {
 }
 
 - (void)refreshFromSettings {

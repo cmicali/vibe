@@ -113,17 +113,17 @@ static const CGFloat kGeneralPopUpWidth = 280;
 
 - (void)toggleAlwaysOnTop:(id)sender {
     AppSettings.sharedInstance.alwaysOnTop = (_alwaysOnTopSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectAlwaysOnTop];
+    [self applyLiveEffects:VibeSettingsLiveEffectAlwaysOnTop];
 }
 
 - (void)toggleLockWindowPosition:(id)sender {
     AppSettings.sharedInstance.windowPositionLocked = (_lockWindowPositionSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowLock];
+    [self applyLiveEffects:VibeSettingsLiveEffectWindowLock];
 }
 
 - (void)toggleReopenPlaylist:(id)sender {
     AppSettings.sharedInstance.reopenLastPlaylist = (_reopenPlaylistSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectReopenLastPlaylist];
+    [self applyLiveEffects:VibeSettingsLiveEffectReopenLastPlaylist];
 }
 
 - (void)waveformDragChanged:(id)sender {

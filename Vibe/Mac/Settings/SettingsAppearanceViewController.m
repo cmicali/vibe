@@ -170,17 +170,17 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
 // The store drops any titlebar preview on this write.
 - (void)appearanceChanged:(id)sender {
     AppSettings.sharedInstance.windowAppearanceStyle = _appearancePopUp.selectedItem.representedObject;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+    [self applyLiveEffects:VibeSettingsLiveEffectWindowAppearance];
 }
 
 - (void)toggleTrafficLights:(id)sender {
     AppSettings.sharedInstance.showTrafficLights = (_trafficLightsSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrafficLights];
+    [self applyLiveEffects:VibeSettingsLiveEffectTrafficLights];
 }
 
 - (void)dockIconChanged:(id)sender {
     AppSettings.sharedInstance.dockIcon = _dockIconPopUp.selectedItem.representedObject;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectAppIcon];
+    [self applyLiveEffects:VibeSettingsLiveEffectAppIcon];
 }
 
 // Only the sender's setting is written, as in trackInfoChanged:. Volume
@@ -197,12 +197,12 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
     } else if (sender == _volumeLabelsSwitch) {
         settings.showVolumeLabels = (_volumeLabelsSwitch.state == NSControlStateValueOn);
     }
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectVolume];
+    [self applyLiveEffects:VibeSettingsLiveEffectVolume];
 }
 
 - (void)toggleWaveformNormalize:(id)sender {
     AppSettings.sharedInstance.waveformNormalize = (_waveformNormalizeSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWaveformLevels];
+    [self applyLiveEffects:VibeSettingsLiveEffectWaveformLevels];
 }
 
 - (void)waveformGainChanged:(id)sender {
@@ -245,7 +245,7 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
     } else if (sender == _keyColorsSwitch) {
         settings.keyColorsEnabled = on;
     }
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackDisplay];
+    [self applyLiveEffects:VibeSettingsLiveEffectTrackDisplay];
     if ([self refreshTrackInfoEnabling]) {
         [self paneContentDidChange]; // a reason appeared or went, moving rows
     }
@@ -277,7 +277,7 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
     settings.showPlaylistNumberColumn = (_numberColumnSwitch.state == NSControlStateValueOn);
     settings.showPlaylistArtworkColumn = (_artworkColumnSwitch.state == NSControlStateValueOn);
     settings.showPlaylistDurationColumn = (_durationColumnSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectPlaylistAppearance];
+    [self applyLiveEffects:VibeSettingsLiveEffectPlaylistAppearance];
 }
 
 @end

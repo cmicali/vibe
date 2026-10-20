@@ -40,6 +40,15 @@ static const CGFloat kShortcutColumnWidth = 120;
     NSUndoManager *_undoManager;
 }
 
+- (instancetype)initWithPlayerController:(MainPlayerController *)playerController
+                             effectsSink:(void (^)(NSUInteger))sink {
+    self = [super initWithEffectsSink:sink];
+    if (self) {
+        _playerController = playerController;
+    }
+    return self;
+}
+
 #pragma mark - Building
 
 - (void)loadView {

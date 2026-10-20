@@ -2,7 +2,7 @@
 
 Vibe > Settings… (⌘,) is `SettingsWindowController`: an `NSSplitViewController` whose source-list sidebar (`SettingsSidebarController`) drives a tab-less `NSTabViewController` of panes, in the System Settings shape. The store is `AppSettings` (`Vibe/Common/`), and this directory is only the window. `DefaultAppRegistration` lives here as the Launch Services half of `Common/DocumentTypes`. The Themes pane (the theme list and editor) is `Themes/`, with its own `AGENTS.md`.
 
-**A write that must change the running app has one path**: store the value, then request the exact `VibeSettingsLiveEffect` from `MainPlayerController+Settings`. The mapping runs synchronously on main and applies stored state. An effect can close the pitch panel and save its geometry. A setting read at the next gesture requests nothing. The pane notes below name the effect each row must request. **A missing request silently breaks the setting.**
+**A write that must change the running app has one path**: store the value, then request the exact `VibeSettingsLiveEffect` through the pane base's `applyLiveEffects:`. The base hands the bits to the effects sink the window gave it at construction, which is `MainPlayerController+Settings`'s `applySettingsLiveEffects:`. The base itself names nothing of Vibe's. The mapping runs synchronously on main and applies stored state. An effect can close the pitch panel and save its geometry. A setting read at the next gesture requests nothing. The pane notes below name the effect each row must request. **A missing request silently breaks the setting.**
 
 ## Window and chrome
 
@@ -21,6 +21,7 @@ Vibe > Settings… (⌘,) is `SettingsWindowController`: an `NSSplitViewControll
 
 Panes subclass `SettingsPaneViewController` and build on shared scaffolding. Each pane is its own class, named after the pane.
 
+- Every pane takes the effects sink at construction. Audio Output, Keyboard Shortcuts and Advanced also take `MainPlayerController`, since their device list, shortcut writes, cache readouts and Restore Defaults are the player's own. The other six reach the player only through the sink.
 - A pane is a stack of `SettingsSectionView`s of `SettingsRowView`s (`SettingsFormViews.h`): cards of hairline-separated rows, with the title and optional caption leading and the controls trailing. Every flat surface is a `SettingsFillView`, a layer fill re-resolved on an appearance flip.
 - `switchWithAction:` makes a `VibeSwitch`, never an `NSSwitch` (`Mac/Controls/AGENTS.md`). `popUpButtonWithWidth:action:` makes a `VibeInlinePopUpButton`, the System Settings inline style, where the width is a cap rather than a size.
 - Every list uses `SettingsRowView.listTableWithColumnIdentifiers:delegate:` and `listCellWithIdentifier:inTableView:imagePosition:`. A list inside a card is `SettingsRowView.rowWithTableView:rowCount:`. Its scroller is legacy style, so a list with more rows than fit shows the bar without a scroll, and still hides it while every row fits. `listRowViewForRow:` supplies the shared palette: alternating backgrounds and a neutral selection fill, with no row separators. The palette is measured in Display P3 from the system's Sound settings. It does not follow the main window's theme.
