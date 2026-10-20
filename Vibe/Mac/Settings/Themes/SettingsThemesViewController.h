@@ -5,6 +5,9 @@
 
 #import "SettingsPaneViewController.h"
 
+// The editor page's name in the window's history (currentPage).
+extern NSString *const kVibeThemeEditorPage;
+
 @interface SettingsThemesViewController : SettingsPaneViewController
 
 // The theme at a glance: its window color behind three bars of its waveform
