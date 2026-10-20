@@ -6,8 +6,9 @@
 //
 
 #import "DebugInternal.h"
-#include <CommonCrypto/CommonDigest.h>
 #import "PlatformColor.h"
+#import "NSImage+Util.h"
+#import "NSURL+Hash.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AppThemeInternal.h"
@@ -336,22 +337,15 @@ NSString *VibeViewTreeDump(void) {
 // The first 8 hex digits of a SHA-1 of the image's pixels at 1x, so a script
 // can tell a redrawn swatch from an unchanged one. Draws a copy, so the
 // image's own cached rendering is untouched.
-static NSString *_Nullable VibeImageDigest(NSImage *image) {
-    NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:NULL
-            pixelsWide:(NSInteger)image.size.width pixelsHigh:(NSInteger)image.size.height
-            bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
-            colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+static NSString *VibeImageDigest(NSImage *image) {
+    NSBitmapImageRep *rep = (NSBitmapImageRep *)[[image copy] resizedImage:image.size].representations.firstObject;
     if (!rep) {
-        return nil;
+        return @"";
     }
-    [NSGraphicsContext saveGraphicsState];
-    NSGraphicsContext.currentContext = [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
-    NSImage *copy = [image copy];
-    [copy drawInRect:NSMakeRect(0, 0, image.size.width, image.size.height)];
-    [NSGraphicsContext restoreGraphicsState];
-    unsigned char digest[CC_SHA1_DIGEST_LENGTH];
-    CC_SHA1(rep.bitmapData, (CC_LONG)(rep.bytesPerRow * rep.pixelsHigh), digest);
-    return [NSString stringWithFormat:@"%02x%02x%02x%02x", digest[0], digest[1], digest[2], digest[3]];
+    NSData *pixels = [NSData dataWithBytesNoCopy:rep.bitmapData
+                                          length:(NSUInteger)(rep.bytesPerRow * rep.pixelsHigh)
+                                    freeWhenDone:NO];
+    return [pixels.sha1Hex substringToIndex:8];
 }
 
 NSArray *VibeMenuArray(NSMenu *menu) {
@@ -392,12 +386,7 @@ NSArray *VibeMenuArray(NSMenu *menu) {
             node[@"state"] = @(item.state);
         }
         if (item.image) {
-            node[@"image"] = @YES;
             node[@"imageDigest"] = VibeImageDigest(item.image);
-            // macOS 27 hides an image whose item does not ask to show it.
-            if (@available(macOS 27.0, *)) {
-                node[@"imageVisibility"] = [item valueForKey:@"preferredImageVisibility"];
-            }
         }
         if (item.submenu) {
             node[@"items"] = VibeMenuArray(item.submenu);
