@@ -15,11 +15,15 @@ NS_ASSUME_NONNULL_BEGIN
 // -1 at init, as the real metadata: 0 is C major.
 @property (nonatomic) NSInteger key;
 @property (nonatomic) NSTimeInterval duration;
+// The codec line's fields (Formatters.fileInfoLineForMetadata:).
+@property (nonatomic, copy, nullable) NSString *fileType;
+@property (nonatomic, copy, nullable) NSNumber *bitrate;
+@property (nonatomic, copy, nullable) NSNumber *sampleRate;
+@property (nonatomic, getter=isLossless) BOOL lossless;
 @property (nonatomic, strong, nullable) VibeImage *cachedArt;
 @property (nonatomic, strong, nullable) VibeImage *cachedThumbnail;
 // installMetadataIfUnresolved: consults it.
 @property (nonatomic) BOOL parsedOK;
-@property (nonatomic, copy) NSString *fileInfoLine;
 @property (nonatomic) BOOL artNeedsLoad;
 @property (nonatomic, getter=isArtLoadPending) BOOL artLoadPending;
 // What the last loadArtIfNeededStillWanted:completion: was handed.

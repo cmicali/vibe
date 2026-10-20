@@ -2,6 +2,8 @@
 #import <XCTest/XCTest.h>
 
 #import "Formatters.h"
+#import "FakeTrackMetadata.h"
+#import "VibeStrings.h"
 
 @interface FormattersTests : XCTestCase
 @end
@@ -208,6 +210,29 @@
     XCTAssertEqualObjects([_formatters tempoLineWithBPM:128 keyText:@""], tempo);
     XCTAssertEqualObjects([_formatters tempoLineWithBPM:0 keyText:@"8A"], @"8A");
     XCTAssertEqualObjects([_formatters tempoLineWithBPM:-1 keyText:@""], @"");
+}
+
+// The codec line lists what the file has. A lossless bitrate is implied by
+// the rate and depth, so it is left out. Nil metadata, an unscanned track's,
+// reads as empty.
+- (void)testFileInfoLineListsWhatIsPresent {
+    FakeTrackMetadata *fake = [FakeTrackMetadata new];
+    AudioTrackMetadata *metadata = (AudioTrackMetadata *)fake;
+    NSString *bitrate = [NSString stringWithFormat:STR_LABEL_BITRATE, [_formatters decimalString:320 fractionDigits:0]];
+    NSString *rate = [_formatters sampleRateString:44100];
+    XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:nil], @"");
+    fake.bitrate = @320;
+    fake.sampleRate = @44100;
+    XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:metadata], @"", @"no file type, no line");
+    fake.fileType = @"MP3";
+    XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:metadata],
+                          ([_formatters infoLineFromFields:@[@"MP3", bitrate, rate]]));
+    fake.lossless = YES;
+    fake.fileType = @"FLAC";
+    XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:metadata],
+                          ([_formatters infoLineFromFields:@[@"FLAC", rate]]));
+    fake.sampleRate = nil;
+    XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:metadata], @"FLAC");
 }
 
 @end

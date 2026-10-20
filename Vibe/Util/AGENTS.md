@@ -14,7 +14,7 @@ Two placements are not what the file names suggest.
 
 ## Formatters joins every info line
 
-**`infoLineFromFields:` joins the codec and tempo fields with ` | `.** It drops empty fields and keeps the rest in order. `tempoLineWithBPM:keyText:` builds both shells' tempo and key line through it. Each shell's doc describes its fields. **The key is always the last field.** The mac colors it as the line's suffix.
+**`infoLineFromFields:` joins the codec and tempo fields with ` | `.** It drops empty fields and keeps the rest in order. `tempoLineWithBPM:keyText:` builds both shells' tempo and key line through it, and `fileInfoLineForMetadata:` their codec line. Each shell's doc describes its fields. **The key is always the last field.** The mac colors it as the line's suffix.
 
 ## Traps
 

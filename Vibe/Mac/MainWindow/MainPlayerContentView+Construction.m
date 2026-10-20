@@ -125,6 +125,7 @@ static void configureLabelShadow(NSTextField *field, BOOL rasterize) {
     _waveformView = [[WaveformView alloc] initWithFrame:
             NSMakeRect(kHeaderContentX, kWaveformY, kHeaderContentWidth, kWaveformHeight)];
     _waveformView.autoresizingMask = NSViewWidthSizable | NSViewMinYMargin;
+    _waveformView.accessibilityLabel = STR_A11Y_WAVEFORM;
     [self addSubview:_waveformView];
 }
 
