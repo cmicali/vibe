@@ -6,7 +6,7 @@ Vibe ships with a few built-in themes, and you can build and share your own.
 
 ## Switching themes
 
-Open **Settings > Themes** (`⌘,`). Click a theme in the list to apply it at once. The **View > Theme** menu switches themes too, without opening Settings.
+Open **Settings > Themes** (`⌘,`). Click a theme in the list to apply it at once. The **View > Theme** menu switches themes too, without opening Settings. It shows each theme's swatch, as the list does.
 
 The **Window appearance** dropdown in **Settings > Appearance** (Follow System, Light or Dark) picks the light or dark look of a theme that has both. A Single Mode theme keeps the window dark and disables that dropdown.
 

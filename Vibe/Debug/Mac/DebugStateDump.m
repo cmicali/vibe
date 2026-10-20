@@ -7,6 +7,8 @@
 
 #import "DebugInternal.h"
 #import "PlatformColor.h"
+#import "NSImage+Util.h"
+#import "NSURL+Hash.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AppThemeInternal.h"
@@ -331,6 +333,20 @@ NSString *VibeViewTreeDump(void) {
     return VibeJSONString(@{@"windows": windows});
 }
 
+// The first 8 hex digits of a SHA-1 of the image's pixels at 1x, so a script
+// can tell a redrawn swatch from an unchanged one. Draws a copy, so the
+// image's own cached rendering is untouched.
+static NSString *VibeImageDigest(NSImage *image) {
+    NSBitmapImageRep *rep = (NSBitmapImageRep *)[[image copy] resizedImage:image.size].representations.firstObject;
+    if (!rep) {
+        return @"";
+    }
+    NSData *pixels = [NSData dataWithBytesNoCopy:rep.bitmapData
+                                          length:(NSUInteger)(rep.bytesPerRow * rep.pixelsHigh)
+                                    freeWhenDone:NO];
+    return [pixels.sha1Hex substringToIndex:8];
+}
+
 NSArray *VibeMenuArray(NSMenu *menu) {
     // Delegate-built menus (Output, Open Recent, Themes) populate only when
     // displayed, and [menu update] alone does not call menuNeedsUpdate:.
@@ -367,6 +383,9 @@ NSArray *VibeMenuArray(NSMenu *menu) {
         }
         if (item.state != NSControlStateValueOff) {
             node[@"state"] = @(item.state);
+        }
+        if (item.image) {
+            node[@"imageDigest"] = VibeImageDigest(item.image);
         }
         if (item.submenu) {
             node[@"items"] = VibeMenuArray(item.submenu);
