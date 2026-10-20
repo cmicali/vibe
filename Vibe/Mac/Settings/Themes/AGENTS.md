@@ -4,7 +4,7 @@ The Themes pane (identifier `themes`) is `SettingsThemesViewController`. The App
 
 ## The list page
 
-The theme table has one column and no header. Each name carries its theme's swatch (`swatchForThemeIdentifier:dark:`): the window color behind three bars. The style picks the bars' colors (`WaveformRendererRegistry.swatchColorsForIdentifier:theme:`). They are the waveform color, 3-Band's bands, or Spectrum's palette. The active theme's swatch comes from its working record.
+The theme table has one column and no header. Each name carries its theme's swatch (`swatchForThemeIdentifier:dark:`): the window color behind three bars. The style picks the bars' colors (`WaveformRendererRegistry.swatchColorsForIdentifier:theme:`). They are the waveform color, 3-Band's bands, or Spectrum's palette. The active theme's swatch comes from its working record. **Each swatch is cached per appearance with the record it was drawn from.** A theme whose record changed is drawn again, whatever changed it: an edit, an undo, or a removal put back. So the cache needs no rule about which theme can change. A removed theme's entry stays until the app quits. View > Theme shows the same swatches from the same cache (`Mac/Menu/AGENTS.md`).
 
 The theme list comes first, since its selected row is the current theme. Under it, the library's buttons lead (Add ▾, Remove, Export…) and the selected theme's own trail: Revert, shown only for a built-in that diverged, and Edit Theme… (Customize… for a built-in; both only open the editor). A diverged built-in also reads Modified on its own row. The editor's first edit of a built-in copies that working state into an editable theme. A Waveform card follows, with the quick waveform-style picker and a static preview.
 

@@ -12,6 +12,7 @@
 #import "AudioTrack.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Playlist.h"
+#import "MainPlayerController+Settings.h"
 #import "FolderWalk.h"
 #import "AboutWindowController.h"
 #import "SettingsWindowController.h"
@@ -55,6 +56,13 @@
 // Long enough to absorb a split multi-file open, short enough that a
 // deliberate second open replaces rather than appends.
 static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
+
+// Launch work the first window does not need runs half a second after it.
+// TRAP: dispatch_async is not enough. A main-queue block queued during launch
+// can still run before the window is up.
+static void VibeAfterLaunch(dispatch_block_t block) {
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC / 2), dispatch_get_main_queue(), block);
+}
 
 @implementation AppDelegate {
     OpenBurstCoalescer *_openBurstCoalescer;
@@ -152,6 +160,12 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
 
     [self.mainPlayerController showWindow:self];
 
+    // The key equivalents read the keyboard layout through TIS. No key reaches
+    // a menu before the window is up.
+    VibeAfterLaunch(^{
+        [self.mainPlayerController applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
+    });
+
 #if VIBE_DIRECT_DISTRIBUTION
     [self startUpdaterIfConfigured];
 #endif
@@ -169,7 +183,10 @@ static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
         } revealEmpty:^{
             [self.mainPlayerController revealEmptyStateNamingPlaylist:nil];
         }];
-        [self pruneLinks];
+        // The recent documents are a round trip to the system's store.
+        VibeAfterLaunch(^{
+            [self pruneLinks];
+        });
     }];
 }
 

@@ -14,6 +14,8 @@
 #import "MenuValidationRules.h"
 #import "PlaybackDeliveryRules.h"
 #import "SettingsRules.h"
+#import "SettingsThemesViewController.h" // the theme list's swatches
+#import "NSView+DarkMode.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioFX.h"
@@ -244,6 +246,7 @@
     [menu removeAllItems];
     AppSettings *settings = AppSettings.sharedInstance;
     NSString *active = settings.activeThemeIdentifier;
+    BOOL dark = NSApp.effectiveAppearance.isDark;
     for (NSString *identifier in settings.orderedThemeIdentifiers) {
         NSMenuItem *item = [[NSMenuItem alloc]
                 initWithTitle:[settings displayNameForThemeIdentifier:identifier] ?: identifier
@@ -253,6 +256,13 @@
         item.representedObject = identifier;
         item.identifier = VibeThemeMenuIdentifier(identifier);
         item.state = StateForBOOL([identifier isEqualToString:active]);
+        item.image = [SettingsThemesViewController swatchForThemeIdentifier:identifier dark:dark];
+        // TRAP: macOS 27 hides a menu item's image unless the item asks to
+        // show it. KVC, because CI's SDK predates the property. 1 is
+        // NSMenuItemImageVisibilityVisible.
+        if (@available(macOS 27.0, *)) {
+            [item setValue:@1 forKey:@"preferredImageVisibility"];
+        }
         item.target = self;
         [menu addItem:item];
     }
