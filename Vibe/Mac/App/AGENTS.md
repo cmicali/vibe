@@ -4,6 +4,8 @@ The application object and the app-wide services it owns. The test for this dire
 
 `main.m` creates the `AppDelegate` and holds it in a global, because `NSApplication.delegate` is weak. `applicationWillFinishLaunching:` installs the Links backend first, before the menu, the restore and any open, so a restored link row is a streaming placeholder from the start (`Loading/Net/AGENTS.md`). It then installs `FolderWalk`'s three handler blocks: the playlist-grant handler and the two folder-art harvest handlers. That is how the walk in `Vibe/Playlist/` reports what it saw without reaching into an app singleton. Last it creates `MainPlayerController` and the menu bar (`Mac/Menu/AGENTS.md`).
 
+**Launch work the first window does not need runs half a second after the window is up** (`VibeAfterLaunch`). The menu's key equivalents and the link prune run there. A main-queue block queued during launch can still run before the window, so `dispatch_async` is not enough.
+
 ## Opening files is a funnel, not an event
 
 Every way a file arrives lands in `AppDelegate` and comes out as one playlist: a Finder double-click, ⌘O, Add to Playlist, Open Recent, Open URL, a drop on the window, argv. The OS delivers opens in two broken shapes, so two tested pieces handle them.
@@ -85,7 +87,7 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 `MainPlayerController` saves and restores the mirror through `PlaylistFile+Session` (`Playlist/Mac/`). The mirror's rules are in `Mac/MainWindow/AGENTS.md` (The last playlist).
 
-**Links are pruned once per launch, after the restore** (`pruneLinks`). The playlist's rows and the recent documents keep their links (`pruneKeepingTracks:recentURLs:`). The store deletes every other link not opened for 30 days, off main. A launch-time open may still be expanding, so its rows keep nothing. A saved M3U naming a pruned link finds that entry missing.
+**Links are pruned once per launch, half a second after the restore** (`pruneLinks`). The playlist's rows and the recent documents keep their links (`pruneKeepingTracks:recentURLs:`). The store deletes every other link not opened for 30 days, off main. A launch-time open may still be expanding, so its rows keep nothing. A saved M3U naming a pruned link finds that entry missing.
 
 `AppStats` (`Vibe/Common/`, `Common/AGENTS.md`) counts on both platforms. This shell feeds it from `deliverExpandedRows:` and from the player's output-audio activity event.
 

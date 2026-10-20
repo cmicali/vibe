@@ -8,22 +8,24 @@
 <text class="m" x="137.0" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.04</text>
 <rect class="s1" x="183.11999999999998" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="203.1" y="68.0" font-size="12" text-anchor="start">Tags read, empty cache</text>
-<text class="m" x="335.6" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.38</text>
+<text class="m" x="335.6" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.33</text>
 <rect class="s2" x="381.7199999999999" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="401.7" y="68.0" font-size="12" text-anchor="start">Tags read, full cache</text>
-<text class="m" x="518.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.07</text>
+<text class="m" x="518.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.08</text>
 <line class="a" x1="52.0" y1="274.0" x2="696.0" y2="274.0" stroke-width="1"/>
 <text class="q" x="44.0" y="278.0" font-size="11" text-anchor="end">0.0</text>
-<line class="g" x1="52.0" y1="238.0" x2="696.0" y2="238.0" stroke-width="1"/>
-<text class="q" x="44.0" y="242.0" font-size="11" text-anchor="end">0.1</text>
-<line class="g" x1="52.0" y1="202.0" x2="696.0" y2="202.0" stroke-width="1"/>
-<text class="q" x="44.0" y="206.0" font-size="11" text-anchor="end">0.2</text>
-<line class="g" x1="52.0" y1="166.0" x2="696.0" y2="166.0" stroke-width="1"/>
-<text class="q" x="44.0" y="170.0" font-size="11" text-anchor="end">0.3</text>
-<line class="g" x1="52.0" y1="130.0" x2="696.0" y2="130.0" stroke-width="1"/>
-<text class="q" x="44.0" y="134.0" font-size="11" text-anchor="end">0.4</text>
+<line class="g" x1="52.0" y1="244.0" x2="696.0" y2="244.0" stroke-width="1"/>
+<text class="q" x="44.0" y="248.0" font-size="11" text-anchor="end">0.1</text>
+<line class="g" x1="52.0" y1="214.0" x2="696.0" y2="214.0" stroke-width="1"/>
+<text class="q" x="44.0" y="218.0" font-size="11" text-anchor="end">0.2</text>
+<line class="g" x1="52.0" y1="184.0" x2="696.0" y2="184.0" stroke-width="1"/>
+<text class="q" x="44.0" y="188.0" font-size="11" text-anchor="end">0.3</text>
+<line class="g" x1="52.0" y1="154.0" x2="696.0" y2="154.0" stroke-width="1"/>
+<text class="q" x="44.0" y="158.0" font-size="11" text-anchor="end">0.4</text>
+<line class="g" x1="52.0" y1="124.0" x2="696.0" y2="124.0" stroke-width="1"/>
+<text class="q" x="44.0" y="128.0" font-size="11" text-anchor="end">0.5</text>
 <line class="g" x1="52.0" y1="94.0" x2="696.0" y2="94.0" stroke-width="1"/>
-<text class="q" x="44.0" y="98.0" font-size="11" text-anchor="end">0.5</text>
+<text class="q" x="44.0" y="98.0" font-size="11" text-anchor="end">0.6</text>
 <text class="m" x="87.8" y="292.0" font-size="11" text-anchor="middle">1.8</text>
 <text class="m" x="159.3" y="292.0" font-size="11" text-anchor="middle">1.9</text>
 <text class="m" x="230.9" y="292.0" font-size="11" text-anchor="middle">1.10</text>
@@ -33,34 +35,34 @@
 <text class="m" x="517.1" y="292.0" font-size="11" text-anchor="middle">1.14</text>
 <text class="m" x="588.7" y="292.0" font-size="11" text-anchor="middle">1.15</text>
 <text class="t" x="660.2" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.16</text>
-<path class="ln s0" stroke-width="2" d="M87.8,262.1 L159.3,260.8 L230.9,261.0 L302.4,260.9 L374.0,260.8 L445.6,260.8 L517.1,261.6 L588.7,261.0 L660.2,259.9"/>
-<circle class="s0 ring" cx="87.8" cy="262.1" r="3.5" stroke-width="2"><title>1.8, Every row listed: 0.03</title></circle>
-<circle class="s0 ring" cx="159.3" cy="260.8" r="3.5" stroke-width="2"><title>1.9, Every row listed: 0.04</title></circle>
-<circle class="s0 ring" cx="230.9" cy="261.0" r="3.5" stroke-width="2"><title>1.10, Every row listed: 0.04</title></circle>
-<circle class="s0 ring" cx="302.4" cy="260.9" r="3.5" stroke-width="2"><title>1.11, Every row listed: 0.04</title></circle>
-<circle class="s0 ring" cx="374.0" cy="260.8" r="3.5" stroke-width="2"><title>1.12, Every row listed: 0.04</title></circle>
-<circle class="s0 ring" cx="445.6" cy="260.8" r="3.5" stroke-width="2"><title>1.13, Every row listed: 0.04</title></circle>
-<circle class="s0 ring" cx="517.1" cy="261.6" r="3.5" stroke-width="2"><title>1.14, Every row listed: 0.03</title></circle>
-<circle class="s0 ring" cx="588.7" cy="261.0" r="3.5" stroke-width="2"><title>1.15, Every row listed: 0.04</title></circle>
-<circle class="s0 ring" cx="660.2" cy="259.9" r="3.5" stroke-width="2"><title>1.16, Every row listed: 0.04</title></circle>
-<path class="ln s1" stroke-width="2" d="M87.8,171.1 L159.3,159.5 L230.9,107.3 L302.4,105.7 L374.0,120.6 L445.6,117.4 L517.1,128.7 L588.7,145.5 L660.2,138.7"/>
-<circle class="s1 ring" cx="87.8" cy="171.1" r="3.5" stroke-width="2"><title>1.8, Tags read, empty cache: 0.29</title></circle>
-<circle class="s1 ring" cx="159.3" cy="159.5" r="3.5" stroke-width="2"><title>1.9, Tags read, empty cache: 0.32</title></circle>
-<circle class="s1 ring" cx="230.9" cy="107.3" r="3.5" stroke-width="2"><title>1.10, Tags read, empty cache: 0.46</title></circle>
-<circle class="s1 ring" cx="302.4" cy="105.7" r="3.5" stroke-width="2"><title>1.11, Tags read, empty cache: 0.47</title></circle>
-<circle class="s1 ring" cx="374.0" cy="120.6" r="3.5" stroke-width="2"><title>1.12, Tags read, empty cache: 0.43</title></circle>
-<circle class="s1 ring" cx="445.6" cy="117.4" r="3.5" stroke-width="2"><title>1.13, Tags read, empty cache: 0.43</title></circle>
-<circle class="s1 ring" cx="517.1" cy="128.7" r="3.5" stroke-width="2"><title>1.14, Tags read, empty cache: 0.40</title></circle>
-<circle class="s1 ring" cx="588.7" cy="145.5" r="3.5" stroke-width="2"><title>1.15, Tags read, empty cache: 0.36</title></circle>
-<circle class="s1 ring" cx="660.2" cy="138.7" r="3.5" stroke-width="2"><title>1.16, Tags read, empty cache: 0.38</title></circle>
-<path class="ln s2" stroke-width="2" d="M87.8,222.5 L159.3,226.8 L230.9,223.9 L302.4,223.3 L374.0,233.9 L445.6,234.0 L517.1,237.2 L588.7,245.0 L660.2,247.6"/>
-<circle class="s2 ring" cx="87.8" cy="222.5" r="3.5" stroke-width="2"><title>1.8, Tags read, full cache: 0.14</title></circle>
-<circle class="s2 ring" cx="159.3" cy="226.8" r="3.5" stroke-width="2"><title>1.9, Tags read, full cache: 0.13</title></circle>
-<circle class="s2 ring" cx="230.9" cy="223.9" r="3.5" stroke-width="2"><title>1.10, Tags read, full cache: 0.14</title></circle>
-<circle class="s2 ring" cx="302.4" cy="223.3" r="3.5" stroke-width="2"><title>1.11, Tags read, full cache: 0.14</title></circle>
-<circle class="s2 ring" cx="374.0" cy="233.9" r="3.5" stroke-width="2"><title>1.12, Tags read, full cache: 0.11</title></circle>
-<circle class="s2 ring" cx="445.6" cy="234.0" r="3.5" stroke-width="2"><title>1.13, Tags read, full cache: 0.11</title></circle>
-<circle class="s2 ring" cx="517.1" cy="237.2" r="3.5" stroke-width="2"><title>1.14, Tags read, full cache: 0.10</title></circle>
-<circle class="s2 ring" cx="588.7" cy="245.0" r="3.5" stroke-width="2"><title>1.15, Tags read, full cache: 0.08</title></circle>
-<circle class="s2 ring" cx="660.2" cy="247.6" r="3.5" stroke-width="2"><title>1.16, Tags read, full cache: 0.07</title></circle>
+<path class="ln s0" stroke-width="2" d="M87.8,263.0 L159.3,263.1 L230.9,263.0 L302.4,264.0 L374.0,263.0 L445.6,263.0 L517.1,259.9 L588.7,264.2 L660.2,261.0"/>
+<circle class="s0 ring" cx="87.8" cy="263.0" r="3.5" stroke-width="2"><title>1.8, Every row listed: 0.04</title></circle>
+<circle class="s0 ring" cx="159.3" cy="263.1" r="3.5" stroke-width="2"><title>1.9, Every row listed: 0.04</title></circle>
+<circle class="s0 ring" cx="230.9" cy="263.0" r="3.5" stroke-width="2"><title>1.10, Every row listed: 0.04</title></circle>
+<circle class="s0 ring" cx="302.4" cy="264.0" r="3.5" stroke-width="2"><title>1.11, Every row listed: 0.03</title></circle>
+<circle class="s0 ring" cx="374.0" cy="263.0" r="3.5" stroke-width="2"><title>1.12, Every row listed: 0.04</title></circle>
+<circle class="s0 ring" cx="445.6" cy="263.0" r="3.5" stroke-width="2"><title>1.13, Every row listed: 0.04</title></circle>
+<circle class="s0 ring" cx="517.1" cy="259.9" r="3.5" stroke-width="2"><title>1.14, Every row listed: 0.05</title></circle>
+<circle class="s0 ring" cx="588.7" cy="264.2" r="3.5" stroke-width="2"><title>1.15, Every row listed: 0.03</title></circle>
+<circle class="s0 ring" cx="660.2" cy="261.0" r="3.5" stroke-width="2"><title>1.16, Every row listed: 0.04</title></circle>
+<path class="ln s1" stroke-width="2" d="M87.8,185.5 L159.3,181.8 L230.9,127.8 L302.4,123.8 L374.0,146.3 L445.6,142.0 L517.1,153.4 L588.7,161.6 L660.2,173.5"/>
+<circle class="s1 ring" cx="87.8" cy="185.5" r="3.5" stroke-width="2"><title>1.8, Tags read, empty cache: 0.29</title></circle>
+<circle class="s1 ring" cx="159.3" cy="181.8" r="3.5" stroke-width="2"><title>1.9, Tags read, empty cache: 0.31</title></circle>
+<circle class="s1 ring" cx="230.9" cy="127.8" r="3.5" stroke-width="2"><title>1.10, Tags read, empty cache: 0.49</title></circle>
+<circle class="s1 ring" cx="302.4" cy="123.8" r="3.5" stroke-width="2"><title>1.11, Tags read, empty cache: 0.50</title></circle>
+<circle class="s1 ring" cx="374.0" cy="146.3" r="3.5" stroke-width="2"><title>1.12, Tags read, empty cache: 0.43</title></circle>
+<circle class="s1 ring" cx="445.6" cy="142.0" r="3.5" stroke-width="2"><title>1.13, Tags read, empty cache: 0.44</title></circle>
+<circle class="s1 ring" cx="517.1" cy="153.4" r="3.5" stroke-width="2"><title>1.14, Tags read, empty cache: 0.40</title></circle>
+<circle class="s1 ring" cx="588.7" cy="161.6" r="3.5" stroke-width="2"><title>1.15, Tags read, empty cache: 0.37</title></circle>
+<circle class="s1 ring" cx="660.2" cy="173.5" r="3.5" stroke-width="2"><title>1.16, Tags read, empty cache: 0.33</title></circle>
+<path class="ln s2" stroke-width="2" d="M87.8,231.3 L159.3,232.1 L230.9,231.8 L302.4,232.0 L374.0,240.7 L445.6,241.0 L517.1,249.5 L588.7,250.4 L660.2,251.1"/>
+<circle class="s2 ring" cx="87.8" cy="231.3" r="3.5" stroke-width="2"><title>1.8, Tags read, full cache: 0.14</title></circle>
+<circle class="s2 ring" cx="159.3" cy="232.1" r="3.5" stroke-width="2"><title>1.9, Tags read, full cache: 0.14</title></circle>
+<circle class="s2 ring" cx="230.9" cy="231.8" r="3.5" stroke-width="2"><title>1.10, Tags read, full cache: 0.14</title></circle>
+<circle class="s2 ring" cx="302.4" cy="232.0" r="3.5" stroke-width="2"><title>1.11, Tags read, full cache: 0.14</title></circle>
+<circle class="s2 ring" cx="374.0" cy="240.7" r="3.5" stroke-width="2"><title>1.12, Tags read, full cache: 0.11</title></circle>
+<circle class="s2 ring" cx="445.6" cy="241.0" r="3.5" stroke-width="2"><title>1.13, Tags read, full cache: 0.11</title></circle>
+<circle class="s2 ring" cx="517.1" cy="249.5" r="3.5" stroke-width="2"><title>1.14, Tags read, full cache: 0.08</title></circle>
+<circle class="s2 ring" cx="588.7" cy="250.4" r="3.5" stroke-width="2"><title>1.15, Tags read, full cache: 0.08</title></circle>
+<circle class="s2 ring" cx="660.2" cy="251.1" r="3.5" stroke-width="2"><title>1.16, Tags read, full cache: 0.08</title></circle>
 </svg>
