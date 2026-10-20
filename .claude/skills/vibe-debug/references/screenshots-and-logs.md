@@ -1,6 +1,6 @@
 # Screenshot and log mechanics
 
-How the in-process snapshot chooses a window and what it cannot render, real capture and pixel probes, and on-device logging with `--log-stderr`. Read when a screenshot shows something unexpected or a log has to come off a phone.
+How the in-process snapshot chooses a window and what it cannot render, real capture and pixel probes, and on-device logging with `OS_ACTIVITY_DT_MODE`. Read when a screenshot shows something unexpected or a log has to come off a phone.
 
 ## The in-process snapshot
 
@@ -20,20 +20,20 @@ swift .claude/skills/vibe-debug/scripts/find-window.swift [pid]        # windowI
 
 Assert near-identical grays numerically with the probe, never by eye.
 
-## On a real device: `--log-stderr`
+## On a real device: `OS_ACTIVITY_DT_MODE`
 
-`log stream` has no device mode, and `idevicesyslog` carries nothing the app logs. Debug builds take `--log-stderr` (`Vibe-Prefix.pch`), which mirrors every `Log*` message to stderr, timestamped. `devicectl` relays stderr back. It is off by default.
+`log stream` has no device mode, and `idevicesyslog` carries nothing the app logs. Launch with `OS_ACTIVITY_DT_MODE=1` in the environment instead. `os_log` then copies every message it keeps to stderr, with its timestamp, as it does for Xcode's console, and `devicectl --console` relays it back. A Debug build is always verbose, so its info and debug messages log at Default level and are copied too. It is off unless the variable is set.
 
 ```bash
 make install-ios CONFIG=Debug          # signed build onto the one paired phone; DEVICE=<name or identifier> with several
 xcrun devicectl device process launch --timeout 3600 --device <identifier> --console --terminate-existing \
-    com.commonwealthrecordings.Vibe --log-stderr > build/device.log 2>&1   # run it in the background and read the file
+    -e '{"OS_ACTIVITY_DT_MODE":"1"}' com.commonwealthrecordings.Vibe > build/device.log 2>&1   # run it in the background and read the file
 grep -E "AudioSession|AudioOutputUnit|idle stop|Scene:|no verdict" build/device.log
 ```
 
 `<identifier>` is devicectl's own (`xcrun devicectl list devices`), not the hardware UDID. A reinstall ends the console session, so relaunch after each one. `--timeout` (seconds) ends a session left in the background.
 
-**What a picked file is on the phone** (an SMB server, a USB drive, any provider): add `--dataless-diag` after `--log-stderr`. Each directory's first dataless check then logs one `Dataless diag:` line with the path, the verdict, the raw `st_flags`, the mount's filesystem type and mount point, and whether it is local.
+**What a picked file is on the phone** (an SMB server, a USB drive, any provider): add `--dataless-diag` after the bundle identifier. Each directory's first dataless check then logs one `Dataless diag:` line with the path, the verdict, the raw `st_flags`, the mount's filesystem type and mount point, and whether it is local.
 
 **An on-device pass runs only on an explicit request** (`SKILL.md`'s simulator-only rule), and it is log-only. Nothing can synthesize a call or a route change, so the user's hands and the log are the instruments. Install a Debug build and say that it replaces the installed Vibe (data kept). Launch it as above with the log in a file. Hand the user the physical steps in numbered rounds (a call, AirPods in and out, the lock screen, Settings > Developer > Reset Media Services), about ten seconds apart, with the phone plugged in and unlocked. Judge each step from the log. When the log cannot attribute a result, add a log line and rerun. Siri ducks and does not interrupt; a timer or a call is a real interruption.
 
@@ -41,5 +41,5 @@ The channel does not reach a device. It is command and response files in the app
 
 Two profiling traps on a device:
 
-- TRAP: **`--log-stderr` under a recording tool manufactures stalls.** When the USB pipe backs up, `fprintf` blocks the main thread. Confirm any perceived stall unplugged, launched from the home screen, with no Instruments. For A/B work on a device, prefer the `VibeWorkTally` counters (`Vibe/Debug/AGENTS.md`), which come back over `--log-stderr` cheaply. Keep hot counters on `VibeTallyCount`, not `VibeSignpostCount`.
+- TRAP: **stderr logging under a recording tool manufactures stalls.** When the USB pipe backs up, the copy to stderr blocks the thread that logged, main included. Confirm any perceived stall unplugged, launched from the home screen, with no Instruments. For A/B work on a device, prefer the `VibeWorkTally` counters (`Vibe/Debug/AGENTS.md`), which come back over the console cheaply. Keep hot counters on `VibeTallyCount`, not `VibeSignpostCount`.
 - TRAP: **`xctrace record --attach` against a device usually yields a trace with no run data**, and `--instrument` combined with `--template` always breaks the export. `xctrace` wants the hardware UDID (`xcrun xctrace list devices`). Use it only for hitch counts, and expect to retry.

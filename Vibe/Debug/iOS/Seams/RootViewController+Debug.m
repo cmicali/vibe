@@ -99,7 +99,7 @@ static void VibeFrameProbeResetWindow(CFTimeInterval now) {
     sFrameProbeLastAt = now;
     sFrameProbeFrames++;
     // The continuous probe — the launch flag's — logs a window every five
-    // seconds, which --log-stderr relays off a phone.
+    // seconds, which the device console relays off a phone (OS_ACTIVITY_DT_MODE).
     if (sFrameProbeEndsAt == 0 && now - sFrameProbeStartedAt >= 5) {
         NSDictionary *report = [self debugFrameProbeReport];
         LogInfo(@"Frame probe: %@ Hz over %@ s, %@ hitches, worst %@ ms",

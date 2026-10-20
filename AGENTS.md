@@ -20,7 +20,9 @@ A CUE sheet, beside its files or embedded in a FLAC, plays as rows. Each row is 
 
 ## Building
 
-`Vibe.xcodeproj` is generated from `project.yml` by XcodeGen and is **not** checked in. Regenerate after cloning, after pulling and after every edit to `project.yml`: `xcodegen generate` (or `make project`). Every `make` target that builds regenerates first. The Makefile comments each target; the traps are here.
+`Vibe.xcodeproj` is generated from `project.yml` by XcodeGen and is **not** checked in. Regenerate after cloning, after pulling and after every edit to `project.yml` with `make project`. Every `make` target that builds regenerates first. The Makefile comments each target; the traps are here.
+
+**`vibe-libs/` is a git submodule**: the toolbox Vibe shares with another app (`docs/architecture.md`, vibe-libs). `make project` checks it out in a fresh clone or worktree. It also says when the checkout is not the commit this repo pins, and never moves it. A piece is changed in vibe-libs first, and then Vibe bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc before changing a piece.
 
 | Command | What it does |
 | --- | --- |
@@ -92,7 +94,7 @@ Test audio: `Assets/test_audio_files/` (gitignored). If missing, generate it wit
 
 ## Layout: the directory is the platform boundary
 
-Every directory directly under `Vibe/` except `Mac/`, `iOS/` and `ThirdParty/` is a shared subsystem compiled into both targets. `Packages/WaveformCore/` is outside `Vibe/` because it is meant for other apps too. It compiles into both targets and names no platform. Within a subsystem, `Mac/` and `iOS/` are the only platform markers. `project.yml` lists one recursive source entry per shared subsystem and per macOS app-shell piece.
+Every directory directly under `Vibe/` except `Mac/`, `iOS/` and `ThirdParty/` is a shared subsystem compiled into both targets. `Packages/WaveformCore/` is outside `Vibe/` because it is meant for other apps too. It compiles into both targets and names no platform. `vibe-libs/`, the toolbox submodule, is outside `Vibe/` for the same reason. Its templates compile its pieces into both targets. Within a subsystem, `Mac/` and `iOS/` are the only platform markers. `project.yml` lists one recursive source entry per shared subsystem and per macOS app-shell piece.
 
 **A new file in a shared directory joins the iOS target automatically.** It must be AppKit-free or `TARGET_OS_OSX`-guarded. A shared source may not `#import`, unguarded, a header that only one platform's tree has. Xcode's project-wide headermap resolves it by basename whatever the target, so it compiles and then fails at runtime or link.
 
@@ -103,6 +105,7 @@ Every directory directly under `Vibe/` except `Mac/`, `iOS/` and `ThirdParty/` i
 `docs/architecture.md` is the overview for human readers: the tree, each subsystem, the path from open to sound, and where to look for what. Nested `AGENTS.md` files hold the detail. **Read the relevant one before changing anything it covers.** Docs follow the platform boundary. A shared subsystem's doc covers what both platforms have, and platform-specific detail lives in a doc under its `Mac/` or `iOS/` directory. `.md` files are excluded from every source entry, so a doc can go anywhere without touching the build.
 
 - **`Vibe/Common/`** — what everything else is written in terms of: `AppSettings` (its macOS half is `Mac/`; `Mac/Theme/` is the theme store, the `AppTheme` record, its one sanitization gate, the archive form, the dice and the fonts), `VibeStrings.h`, the prefix header, `DocumentTypes`, the `VibeImage`/`VibeColor` aliases and the bounded image decode. No feature lives here.
+- **`vibe-libs/`** — the shared toolbox, a git submodule. Vibe uses `audio/DSP`, the varispeed, and `core/Common`'s realtime-effects brackets. Its own `AGENTS.md` and each piece's doc govern it.
 - **`Packages/WaveformCore/`** — the waveform engine, kept free of app types for reuse in other apps: the summary of an audio stream, its exact reads, the zoom steps, the coverage raster and deep zoom's detail. It is a Swift package with its own tests. Both apps and the tests compile its sources directly. In Vibe its summary is `AudioWaveform`.
 - **`Vibe/Audio/`** — playback engine, FX, waveform data, BPM/key analysis. `FX/` (the DJ master-bus segment, optional per player via `enableFX:`, and the pitch fader's stage), `Metadata/` (tags, cache, scan; `Artwork/` is embedded art and the shared thumbnails, and `Artwork/FolderArt/` the sidecar-cover fallback), `Waveform/` (data), `Analysis/` (tempo and key), `Levels/` (live FFT levels from the render's final samples), `Mac/Devices/` (CoreAudio HAL output devices), `iOS/` (audio session and output recovery) each have a doc.
 - **`Vibe/Loading/`** — the file-open path, from a path to a readable file. `PlaceholderFiles` says which files are placeholders. `Claim/` is the materialization claim, admission and the handle-run ceiling. `Transfer/` is `CloudTransferRegistry`, the download progress monitor, `CloudFileMaterializer`, the abortable download, and `NetworkReadAhead`, the read-ahead of a file on a network mount. `Net/` is the app's own HTTP side: the HTTP transfer, the placeholder store, and Open URL's links. `iOS/Dropbox/` is the Dropbox account and its local mirror, iOS only. Its client and mirror subclass the transfer and the store.
@@ -168,9 +171,9 @@ Behavior added to a foreign class is a category (`NSURL+Hash`), never a free fun
 
 ## Logging
 
-`LogError`, `LogWarn`, `LogInfo` and `LogDebug` in `Vibe-Prefix.pch` wrap `os_log` under `com.commonwealthrecordings.Vibe`.
+`LogError`, `LogWarn`, `LogInfo` and `LogDebug` wrap `os_log`. They are vibe-libs' `core/Common/VibeMacros.h`, which `Vibe-Prefix.pch` imports. Their subsystem is the main bundle's identifier, `com.commonwealthrecordings.Vibe` for both apps. `OS_ACTIVITY_DT_MODE=1` in the environment copies them to stderr, which is how a debug build on an iPhone gets its log back (the `vibe-debug` skill).
 
-**`VIBE_BETA_DEBUG` (`project.yml`) is the beta switch.** It sets `VIBE_VERBOSE_LOGGING` and the mac's Beta updates default, so a release flips one line. At `VIBE_VERBOSE_LOGGING=1`, info, debug and warn are written at Default level, and Settings > Advanced > Save Debug Info retrieves them. At 0, info and debug must be streamed live. Keep each beta's dSYMs to symbolicate stall stacks.
+**`VIBE_BETA_DEBUG` (`project.yml`) is the beta switch.** It sets `VIBE_VERBOSE_LOGGING` and the mac's Beta updates default, so a release flips one line. A Debug build is always verbose, whatever the switch says. At `VIBE_VERBOSE_LOGGING=1`, info, debug and warn are written at Default level, and Settings > Advanced > Save Debug Info retrieves them. At 0, info and debug must be streamed live. Keep each beta's dSYMs to symbolicate stall stacks.
 
 Playback diagnostics are in `Audio/AGENTS.md`, hardware observation in `Audio/Mac/Devices/AGENTS.md`, and the report export in `Mac/App/AGENTS.md`. Use `vibe-debug` to collect logs.
 
@@ -197,7 +200,7 @@ Playback diagnostics are in `Audio/AGENTS.md`, hardware observation in `Audio/Ma
   - Never revert or tidy modifications you did not make.
   - Run `git branch --show-current` immediately before every commit.
   - Stage by path. Never `git commit -a`, which can sweep another session's edit into your commit.
-  - Build a PR branch in its own worktree (`git worktree add .claude/worktrees/<name> -b <branch> origin/main`, gitignored), so the main checkout stays on `main`.
+  - Build a PR branch in its own worktree (`git worktree add .claude/worktrees/<name> -b <branch> origin/main`, gitignored), so the main checkout stays on `main`. `make project` then checks out the vibe-libs submodule in it.
   - For a long loop over a built test bundle, copy it out of `build/` first.
 - **Never post to a GitHub issue or PR thread without asking first, every time.** The threads are public, and the maintainer is the voice in them. Draft the comment in chat and wait. An approval covers that one post. Filing a new issue is confirmed first too. Reading and analysis need no approval.
 - **Intel Macs get correctness and nothing more.** CI compiles the x86_64 slice in its AppStore build. It runs no x86 tests. When an x86_64 or Rosetta difference turns up, make the tests and docs right with arch-guarded assertions and a scoped sentence. Apple's MP3 decoder is one example: 16-bit on arm64, float32 on x86_64 (`docs/audio-quality.md`). Add no Intel-only features, benchmarks, chart redraws or CI legs unless asked.

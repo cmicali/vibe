@@ -53,7 +53,7 @@ static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSStrin
 }
 
 // The device's road to the probes: no channel reaches a phone, so each flag
-// starts one that logs, and --log-stderr relays it.
+// starts one that logs, and the device console relays it (OS_ACTIVITY_DT_MODE).
 static void VibeiOSStartLaunchProbes(void) {
     NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
     if ([arguments containsObject:@"--frame-rate-probe"]) {

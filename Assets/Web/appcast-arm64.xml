@@ -7,6 +7,24 @@
 <link>https://vibeplayer.app/</link>
 <language>en</language>
 <item>
+<title>Vibe 1.17</title>
+<pubDate>Tue, 20 Oct 2026 19:37:41 +0000</pubDate>
+<sparkle:version>323</sparkle:version>
+<sparkle:shortVersionString>1.17</sparkle:shortVersionString>
+<sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+
+<description sparkle:format="markdown"><![CDATA[
+* Added mouse/trackpad scrolling and up/down keys to change the volume (when enabled)
+* Added Copy and Paste for colors and fonts in the theme editor's right-click menu
+* Added each theme's swatch to the View > Theme menu
+* Changed MP3, FLAC, WAV, AIFF and Ogg Vorbis files to always play with Vibe's own decoders
+* Moved the volume slider appearance and behavior settings from themes to Settings > Appearance
+* Improved playback of Ogg Vorbis files that also carry video or a Skeleton stream
+* Fixed 320 kbps MP3s opening slowly
+]]></description>
+<enclosure url="https://github.com/cmicali/vibe/releases/download/v1.17/Vibe-macOS-arm64-1.17.zip" length="8885072" type="application/octet-stream" sparkle:edSignature="QQU9N82tG14MI3nYiOXC0l8B6Ps3VOR8XThrsg7rkZRp0an4Sl8Jinf0yJWPjqgF02fw/BPrhGIgjYlHJHdkBQ=="/>
+</item>
+<item>
 <title>Vibe 1.17-beta1</title>
 <pubDate>Mon, 19 Oct 2026 00:03:37 +0000</pubDate>
 <sparkle:version>322</sparkle:version>
