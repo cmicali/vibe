@@ -127,6 +127,9 @@ settings:
     LOCALIZATION_PREFERS_STRING_CATALOGS: YES   # Export/Import Localizations round-trips .xcstrings
   configs:
     Debug:
+      # Always verbose in Debug, so info and debug log at Default level, which
+      # OS_ACTIVITY_DT_MODE copies to stderr (the vibe-debug skill's device logs).
+      VIBE_VERBOSE_LOGGING: 1
       DEBUG_INFORMATION_FORMAT: dwarf
       ENABLE_TESTABILITY: YES
       GCC_DYNAMIC_NO_PIC: NO
