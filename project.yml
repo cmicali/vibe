@@ -144,13 +144,13 @@ targets:
   Vibe:
     type: application
     platform: macOS
-    # vibe-libs' pieces, compiled in as this target's own sources. Controls and
-    # SettingsWindow are macOS only, so VibeiOS never lists them. The
-    # vendored libraries carry their own flags.
+    # vibe-libs' pieces, compiled in as this target's own sources. Controls,
+    # SettingsWindow, and Shortcuts are macOS only, so VibeiOS never lists
+    # them. The vendored libraries carry their own flags.
     #
     # TRAP: VibeLibsVorbis before VibeLibsTaglib. Header search paths follow
     # this order, and taglib/ogg holds TagLib's own vorbis/vorbisfile.h.
-    templates: [VibeLibsDSP, VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow,
+    templates: [VibeLibsDSP, VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts,
                 VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
                 VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
@@ -787,7 +787,7 @@ targets:
       - path: Vibe/Mac/MainWindow/MainPlayerController+Playlist.m
       - path: Vibe/Mac/MainWindow/MainPlayerController+NowPlaying.m
       - path: Vibe/Mac/MainWindow/MainPlayerController+Settings.m
-      - path: Vibe/Mac/Menu/ShortcutLayout.m   # +Settings names a shortcut under the layout
+      - path: vibe-libs/ui/Shortcuts/Mac/ShortcutLayout.m   # +Settings names a shortcut under the layout
       - path: Vibe/Mac/MainWindow/Transport/MainPlayerController+Transport.m
       - path: Vibe/Playlist/Mac/PlaylistController.m
       - path: Vibe/Playlist/Mac/PlaylistTableView.m
