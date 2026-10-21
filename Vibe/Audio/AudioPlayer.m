@@ -39,6 +39,11 @@ static const NSTimeInterval kBufferingGraceSeconds = 0.25;
 // Marks _queue, so runSyncOnQueue: can tell it is already on this player's.
 static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
+VibeAudioFileOpener const VibePlayerFileOpener =
+        ^AudioFileHandle *(NSURL *url, BOOL (^interrupted)(void), NSError **error) {
+    return [[AudioFileHandle alloc] initForReading:url interleaved:NO interrupted:interrupted error:error];
+};
+
 @implementation AudioPlayer {
     float                   _maxPitch;
     float                   _volume;
@@ -401,7 +406,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     _deadlineMovedUptime = 0;
     __weak AudioPlayer *weakSelf = self;
     _playOpenToken = [[AudioFileMaterializationCoordinator sharedCoordinator]
-            openURL:openURL purpose:VibeAudioFileOpenPurposePlayback completionQueue:_queue
+            openURL:openURL purpose:VibeAudioFileOpenPurposePlayback opener:VibePlayerFileOpener
+            completionQueue:_queue
             onDataless:^{
         // The coordinator already probed on a bounded worker. The remote
         // backend can stream promptly, so keep its ordinary indicator delay.

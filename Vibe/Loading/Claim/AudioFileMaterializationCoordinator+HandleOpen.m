@@ -5,9 +5,8 @@
 
 #import "AudioFileMaterializationCoordinatorInternal.h"
 #import "AudioFileMaterializationTokens.h"
-#import "AudioFileHandle.h"
 
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "CloudFileMaterializer.h"
 
 #if DEBUG
@@ -22,7 +21,7 @@ static const NSUInteger kMaximumHandleRunCount = 6;
 
 @implementation AudioFileMaterializationCoordinator (HandleOpen)
 
-#pragma mark - Stage 2: purpose-keyed AudioFileHandle opens
+#pragma mark - Stage 2: purpose-keyed handle opens
 
 static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *path) {
     return [NSString stringWithFormat:@"%ld:%@", (long)purpose, path];
@@ -44,10 +43,12 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
 
 - (AudioFileOpenToken *)openURL:(NSURL *)url
                          purpose:(VibeAudioFileOpenPurpose)purpose
+                          opener:(VibeAudioFileOpener)opener
                  completionQueue:(dispatch_queue_t)completionQueue
                       onDataless:(dispatch_block_t)onDataless
                       completion:(VibeAudioFileOpenCompletion)completion {
     NSParameterAssert(url);
+    NSParameterAssert(opener);
     NSParameterAssert(completionQueue);
     NSParameterAssert(completion);
     NSString *path = VibeStandardizedAudioOpenPath(url);
@@ -64,6 +65,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             // Rebind; the superseded token never takes delivery.
             [run.waiter cancel];
             run.waiter = token;
+            run.opener = opener;
             [self notifyDatalessForRun:run];
             return;
         }
@@ -89,6 +91,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
         run.url = url;
         run.purpose = purpose;
         run.waiter = token;
+        run.opener = opener;
         run.submittedAt = self->_clock();
         self->_handleRuns[key] = run;
         [self startHandleRunStages:run];
@@ -201,13 +204,14 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
     }
     dispatch_queue_t workerQueue = run.purpose == VibeAudioFileOpenPurposePlayback
             ? _interactiveWorkerQueue : _backgroundWorkerQueue;
+    // Snapshotted on the state queue: a rebind replaces the run's opener.
+    VibeAudioFileOpener opener = run.opener;
 #if DEBUG
     // Paired with the completed increment below, not finishHandleRun:, which
     // also runs for runs that never opened.
     [self countHandleOpenStarted];
+    opener = VibeDebugHangingOpener(opener);
 #endif
-    // Snapshotted on the state queue: the debug channel swaps the opener.
-    VibeAudioFileOpener opener = _fileOpener;
     // A holder until the open returns, so the stream is not abandoned before
     // the handle that will hold it exists.
     CloudFileAvailability *stream = _claims[run.path].availability;
@@ -223,7 +227,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
             return;
         }
         NSError *error = nil;
-        AudioFileHandle *file = opener(run.url, interrupted, &error);
+        id<ServedFileHandle> file = opener(run.url, interrupted, &error);
         // Before the open's hold lets the stream go below.
         [file holdStream];
         dispatch_async(strongSelf->_stateQueue, ^{
@@ -242,7 +246,7 @@ static NSString *VibeHandleRunKey(VibeAudioFileOpenPurpose purpose, NSString *pa
 
 - (void)finishHandleRun:(VibeAudioHandleRun *)run
            runGeneration:(uint64_t)runGeneration
-                    file:(AudioFileHandle *)file
+                    file:(id<ServedFileHandle>)file
                    error:(NSError *)error {
     VibeAudioHandleRun *current = _handleRuns[run.key];
     if (current != run || run.runGeneration != runGeneration) {

@@ -7,6 +7,8 @@
 
 #if DEBUG
 
+#import "NetworkReadAhead+Debug.h"
+
 @implementation AudioFileHandle (Debug)
 
 + (void)debugSetMountRule:(NSNumber *(^)(NSURL *))rule {

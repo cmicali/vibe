@@ -10,7 +10,7 @@
 #import <os/lock.h>
 #import <sys/stat.h>
 
-#import "AudioFileOpenRules.h"
+#import "TailWindowMath.h"
 #import "DropboxClientInternal.h"
 #import "DropboxRules.h"
 #import "NSURL+Hash.h"

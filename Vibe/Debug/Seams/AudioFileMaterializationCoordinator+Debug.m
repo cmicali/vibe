@@ -24,7 +24,25 @@ static NSCondition *VibeHungOpenGate(void) {
 static NSString *VibeHangBasename;
 static NSUInteger VibeHungOpens;
 static BOOL VibeHungOpensReleased = YES;
-static BOOL VibeHangInstalled;
+
+// Chained, never restated: a wrapper that reimplemented the caller's open
+// would drift from it.
+VibeAudioFileOpener VibeDebugHangingOpener(VibeAudioFileOpener real) {
+    return ^id<ServedFileHandle>(NSURL *url, BOOL (^interrupted)(void), NSError **error) {
+        NSCondition *gate = VibeHungOpenGate();
+        [gate lock];
+        if (VibeHangBasename && [url.lastPathComponent isEqualToString:VibeHangBasename]) {
+            VibeHungOpens++;
+            [gate broadcast];
+            while (!VibeHungOpensReleased) {
+                [gate wait];
+            }
+            VibeHungOpens--;
+        }
+        [gate unlock];
+        return real(url, interrupted, error);
+    };
+}
 
 @implementation AudioFileMaterializationCoordinator (Debug)
 
@@ -42,7 +60,7 @@ static BOOL VibeHangInstalled;
         @"readableClaims": @(snapshot.readableClaimCount),
         @"handleRuns": @(snapshot.handleRunCount),
         @"datalessProbesInFlight": @(snapshot.datalessProbesInFlight),
-        // AudioFileHandle calls the OS still owes an answer for. Nonzero at
+        // Opener calls the OS still owes an answer for. Nonzero at
         // rest is a stranded run, which no gauge above shows.
         @"handleOpensInFlight": @(snapshot.handleOpensStarted
                                   - snapshot.handleOpensCompleted),
@@ -62,28 +80,6 @@ static BOOL VibeHangInstalled;
     VibeHungOpensReleased = (basename == nil);
     [gate broadcast];
     [gate unlock];
-    if (VibeHangInstalled) {
-        return;
-    }
-    VibeHangInstalled = YES;
-    AudioFileMaterializationCoordinator *coordinator = self.sharedCoordinator;
-    // Chained, never restated: a wrapper that reimplemented the production open
-    // would drift from it.
-    VibeAudioFileOpener real = coordinator.fileOpener;
-    coordinator.fileOpener = ^AudioFileHandle *(NSURL *url, BOOL (^interrupted)(void), NSError **error) {
-        NSCondition *inner = VibeHungOpenGate();
-        [inner lock];
-        if (VibeHangBasename && [url.lastPathComponent isEqualToString:VibeHangBasename]) {
-            VibeHungOpens++;
-            [inner broadcast];
-            while (!VibeHungOpensReleased) {
-                [inner wait];
-            }
-            VibeHungOpens--;
-        }
-        [inner unlock];
-        return real(url, interrupted, error);
-    };
 }
 
 + (void)debugReleaseHungOpens {

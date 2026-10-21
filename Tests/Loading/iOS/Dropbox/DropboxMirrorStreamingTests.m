@@ -554,7 +554,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
 
 #pragma mark The tail window
 
-// A small format's window (AudioFileOpenRules.h).
+// A small format's window (TailWindowMath.h).
 static const uint64_t kWindowBytes = 128 * 1024;
 
 // Every ranged read that completes calls this after its completion returns,
@@ -935,7 +935,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     _listings[@"/music"] = @[VibeFileEntry(@"/Music", @"row.wav", listedBytes, kStamp)];
     [self refresh:@"/Music"];
     _coordinator = [[AudioFileMaterializationCoordinator alloc] init];
-    _openToken = [_coordinator openURL:track purpose:VibeAudioFileOpenPurposePlayback
+    _openToken = [_coordinator openURL:track purpose:VibeAudioFileOpenPurposePlayback opener:VibeTestFileOpener
                       completionQueue:dispatch_get_main_queue() onDataless:nil
                            completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval elapsed) {
         self->_delivered = file;

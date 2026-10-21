@@ -277,6 +277,7 @@
     _prefetchOpenToken = [[AudioFileMaterializationCoordinator sharedCoordinator]
             openURL:track.url
             purpose:VibeAudioFileOpenPurposePrefetch
+            opener:VibePlayerFileOpener
             completionQueue:_queue
             onDataless:nil
             completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval elapsed) {

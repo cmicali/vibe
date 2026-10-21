@@ -20,7 +20,7 @@ Only five files in the moving code read `AppSettings`: one in folder art and fou
 1. **The prefix header.** `Vibe-Prefix.pch` gave every file the `Log*`, `VIBE_REALTIME_*` and signpost macros. The brackets moved in #314 and the log macros in #319. The signposts and the work tally are still there.
 2. **Strings.** `AudioErrorRules.h` maps error codes to `STR_ERROR_*`. `AudioTrack` has two labels. Every renderer returns a localized style name. Metadata, Loading and Util have one site each.
 3. **Debug imports in production code.** Seven are unguarded, for `AudioLoadTiming.h` and the work tally, and eight sit under `#if DEBUG`.
-4. **`Audio/` and `Loading/` import each other.** One shared header of open rules, the loader's typed handle, and the read-ahead's test hooks make the cycle. Seams 14 and 15 below untangle it.
+4. **`Audio/` and `Loading/` imported each other.** One shared header of open rules, the loader's typed handle, and the read-ahead's test hooks made the cycle. Seams 14 and 15 below untangled it.
 5. **One shell reach.** `FolderArtResolver` imports the mac's `FolderAccessManager`.
 6. **Platform halves** are categories on `AudioPlayer` that the core calls under `TARGET_OS_OSX`. They cannot be a separate module.
 
@@ -80,8 +80,8 @@ The contracts are written in vibe-libs' plan. This is Vibe's side of each.
 | # | Seam | Today | Vibe's change |
 | --- | --- | --- | --- |
 | 13 | The playable-item protocol | Nine shared areas import the playlist row. | `AudioTrack` adopts the protocol and moves to `Vibe/Playlist/`. The CUE window math goes to AudioTypes. (#351) |
-| 14 | `AudioFileOpenRules.h` splits | It holds the open's delivery states, path spelling and the mount read-ahead rules. Four areas import it. | Each part goes to the piece that owns it. |
-| 15 | The loader's handle | Its opener is a block, but typed as `AudioFileHandle`. `NetworkReadAhead.m` imports `AudioFileHandle+Debug.h` for its test hooks. | The handle becomes a small protocol. The hooks move to a debug header of the loader's own, and `AudioFileHandle (Debug)` forwards to them. |
+| 14 | `AudioFileOpenRules.h` splits | It held the open's delivery states, path spelling and the mount read-ahead rules. Four areas imported it. | Done in #353. The delivery states sit beside the open token, the path spelling in `Util/FilePaths`, the tail window beside the placeholder store, and the mount rule and the span beside the read-ahead. Each importer takes only the part it uses. |
+| 15 | The loader's handle | Its opener was a block, but typed as `AudioFileHandle`. `NetworkReadAhead.m` imported `AudioFileHandle+Debug.h` for its test hooks. | Done in #353. The handle is `ServedFileHandle`, which holds a stream. Interrupting stays the opener's `interrupted` block. Each `openURL:` passes its opener, so the loader never names the handle's class. The hooks are declared in `NetworkReadAhead+Debug.h`, and `AudioFileHandle (Debug)` forwards to them. |
 | 16 | TagLib and artwork | The TagLib wrapper returns an artwork extractor and reads remote ranges through the materializer. | Tags returns art bytes and takes a byte-range reader. |
 | 17 | The waveform decode's analyzers | The loader builds the tempo and key analyzers itself. | The app attaches them as observers. The archive and its coverage rules do not change. |
 | 18 | CUE and M3U | The readers return `AudioTrack` rows. | They return records, and Vibe makes rows from them. |

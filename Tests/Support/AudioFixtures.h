@@ -10,6 +10,7 @@
 //  VibeFitTone and VibeDB beside it, which both quality measurements share. VibeRangedPCMFormat is a device's offered
 //  format, for the bit-perfect format rules. VibeToneBuffer is the one test tone, and VibeImageOfColor the one
 //  solid-color image. VibeFuzzRandom and VibeFuzzBaseSeed are the fuzz classes' generator and seed.
+//  VibeTestFileOpener is the player's open, for the coordinator's stage 2.
 //
 
 #import <AVFoundation/AVFoundation.h>
@@ -17,7 +18,15 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #import "AudioFileHandle.h"
+#import "AudioFileMaterializationCoordinator.h"
 #import "AudioResampler.h"
+
+// The player's open (VibePlayerFileOpener), for a coordinator test that opens
+// real files.
+static VibeAudioFileOpener const VibeTestFileOpener =
+        ^AudioFileHandle *(NSURL *url, BOOL (^interrupted)(void), NSError **error) {
+    return [[AudioFileHandle alloc] initForReading:url interleaved:NO interrupted:interrupted error:error];
+};
 
 // A format a device offers at exactly `rate`: stereo PCM of `bits`, integer
 // or float.

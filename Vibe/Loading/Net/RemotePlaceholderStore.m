@@ -11,7 +11,7 @@
 #include <sys/xattr.h>
 #include <unistd.h>
 
-#import "AudioFileOpenRules.h"
+#import "TailWindowMath.h"
 #import "CloudFileMaterializer.h"
 #import "HTTPTransferClientInternal.h"
 #import "FilePaths.h"

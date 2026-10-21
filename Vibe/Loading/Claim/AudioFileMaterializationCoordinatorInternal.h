@@ -28,11 +28,6 @@ typedef NSTimeInterval (^VibeAudioFileMaterializationClock)(void);
 // transfer admission. A refresh's NO releases its reserved lane and settles
 // Ready without running the materialization operation.
 typedef BOOL (^VibeAudioFileMaterializationDatalessProbe)(NSURL *url);
-// Stage 2's one AudioFileHandle call. interrupted answers YES once the run is
-// cancelled, and the open's waits for a streaming file's bytes end on it.
-typedef AudioFileHandle * _Nullable (^VibeAudioFileOpener)(
-        NSURL *url, BOOL (^interrupted)(void),
-        NSError * _Nullable __autoreleasing * _Nullable error);
 
 typedef struct {
     NSUInteger claimCount;
@@ -48,8 +43,8 @@ typedef struct {
     NSUInteger readableClaimCount;
     // Cumulative, and zero outside debug builds: the gauges above cannot tell
     // idle from busy, which is what a silent stall looks like.
-    // handleOpensStarted - handleOpensCompleted is the outstanding
-    // AudioFileHandle calls, zero at rest.
+    // handleOpensStarted - handleOpensCompleted is the outstanding opener
+    // calls, zero at rest.
     uint64_t handleOpensStarted;
     uint64_t handleOpensCompleted;
     uint64_t requestsReady;
@@ -74,14 +69,16 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationClaimState) {
 @class AudioWorkToken;
 @class CloudFileAvailability;
 
-// Stage 2: one purpose's AudioFileHandle open for one standardized path,
-// riding the path's stage-1 claim.
+// Stage 2: one purpose's handle open for one standardized path, riding the
+// path's stage-1 claim.
 @interface VibeAudioHandleRun : NSObject
 @property (nonatomic, copy) NSString *key;         // "purpose:path"
 @property (nonatomic, copy) NSString *path;
 @property (nonatomic, strong) NSURL *url;
 @property (nonatomic) VibeAudioFileOpenPurpose purpose;
 @property (nonatomic, strong, nullable) AudioFileOpenToken *waiter;
+// The latest request's, set with its waiter.
+@property (nonatomic, copy) VibeAudioFileOpener opener;
 @property (nonatomic, strong, nullable) AudioFileMaterializationRequestToken *materializationToken;
 @property (nonatomic) uint64_t runGeneration;
 @property (nonatomic) BOOL runWasCancelled;
@@ -142,7 +139,7 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationClaimState) {
     dispatch_source_t _pendingTimer;
     NSMutableDictionary<NSString *, VibeAudioFileMaterializationClaim *> *_claims;
     // Stage 2, keyed "purpose:path". Membership is the ceiling's count: a run
-    // stays until its AudioFileHandle call returns.
+    // stays until its opener returns.
     NSMutableDictionary<NSString *, VibeAudioHandleRun *> *_handleRuns;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_interactivePending;
     NSMutableArray<VibeAudioFileMaterializationClaim *> *_backgroundPending;
@@ -154,7 +151,6 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationClaimState) {
     VibeAudioFileMaterializationOperationFactory _operationFactory;
     VibeAudioFileMaterializationDatalessProbe _datalessProbe;
     VibeAudioFileMaterializationClock _clock;
-    VibeAudioFileOpener _fileOpener;
     // Debug builds only (AudioFileMaterializationCoordinator+Debug.m). Atomic
     // for the health probe's lock-free read; written on the state queue.
     _Atomic uint64_t _handleOpensStarted;
@@ -175,18 +171,6 @@ typedef NS_ENUM(NSUInteger, VibeMaterializationClaimState) {
                       operationFactory:(VibeAudioFileMaterializationOperationFactory)operationFactory
                           datalessProbe:(VibeAudioFileMaterializationDatalessProbe)datalessProbe
                                   clock:(VibeAudioFileMaterializationClock)clock;
-
-- (instancetype)initWithConfiguration:(AudioLoadingConfiguration *)configuration
-                      operationFactory:(VibeAudioFileMaterializationOperationFactory)operationFactory
-                          datalessProbe:(VibeAudioFileMaterializationDatalessProbe)datalessProbe
-                                  clock:(VibeAudioFileMaterializationClock)clock
-                            fileOpener:(VibeAudioFileOpener)fileOpener;
-
-// Production stage 1 with an injected stage-2 opener.
-- (instancetype)initWithFileOpener:(VibeAudioFileOpener)fileOpener;
-
-// Swappable on a live coordinator; the debug channel reads it back to wrap it.
-@property (nonatomic, copy) VibeAudioFileOpener fileOpener;
 
 // Dataless probes outstanding, queued or running, including one whose last
 // waiter detached. Lock-free, for quiescence.

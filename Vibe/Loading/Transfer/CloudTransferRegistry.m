@@ -6,7 +6,7 @@
 #import "CloudTransferRegistry.h"
 #import "CloudTransferRegistryInternal.h"
 
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "DownloadProgressMonitor.h"
 
 @interface VibeCloudTransferEntry : NSObject

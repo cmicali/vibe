@@ -19,7 +19,7 @@
 
 #import "AudioFileHandle.h"
 #import "AudioFileMaterializationCoordinator.h"
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "AudioFixtures.h"
 #import "CloudFileMaterializer.h"
 #import "CloudTransferRegistry.h"
