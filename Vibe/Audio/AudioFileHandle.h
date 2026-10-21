@@ -70,6 +70,8 @@
 #import <AVFAudio/AVFAudio.h>
 #import <AudioToolbox/AudioToolbox.h>
 
+#import "ServedFileHandle.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 // An `interrupted` that answers YES: an open that must never wait for a
@@ -77,7 +79,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Compared by identity.
 FOUNDATION_EXPORT BOOL (^const VibeNeverWaitsForAStream)(void);
 
-@interface AudioFileHandle : NSObject
+@interface AudioFileHandle : NSObject <ServedFileHandle>
 
 // Opens CoreAudio's parser alone, with no decoder: the one open every reader
 // of CoreAudio's verdict on a file shares. The reading inits open it for

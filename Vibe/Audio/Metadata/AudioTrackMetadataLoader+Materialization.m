@@ -10,7 +10,7 @@
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "MetadataScanEntry.h"
 #import "MetadataScanOrderRules.h"
 #import "MetadataRetryRules.h"

@@ -17,7 +17,7 @@
 #import "AudioFileHandle.h"
 #import "AudioFileHandle+Debug.h"
 #import "AudioFileMaterializationCoordinatorInternal.h"
-#import "AudioFileOpenRules.h"
+#import "TailWindowMath.h"
 #import "AudioFixtures.h"
 #import "AudioTrack.h"
 #import "CloudFileMaterializer.h"

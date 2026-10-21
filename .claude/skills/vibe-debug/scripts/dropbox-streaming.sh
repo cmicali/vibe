@@ -188,7 +188,7 @@ record() {   # <jq object of measured numbers>
     echo "    $1"
 }
 
-# The tail window a file takes (AudioFileOpenRules.h's VibeAudioFileTailWindowBytes).
+# The tail window a file takes (TailWindowMath.h's VibeAudioFileTailWindowBytes).
 window_of() {   # <fixture file>
     python3 - "$FIX/source/$1" <<'PY'
 import os, sys

@@ -4,7 +4,7 @@
 //
 
 #import "AudioWaveformCacheInternal.h"
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "AudioWaveform.h"
 #import "PINCache.h"
 #import "PINCache+VibeAudioCache.h"

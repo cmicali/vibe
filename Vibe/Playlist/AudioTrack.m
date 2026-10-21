@@ -4,7 +4,7 @@
 //
 
 #import "AudioTrackInternal.h"
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "AudioTrackMetadata.h"
 #import "CueWindowMath.h"
 #import "Formatters.h"

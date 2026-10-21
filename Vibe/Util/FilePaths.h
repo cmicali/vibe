@@ -16,4 +16,9 @@ FOUNDATION_EXPORT NSString *_Nullable VibeComparablePath(NSString *_Nullable pat
 // alone.
 FOUNDATION_EXPORT NSString *VibeAliasFreePath(NSString *path);
 
+// One spelling of a file's URL, for every loader identity: the claim, the
+// transfer, the parse, and the source key. A file URL is spelled as
+// VibeComparablePath spells its path, and any other URL by its absoluteString.
+FOUNDATION_EXPORT NSString *VibeStandardizedAudioOpenPath(NSURL *url);
+
 NS_ASSUME_NONNULL_END
