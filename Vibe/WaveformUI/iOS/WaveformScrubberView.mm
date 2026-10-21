@@ -5,10 +5,8 @@
 
 #import "WaveformScrubberViewInternal.h"
 #import "WaveformRendererRegistry.h"
-#import "WaveformTheme+Settings.h"
 #import "WaveformZoomMath.h"
 #import "UIView+DarkMode.h"
-#import "AppSettings.h"
 #import "WaveformAccessibility.h"
 
 // Names the element the XCUITest driver pinches (XCUITest has no
@@ -31,6 +29,7 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     self.clipsToBounds = YES;
     self.accessibilityIdentifier = kWaveformScrubberIdentifier;
     _visibleFraction = kVibeWaveformDefaultZoomFraction;
+    _centered = YES;
 
     _scroll = [[UIScrollView alloc] initWithFrame:self.bounds];
     _scroll.delegate = self;
@@ -209,8 +208,8 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     if (_renderer) {
         return;
     }
-    NSString *style = [WaveformRendererRegistry
-            resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]];
+    // The pushed style, or the registry's default for a view never synced.
+    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:_styleIdentifier];
     _styleIdentifier = style;
     _rendererHost.contentsScale = [self displayScale];
     // The renderer reads parentLayer.bounds, so the host must be at virtual
@@ -236,33 +235,34 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
     _renderWindow = CGRectNull;
 }
 
-// The one resolution site on this view.
+// The one resolution site on this view: the provider's answer for the
+// appearance and artworkThemeColor into the renderer's palette.
 - (void)applyResolvedTheme {
     if (!_renderer) {
         return;
     }
-    AppSettings *settings = AppSettings.sharedInstance;
     BOOL isDark = self.isDark;
-    WaveformTheme *theme = [WaveformTheme themeForSettings:settings widget:NO isDark:isDark
-                                              artworkColor:_artworkThemeColor];
+    WaveformTheme *theme = [self themeForDark:isDark];
     // No well for it here: the appearance's contrast pole at 68% opacity.
-    if ([self drawsPlayheadLine]) {
+    if (_drawsPlayheadLine) {
         theme.playheadColor = [isDark ? UIColor.whiteColor : UIColor.blackColor colorWithAlphaComponent:0.68];
     }
     _renderer.theme = theme;
     [_renderer updateColors:isDark];
-    // Geometry, not color, but it changes as these settings do, so the
-    // signature carries it.
-    _renderer.centered = [settings waveformCenteredForWidget:NO];
+    // Geometry, not color, but pushed with the theme, so the signature
+    // carries it.
+    _renderer.centered = _centered;
     [self layoutPlayheadLine];
     // A playhead line plays the whole waveform.
     [self applyPlayedClip];
     _themeSignature = [self themeSignature];
 }
 
-- (BOOL)drawsPlayheadLine {
-    return [WaveformRendererRegistry drawsPlayheadLineForIdentifier:_styleIdentifier
-                                                             chosen:[AppSettings.sharedInstance waveformPlayheadLineForWidget:NO]];
+// The provider's answer, or Mono for a view with none.
+- (WaveformTheme *)themeForDark:(BOOL)isDark {
+    return _themeProvider ? _themeProvider(isDark, _artworkThemeColor)
+            : [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_MONO isDark:isDark
+                                   artworkColor:nil customPlayed:nil customUnplayed:nil];
 }
 
 // The resolved palette in both appearances. This page's artwork color counts
@@ -270,10 +270,8 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 // different art recolors, and under any other theme late art changes
 // nothing. The playhead line and Centered ride along.
 - (NSString *)themeSignature {
-    AppSettings *settings = AppSettings.sharedInstance;
-    return [NSString stringWithFormat:@"%d|%d|%@|%@", [self drawsPlayheadLine], [settings waveformCenteredForWidget:NO],
-            [WaveformTheme themeForSettings:settings widget:NO isDark:YES artworkColor:_artworkThemeColor].paletteSignature,
-            [WaveformTheme themeForSettings:settings widget:NO isDark:NO artworkColor:_artworkThemeColor].paletteSignature];
+    return [NSString stringWithFormat:@"%d|%d|%@|%@", _drawsPlayheadLine, _centered,
+            [self themeForDark:YES].paletteSignature, [self themeForDark:NO].paletteSignature];
 }
 
 // The signature compare makes a repeated set free, and the pager reconfigures
@@ -299,10 +297,11 @@ static NSString *const kWaveformScrubberIdentifier = @"waveform-scrubber";
 // floor far deeper, so a swap at deep zoom left a host 2,048 pt wide under
 // 320,000 pt of content, and the played side ended far from the playhead.
 // The layout draws the new renderer, since discarding cleared its window.
-- (void)syncWaveformStyle {
-    NSString *style = [WaveformRendererRegistry
-            resolveStyleIdentifier:[[AppSettings sharedInstance] waveformStyle]];
-    if (!_renderer || [style isEqualToString:_styleIdentifier]) {
+- (void)syncWaveformStyle:(NSString *)identifier {
+    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:identifier];
+    BOOL changed = ![style isEqualToString:_styleIdentifier];
+    _styleIdentifier = style;
+    if (!_renderer || !changed) {
         return;
     }
     [self discardRenderer];

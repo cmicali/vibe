@@ -12,7 +12,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "Formatters.h"
-#import "Fonts.h"
+#import "Fonts+Theme.h"
 #import "MusicalKey.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"

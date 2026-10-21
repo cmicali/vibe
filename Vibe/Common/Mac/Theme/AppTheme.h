@@ -99,7 +99,7 @@ typedef NS_ENUM(NSInteger, VibeFontSlot) {
     VibeFontSlotPlaylist,
     VibeFontSlotPlaylistDuration,
 };
-// Array bound for per-slot storage indexed by VibeFontSlot (entry 0 unused).
+// One past the last slot: the bound of the push into Fonts.
 #define kVibeFontSlotCount 6
 
 // Keys beside the field overrides. The id never leaves the store: export

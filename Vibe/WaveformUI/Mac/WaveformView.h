@@ -4,6 +4,7 @@
 //
 
 #import <AppKit/AppKit.h>
+#import "WaveformTheme.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -26,18 +27,32 @@ NS_ASSUME_NONNULL_BEGIN
 // against the current track first, and follows with refreshThemeColors.
 @property (nullable, strong) NSColor *artworkThemeColor;
 
+// Resolves the theme on every resolution: the style change, the appearance
+// flip, refreshThemeColors. Installed once by the shell.
+@property (nonatomic, copy, nullable) WaveformThemeProvider themeProvider;
+
 // Re-resolves the theme and repaints.
 - (void)refreshThemeColors;
 
-// Re-reads waveformNormalize and waveformGainDB and eases the bars to their
-// new heights.
-- (void)refreshWaveformLevels;
+// The renderer's geometry and level mapping, pushed by the shell
+// (MainPlayerController.applyWaveformSettings) and never read from a store.
+// Each lands on the next setWaveformStyle:, which draws: the bars ease to
+// the new heights.
+@property (nonatomic) CGFloat barDensity;
+@property (nonatomic) CGFloat barWidthScale;
+@property (nonatomic) BOOL centered;
+@property (nonatomic) BOOL normalizesLevels;
+@property (nonatomic) float gainDB;
 
-// A WaveformRendererRegistry key, never a display name.
+// A drag from the seek band scrubs and seeks on release. Otherwise it
+// moves the window. Read once per mouse-down.
+@property (nonatomic) BOOL dragSeeks;
+
+// A WaveformRendererRegistry key, never a display name. Also the one draw
+// for the pushed properties above, so the shell sets it last.
 - (void)setWaveformStyle:(NSString *)identifier;
 
-// Clears the previous track's waveform ahead of a new load, and installs the
-// persisted renderer style on first use.
+// Clears the previous track's waveform ahead of a new load.
 - (void)prepareForWaveformLoad;
 
 // A progressive or final snapshot, retained: the wrapper owns the C++ buffer

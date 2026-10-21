@@ -19,7 +19,7 @@
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
 #import "WaveformView.h"
-#import "Fonts.h"
+#import "Fonts+Theme.h"
 #import "MainMenuBuilder.h"
 #import "MenuShortcutRules.h"
 #import "PlaylistTableView.h"
@@ -32,6 +32,21 @@
 
 - (void)applyStoredFonts {
     [Fonts applyThemeFonts:AppSettings.sharedInstance.currentTheme];
+}
+
+// The style last: its set is the one draw. The theme's style, never the
+// loose waveformStyle key, which theme migration consumed on macOS.
+- (void)applyWaveformSettings {
+    AppSettings *settings = AppSettings.sharedInstance;
+    AppTheme *theme = settings.currentTheme;
+    WaveformView *view = self.waveformView;
+    view.barDensity = theme.waveformBarDensity;
+    view.barWidthScale = theme.waveformBarWidth;
+    view.centered = theme.waveformCentered;
+    view.normalizesLevels = settings.waveformNormalize;
+    view.gainDB = (float)settings.waveformGainDB;
+    view.dragSeeks = [settings.waveformDragBehavior isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK];
+    view.waveformStyle = theme.waveformStyle;
 }
 
 - (VibeShortcutAssignment)assignShortcut:(VibeShortcut)shortcut toCommand:(NSString *)identifier
@@ -156,8 +171,9 @@
         [self.playlistTableView applyColumnVisibility];
         [self.playlistController reloadAllTracks];
     }
-    if (effects & VibeSettingsLiveEffectWaveformStyle) {
-        self.waveformView.waveformStyle = settings.currentTheme.waveformStyle;
+    if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformLevels
+                   | VibeSettingsLiveEffectWaveformDrag)) {
+        [self applyWaveformSettings];
     }
     if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectTrackAnalysis)) {
         // The track on screen was likely decoded without what is now asked
@@ -171,9 +187,6 @@
     }
     if (effects & VibeSettingsLiveEffectWaveformTheme) {
         [self refreshWaveformTheme];
-    }
-    if (effects & VibeSettingsLiveEffectWaveformLevels) {
-        [self.waveformView refreshWaveformLevels];
     }
     if (effects & VibeSettingsLiveEffectWindowTint) {
         [self refreshWindowTint];
