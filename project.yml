@@ -162,8 +162,9 @@ targets:
   Vibe:
     type: application
     platform: macOS
-    # vibe-libs' pieces, compiled in as this target's own sources.
-    templates: [VibeLibsDSP, VibeLibsGraphics]
+    # vibe-libs' pieces, compiled in as this target's own sources. Controls is
+    # macOS only, so VibeiOS never lists it.
+    templates: [VibeLibsDSP, VibeLibsGraphics, VibeLibsControls]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -903,7 +904,7 @@ targets:
       - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/NowPlaying/NowPlayingController.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
-      - path: Vibe/Mac/Controls/CrossfadingImageView.m
+      - path: vibe-libs/ui/Controls/Mac/CrossfadingImageView.m
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
       - path: Vibe/Mac/App/OpenRequestCoordinator.m
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
@@ -922,11 +923,11 @@ targets:
       - path: Vibe/Controls/EqualizerIndicatorView.m
       - path: Vibe/Controls/LoadingIndicatorView.m
       - path: Vibe/Controls/LoadingIndicator.m
-      - path: Vibe/Mac/Controls/ScaledImageView.m
+      - path: vibe-libs/ui/Controls/Mac/ScaledImageView.m
       - path: Vibe/Mac/Controls/ArtworkImageView.m          # the drawn views render into a bitmap, windowless
-      - path: Vibe/Mac/Controls/DrawnControls.m
+      - path: vibe-libs/ui/Controls/Mac/DrawnControls.m
       - path: Vibe/Mac/Controls/PitchFaderView.m
-      - path: Vibe/Mac/Controls/SymbolButton.m
+      - path: vibe-libs/ui/Controls/Mac/SymbolButton.m
       - path: Vibe/Mac/MainWindow/VolumeControlView.m
       - path: Vibe/WaveformUI/Mac/WaveformView.mm
       - path: Vibe/WaveformUI/Mac/WaveformView+Loading.mm
@@ -937,7 +938,6 @@ targets:
       - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Playlist/Mac/PlaylistFile+Session.m
       - path: Vibe/Util/UIUpdateTimer.m
-      - path: Vibe/Mac/About/VibeLinkLabel.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
       # The iOS shell's Foundation-only model: the session and its stores.

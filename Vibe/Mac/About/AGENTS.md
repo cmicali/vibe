@@ -1,6 +1,6 @@
 # About window (macOS)
 
-This directory holds the About window (`AboutWindowController`). It also holds the two views drawn in it, `VectorBallsView` and `VibeLinkLabel`.
+This directory holds the About window (`AboutWindowController`). It also holds `VectorBallsView`, which is drawn in it. The window's links are `VibeLinkLabel`s, from vibe-libs' `ui/Controls`.
 
 Vibe > About Vibe is a fixed 460×340 window with no nib, built in `init`. **`AppDelegate` is the only implementer of `showAboutWindow:`.** The app menu's item targets it directly. Settings > About's app-icon button is nil-targeted and reaches the same method up the responder chain. `AppDelegate` owns the single instance and keeps it alive across closes. `applyAuxiliaryWindowLevels` runs before each open, so a floating player cannot bury the window (`Mac/App/AGENTS.md`).
 
@@ -12,8 +12,6 @@ Vibe > About Vibe is a fixed 460×340 window with no nib, built in `init`. **`Ap
 
 ## VibeLinkLabel
 
-An `NSTextField` with **one clickable range**, hit-tested against the link's own glyphs. A selectable `NSTextField` would give links for free, but these labels span the window's full width while their text is short and centered. Selectability would turn a full-width strip into an I-beam that also swallows the window's background drag. Hit-testing the glyphs means only those characters take the click, the pointing-hand cursor and the focus ring.
-
-With no link set it is an ordinary label: not focusable, not an accessibility link, transparent to hits. `VibeLinkLabelTests` pins both halves. It is a link named by its visible line, focusable *only* while it carries one, and activated by Return and Space alone. The name's glyphs take the click, and the rest of the line does not.
+The window's link lines are `VibeLinkLabel`s. vibe-libs' `ui/Controls/AGENTS.md` describes the label, and its tests live there. These labels span the window's full width while their text is short and centered. So only the link's glyphs take the click, and the window's background drag still works around them.
 
 **TRAP: this window is reused (`releasedWhenClosed = NO`), so first responder survives a close.** A focused link would come back with its ring drawn on a window the user just opened. `windowWillClose:` clears it with `makeFirstResponder:nil`, beside the Metal teardown.
