@@ -20,7 +20,7 @@ static const time_t kStamp = 1577934245;
 static const uint64_t kReadableBytes = 256 * 1024;
 // Where a streaming download is held: past readable, short of the end.
 static const NSUInteger kStallBytes = 5 * 64 * 1024;
-// A small format's window (AudioFileOpenRules.h).
+// A small format's window (TailWindowMath.h).
 static const uint64_t kWindowBytes = 128 * 1024;
 
 // What PlaceholderFiles reads as a placeholder under a registered root.

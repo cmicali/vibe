@@ -4,7 +4,7 @@
 //
 
 #import "AudioFileHandleInternal.h"
-#import "AudioFileOpenRules.h"
+#import "NetworkReadAheadMath.h"
 #import "CloudFileMaterializer.h"
 #import "NetworkReadAhead.h"
 #if DEBUG

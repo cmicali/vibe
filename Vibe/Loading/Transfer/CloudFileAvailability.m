@@ -4,7 +4,7 @@
 //
 
 #import "CloudFileAvailability.h"
-#import "AudioFileOpenRules.h"
+#import "NetworkReadAheadMath.h"
 
 #include <errno.h>
 #include <fcntl.h>

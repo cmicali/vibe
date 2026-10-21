@@ -1,6 +1,6 @@
 # Future: vibe-libs, the shared toolbox
 
-**Status: planned 2026-10-17, revised 2026-10-18 after two reviews, and revised 2026-10-20 after a third: the shell pieces join on a second track, as cuts 24 to 29, and the one prefix is `Vibe`. Merged on 2026-10-20: the pilot (#314 moved the realtime-effects brackets, #315 took the varispeed from the submodule), the log macros (#319), and cuts 1, 3, and 4 (#316 to #318). Cuts 6 to 11 and 24 to 29 merged on 2026-10-20.**
+**Status: planned 2026-10-17, revised 2026-10-18 after two reviews, and revised 2026-10-20 after a third: the shell pieces join on a second track, as cuts 24 to 29, and the one prefix is `Vibe`. Merged on 2026-10-20: the pilot (#314 moved the realtime-effects brackets, #315 took the varispeed from the submodule), the log macros (#319), and cuts 1, 3, and 4 (#316 to #318). Cuts 6 to 11 and 24 to 29 merged on 2026-10-20. On 2026-10-21, #350 moved `core/Graphics` and #351 landed seam 13.**
 
 Everything in Vibe that another app could use moves to [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries for macOS and iOS apps. Vibe and another app each take only the pieces they want. **vibe-libs' [docs/plan.md](https://github.com/cmicali/vibe-libs/blob/main/docs/plan.md) is the authority** for the pieces, their dependency map, the build shape, the order of the moves, the performance proof, and what the other app needs when. This doc covers only what changes in Vibe.
 
@@ -20,7 +20,7 @@ Only five files in the moving code read `AppSettings`: one in folder art and fou
 1. **The prefix header.** `Vibe-Prefix.pch` gave every file the `Log*`, `VIBE_REALTIME_*` and signpost macros. The brackets moved in #314 and the log macros in #319. The signposts and the work tally are still there.
 2. **Strings.** `AudioErrorRules.h` maps error codes to `STR_ERROR_*`. `AudioTrack` has two labels. Every renderer returns a localized style name. Metadata, Loading and Util have one site each.
 3. **Debug imports in production code.** Seven are unguarded, for `AudioLoadTiming.h` and the work tally, and eight sit under `#if DEBUG`.
-4. **`Audio/` and `Loading/` import each other.** One shared header of open rules, the loader's typed handle, and the read-ahead's test hooks make the cycle. Seams 14 and 15 below untangle it.
+4. **`Audio/` and `Loading/` imported each other.** One shared header of open rules, the loader's typed handle, and the read-ahead's test hooks made the cycle. Seams 14 and 15 below untangled it.
 5. **One shell reach.** `FolderArtResolver` imports the mac's `FolderAccessManager`.
 6. **Platform halves** are categories on `AudioPlayer` that the core calls under `TARGET_OS_OSX`. They cannot be a separate module.
 
@@ -28,10 +28,10 @@ Only five files in the moving code read `AppSettings`: one in folder art and fou
 
 | Group | Pieces | Mostly from |
 | --- | --- | --- |
-| `core/` | Common, Graphics | `Util/`, `NSURL+Hash`, `Common/Platform*`, the prefix header's macros, `Common/Mac/Theme/Fonts` |
+| `core/` | Common, Graphics | `Util/`, `NSURL+Hash`, and the prefix header's macros. `Common/Platform*` and `Common/Mac/Theme/Fonts` moved in #350. |
 | `files/` | FileLoading, RemoteFiles, HTTP, ShareLinks, SandboxAccess, DiskCache | `Loading/`, `Mac/App/FolderAccessManager`, the cache helper |
 | `audio/` | AudioTypes, DSP, Analysis, Decode, Meter, FX, OutputDevices, Player | `Audio/`, `Common/PlayableExtensions` |
-| `media/` | Tags, Metadata, Playlists, FolderScan, PlayQueue | `Audio/Metadata/`, the shared half of `Playlist/`, `iOS/Search/FileSearchIndex` |
+| `media/` | Tags, Metadata, Playlists, FolderScan, PlayQueue | `Audio/Metadata/`, `iOS/Search/FileSearchIndex`, and the shared half of `Playlist/` except `AudioTrack`, which stays |
 | `waveform/` | Waveform, WaveformStyles, WaveformLoading, WaveformView | `Packages/WaveformCore`, `Audio/Waveform/`, `WaveformUI/` |
 | `ui/` | Controls, SettingsWindow, Shortcuts | `Controls/`, `Mac/Controls/`, `Mac/About/VibeLinkLabel`, the window, sidebar, pane base and form views of `Mac/Settings/`, the shortcut encoding of `Mac/Menu/ShortcutRules.h` and the Shortcuts pane |
 | `system/` | NowPlaying, AppOpening, Updates | `NowPlaying/`, `Mac/App/OpenBurstCoalescer`, `OpenRequestCoordinator`, the Sparkle wiring |
@@ -41,7 +41,7 @@ Only five files in the moving code read `AppSettings`: one in folder art and fou
 
 **What stays in Vibe:** both shells, the playlist row (`AudioTrack`), the playlist table, the settings store and every pane's content, strings, themes and the Themes pane, the main menu and its command table, the About window, the link store, Dropbox, Convert to FLAC, the debug verbs and their command tables, and the widget.
 
-**Moves with its users, no source change:** `Util/StallWatch`, `NSString+CPPStrings`, `VibeWeakProxy`, `NSView+DarkMode`, `UIView+DarkMode`, `HelperMacros.h`, the platform aliases, `PlayableExtensions`, the debug seams, simulators and `AudioLoadTiming`. Convert is wholly `Vibe/Mac/Convert/` and stays. `AudioFileHandle`'s writing half stays in the engine. `VibeWidget/` is untouched.
+**Moves with its users, no source change:** `NSString+CPPStrings`, `VibeWeakProxy`, `PlayableExtensions`, the debug seams, simulators, and `AudioLoadTiming`. `Util/StallWatch` needs one import to move. It logs, and no prefix header gives it the log macros in vibe-libs. `HelperMacros.h` moves with `core/Common`. Until then, a file that uses its `clampRange` cannot move unchanged. #350 spelled it as `MIN(MAX())` in the two Graphics files that used it. The dark-mode helpers and the platform aliases moved with Graphics in #350. `NSView+DarkMode.h` first gained an AppKit import, because no prefix header supplies AppKit in vibe-libs. Convert is wholly `Vibe/Mac/Convert/` and stays. `AudioFileHandle`'s writing half stays in the engine. `VibeWidget/` is untouched.
 
 **After the moves, `project.yml`** drops the `Vibe/Audio`, `Vibe/WaveformUI` and `Vibe/Controls` entries, the four vendored flag anchors and their 22 entries, and the eleven TagLib header search paths. `Vibe/Loading` keeps only `iOS/Dropbox` and the link store. `Vibe/ThirdParty` goes. `Vibe/Mac/Settings` keeps the panes and the window subclass. `Vibe/Mac/Controls` keeps the artwork view and the pitch controls.
 
@@ -79,9 +79,9 @@ The contracts are written in vibe-libs' plan. This is Vibe's side of each.
 
 | # | Seam | Today | Vibe's change |
 | --- | --- | --- | --- |
-| 13 | The playable-item protocol | Nine shared areas import the playlist row. | `AudioTrack` adopts the protocol and moves to `Vibe/Playlist/`. The CUE window math goes to AudioTypes. |
-| 14 | `AudioFileOpenRules.h` splits | It holds the open's delivery states, path spelling and the mount read-ahead rules. Four areas import it. | Each part goes to the piece that owns it. |
-| 15 | The loader's handle | Its opener is a block, but typed as `AudioFileHandle`. `NetworkReadAhead.m` imports `AudioFileHandle+Debug.h` for its test hooks. | The handle becomes a small protocol. The hooks move to a debug header of the loader's own, and `AudioFileHandle (Debug)` forwards to them. |
+| 13 | The playable-item protocol | Nine shared areas import the playlist row. | `AudioTrack` adopts the protocol and moves to `Vibe/Playlist/`. The CUE window math goes to AudioTypes. (#351) |
+| 14 | `AudioFileOpenRules.h` splits | It held the open's delivery states, path spelling and the mount read-ahead rules. Four areas imported it. | Done in #353. The delivery states sit beside the open token, the path spelling in `Util/FilePaths`, the tail window beside the placeholder store, and the mount rule and the span beside the read-ahead. Each importer takes only the part it uses. |
+| 15 | The loader's handle | Its opener was a block, but typed as `AudioFileHandle`. `NetworkReadAhead.m` imported `AudioFileHandle+Debug.h` for its test hooks. | Done in #353. The handle is `ServedFileHandle`, which holds a stream. Interrupting stays the opener's `interrupted` block. Each `openURL:` passes its opener, so the loader never names the handle's class. The hooks are declared in `NetworkReadAhead+Debug.h`, and `AudioFileHandle (Debug)` forwards to them. |
 | 16 | TagLib and artwork | The TagLib wrapper returns an artwork extractor and reads remote ranges through the materializer. | Tags returns art bytes and takes a byte-range reader. |
 | 17 | The waveform decode's analyzers | The loader builds the tempo and key analyzers itself. | The app attaches them as observers. The archive and its coverage rules do not change. |
 | 18 | CUE and M3U | The readers return `AudioTrack` rows. | They return records, and Vibe makes rows from them. |
@@ -95,12 +95,11 @@ Vibe's folder open becomes a caller of the catalog scan's walk, after FolderScan
 
 ## What changes in this repo's tooling
 
-Done in #315: the submodule script, `submodules: recursive` on every CI checkout, `check-layout` assertion 7, and the submodule in `perf.py` and `scripts/bench/build-version.sh` worktrees. `perf.py`'s `tool_spec` copies `templates` and `templateAttributes`.
+Done in #315: the submodule script, `submodules: recursive` on every CI checkout, `check-layout` assertion 7, and the submodule in `perf.py` and `scripts/bench/build-version.sh` worktrees. `perf.py`'s `tool_spec` copies `templates` and `templateAttributes`. Done in #350: `check-layout` assertion 4 counts a vibe-libs piece's `Mac/` and `iOS/` halves as that platform's tree. Done in #352, before the vendored libraries move: `scripts/build/analyze.sh` also drops findings under `/third_party/`.
 
 Still to do, each with the move that needs it:
 
 - `scripts/checks/check-layout.sh` substitutes `${excludedPlatform}` for assertions 1 and 2, and checks that no vibe-libs file imports a header whose only home is under `Vibe/` or `Tests/`.
-- `scripts/build/analyze.sh` also drops findings under `/third_party/`, before the vendored libraries move.
 - `VibeTests` and `VibeAudioTests` keep their hand lists until each piece's tests move. The production paths change prefix, and the vendored entries become template references.
 
 ## TRAPs
@@ -108,7 +107,7 @@ Still to do, each with the move that needs it:
 - **A template's settings replace a value the target takes from a settings group.** They join only the target's own `base`. So Vibe's app targets set their header search paths in `base`.
 - **A checkout without the submodule compiles nothing from vibe-libs and fails late.** `make project`, `perf.py` and CI all initialize it. `check-layout` fails fast when it is missing.
 - **YAML anchors do not cross `include:` files.** Every `*dr-libs-flags` reference becomes a template reference.
-- **`scripts/build/analyze.sh` drops findings by the substring `/ThirdParty/`.** vibe-libs' vendored code sits under `third_party/`.
+- **`scripts/build/analyze.sh` drops findings by two path substrings, `/ThirdParty/` and `/third_party/`.** The second is where vibe-libs' vendored code sits. A vendored library anywhere else fails the gate.
 
 ## Budget
 

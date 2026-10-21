@@ -18,7 +18,7 @@
 #import "AudioDevice.h"
 #import "AudioErrorRules.h"
 #import "StringRules.h"
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "AudioDeviceManager.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
