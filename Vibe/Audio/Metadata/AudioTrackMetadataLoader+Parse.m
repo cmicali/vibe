@@ -76,6 +76,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     if (!cachedMetaData) {
         return nil;
     }
+    [cachedMetaData setCacheKey:cacheKey];
     VibeInstallArchivedDisplayArtProvider(cachedMetaData, metadataCache, cacheKey);
     return cachedMetaData;
 }
@@ -94,6 +95,18 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         op.queuePriority = NSOperationQueuePriorityHigh;
         [_queue addOperation:op];
     }
+}
+
+// A successful answer read from the version the item's key names now. A
+// download that installed another version moves the key, so the row is
+// parsed again.
+- (BOOL)holdsCurrentMetadata:(id<AudioTrackMetadataHolder>)track {
+    AudioTrackMetadata *metadata = track.metadata;
+    if (!metadata.parsedOK) {
+        return NO;
+    }
+    NSString *cacheKey = track.cacheKey;
+    return metadata.cacheKey == cacheKey || [metadata.cacheKey isEqualToString:cacheKey];
 }
 
 - (BOOL)loadTrackFromDiskCache:(id<AudioTrackMetadataHolder>)track {
@@ -118,10 +131,13 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     NSOperation *parse = [NSBlockOperation blockOperationWithBlock:^{
         __typeof(self) strongSelf = weakSelf;
         if (strongSelf) {
-            if (!strongSelf.isCancelled) {
-                [strongSelf parseOneEntry:entry];
-            }
+            BOOL readAnotherVersion = !strongSelf.isCancelled && [strongSelf parseOneEntry:entry];
             [strongSelf finishParseOperation:weakParse forEntry:entry];
+            if (readAnotherVersion) {
+                [strongSelf scheduleParseForEntry:entry
+                                    userInitiated:weakParse.qualityOfService
+                                                  == NSQualityOfServiceUserInitiated];
+            }
         }
     }];
     weakParse = parse;
@@ -160,18 +176,20 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 }
 
 // Stage 2: the TagLib parse, entered only after materialization was Ready.
-- (void)parseOneEntry:(MetadataScanEntry *)entry {
+// Answers YES when the parse read another version than its key named. The
+// record, with the claim's waiters, then parses again.
+- (BOOL)parseOneEntry:(MetadataScanEntry *)entry {
     if (self.isCancelled) {
-        return;
+        return NO;
     }
     // A mark adopted since Ready leads too.
     os_unfair_lock_lock(&_materializationLock);
     [self leadEntryWithItsMarkedRowLocked:entry];
     os_unfair_lock_unlock(&_materializationLock);
     NSArray<id<AudioTrackMetadataHolder>> *tracks = entry.tracks;
-    if (tracks.firstObject.metadata.parsedOK) {
+    if ([self holdsCurrentMetadata:tracks.firstObject]) {
         [self settleTracks:tracks withMetadata:tracks.firstObject.metadata];
-        return;
+        return NO;
     }
     // A priority edge landing while the parse is queued has no record to
     // carry it, so entry and settlement both retire it.
@@ -188,12 +206,25 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     }
     if (!claim.isOwner) {
         [self finishTracks:tracks];
-        return;
+        return NO;
     }
     id<AudioTrackMetadataHolder> track = tracks[ownerIndex];
     // Another lane or a prior holder may have resolved it before the claim.
-    AudioTrackMetadata *result = (track.metadata.parsedOK || [self loadTrackFromDiskCache:track])
+    AudioTrackMetadata *result = ([self holdsCurrentMetadata:track] || [self loadTrackFromDiskCache:track])
             ? track.metadata : [self parseAndCacheMetadataForTrack:track];
+    if (!result) {
+        NSArray<id<AudioTrackMetadataHolder>> *waiters = [_parseCoordinator completeClaim:claim];
+        NSMutableArray<id<AudioTrackMetadataHolder>> *rows = [tracks mutableCopy];
+        for (id<AudioTrackMetadataHolder> waiter in waiters) {
+            if ([rows indexOfObjectIdenticalTo:waiter] == NSNotFound) {
+                [rows addObject:waiter];
+            }
+        }
+        os_unfair_lock_lock(&_materializationLock);
+        entry.tracks = rows;
+        os_unfair_lock_unlock(&_materializationLock);
+        return YES;
+    }
     if (result.parsedOK) {
         // NO for a resolved holder, already published.
         BOOL publishHolder = [track installMetadataIfUnresolved:result];
@@ -213,7 +244,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
             [self publishTrack:waiter];
         }
         [self settleTracks:tracks withMetadata:result];
-        return;
+        return NO;
     }
 
     BOOL publishFallback = [track installMetadataIfUnresolved:result];
@@ -238,15 +269,13 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
                  playlistIndex:entry.playlistIndex]];
         [self dispatchNextScanMaterialization];
     }
+    return NO;
 }
 
 - (NSArray<id<AudioTrackMetadataHolder>> *)installCopiesOfMetadata:(AudioTrackMetadata *)metadata
                                                              onTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks {
     NSMutableArray<id<AudioTrackMetadataHolder>> *installed = [NSMutableArray array];
     for (id<AudioTrackMetadataHolder> track in tracks) {
-        if (track.metadata.parsedOK) {
-            continue;
-        }
         AudioTrackMetadata *copy = [metadata copy];
         if ([track installMetadataIfUnresolved:copy]) {
             [installed addObject:track];
@@ -277,18 +306,36 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     [self finishTracks:tracks];
 }
 
-- (AudioTrackMetadata *)parseAndCacheMetadataForTrack:(id<AudioTrackMetadataHolder>)track {
+// nil when the parse read another version than its key names.
+- (nullable AudioTrackMetadata *)parseAndCacheMetadataForTrack:(id<AudioTrackMetadataHolder>)track {
     AudioTrackMetadataCache *owner = _owner;
     // Before the parse, which can block for minutes: an invalidate during it
     // makes the result stale for the cache.
     uint64_t generation = owner.cacheGeneration;
+    NSString *cacheKey = track.cacheKey;
     // A local, so every skipped write below releases it with the frame.
     NSData *displayArt = nil;
     AudioTrackMetadata *metadata = _fileParser
             ? _fileParser(track.url)
             : [AudioTrackMetadata metadataWithURL:track.url displayArtData:&displayArt];
-    // Re-read: a stat failure at cache-check time may have healed.
-    NSString *cacheKey = track.cacheKey;
+    // TRAP: the version is checked here, at the parse's completion, never at
+    // its start. The key was taken before the read. A placeholder's parse can
+    // read from the download that installs another version, and that download
+    // re-keys only when it ends. The re-key has retired the item's memo by
+    // now, so its key names the version the file holds. A stale result is
+    // neither installed, delivered nor filed, since its bytes may be either
+    // version's. The record, with the claim's waiters, parses once more
+    // under the new key. It is not requeued through the lane, because the new
+    // version is already on disk and the lane would drop a priority record's
+    // mark. The item's key is compared, never a fresh stat, so the next parse
+    // is keyed as the check is.
+    NSString *currentKey = track.cacheKey;
+    if (currentKey != cacheKey && ![currentKey isEqualToString:cacheKey]) {
+        LogInfo(@"Tags of %@ were read from another version than its key's; parsing again",
+                track.url.lastPathComponent);
+        return nil;
+    }
+    [metadata setCacheKey:cacheKey];
     if (metadata.parsedOK && cacheKey) {
         // A failed parse is never cached: its fallback would shadow the real
         // tags until the cache key changed. The write is synchronous so its

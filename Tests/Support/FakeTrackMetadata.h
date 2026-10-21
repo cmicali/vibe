@@ -22,8 +22,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, getter=isLossless) BOOL lossless;
 @property (nonatomic, strong, nullable) VibeImage *cachedArt;
 @property (nonatomic, strong, nullable) VibeImage *cachedThumbnail;
-// installMetadataIfUnresolved: consults it.
+// installMetadataIfUnresolved: consults both.
 @property (nonatomic) BOOL parsedOK;
+@property (nonatomic, copy, nullable) NSString *cacheKey;
 @property (nonatomic) BOOL artNeedsLoad;
 @property (nonatomic, getter=isArtLoadPending) BOOL artLoadPending;
 // What the last loadArtIfNeededStillWanted:completion: was handed.

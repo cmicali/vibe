@@ -125,7 +125,9 @@
 
 - (BOOL)installMetadataIfUnresolved:(AudioTrackMetadata *)metadata {
     @synchronized (self) {
-        if (self.metadata.parsedOK) {
+        AudioTrackMetadata *installed = self.metadata;
+        if (installed.parsedOK && (installed.cacheKey == metadata.cacheKey
+                || [installed.cacheKey isEqualToString:metadata.cacheKey])) {
             return NO;
         }
         self.metadata = metadata;

@@ -21,9 +21,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (atomic, strong, nullable, readonly) AudioTrackMetadata *metadata;
 
 // Installs metadata only while the holder has no successful answer
-// (parsedOK). The decision and the store share the holder's monitor, so a
-// caller may publish exactly when this returns YES without racing another
-// successful installation.
+// (parsedOK) read from the same version (the metadata's cacheKey). So a new
+// version's answer replaces the old version's. The decision and the store
+// share the holder's monitor, so a caller may publish exactly when this
+// returns YES without racing another successful installation.
 - (BOOL)installMetadataIfUnresolved:(AudioTrackMetadata *)metadata;
 
 // Runs delivery only while metadata is still the holder's exact installed
