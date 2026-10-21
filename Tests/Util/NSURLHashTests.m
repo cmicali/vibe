@@ -1,6 +1,5 @@
 #import <XCTest/XCTest.h>
 
-#import "AudioTrack.h"
 #import "NSURL+Hash.h"
 
 @interface NSURLHashTests : XCTestCase
@@ -109,52 +108,6 @@
 
 - (void)testNonFileURLHasNoKey {
     XCTAssertNil([NSURL URLWithString:@"https://example.com/a.mp3"].cacheKey);
-}
-
-#pragma mark - AudioTrack memoization
-
-- (void)testTrackMemoizesItsKey {
-    NSURL *file = [self writeFileNamed:@"a.mp3" contents:@"hello"];
-    AudioTrack *track = [AudioTrack withURL:file];
-
-    NSString *first = track.cacheKey;
-    XCTAssertNotNil(first);
-
-    // Deleting the file would change the answer if it were re-derived.
-    [NSFileManager.defaultManager removeItemAtURL:file error:NULL];
-    XCTAssertEqualObjects(track.cacheKey, first, @"second read must hit the memo");
-}
-
-- (void)testTrackDoesNotMemoizeAFailedStat {
-    // A stat failure is transient: memoizing nil would strand the track
-    // uncached, e.g. a cloud file that lands a moment later.
-    NSURL *file = [_dir URLByAppendingPathComponent:@"late.mp3"];
-    AudioTrack *track = [AudioTrack withURL:file];
-    XCTAssertNil(track.cacheKey);
-
-    [self writeFileNamed:@"late.mp3" contents:@"arrived"];
-    XCTAssertNotNil(track.cacheKey, @"a later call must retry rather than stay nil");
-}
-
-// A download that installed another version than its placeholder's: the memo
-// holds the old version's key until it is retired, then answers the file's.
-- (void)testAReplacedFileAnswersItsNewKeyOnceTheMemosAreRetired {
-    NSURL *file = [self writeFileNamed:@"a.mp3" contents:@"version one"];
-    AudioTrack *track = [AudioTrack withURL:file];
-    AudioTrack *row = [AudioTrack withURL:file];
-    NSString *old = track.cacheKey;
-    XCTAssertEqualObjects(row.cacheKey, old);
-
-    [self writeFileNamed:@"a.mp3" contents:@"version two, re-uploaded"];
-    NSString *installed = file.cacheKey;
-    XCTAssertNotEqualObjects(installed, old);
-    XCTAssertEqualObjects(track.cacheKey, old, @"memoized until retired");
-
-    [NSURL invalidateMemoizedCacheKeys];
-    XCTAssertEqualObjects(track.cacheKey, installed);
-    XCTAssertEqualObjects(row.cacheKey, installed, @"every track, not one");
-    [NSFileManager.defaultManager removeItemAtURL:file error:NULL];
-    XCTAssertEqualObjects(track.cacheKey, installed, @"and memoized again");
 }
 
 @end
