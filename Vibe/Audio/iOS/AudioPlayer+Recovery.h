@@ -16,7 +16,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 typedef void (^VibeMediaServicesResetCompletion)(
-        AudioTrack * _Nullable resetTrack,
+        id<VibePlayableItem> _Nullable resetTrack,
         NSTimeInterval position);
 
 @interface AudioPlayer (Recovery)

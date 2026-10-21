@@ -8,8 +8,7 @@
 
 #import <Foundation/Foundation.h>
 #import "MetadataScanOrderRules.h"
-
-@class AudioTrack;
+#import "VibePlayableItem.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -23,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Never empty. Replaced whole under _materializationLock, and read off it only
 // while no other thread can replace it: before the record is published, or
 // once picked.
-@property (nonatomic, copy, nonnull) NSArray<AudioTrack *> *tracks;
+@property (nonatomic, copy, nonnull) NSArray<id<VibePlayableItem>> *tracks;
 // The first row's: any spelling reaches the file.
 @property (nonatomic, copy, readonly, nonnull) NSURL *url;
 @property (nonatomic, copy, readonly, nonnull) NSString *standardizedPath;
@@ -49,16 +48,16 @@ NS_ASSUME_NONNULL_BEGIN
 // The prioritizeTrack: edge this record carried when its slot was claimed. An
 // off-lock probe's result acts only while this still matches the row's mark.
 @property (nonatomic) NSUInteger priorityMarkGeneration;
-- (instancetype)initWithTracks:(NSArray<AudioTrack *> *)tracks
+- (instancetype)initWithTracks:(NSArray<id<VibePlayableItem>> *)tracks
               standardizedPath:(NSString *)standardizedPath
                  playlistIndex:(NSUInteger)playlistIndex;
-- (BOOL)holdsTrack:(AudioTrack *)track;
+- (BOOL)holdsTrack:(id<VibePlayableItem>)track;
 - (instancetype)init NS_UNAVAILABLE;
 @end
 
 @interface MetadataPriorityMark : NSObject
 @property(nonatomic) NSUInteger markGeneration;
-@property(nonatomic, strong) AudioTrack *track;
+@property(nonatomic, strong) id<VibePlayableItem> track;
 @end
 
 NS_ASSUME_NONNULL_END

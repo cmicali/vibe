@@ -13,8 +13,8 @@
 
 #import "PlaybackIntent.h"
 
-// Never imported: the row pointer is stored and compared, never messaged.
-@class AudioTrack;
+// Never imported: the item pointer is stored and compared, never messaged.
+@protocol VibePlayableItem;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -32,7 +32,7 @@ typedef struct {
 // Callers receive copies, so a held request is never changed by a rebind.
 @interface VibePlaybackRequest : NSObject
 
-@property (nonatomic, readonly, strong) AudioTrack *track;
+@property (nonatomic, readonly, strong) id<VibePlayableItem> track;
 @property (nonatomic, readonly, copy) NSString *path;
 @property (nonatomic, readonly) VibePendingPlaybackIntent intent;
 @property (nonatomic, readonly) uint64_t identifier;
@@ -49,14 +49,14 @@ typedef struct {
 // Supersedes every previous request. Identifiers never repeat, not even
 // across invalidate, so a late worker cannot consume a later open of the
 // same path.
-- (uint64_t)beginWithTrack:(AudioTrack *)track
+- (uint64_t)beginWithTrack:(id<VibePlayableItem>)track
                       path:(NSString *)path
                     intent:(VibePendingPlaybackIntent)intent
    submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier;
 
 // A play for the path already in flight adopts its row and intent instead of
 // a second open. Mutates on a match: call it only where the result is acted on.
-- (VibePlaybackRequestRebind)rebindTrack:(AudioTrack *)track
+- (VibePlaybackRequestRebind)rebindTrack:(id<VibePlayableItem>)track
                                     path:(NSString *)path
                                   intent:(VibePendingPlaybackIntent)intent
                  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier;
@@ -75,7 +75,7 @@ typedef struct {
 // both would drop a valid seek. An identifier of 0 leaves the row alone to
 // decide.
 - (BOOL)seekToPosition:(NSTimeInterval)position
-      ifCurrentTrackIs:(nullable AudioTrack *)track
+      ifCurrentTrackIs:(nullable id<VibePlayableItem>)track
  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier;
 
 // Atomically returns and invalidates the matching request. A completion or

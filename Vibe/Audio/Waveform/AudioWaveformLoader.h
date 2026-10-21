@@ -52,9 +52,9 @@ static inline BOOL VibeWaveformAnalysisCovers(VibeWaveformAnalysis have, VibeWav
 // pool is keyed on for reattachment.
 @property (nullable, atomic, copy) NSString *claimKey;
 
-// The window decoded, in CD frames as AudioTrack carries it: the waveform and
-// the analyzers see only it, at full resolution. 0 and 0, the default, is
-// the whole file. Set before load:.
+// The window decoded, in CD frames as a VibePlayableItem carries it. The
+// waveform and the analyzers see only it, at full resolution. 0 and 0, the
+// default, is the whole file. Set before load:.
 @property (atomic) NSUInteger cueStart;
 @property (atomic) NSUInteger cueEnd;
 

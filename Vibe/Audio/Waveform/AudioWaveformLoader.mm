@@ -15,7 +15,7 @@
 #import "AudioKeyAnalyzer.h"
 #import "AudioLoadTiming.h"
 #import "CloudFileMaterializer.h"
-#import "PlaybackIntent.h"
+#import "CueWindowMath.h"
 #if DEBUG
 #import "AudioWaveformCache+Debug.h"
 #endif

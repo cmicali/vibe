@@ -21,6 +21,15 @@
 // callers must then skip caching.
 - (nullable NSString *)cacheKey;
 
+// What a memoized cacheKey is stamped with. A memo stamped below the current
+// generation is stale, so its next read stats the file again. Any thread.
+@property (class, readonly) uint64_t cacheKeyGeneration;
+
+// A file was replaced under its URL by another version: a download that
+// installed something other than its placeholder's size and mtime. Every
+// memoized cacheKey goes stale. Any thread.
++ (void)invalidateMemoizedCacheKeys;
+
 // A "which track is this" key (the widget's): hex SHA-1 of the comparable path
 // (VibeComparablePath), relative to the app's home for a file inside it. From
 // the spelling alone, so it never stats. Survives a rewrite. nil for a URL

@@ -16,10 +16,9 @@
 #import "LinkClient.h"
 #import "LinkRules.h"
 #import "RemotePlaceholderStore.h"
+#import "VibePlayableItem.h"
 
 NS_ASSUME_NONNULL_BEGIN
-
-@class AudioTrack;
 
 // A link that did not open. The code is a VibeLinkError. A Server error
 // carries the status under VibeHTTPErrorStatusCodeKey. The error that caused
@@ -70,7 +69,7 @@ NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underlying);
 // URL lies in. Once per launch, after the restore, so tracks are the
 // playlist's rows as the shell restored them. A saved playlist naming a
 // deleted link finds its entry missing. Off main, on the store's queue.
-- (void)pruneKeepingTracks:(NSArray<AudioTrack *> *)tracks recentURLs:(NSArray<NSURL *> *)recents;
+- (void)pruneKeepingTracks:(NSArray<id<VibePlayableItem>> *)tracks recentURLs:(NSArray<NSURL *> *)recents;
 
 @end
 

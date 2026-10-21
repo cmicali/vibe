@@ -30,7 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The lookup-or-decode path every load takes. AudioWaveformCache.mm states
 // its contract.
-- (void)load:(AudioTrack *)track
+- (void)load:(id<VibePlayableItem>)track
     cacheKey:(NSString *)cacheKey
   withLoader:(AudioWaveformLoader *)loader
        claim:(nullable VibeWaveformLoadClaim *)claim

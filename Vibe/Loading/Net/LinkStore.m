@@ -7,7 +7,6 @@
 
 #include <sys/stat.h>
 
-#import "AudioTrack.h"
 #import "HTTPTransferClientInternal.h"
 #import "FilePaths.h"
 #import "PlaceholderFiles.h"
@@ -455,7 +454,7 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
 
 #pragma mark - Pruning
 
-- (void)pruneKeepingTracks:(NSArray<AudioTrack *> *)tracks recentURLs:(NSArray<NSURL *> *)recents {
+- (void)pruneKeepingTracks:(NSArray<id<VibePlayableItem>> *)tracks recentURLs:(NSArray<NSURL *> *)recents {
     dispatch_async(self.diskQueue, ^{
         NSArray<NSURL *> *directories = [NSFileManager.defaultManager contentsOfDirectoryAtURL:self.rootURL
                                                                     includingPropertiesForKeys:nil
@@ -477,7 +476,7 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
                 [keptNames addObject:components[depth]];
             }
         };
-        for (AudioTrack *track in tracks) {
+        for (id<VibePlayableItem> track in tracks) {
             keep(track.url);
         }
         for (NSURL *url in recents) {

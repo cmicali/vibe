@@ -6,7 +6,7 @@
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
 #import "AudioFileHandle.h"
-#import "AudioTrack.h"
+#import "NSURL+FilenameTitle.h"
 #import "AudioTrackArtwork.h"
 #import "TagLibAudioFile.h"
 #import "PlatformImage.h"
@@ -278,7 +278,7 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
 
     self.artwork = [[AudioTrackArtwork alloc] initWithSourceFilePath:url.path
                                                            extractor:VibeTagLibArtExtractor()];
-    self.title = [AudioTrack filenameTitleForURL:url];
+    self.title = url.filenameTitle;
 
     // A corrupt tag can make TagLib throw, and uncaught on a worker that is
     // std::terminate. A malformed file degrades to a failed parse instead.

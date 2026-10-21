@@ -6,6 +6,7 @@
 #import <Foundation/Foundation.h>
 // VibeWaveformAnalysis, stamped onto every loader this cache creates.
 #import "AudioWaveformLoader.h"
+#import "VibePlayableItem.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -15,7 +16,6 @@ NS_ASSUME_NONNULL_BEGIN
 // Importing AudioWaveform.h here would force every transitive importer, which
 // means most of the UI layer, to compile as ObjC++.
 @class CodableAudioWaveform;
-@class AudioTrack;
 @class AudioWorkToken;
 @protocol AudioWaveformCacheDelegate;
 
@@ -55,12 +55,12 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 - (void)diskUsageWithCompletion:(void (^)(NSUInteger fileCount, unsigned long long totalBytes))completion;
 
 // Both main thread only, like the delegate deliveries they gate.
-- (void)loadWaveformForTrack:(AudioTrack *)track;
+- (void)loadWaveformForTrack:(id<VibePlayableItem>)track;
 
 // Main-thread request and completion. Reads only the disk cache, without
 // opening audio or retargeting the active load. A miss answers nil; cancelling
 // pending work drops its completion. Preview stats cannot occupy active slots.
-- (AudioWorkToken *)cachedWaveformForTrack:(AudioTrack *)track
+- (AudioWorkToken *)cachedWaveformForTrack:(id<VibePlayableItem>)track
                    completion:(void (^)(CodableAudioWaveform * _Nullable waveform))completion;
 // Main-thread request and completion. Reads blocks of a complete waveform's
 // window at full resolution into its detail, for deep zoom, on a lane of its
@@ -68,7 +68,7 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // a zoom must never start a download. The completion runs once the blocks
 // are in or could not be read. Cancelling pending work drops it.
 - (AudioWorkToken *)loadDetailBlocks:(NSIndexSet *)blocks
-                            forTrack:(AudioTrack *)track
+                            forTrack:(id<VibePlayableItem>)track
                             waveform:(CodableAudioWaveform *)waveform
                           completion:(dispatch_block_t)completion;
 
@@ -99,7 +99,7 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // window's, never its file's.
 - (void)audioWaveform:(CodableAudioWaveform *)waveform
           didLoadData:(float)percentLoaded
-             forTrack:(AudioTrack *)track;
+             forTrack:(id<VibePlayableItem>)track;
 
 @optional
 
@@ -107,18 +107,18 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // main thread only while that load is still current; track lets a receiver
 // drop a failure that raced a track change just like a data delivery. A later
 // loadWaveformForTrack: starts a fresh attempt for the same window.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(AudioTrack *)track;
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(id<VibePlayableItem>)track;
 
 // Delivers a nonzero tempo on main after a completed load or cache hit.
 // Active loads deliver it after final didLoadData:. Detached loads and cache
 // previews can deliver analysis without a waveform callback. Match the
 // track's sourceKey against each playlist row before installing the result.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forTrack:(AudioTrack *)track;
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forTrack:(id<VibePlayableItem>)track;
 
 // The key detection twin of didDetectBPM:, with the same timing, threading
 // and matching contract. key is a valid VibeMusicalKey — it never fires with
 // VibeMusicalKeyNone.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forTrack:(AudioTrack *)track;
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forTrack:(id<VibePlayableItem>)track;
 
 @end
 

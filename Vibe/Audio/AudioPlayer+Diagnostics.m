@@ -6,7 +6,6 @@
 #import "AudioPlayer+Diagnostics.h"
 #import "AudioPlayerInternal.h"
 #import "AudioFileFormat.h"
-#import "AudioTrack.h"
 #import "AudioFX.h"
 #include <mach/mach_time.h>
 #if DEBUG
@@ -230,7 +229,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 
 #pragma mark - Timeline
 
-- (uint64_t)noteSubmittedPlay:(uint64_t)submittedPlay track:(AudioTrack *)track position:(NSTimeInterval)position paused:(BOOL)paused {
+- (uint64_t)noteSubmittedPlay:(uint64_t)submittedPlay track:(id<VibePlayableItem>)track position:(NSTimeInterval)position paused:(BOOL)paused {
 #if VIBE_VERBOSE_LOGGING
     LogInfo(@"Timeline: play %llu submitted %@ at %.3fs, paused %d", submittedPlay, track.url.lastPathComponent, position, paused);
     return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
@@ -264,7 +263,7 @@ static NSString *VibeSampleFormatName(AVAudioFormat *format) {
 #endif
 }
 
-- (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(AudioTrack *)track file:(AudioFileHandle *)file error:(NSError *)error {
+- (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(id<VibePlayableItem>)track file:(AudioFileHandle *)file error:(NSError *)error {
 #if VIBE_VERBOSE_LOGGING
     LogInfo(@"Timeline: play %llu open settled for %@, %.0f Hz, %lld frames, error %@",
             submittedPlay, track.url.lastPathComponent, file.processingFormat.sampleRate, file.length, error);
@@ -483,7 +482,7 @@ static const NSTimeInterval kSignalProbePollSeconds = 0.1;
 
 #pragma mark - The first displayed position
 
-- (void)notePublishedPlayingPosition:(NSTimeInterval)position track:(AudioTrack *)track voice:(VibeVoiceID)voice {
+- (void)notePublishedPlayingPosition:(NSTimeInterval)position track:(id<VibePlayableItem>)track voice:(VibeVoiceID)voice {
 #if VIBE_VERBOSE_LOGGING
     NSDictionary *diagnostic = track ? @{
         @"track": track, @"play": @([self diagnosticPlayIdentifierOnQueue]), @"voice": @(voice),
@@ -494,7 +493,7 @@ static const NSTimeInterval kSignalProbePollSeconds = 0.1;
 #endif
 }
 
-- (void)recordDisplayedPosition:(NSTimeInterval)position forTrack:(AudioTrack *)track {
+- (void)recordDisplayedPosition:(NSTimeInterval)position forTrack:(id<VibePlayableItem>)track {
 #if VIBE_VERBOSE_LOGGING
     os_unfair_lock_lock(&_stateLock);
     NSDictionary *diagnostic = _positionDiagnostic;

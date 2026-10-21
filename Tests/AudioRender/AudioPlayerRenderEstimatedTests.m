@@ -71,7 +71,7 @@ static NSData *MP3Frames(NSData *mp3) {
 // streams on a duration estimated from its head, within 2% here. A seek
 // inside what has arrived lands exactly; the download completing, with the
 // decode parked at its edge early in the file, settles the exact duration
-// within the hang guard and republishes it once, to the track too, the
+// within the hang guard and republishes it once to the delegate, the
 // position carrying on rather than jumping; a seek after it lands exactly;
 // and the track plays to its true end, every audible frame the whole file's,
 // and ends once.
@@ -85,7 +85,7 @@ static NSData *MP3Frames(NSData *mp3) {
     AudioTrack *track = _player.currentTrack;
     XCTAssertTrue(((AudioFileHandle *)[_player valueForKey:@"file"]).lengthIsEstimated);
     XCTAssertEqualWithAccuracy(_player.duration, exact, exact * 0.02);
-    XCTAssertEqual(track.duration, _player.duration);
+    XCTAssertEqual(track.duration, 0, @"the player only reads its items");
 
     [_player seekToPosition:0.2];
     [self settleUntil:^BOOL { return [self count:@"seek"] == 1; }];
@@ -101,7 +101,6 @@ static NSData *MP3Frames(NSData *mp3) {
     XCTAssertTrue([self finishStream:VibeStreamCompleted]);
     XCTAssertTrue([self renderUntil:^BOOL { return [self count:@"settled"] == 1; }]);
     XCTAssertEqual([[self settledEvent][@"duration"] doubleValue], exact);
-    XCTAssertEqual([[self settledEvent][@"trackDuration"] doubleValue], exact);
     XCTAssertEqual(_player.duration, exact);
     XCTAssertGreaterThanOrEqual(_player.position, before);
     XCTAssertLessThanOrEqual(_player.position - before, (_capture.length - rendered) / 8 / 48000.0 + 1e-9, @"no jump");

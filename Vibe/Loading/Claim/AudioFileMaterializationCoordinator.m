@@ -8,7 +8,6 @@
 #import "AudioFileHandle.h"
 
 #import "AudioFileOpenRules.h"
-#import "AudioTrack.h"
 #import "AudioWorkScheduler.h"
 #import "CloudFileMaterializer.h"
 #import "CloudTransferRegistryInternal.h"
@@ -648,8 +647,8 @@ static BOOL VibeMaterializationErrorIsCancellation(NSError *error) {
 }
 
 // A download can install another version than its placeholder stood for (a
-// file re-uploaded since its folder was listed), so every track's memoized
-// key is retired when the file's own key moved: its waveform and metadata
+// file re-uploaded since its folder was listed), so every memoized key is
+// retired when the file's own key moved: its waveform and metadata
 // must not be filed under, or served from, the old version's entries. Only a
 // dataless file downloads, so only its key is taken, each a stat and a hash.
 static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operation, NSURL *url, BOOL dataless,
@@ -658,7 +657,7 @@ static BOOL VibeRunMaterialization(id<AudioFileMaterializationOperation> operati
     BOOL ready = [operation runOnReadable:onReadable error:error];
     if (ready && placeholderKey && ![placeholderKey isEqualToString:[url cacheKey]]) {
         LogInfo(@"%@ downloaded as another version than its placeholder's; re-keying", url.lastPathComponent);
-        [AudioTrack invalidateMemoizedCacheKeys];
+        [NSURL invalidateMemoizedCacheKeys];
     }
     return ready;
 }

@@ -98,7 +98,7 @@ Makefile               every build, test, and check command
 
 ### Audio
 
-`Vibe/Audio/` is the playback engine. There is no `AVAudioEngine`. Vibe decodes, mixes, and renders the audio itself. One output unit pulls the result. `AudioPlayer` is the transport: play, pause, seek, stop, and the delegate callbacks. Its categories own the rest. `+Pipeline` is the render pipeline's player-queue side. `+Prefetch` is the next file, opened early. `+State` is the getters, and `+Diagnostics` the reports. `AudioVoiceBus` decodes and mixes the voices. `AudioMasterBus` is the render function. `AudioOutputUnit` is the output unit. `AudioFileHandle` opens and reads one file. `AudioTrack` is one playlist row: a whole file, or a CUE sheet's window of one. Read next: `Vibe/Audio/AGENTS.md`. Its section "The model in one page" is the place to start.
+`Vibe/Audio/` is the playback engine. There is no `AVAudioEngine`. Vibe decodes, mixes, and renders the audio itself. One output unit pulls the result. `AudioPlayer` is the transport: play, pause, seek, stop, and the delegate callbacks. Its categories own the rest. `+Pipeline` is the render pipeline's player-queue side. `+Prefetch` is the next file, opened early. `+State` is the getters, and `+Diagnostics` the reports. `AudioVoiceBus` decodes and mixes the voices. `AudioMasterBus` is the render function. `AudioOutputUnit` is the output unit. `AudioFileHandle` opens and reads one file. The engine takes any object that adopts `VibePlayableItem`: a file, its window, and the keys it is matched by. Read next: `Vibe/Audio/AGENTS.md`. Its section "The model in one page" is the place to start.
 
 Each feature beside the engine has its own directory and doc:
 
@@ -116,7 +116,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### Playlist
 
-`Vibe/Playlist/` is the playlist model and how its rows are made. `Playlist` holds the rows, the current row, and the shuffle order. `trackEndSuccessor` is its one answer to what plays after a track ends. `FolderWalk` turns what the user opened into rows. It walks folders, follows links to folders, and expands playlist files. It runs on background workers and reads no setting. `PlaylistFile` reads M3U files and CUE sheets, including a sheet embedded in a FLAC, and writes M3U files. A CUE sheet becomes one row per track, each a window of its file. `Mac/` is the macOS table (`PlaylistController`, `PlaylistTableView`) and the last-playlist store (`PlaylistFile+Session`). The iOS list is `Vibe/iOS/PlaylistViewController`. Read next: `Vibe/Playlist/AGENTS.md`, then `Playlist/Mac/AGENTS.md`.
+`Vibe/Playlist/` is the playlist model and how its rows are made. `AudioTrack` is one row: a whole file, or a CUE sheet's window of one. It adopts `VibePlayableItem`, so the engine can play it. `Playlist` holds the rows, the current row, and the shuffle order. `trackEndSuccessor` is its one answer to what plays after a track ends. `FolderWalk` turns what the user opened into rows. It walks folders, follows links to folders, and expands playlist files. It runs on background workers and reads no setting. `PlaylistFile` reads M3U files and CUE sheets, including a sheet embedded in a FLAC, and writes M3U files. A CUE sheet becomes one row per track, each a window of its file. `Mac/` is the macOS table (`PlaylistController`, `PlaylistTableView`) and the last-playlist store (`PlaylistFile+Session`). The iOS list is `Vibe/iOS/PlaylistViewController`. Read next: `Vibe/Playlist/AGENTS.md`, then `Playlist/Mac/AGENTS.md`.
 
 ### NowPlaying
 

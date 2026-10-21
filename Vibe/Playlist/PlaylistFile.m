@@ -9,7 +9,7 @@
 #import "AudioTrack.h"
 #import "FilePaths.h"
 #import "PlayableExtensions.h"
-#import "PlaybackIntent.h"
+#import "CueWindowMath.h"
 
 #include <string.h>
 

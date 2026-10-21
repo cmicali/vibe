@@ -341,6 +341,22 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
     XCTAssertEqualObjects(VibeCueRow(4500, 9000, nil, nil).sourceKey, VibeCueRow(4500, 9000, @"Other", nil).sourceKey);
     XCTAssertNotEqualObjects(VibeCueRow(0, 4500, nil, nil).sourceKey, VibeCueRow(4500, 9000, nil, nil).sourceKey);
     XCTAssertNotEqualObjects(VibeCueRow(4500, 0, nil, nil).sourceKey, plain.sourceKey);
+    // Persisted waveform entries are spelled this way.
+    XCTAssertEqualObjects(VibeCueRow(4500, 9000, nil, nil).sourceKey,
+                          [plain.url.path stringByAppendingString:@"#4500-9000"]);
+}
+
+- (void)testOnlyTheNextWindowOfTheFileFollowsContiguously {
+    AudioTrack *first = VibeCueRow(0, 4500, nil, nil);
+    XCTAssertTrue(VibePlayableItemIsFollowedContiguouslyBy(first, VibeCueRow(4500, 9000, nil, nil)));
+    XCTAssertFalse(VibePlayableItemIsFollowedContiguouslyBy(first, VibeCueRow(4501, 9000, nil, nil)));
+    XCTAssertFalse(VibePlayableItemIsFollowedContiguouslyBy(first, nil));
+    XCTAssertFalse(VibePlayableItemIsFollowedContiguouslyBy(VibeCueRow(4500, 0, nil, nil), TrackNamed(@"mix.flac")),
+                   @"a window to the file's end is followed by nothing");
+    AudioTrack *elsewhere = [[AudioTrack alloc] initWithURL:[NSURL fileURLWithPath:@"/private/tmp/vibe-tests/b.flac"]
+                                                   cueStart:4500 cueEnd:9000 title:nil performer:nil
+                                                      sheet:nil trackNumber:4];
+    XCTAssertFalse(VibePlayableItemIsFollowedContiguouslyBy(first, elsewhere), @"another file is another recording");
 }
 
 #pragma mark - Metadata installation
