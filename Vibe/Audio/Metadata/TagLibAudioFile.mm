@@ -4,15 +4,11 @@
 //
 
 #import "TagLibAudioFile.h"
-#import "CloudFileMaterializer.h"
-#import "PlaceholderFiles.h"
-#import "NSString+CPPStrings.h"
 
 #include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <sys/stat.h>
 #include <tfilestream.h>
 #include <mpegfile.h>
 #include <mpegproperties.h>
@@ -38,7 +34,7 @@ namespace {
 class VibeTagLibDebugListener : public TagLib::DebugListener {
 public:
     void printMessage(const TagLib::String &message) override {
-        NSString *text = [NSString stringWithStdString:message.to8Bit(true)];
+        NSString *text = @(message.toCString(true));
         LogWarn(@"%@", [text stringByTrimmingCharactersInSet:
                                 NSCharacterSet.whitespaceAndNewlineCharacterSet]);
     }
@@ -46,16 +42,15 @@ public:
 
 #endif
 
-// A remote placeholder read by range (CloudFileMaterializer's
-// remoteReadForURL:). The parse fetches the blocks TagLib reads instead of
-// materializing the song. The server must honor ranges to avoid skipped bytes.
-// Fetched in aligned blocks, one request per run of missing blocks, cached for
+// A file read through the caller's byte-range reader. The parse fetches the
+// blocks TagLib reads instead of the whole file. A remote reader's server must
+// honor ranges to avoid skipped bytes. Fetched in aligned blocks, one request per run of missing blocks, cached for
 // the stream's life. TRAP: a failed fetch THROWS, and loadFromURL:'s barrier
 // turns that into a failed parse; returning short would let TagLib build a
 // tag from bytes that were never read.
 class VibeRangedStream : public TagLib::IOStream {
 public:
-    VibeRangedStream(NSURL *url, CloudFileRemoteRead read, TagLib::offset_t length)
+    VibeRangedStream(NSURL *url, VibeTagByteRangeRead read, TagLib::offset_t length)
         : _url(url), _read(read), _length(length), _name(url.path.UTF8String ?: "") {}
 
     ~VibeRangedStream() override {
@@ -141,7 +136,7 @@ private:
     }
 
     NSURL *_url;
-    CloudFileRemoteRead _read;
+    VibeTagByteRangeRead _read;
     TagLib::offset_t _length;
     std::string _name;
     TagLib::offset_t _position = 0;
@@ -150,18 +145,12 @@ private:
     uint64_t _bytesFetched = 0;
 };
 
-// The stream a parse reads: the file, or its remote bytes by range when it
-// is a remote placeholder. The root test comes before the stat. A file under
-// no remote root then pays no stat.
-static std::unique_ptr<TagLib::IOStream> VibeOpenTagStream(const char *path) {
-    struct stat st;
-    if (VibePathIsUnderRemotePlaceholderRoot(@(path)) && stat(path, &st) == 0
-            && VibeFileModeIsRemotePlaceholder(st.st_mode)) {
+// The stream a parse reads: the file, or its bytes through the caller's reader.
+static std::unique_ptr<TagLib::IOStream> VibeOpenTagStream(const char *path, VibeTagByteRangeRead rangeRead,
+                                                           uint64_t rangeLength) {
+    if (rangeRead) {
         NSURL *url = [NSURL fileURLWithPath:@(path) isDirectory:NO];
-        CloudFileRemoteRead read = [CloudFileMaterializer remoteReadForURL:url];
-        if (read) {
-            return std::make_unique<VibeRangedStream>(url, read, (TagLib::offset_t)st.st_size);
-        }
+        return std::make_unique<VibeRangedStream>(url, rangeRead, (TagLib::offset_t)rangeLength);
     }
     return std::make_unique<TagLib::FileStream>(path, true);
 }
@@ -177,8 +166,9 @@ void VibeInstallTagLibDebugListener(void) {
 
 #endif
 
-TagLibAudioFile::TagLibAudioFile(const char *path, bool readProperties)
-    : _stream(VibeOpenTagStream(path)) {
+TagLibAudioFile::TagLibAudioFile(const char *path, bool readProperties, VibeTagByteRangeRead rangeRead,
+                                 uint64_t rangeLength)
+    : _stream(VibeOpenTagStream(path, rangeRead, rangeLength)) {
     if (!_stream->isOpen()) {
         return;
     }
@@ -284,7 +274,6 @@ VibeAudioFileFormat _Nullable fileTypeForTagLibFile(TagLib::File *file) {
     return nil;
 }
 
-// Free functions, so the extractor block captures no metadata instance.
 static NSData *getAlbumArtMP3(TagLib::MPEG::File *mp3File);
 static NSData *getAlbumArtPictures(const TagLib::List<TagLib::FLAC::Picture *> &pictures);
 static NSData *getAlbumArtMP4(TagLib::MP4::File *mp4File);
@@ -314,35 +303,25 @@ NSData *albumArtDataFromTagLibFile(TagLib::File *file) {
     return nil;
 }
 
-AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
-    return ^VibeEmbeddedArtExtractionResult(NSString *path,
-                                             NSData *__autoreleasing *artData) {
-        if (!path) {
-            return VibeEmbeddedArtExtractionReadFailed;
+BOOL VibeTagLibReadEmbeddedArt(NSString *path, VibeTagByteRangeRead rangeRead, uint64_t rangeLength,
+                               NSData *__autoreleasing *art) {
+    *art = nil;
+    // The parse's barrier; a throw is a failed read, not "no art".
+    try {
+        TagLibAudioFile fileRef(path.UTF8String, false, rangeRead, rangeLength);
+        if (fileRef.isNull()) {
+            return NO;
         }
-        // loadFromURL:'s barrier; a throw is a failed read, not "no art".
-        try {
-            TagLibAudioFile fileRef([path UTF8String], false);
-            if (fileRef.isNull()) {
-                return VibeEmbeddedArtExtractionReadFailed;
-            }
-            NSData *found = albumArtDataFromTagLibFile(fileRef.file());
-            if (!found) {
-                return VibeEmbeddedArtExtractionNoArt;
-            }
-            if (artData) {
-                *artData = found;
-            }
-            return VibeEmbeddedArtExtractionFoundArt;
-        }
-        catch (const std::exception &e) {
-            LogError(@"TagLib art extraction failed for %@: %s", path, e.what());
-        }
-        catch (...) {
-            LogError(@"TagLib art extraction failed for %@", path);
-        }
-        return VibeEmbeddedArtExtractionReadFailed;
-    };
+        *art = albumArtDataFromTagLibFile(fileRef.file());
+        return YES;
+    }
+    catch (const std::exception &e) {
+        LogError(@"TagLib art extraction failed for %@: %s", path, e.what());
+    }
+    catch (...) {
+        LogError(@"TagLib art extraction failed for %@", path);
+    }
+    return NO;
 }
 
 static NSData *getAlbumArtID3v2(TagLib::ID3v2::Tag *id3v2Tag) {

@@ -6,10 +6,13 @@
 //
 
 #import "AudioTrackMetadata.h"
-
-@class AudioTrackArtwork;
+#import "AudioTrackArtwork.h"
 
 NS_ASSUME_NONNULL_BEGIN
+
+// The artwork's read of the file's own art: TagLib's, by range for a remote
+// placeholder. Blocking, so never called with the artwork monitor held.
+FOUNDATION_EXPORT AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 
 @interface AudioTrackMetadata (Internal)
 
