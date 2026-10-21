@@ -5,7 +5,7 @@
 
 #import <XCTest/XCTest.h>
 
-#import "ShortcutRules.h"
+#import "MenuShortcutRules.h"
 
 @interface ShortcutRulesTests : XCTestCase
 @end
@@ -18,19 +18,19 @@ static const NSEventModifierFlags kOption = NSEventModifierFlagOption;
 
 // The command a key-code press performs, typing no character.
 static NSString *CommandForKey(unsigned short keyCode, NSEventModifierFlags modifiers, NSDictionary *overrides) {
-    return VibeShortcutOwner(VibeShortcutMake(keyCode, modifiers), 0, overrides, nil);
+    return VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(keyCode, modifiers), 0, overrides, nil);
 }
 
 // What a key-code shortcut's menu item carries, the key typing character.
 static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, unichar character,
                                    NSDictionary *overrides) {
-    return VibeShortcutForMenuItem(identifier, shortcut, kVibeShortcutKeyMask, character, overrides);
+    return VibeShortcutForMenuItem(VibeShortcutTable(), identifier, shortcut, kVibeShortcutKeyMask, character, overrides);
 }
 
 - (void)testDefaultsAreDistinctAndMatchTheBareKeysByPhysicalKey {
     NSMutableSet<NSNumber *> *seen = [NSMutableSet set];
     for (NSString *identifier in VibeShortcutIdentifiers()) {
-        VibeShortcut shortcut = VibeShortcutDefault(identifier);
+        VibeShortcut shortcut = VibeShortcutDefault(VibeShortcutTable(), identifier);
         // Every command but Open, Add to Playlist and Open URL is one the player validates.
         XCTAssertTrue(([@[kVibeMenuOpen, kVibeMenuAddToPlaylist, kVibeMenuOpenLink] containsObject:identifier])
                       || VibeMenuValidationDomainForIdentifier(identifier) != VibeMenuValidationDomainUnknown,
@@ -54,26 +54,26 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
                           kVibeMenuSkipForward);
     // Character defaults match by character, never by key code.
     XCTAssertNil(CommandForKey(31, kCmd, nil));
-    XCTAssertTrue(VibeShortcutIsCharacter(VibeShortcutDefault(kVibeMenuOpen)));
+    XCTAssertTrue(VibeShortcutIsCharacter(VibeShortcutDefault(VibeShortcutTable(), kVibeMenuOpen)));
 }
 
 // What a held ⌘R would cycle through: the character defaults match the
 // letter on any key and only with their own modifiers, and none repeats.
 - (void)testCharacterDefaultsMatchTheirLetterWithTheirExactModifiers {
-    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(15, kCmd), 'r', nil, nil), kVibeMenuRepeat);
-    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(35, kCmd), 'r', nil, nil), kVibeMenuRepeat,
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(15, kCmd), 'r', nil, nil), kVibeMenuRepeat);
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(35, kCmd), 'r', nil, nil), kVibeMenuRepeat,
                           @"Dvorak's R is QWERTY's P");
-    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(15, kCmd), 'p', nil, nil));
-    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(1, kCmd | kOption), 's', nil, nil), kVibeMenuShuffle);
-    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(1, kCmd), 's', nil, nil), kVibeMenuSavePlaylist);
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(15, kCmd), 'p', nil, nil));
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(1, kCmd | kOption), 's', nil, nil), kVibeMenuShuffle);
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(1, kCmd), 's', nil, nil), kVibeMenuSavePlaylist);
     // Shift is part of the set, against every character default.
-    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(1, kCmd | kShift), 's', nil, nil));
-    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(1, kCmd | kOption | kShift), 's', nil, nil));
-    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(15, kCmd | kShift), 'r', nil, nil), kVibeMenuShowInFinder,
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(1, kCmd | kShift), 's', nil, nil));
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(1, kCmd | kOption | kShift), 's', nil, nil));
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(15, kCmd | kShift), 'r', nil, nil), kVibeMenuShowInFinder,
                           @"⇧⌘R is Show in Finder, never Repeat");
-    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(31, kCmd | kShift), 'o', nil, nil), kVibeMenuAddToPlaylist);
-    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(8, kShift), 'c', nil, nil));
-    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(15, 0), 'r', nil, nil), kVibeMenuFXDelay,
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(31, kCmd | kShift), 'o', nil, nil), kVibeMenuAddToPlaylist);
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(8, kShift), 'c', nil, nil));
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(15, 0), 'r', nil, nil), kVibeMenuFXDelay,
                           @"bare R is the delay's key code, not Repeat");
     for (NSString *identifier in @[kVibeMenuRepeat, kVibeMenuShuffle, kVibeMenuOpen, kVibeMenuAddToPlaylist,
                                    kVibeMenuSavePlaylist, kVibeMenuEditCopyName]) {
@@ -82,23 +82,23 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
 }
 
 - (void)testAPressIsTriedAsTypedThenUnmodifiedAndAReservedOnePassesOn {
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(15, kCmd, 'r', 0x03C1, nil), kVibeMenuRepeat,
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 15, kCmd, 'r', 0x03C1, nil), kVibeMenuRepeat,
                           @"Greek types ρ, and r under ⌘");
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(1, kCmd | kOption, 0x00DF, 's', nil), kVibeMenuShuffle,
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 1, kCmd | kOption, 0x00DF, 's', nil), kVibeMenuShuffle,
                           @"⌥⌘S types ß");
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(31, kCmd, 'o', 'r', nil), kVibeMenuOpen,
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 31, kCmd, 'o', 'r', nil), kVibeMenuOpen,
                           @"Dvorak – QWERTY ⌘'s R key types o under ⌘");
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(0, 0, 0, 'a', nil), kVibeMenuSkipForward);
-    XCTAssertNil(VibeShortcutCommandForPress(12, kCmd, 'q', 'q', nil), @"⌘Q is the system's");
-    XCTAssertNil(VibeShortcutCommandForPress(12, kCmd, 'q', 0x03C2, nil), @"reserved under either form");
-    XCTAssertNil(VibeShortcutCommandForPress(126, 0, 0, 0, nil), @"an arrow is the table's");
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 0, 0, 0, 'a', nil), kVibeMenuSkipForward);
+    XCTAssertNil(VibeShortcutCommandForPress(VibeShortcutTable(), 12, kCmd, 'q', 'q', nil), @"⌘Q is the system's");
+    XCTAssertNil(VibeShortcutCommandForPress(VibeShortcutTable(), 12, kCmd, 'q', 0x03C2, nil), @"reserved under either form");
+    XCTAssertNil(VibeShortcutCommandForPress(VibeShortcutTable(), 126, 0, 0, 0, nil), @"an arrow is the table's");
 }
 
 - (void)testKeypadEnterAndForwardDeleteFoldIntoTheirTwins {
     XCTAssertEqualObjects(CommandForKey(76, 0, nil), kVibeMenuPlaySelected);
     XCTAssertEqualObjects(CommandForKey(117, 0, nil), kVibeMenuEditRemoveFromPlaylist);
     XCTAssertEqualObjects(CommandForKey(117, kCmd, nil), kVibeMenuEditMoveToTrash);
-    NSDictionary *overrides = VibeShortcutOverridesByAssigning(nil, kVibeMenuPlay, VibeShortcutMake(76, kCmd), 0, NULL);
+    NSDictionary *overrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), nil, kVibeMenuPlay, VibeShortcutMake(76, kCmd), 0, NULL);
     XCTAssertEqualObjects(overrides[kVibeMenuPlay], @(VibeShortcutMake(36, kCmd)));
     XCTAssertEqualObjects(CommandForKey(36, kCmd, overrides), kVibeMenuPlay);
 }
@@ -138,19 +138,19 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
 
     VibeShortcut pasteKey = VibeShortcutMake(9, kCmd);
     NSDictionary *overrides = @{kVibeMenuNextTrack: @(pasteKey)};
-    XCTAssertEqual(VibeShortcutEffective(kVibeMenuNextTrack, overrides), pasteKey, @"kept as stored");
-    XCTAssertNil(VibeShortcutCommandForPress(9, kCmd, 'v', 'v', overrides), @"the press passes on to Paste");
+    XCTAssertEqual(VibeShortcutEffective(VibeShortcutTable(), kVibeMenuNextTrack, overrides), pasteKey, @"kept as stored");
+    XCTAssertNil(VibeShortcutCommandForPress(VibeShortcutTable(), 9, kCmd, 'v', 'v', overrides), @"the press passes on to Paste");
     XCTAssertEqual(MenuItemForKey(kVibeMenuNextTrack, pasteKey, 'v', overrides), kVibeShortcutNone,
                    @"no shadowing equivalent");
     XCTAssertEqual(MenuItemForKey(kVibeMenuSkipBack, VibeShortcutMake(7, kCmd), 'x', nil), kVibeShortcutNone);
     // The same key under a layout that types another letter there is free.
     XCTAssertEqual(MenuItemForKey(kVibeMenuNextTrack, pasteKey, 0x043C, overrides), pasteKey, @"Russian ⌘м");
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(9, kCmd, 0x043C, 0x043C, overrides), kVibeMenuNextTrack);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 9, kCmd, 0x043C, 0x043C, overrides), kVibeMenuNextTrack);
 }
 
 - (void)testAMenuItemCarriesEveryShortcutButAReservedOne {
     for (NSString *identifier in VibeShortcutIdentifiers()) {
-        VibeShortcut shortcut = VibeShortcutDefault(identifier);
+        VibeShortcut shortcut = VibeShortcutDefault(VibeShortcutTable(), identifier);
         XCTAssertEqual(MenuItemForKey(identifier, shortcut, 0, nil), shortcut, @"%@", identifier);
     }
     XCTAssertEqual(MenuItemForKey(kVibeMenuPlay, kVibeShortcutNone, 'v', nil), kVibeShortcutNone);
@@ -166,9 +166,9 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
 // The Finder's own shortcut, by physical key. An override stored on ⌘⌫
 // before the default existed keeps the key.
 - (void)testMoveToTrashIsCommandDelete {
-    XCTAssertEqual(VibeShortcutDefault(kVibeMenuEditMoveToTrash), VibeShortcutMake(51, kCmd));
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(51, kCmd, 0x7F, 0x7F, nil), kVibeMenuEditMoveToTrash);
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(51, 0, 0, 0x7F, nil), kVibeMenuEditRemoveFromPlaylist);
+    XCTAssertEqual(VibeShortcutDefault(VibeShortcutTable(), kVibeMenuEditMoveToTrash), VibeShortcutMake(51, kCmd));
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 51, kCmd, 0x7F, 0x7F, nil), kVibeMenuEditMoveToTrash);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 51, 0, 0, 0x7F, nil), kVibeMenuEditRemoveFromPlaylist);
     XCTAssertFalse(VibeShortcutIsReserved(51, 0x7F, kCmd));
     VibeShortcut commandDelete = VibeShortcutMake(51, kCmd);
     NSDictionary *overrides = @{kVibeMenuPlay: @(commandDelete)};
@@ -179,24 +179,24 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
 // QuickTime Player's and Safari's key for it.
 - (void)testOpenLocationIsCommandLByItsLetter {
     VibeShortcut commandL = VibeShortcutMakeCharacter('l', kCmd);
-    XCTAssertEqual(VibeShortcutDefault(kVibeMenuOpenLink), commandL);
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(37, kCmd, 'l', 'l', nil), kVibeMenuOpenLink);
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(35, kCmd, 'l', 'l', nil), kVibeMenuOpenLink,
+    XCTAssertEqual(VibeShortcutDefault(VibeShortcutTable(), kVibeMenuOpenLink), commandL);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 37, kCmd, 'l', 'l', nil), kVibeMenuOpenLink);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 35, kCmd, 'l', 'l', nil), kVibeMenuOpenLink,
                           @"Dvorak types l on QWERTY's P key");
-    XCTAssertNil(VibeShortcutCommandForPress(37, kCmd | kShift, 'l', 'l', nil));
-    XCTAssertNil(VibeShortcutCommandForPress(37, 0, 0, 'l', nil), @"bare L is unbound");
+    XCTAssertNil(VibeShortcutCommandForPress(VibeShortcutTable(), 37, kCmd | kShift, 'l', 'l', nil));
+    XCTAssertNil(VibeShortcutCommandForPress(VibeShortcutTable(), 37, 0, 0, 'l', nil), @"bare L is unbound");
     XCTAssertFalse(VibeShortcutCommandRepeats(kVibeMenuOpenLink));
-    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, commandL, 37, 0, nil), commandL);
-    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, commandL, kVibeShortcutKeyMask, 0, nil), commandL,
+    XCTAssertEqual(VibeShortcutForMenuItem(VibeShortcutTable(), kVibeMenuOpenLink, commandL, 37, 0, nil), commandL);
+    XCTAssertEqual(VibeShortcutForMenuItem(VibeShortcutTable(), kVibeMenuOpenLink, commandL, kVibeShortcutKeyMask, 0, nil), commandL,
                    @"a layout with no L still draws ⌘L");
 }
 
 // Music's key for it, last in the table so an older override keeps the key.
 - (void)testShowInFinderIsShiftCommandR {
     VibeShortcut shiftCommandR = VibeShortcutMakeCharacter('r', kCmd | kShift);
-    XCTAssertEqual(VibeShortcutDefault(kVibeMenuShowInFinder), shiftCommandR);
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(15, kCmd | kShift, 'r', 'r', nil), kVibeMenuShowInFinder);
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(15, kCmd, 'r', 'r', nil), kVibeMenuRepeat,
+    XCTAssertEqual(VibeShortcutDefault(VibeShortcutTable(), kVibeMenuShowInFinder), shiftCommandR);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 15, kCmd | kShift, 'r', 'r', nil), kVibeMenuShowInFinder);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 15, kCmd, 'r', 'r', nil), kVibeMenuRepeat,
                           @"⌘R stays Repeat");
     XCTAssertEqualObjects(VibeShortcutIdentifiers().lastObject, kVibeMenuShowInFinder);
 }
@@ -206,54 +206,54 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
 // recording that gave the key away again hands it back.
 - (void)testAnOverrideAlreadyOnCommandLOutranksOpenLocation {
     VibeShortcut commandL = VibeShortcutMake(37, kCmd);
-    VibeShortcut openLocation = VibeShortcutDefault(kVibeMenuOpenLink);
+    VibeShortcut openLocation = VibeShortcutDefault(VibeShortcutTable(), kVibeMenuOpenLink);
     NSDictionary *overrides = @{kVibeMenuAlwaysOnTop: @(commandL)};
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(37, kCmd, 'l', 'l', overrides), kVibeMenuAlwaysOnTop);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 37, kCmd, 'l', 'l', overrides), kVibeMenuAlwaysOnTop);
     XCTAssertEqual(MenuItemForKey(kVibeMenuAlwaysOnTop, commandL, 'l', overrides), commandL);
-    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, openLocation, 37, 0, overrides), kVibeShortcutNone);
-    XCTAssertEqual(VibeShortcutEffective(kVibeMenuOpenLink, overrides), openLocation, @"still its default");
+    XCTAssertEqual(VibeShortcutForMenuItem(VibeShortcutTable(), kVibeMenuOpenLink, openLocation, 37, 0, overrides), kVibeShortcutNone);
+    XCTAssertEqual(VibeShortcutEffective(VibeShortcutTable(), kVibeMenuOpenLink, overrides), openLocation, @"still its default");
 
     // Dvorak types n on that key and l on QWERTY's P: each keeps its own.
     XCTAssertEqual(MenuItemForKey(kVibeMenuAlwaysOnTop, commandL, 'n', overrides), commandL);
-    XCTAssertEqual(VibeShortcutForMenuItem(kVibeMenuOpenLink, openLocation, 35, 0, overrides), openLocation);
-    XCTAssertEqualObjects(VibeShortcutCommandForPress(35, kCmd, 'l', 'l', overrides), kVibeMenuOpenLink);
+    XCTAssertEqual(VibeShortcutForMenuItem(VibeShortcutTable(), kVibeMenuOpenLink, openLocation, 35, 0, overrides), openLocation);
+    XCTAssertEqualObjects(VibeShortcutCommandForPress(VibeShortcutTable(), 35, kCmd, 'l', 'l', overrides), kVibeMenuOpenLink);
 
     // Recording ⌘L now takes it from Open Location, as from any default.
     NSString *loser = nil;
-    NSDictionary *recorded = VibeShortcutOverridesByAssigning(nil, kVibeMenuAlwaysOnTop, commandL, 'l', &loser);
+    NSDictionary *recorded = VibeShortcutOverridesByAssigning(VibeShortcutTable(), nil, kVibeMenuAlwaysOnTop, commandL, 'l', &loser);
     XCTAssertEqualObjects(loser, kVibeMenuOpenLink);
-    XCTAssertEqual(VibeShortcutEffective(kVibeMenuOpenLink, recorded), kVibeShortcutNone);
+    XCTAssertEqual(VibeShortcutEffective(VibeShortcutTable(), kVibeMenuOpenLink, recorded), kVibeShortcutNone);
 }
 
 - (void)testAssigningTakesTheShortcutFromItsOwnerAndStaysSparse {
     NSString *loser = nil;
     // K is free: stored, no loser.
-    NSDictionary *overrides = VibeShortcutOverridesByAssigning(nil, kVibeMenuSkipForward,
+    NSDictionary *overrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), nil, kVibeMenuSkipForward,
             VibeShortcutMake(40, 0), 'k', &loser);
     XCTAssertNil(loser);
     XCTAssertEqualObjects(overrides, @{kVibeMenuSkipForward: @(VibeShortcutMake(40, 0))});
     XCTAssertNil(CommandForKey(0, 0, overrides), @"A is now free");
 
     // Taking N from Next leaves Next unassigned, stored as None over its default.
-    overrides = VibeShortcutOverridesByAssigning(overrides, kVibeMenuPlay, VibeShortcutMake(45, 0), 'n', &loser);
+    overrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), overrides, kVibeMenuPlay, VibeShortcutMake(45, 0), 'n', &loser);
     XCTAssertEqualObjects(loser, kVibeMenuNextTrack);
-    XCTAssertEqual(VibeShortcutEffective(kVibeMenuNextTrack, overrides), kVibeShortcutNone);
+    XCTAssertEqual(VibeShortcutEffective(VibeShortcutTable(), kVibeMenuNextTrack, overrides), kVibeShortcutNone);
     XCTAssertEqualObjects(CommandForKey(45, 0, overrides), kVibeMenuPlay);
 
     // Skip Forward loses K in turn, and stays unassigned rather than reverting to A.
-    overrides = VibeShortcutOverridesByAssigning(overrides, kVibeMenuNextTrack, VibeShortcutMake(40, 0), 'k', &loser);
+    overrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), overrides, kVibeMenuNextTrack, VibeShortcutMake(40, 0), 'k', &loser);
     XCTAssertEqualObjects(loser, kVibeMenuSkipForward);
-    XCTAssertEqual(VibeShortcutEffective(kVibeMenuSkipForward, overrides), kVibeShortcutNone);
+    XCTAssertEqual(VibeShortcutEffective(VibeShortcutTable(), kVibeMenuSkipForward, overrides), kVibeShortcutNone);
 
     // Back to its default is absence; reassigning to self names no loser.
-    overrides = VibeShortcutOverridesByAssigning(overrides, kVibeMenuNextTrack, VibeShortcutMake(45, 0), 'n', &loser);
+    overrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), overrides, kVibeMenuNextTrack, VibeShortcutMake(45, 0), 'n', &loser);
     XCTAssertEqualObjects(loser, kVibeMenuPlay);
     XCTAssertNil(overrides[kVibeMenuNextTrack]);
-    overrides = VibeShortcutOverridesByAssigning(overrides, kVibeMenuNextTrack, VibeShortcutMake(45, 0), 'n', &loser);
+    overrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), overrides, kVibeMenuNextTrack, VibeShortcutMake(45, 0), 'n', &loser);
     XCTAssertNil(loser);
 
     // Clearing names no loser and needs no character.
-    overrides = VibeShortcutOverridesByAssigning(overrides, kVibeMenuAlwaysOnTop, kVibeShortcutNone, 0, &loser);
+    overrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), overrides, kVibeMenuAlwaysOnTop, kVibeShortcutNone, 0, &loser);
     XCTAssertNil(loser);
     XCTAssertNil(overrides[kVibeMenuAlwaysOnTop], @"already None by default");
 }
@@ -261,15 +261,15 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
 - (void)testAKeyCodeCollidesWithACharacterDefaultByCharacter {
     NSString *loser = nil;
     // ⌘O recorded on a QWERTY layout lands on Open's character default.
-    NSDictionary *overrides = VibeShortcutOverridesByAssigning(nil, kVibeMenuAlwaysOnTop,
+    NSDictionary *overrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), nil, kVibeMenuAlwaysOnTop,
             VibeShortcutMake(31, kCmd), 'o', &loser);
     XCTAssertEqualObjects(loser, kVibeMenuOpen);
-    XCTAssertEqual(VibeShortcutEffective(kVibeMenuOpen, overrides), kVibeShortcutNone);
+    XCTAssertEqual(VibeShortcutEffective(VibeShortcutTable(), kVibeMenuOpen, overrides), kVibeShortcutNone);
     // ⇧⌘C collides with Copy Name; ⌘C alone is reserved, not owned.
-    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutMake(8, kCmd | kShift), 'c', nil, nil), kVibeMenuEditCopyName);
-    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(8, kCmd), 'c', nil, nil));
+    XCTAssertEqualObjects(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(8, kCmd | kShift), 'c', nil, nil), kVibeMenuEditCopyName);
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(8, kCmd), 'c', nil, nil));
     // With no character known, only key codes collide.
-    XCTAssertNil(VibeShortcutOwner(VibeShortcutMake(31, kCmd), 0, nil, nil));
+    XCTAssertNil(VibeShortcutOwner(VibeShortcutTable(), VibeShortcutMake(31, kCmd), 0, nil, nil));
 }
 
 - (void)testOnlyAKeyCodeWithModifiersOrNoneIsStorable {
@@ -290,10 +290,10 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
 - (void)testAssigningAnIdentifierOutsideTheTableChangesNothing {
     NSDictionary *stored = @{kVibeMenuSkipForward: @(VibeShortcutMake(40, 0))};
     NSString *loser = @"stale";
-    NSDictionary *overrides = VibeShortcutOverridesByAssigning(stored, @"menu_gone", VibeShortcutMake(40, 0), 'k', &loser);
+    NSDictionary *overrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), stored, @"menu_gone", VibeShortcutMake(40, 0), 'k', &loser);
     XCTAssertNil(loser);
     XCTAssertEqualObjects(overrides, stored);
-    overrides = VibeShortcutOverridesByAssigning(nil, @"menu_gone", VibeShortcutMake(31, kCmd), 'o', &loser);
+    overrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), nil, @"menu_gone", VibeShortcutMake(31, kCmd), 'o', &loser);
     XCTAssertNil(loser);
     XCTAssertEqualObjects(overrides, @{}, @"Open keeps ⌘O");
 }
@@ -305,10 +305,10 @@ static VibeShortcut MenuItemForKey(NSString *identifier, VibeShortcut shortcut, 
         kVibeMenuSkipBack: @(1UL << 40),
         @"menu_gone": @(VibeShortcutMake(40, 0)),
     };
-    XCTAssertEqual(VibeShortcutEffective(kVibeMenuPlay, stored), VibeShortcutDefault(kVibeMenuPlay));
-    XCTAssertEqual(VibeShortcutEffective(kVibeMenuNextTrack, stored), VibeShortcutDefault(kVibeMenuNextTrack));
-    XCTAssertEqual(VibeShortcutEffective(kVibeMenuSkipBack, stored), VibeShortcutDefault(kVibeMenuSkipBack));
-    NSDictionary *cleaned = VibeShortcutOverridesByAssigning(stored, kVibeMenuAlwaysOnTop, kVibeShortcutNone, 0, NULL);
+    XCTAssertEqual(VibeShortcutEffective(VibeShortcutTable(), kVibeMenuPlay, stored), VibeShortcutDefault(VibeShortcutTable(), kVibeMenuPlay));
+    XCTAssertEqual(VibeShortcutEffective(VibeShortcutTable(), kVibeMenuNextTrack, stored), VibeShortcutDefault(VibeShortcutTable(), kVibeMenuNextTrack));
+    XCTAssertEqual(VibeShortcutEffective(VibeShortcutTable(), kVibeMenuSkipBack, stored), VibeShortcutDefault(VibeShortcutTable(), kVibeMenuSkipBack));
+    NSDictionary *cleaned = VibeShortcutOverridesByAssigning(VibeShortcutTable(), stored, kVibeMenuAlwaysOnTop, kVibeShortcutNone, 0, NULL);
     XCTAssertEqualObjects(cleaned, @{});
 }
 

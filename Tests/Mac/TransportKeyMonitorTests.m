@@ -8,7 +8,7 @@
 #import "TransportKeyMonitor.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
-#import "ShortcutRules.h"
+#import "MenuShortcutRules.h"
 
 // HIToolbox key codes, as the monitor matches them.
 static const unsigned short kKeyA = 0, kKeyS = 1, kKeyQ = 12, kKeyW = 13, kKeyE = 14, kKeyR = 15, kKeyT = 17;

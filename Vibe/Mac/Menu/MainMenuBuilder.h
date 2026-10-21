@@ -47,6 +47,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 + (nullable NSMenuItem *)mainMenuItemWithIdentifier:(NSString *)identifier;
 
+// The Keyboard Shortcuts pane's rows: every remappable command under its
+// menu's title, in menu order, as @[title, @[@[identifier, label,
+// @(default)], …]] per menu. The labels are the menu's own titles, but the
+// items validation retitles take stable names: Play, Convert to FLAC, and
+// the skips in their bars form whatever the track's tempo. A submenu's item
+// reads "Skip Back: 4 Bars". Built from NSApp.mainMenu on each call.
++ (NSArray<NSArray *> *)shortcutCommandRows;
+
 // The key's lowercase character under the current layout, in Command's layer
 // when modifiers hold ⌘, 0 when it has none; what the rules compare against
 // the fixed and character shortcuts.

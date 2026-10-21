@@ -21,13 +21,16 @@ static const CGFloat kShortcutColumnWidth = 120;
 @end
 
 @implementation SettingsShortcutsViewController {
+    NSArray<NSArray *> *(^_commandRows)(void);
     NSTableView *_table;
     NSButton *_recordButton;
     NSButton *_clearButton;
     NSButton *_resetAllButton;
     NSTextField *_captionLabel;
-    // A command identifier, or a header's title wrapped in an array, per row.
+    // A command's @[identifier, label, @(default)], or a group's title, per
+    // row.
     NSArray *_rows;
+    NSDictionary<NSString *, NSString *> *_labels;
     BOOL _reloadingList;
     // The last outcome to report; nil shows the explainer.
     NSString *_status;
@@ -41,10 +44,12 @@ static const CGFloat kShortcutColumnWidth = 120;
 }
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController
-                             effectsSink:(void (^)(NSUInteger))sink {
+                             effectsSink:(void (^)(NSUInteger))sink
+                             commandRows:(NSArray<NSArray *> *(^)(void))commandRows {
     self = [super initWithEffectsSink:sink];
     if (self) {
         _playerController = playerController;
+        _commandRows = [commandRows copy];
     }
     return self;
 }
@@ -99,58 +104,29 @@ static const CGFloat kShortcutColumnWidth = 120;
     _status = nil;
 }
 
-// The main menu's own titles in its own order, so a row reads as the item it
-// sets. Rebuilt per refresh: the menu is the source, and it is cheap.
-- (NSArray *)rowsFromMainMenu {
+// The groups flattened to one list, a title then its commands. Asked of the
+// app per refresh, which is cheap.
+- (void)reloadRows {
     NSMutableArray *rows = [NSMutableArray array];
-    for (NSMenuItem *topLevel in NSApp.mainMenu.itemArray) {
-        NSMutableArray<NSString *> *commands = [NSMutableArray array];
-        [self collectCommandsIn:topLevel.submenu into:commands];
-        if (commands.count) {
-            [rows addObject:@[topLevel.title]];
-            [rows addObjectsFromArray:commands];
+    NSMutableDictionary<NSString *, NSString *> *labels = [NSMutableDictionary dictionary];
+    for (NSArray *group in _commandRows()) {
+        [rows addObject:group[0]];
+        for (NSArray *command in group[1]) {
+            [rows addObject:command];
+            labels[command[0]] = command[1];
         }
     }
-    return rows;
+    _rows = rows;
+    _labels = labels;
 }
 
-- (void)collectCommandsIn:(NSMenu *)menu into:(NSMutableArray<NSString *> *)commands {
-    for (NSMenuItem *item in menu.itemArray) {
-        // Repeat is a submenu whose own item is the cycling command.
-        if (item.identifier && [VibeShortcutIdentifiers() containsObject:item.identifier]) {
-            [commands addObject:item.identifier];
-        }
-        if (item.submenu) {
-            [self collectCommandsIn:item.submenu into:commands];
-        }
-    }
-}
-
-// Validation retitles some items, so those take their stable names: the
-// skips in their bars form, whatever the current track's tempo.
 - (NSString *)labelForCommand:(NSString *)identifier {
-    if ([identifier isEqualToString:kVibeMenuPlay]) {
-        return STR_SETTINGS_SHORTCUTS_PLAY_PAUSE;
-    }
-    if ([identifier isEqualToString:kVibeMenuConvertToFLAC]) {
-        return VibeConvertMenuTitle(NO);
-    }
-    NSMenuItem *item = [MainMenuBuilder mainMenuItemWithIdentifier:identifier];
-    NSString *title = VibeSkipMenuTitle(identifier, AppSettings.sharedInstance.skipBaseBars, YES) ?: item.title;
-    NSMenu *parent = item.menu.supermenu;
-    if (parent && parent != NSApp.mainMenu) {
-        NSInteger index = [parent indexOfItemWithSubmenu:item.menu];
-        if (index >= 0) {
-            return [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_SUBMENU_ITEM,
-                                              [parent itemAtIndex:index].title, title];
-        }
-    }
-    return title;
+    return _labels[identifier] ?: identifier;
 }
 
 - (nullable NSString *)identifierForRow:(NSInteger)row {
     id entry = row >= 0 && row < (NSInteger)_rows.count ? _rows[(NSUInteger)row] : nil;
-    return [entry isKindOfClass:NSString.class] ? entry : nil;
+    return [entry isKindOfClass:NSArray.class] ? entry[0] : nil;
 }
 
 - (nullable NSString *)selectedIdentifier {
@@ -161,12 +137,17 @@ static const CGFloat kShortcutColumnWidth = 120;
 
 - (void)refreshFromSettings {
     NSString *selected = [self selectedIdentifier];
-    _rows = [self rowsFromMainMenu];
+    [self reloadRows];
     // TRAP: the reload and reselection post selection changes; one treated as
     // the user's would cancel a recording a regained key just refreshed over.
     _reloadingList = YES;
     [_table reloadData];
-    NSUInteger row = selected ? [_rows indexOfObject:selected] : NSNotFound;
+    NSUInteger row = NSNotFound;
+    if (selected) {
+        row = [_rows indexOfObjectPassingTest:^BOOL(id entry, NSUInteger index, BOOL *stop) {
+            return [entry isKindOfClass:NSArray.class] && [entry[0] isEqualToString:selected];
+        }];
+    }
     if (row != NSNotFound) {
         [_table selectRowIndexes:[NSIndexSet indexSetWithIndex:row] byExtendingSelection:NO];
     }
@@ -354,7 +335,7 @@ static const CGFloat kShortcutColumnWidth = 120;
     BOOL commandColumn = [tableColumn.identifier isEqualToString:kCommandColumn];
     if (!identifier) {
         return [SettingsRowView listGroupCellWithIdentifier:kGroupCellIdentifier inTableView:tableView
-                                                      title:commandColumn ? [_rows[(NSUInteger)row] firstObject] : @""];
+                                                      title:commandColumn ? _rows[(NSUInteger)row] : @""];
     }
     NSTableCellView *cell = [SettingsRowView listCellWithIdentifier:tableColumn.identifier
                                                         inTableView:tableView imagePosition:NSNoImage];

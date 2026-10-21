@@ -1,6 +1,6 @@
 # Menu bar (macOS)
 
-This directory holds the menu bar's builder (`MainMenuBuilder`) and the controllers of the Open Recent and Output submenus. It also holds the menu validation rules (`MenuValidationRules.h`) and the default shortcuts (`ShortcutRules.h`).
+This directory holds the menu bar's builder (`MainMenuBuilder`) and the controllers of the Open Recent and Output submenus. It also holds the menu validation rules (`MenuValidationRules.h`), the default shortcuts (`MenuShortcutRules.h`), and the shortcut encoding and matching (`ShortcutRules.h`), which name no command.
 
 **The menus are Vibe, File, Edit, View, Playback, FX, Convert, Output and Window, in Apple's order.** There is no Help menu, since the app ships no help book. Output stays top level for quick access while playing. **The menu bar carries no symbols**, as Apple's own menus do not. Its only images show content: Open Recent's file icons and View > Theme's swatches. The context menus keep their SF Symbols (`symbolItemWithTitle:`).
 
@@ -18,7 +18,7 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 ## Key equivalents
 
-**Every remappable item's key equivalent is set in one place, `applyShortcuts`**, from the effective shortcut. `ShortcutRules.h` holds the defaults table, which `AppSettings.shortcutOverrides` overrides sparsely. The builder passes `@"", 0` for those items. The `Shortcuts` effect sets them half a second after the window is up (`AppDelegate`). It runs again on an input source change. The builder sets only the drop hint's shortcut, which the first frame draws (`applyOpenShortcutHint`).
+**Every remappable item's key equivalent is set in one place, `applyShortcuts`**, from the effective shortcut. `MenuShortcutRules.h` holds the defaults table, which `AppSettings.shortcutOverrides` overrides sparsely. `ShortcutRules.h` holds the encoding and the matching over any such table, and imports nothing of Vibe's. Every caller passes `VibeShortcutTable()`. The builder passes `@"", 0` for those items. The `Shortcuts` effect sets them half a second after the window is up (`AppDelegate`). It runs again on an input source change. The builder sets only the drop hint's shortcut, which the first frame draws (`applyOpenShortcutHint`).
 
 **The fixed system shortcuts are reserved and never remappable**: ⌘, ⌘H ⌥⌘H ⌘Q ⌘W ⌘M ⌘Z ⇧⌘Z ⌘X ⌘C ⌘V ⌘A. They keep their literals in the builder. An override stored before its key was reserved stays stored but does nothing. The key monitor passes the press on, and `applyShortcuts` gives the item no equivalent (`VibeShortcutForMenuItem`). So a ⌘V bound before Edit > Paste existed never shadows Paste.
 

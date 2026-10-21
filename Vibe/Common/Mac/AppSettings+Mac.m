@@ -39,7 +39,7 @@
 #define OUTPUT_MODE_BIT_PERFECT                     @"bitPerfect"
 #define OUTPUT_MODE_EXCLUSIVE                       @"exclusive"
 // { menu identifier: VibeShortcut }, only where a shortcut differs from its
-// default (ShortcutRules.h).
+// default (MenuShortcutRules.h).
 #define SETTING_SHORTCUT_OVERRIDES                  @"Shortcuts.overrides"
 #define SETTING_DECLICK                             @"AudioPlayer.declick"
 #define SETTING_VOLUME_CONTROL                      @"AudioPlayer.volumeControl"
@@ -443,7 +443,7 @@ const size_t kVibeUIUpdateHzCapPresetCount =
 }
 #endif
 
-// Shape-checked only; which entries mean anything is ShortcutRules.h's.
+// Shape-checked only; which entries mean anything is MenuShortcutRules.h's.
 - (NSDictionary<NSString *, NSNumber *> *)shortcutOverrides {
     return [NSUserDefaults.standardUserDefaults dictionaryForKey:SETTING_SHORTCUT_OVERRIDES] ?: @{};
 }
