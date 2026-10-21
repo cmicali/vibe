@@ -37,6 +37,7 @@ NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification =
 @property (assign, readwrite) float bpm;
 @property (assign, readwrite) VibeMusicalKey key;
 @property (assign) BOOL parsedOK;
+@property (copy, nullable, readwrite) NSString *cacheKey;
 // Never nil on a live instance. A property, not a bare ivar: written on a
 // worker and read on main, an unlocked pair TSan reports.
 @property (strong, nullable) AudioTrackArtwork *artwork;
@@ -173,6 +174,7 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
     copy.bpm = self.bpm;
     copy.key = self.key;
     copy.parsedOK = self.parsedOK;
+    copy.cacheKey = self.cacheKey;
     copy.artwork = [self.artwork copy];
     return copy;
 }

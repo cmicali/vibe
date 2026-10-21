@@ -43,6 +43,11 @@ FOUNDATION_EXPORT NSNotificationName const AudioTrackMetadataThumbnailDidLoadNot
 // its fallback or partial facts would shadow real tags until the key changes.
 @property (readonly) BOOL parsedOK;
 
+// The item's cacheKey when these facts were read: the version they describe.
+// The loader stamps it before installing them. It is not archived, because
+// the cache entry is filed under it. nil when the file had no key.
+@property (copy, nullable, readonly) NSString *cacheKey;
+
 // Non-blocking: already-decoded art or nil, never a decode.
 - (nullable VibeImage *)cachedArt;
 

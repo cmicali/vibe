@@ -3,8 +3,51 @@
 //
 
 #import "AudioTrackMetadataLoaderTestCase.h"
+#import "NSURL+Hash.h"
+#import "TestFilesystemGuard.h"
 
-// Retries and their budgets, the foreground yield, admission and cancellation.
+#include <stdio.h>
+
+// The loader's store, as far as a parse's cache write reaches it: it records
+// the key each entry is filed under, and holds nothing.
+@interface VibeRecordingMetadataStore : NSObject
+@property(nonatomic, readonly) NSArray<NSString *> *filedKeys;
+@end
+
+@implementation VibeRecordingMetadataStore {
+    NSMutableArray<NSString *> *_filedKeys;
+}
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        _filedKeys = [NSMutableArray array];
+    }
+    return self;
+}
+
+- (id)diskCache {
+    return self;
+}
+
+- (void)setObject:(id)object forKey:(NSString *)key {
+    @synchronized (self) {
+        [_filedKeys addObject:key];
+    }
+}
+
+- (void)removeObjectForKey:(NSString *)key {
+}
+
+- (NSArray<NSString *> *)filedKeys {
+    @synchronized (self) {
+        return [_filedKeys copy];
+    }
+}
+@end
+
+// Retries and their budgets, the foreground yield, admission and cancellation,
+// and a parse of another version.
 @interface AudioTrackMetadataLoaderRetryTests : AudioTrackMetadataLoaderTestCase
 @end
 
@@ -911,6 +954,178 @@
     [self waitForExpectations:@[oldCallbackDrained] timeout:VIBE_TEST_HANG_TIMEOUT];
     XCTAssertEqual(oldController.startedURLs.count, 1u,
             @"cancelled loader admitted another pending record");
+}
+
+#pragma mark - Another version
+
+// A local file of the given size, so its cache key is real.
+- (NSURL *)localFileNamed:(NSString *)name bytes:(NSUInteger)length {
+    XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:_testRootURL
+            withIntermediateDirectories:YES attributes:nil error:nil]);
+    NSURL *url = [self URLNamed:name];
+    XCTAssertTrue([[NSMutableData dataWithLength:length] writeToURL:url atomically:NO]);
+    [self markLocal:url];
+    return url;
+}
+
+// What a download that installs another version does: the file moves to
+// another size under its URL, and every memoized key is retired.
+- (void)replaceFileAt:(NSURL *)url withBytes:(NSUInteger)length {
+    NSURL *next = [self URLNamed:@"next.partial"];
+    XCTAssertTrue([[NSMutableData dataWithLength:length] writeToURL:next atomically:NO]);
+    XCTAssertEqual(rename(next.fileSystemRepresentation, url.fileSystemRepresentation), 0);
+    [NSURL invalidateMemoizedCacheKeys];
+}
+
+// A parse that completes after its file was replaced by another version is
+// stale: it is neither installed, delivered nor filed. The row parses again
+// under the new key, and the new version's tags are installed and filed.
+- (void)testAParseOfAReplacedVersionInstallsNothingAndTheRowParsesAgain {
+    NSURL *url = [self localFileNamed:@"replaced.mp3" bytes:1000];
+    AudioTrack *track = [AudioTrack withURL:url];
+    NSString *oldKey = [url cacheKey];
+    VibeRecordingMetadataStore *store = [[VibeRecordingMetadataStore alloc] init];
+    _owner.metadataCache = store;
+    VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
+    delegate.deliveryExpectation = [self expectationWithDescription:@"new version delivered"];
+    XCTestExpectation *firstParseEntered = [self expectationWithDescription:@"first parse entered"];
+    dispatch_semaphore_t firstParseGate = dispatch_semaphore_create(0);
+    __block NSUInteger parses = 0;
+    AudioTrackMetadataLoader *loader = [self loaderWithController:
+            [[VibeMetadataLoaderOperationController alloc] init]
+            configuration:[self testConfiguration]
+            delegate:delegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) { return nil; }
+            fileParser:^AudioTrackMetadata *(NSURL *parsedURL) {
+        NSUInteger parse;
+        @synchronized (store) {
+            parse = ++parses;
+        }
+        if (parse == 1) {
+            [firstParseEntered fulfill];
+            dispatch_semaphore_wait(firstParseGate, DISPATCH_TIME_FOREVER);
+            return VibeLoaderTestMetadataResult(YES, @"old version");
+        }
+        return VibeLoaderTestMetadataResult(YES, @"new version");
+    }];
+
+    [loader load:@[track]];
+    [self waitForExpectations:@[firstParseEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [self replaceFileAt:url withBytes:2000];
+    NSString *newKey = [url cacheKey];
+    XCTAssertNotEqualObjects(newKey, oldKey);
+    dispatch_semaphore_signal(firstParseGate);
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    VibeSpinFor(kVibeTestNegativeWindow);
+
+    @synchronized (store) {
+        XCTAssertEqual(parses, 2u, @"the stale parse, then the new version's");
+    }
+    XCTAssertEqualObjects([(VibeLoaderTestMetadata *)track.metadata marker], @"new version");
+    XCTAssertEqualObjects(track.metadata.cacheKey, newKey);
+    XCTAssertEqual(delegate.deliveredMetadata.count, 1u, @"the stale parse delivered nothing");
+    XCTAssertEqual(delegate.deliveredMetadata.firstObject, track.metadata);
+    XCTAssertEqualObjects(store.filedKeys, (@[newKey]), @"the stale parse filed nothing");
+}
+
+// Retired memos alone are no new version: the key read again at completion
+// is the one the parse was looked up under, so it installs and files once.
+- (void)testAParseOfAnUnchangedFileInstallsOnceTheMemosAreRetired {
+    NSURL *url = [self localFileNamed:@"unchanged.mp3" bytes:1000];
+    AudioTrack *track = [AudioTrack withURL:url];
+    VibeRecordingMetadataStore *store = [[VibeRecordingMetadataStore alloc] init];
+    _owner.metadataCache = store;
+    VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
+    delegate.deliveryExpectation = [self expectationWithDescription:@"delivered"];
+    XCTestExpectation *parseEntered = [self expectationWithDescription:@"parse entered"];
+    dispatch_semaphore_t parseGate = dispatch_semaphore_create(0);
+    __block NSUInteger parses = 0;
+    AudioTrackMetadataLoader *loader = [self loaderWithController:
+            [[VibeMetadataLoaderOperationController alloc] init]
+            configuration:[self testConfiguration]
+            delegate:delegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) { return nil; }
+            fileParser:^AudioTrackMetadata *(NSURL *parsedURL) {
+        @synchronized (store) {
+            parses++;
+        }
+        [parseEntered fulfill];
+        dispatch_semaphore_wait(parseGate, DISPATCH_TIME_FOREVER);
+        return VibeLoaderTestMetadataResult(YES, @"unchanged");
+    }];
+
+    [loader load:@[track]];
+    [self waitForExpectations:@[parseEntered] timeout:VIBE_TEST_HANG_TIMEOUT];
+    [NSURL invalidateMemoizedCacheKeys];
+    dispatch_semaphore_signal(parseGate);
+    [self waitForExpectations:@[delegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    VibeSpinFor(kVibeTestNegativeWindow);
+
+    @synchronized (store) {
+        XCTAssertEqual(parses, 1u, @"installed, not parsed again");
+    }
+    XCTAssertEqualObjects([(VibeLoaderTestMetadata *)track.metadata marker], @"unchanged");
+    XCTAssertEqualObjects(track.metadata.cacheKey, [url cacheKey]);
+    XCTAssertEqual(delegate.deliveredMetadata.count, 1u);
+    XCTAssertEqualObjects(store.filedKeys, (@[[url cacheKey]]));
+}
+
+// A new version clears what the row installed. A row holding the old
+// version's tags parses again in the next sweep, and the new version's tags
+// replace them. A row whose file kept its version is not parsed again.
+- (void)testARowHoldingAnOldVersionsTagsParsesAgainInTheNextSweep {
+    NSURL *replacedURL = [self localFileNamed:@"rekeyed.mp3" bytes:1000];
+    NSURL *keptURL = [self localFileNamed:@"kept.mp3" bytes:1000];
+    AudioTrack *replaced = [AudioTrack withURL:replacedURL];
+    AudioTrack *kept = [AudioTrack withURL:keptURL];
+    NSObject *parseLock = [[NSObject alloc] init];
+    NSMutableArray<NSString *> *parsed = [NSMutableArray array];
+    VibeAudioTrackMetadataFileParser parser = ^AudioTrackMetadata *(NSURL *url) {
+        NSUInteger count;
+        @synchronized (parseLock) {
+            [parsed addObject:url.lastPathComponent];
+            count = parsed.count;
+        }
+        return VibeLoaderTestMetadataResult(YES, [NSString stringWithFormat:@"%@ %lu",
+                url.lastPathComponent, (unsigned long)count]);
+    };
+    VibeMetadataLoaderDelegate *firstDelegate = [[VibeMetadataLoaderDelegate alloc] init];
+    firstDelegate.deliveryExpectation = [self expectationWithDescription:@"first sweep delivered"];
+    firstDelegate.deliveryExpectation.expectedFulfillmentCount = 2;
+    AudioTrackMetadataLoader *first = [self loaderWithController:
+            [[VibeMetadataLoaderOperationController alloc] init]
+            configuration:[self testConfiguration]
+            delegate:firstDelegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) { return nil; }
+            fileParser:parser];
+    [first load:@[replaced, kept]];
+    [self waitForExpectations:@[firstDelegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    AudioTrackMetadata *keptTags = kept.metadata;
+    AudioTrackMetadata *oldTags = replaced.metadata;
+    XCTAssertTrue(oldTags.parsedOK);
+
+    [self replaceFileAt:replacedURL withBytes:2000];
+    VibeMetadataLoaderDelegate *secondDelegate = [[VibeMetadataLoaderDelegate alloc] init];
+    secondDelegate.deliveryExpectation = [self expectationWithDescription:@"next sweep delivered"];
+    AudioTrackMetadataLoader *second = [self loaderWithController:
+            [[VibeMetadataLoaderOperationController alloc] init]
+            configuration:[self testConfiguration]
+            delegate:secondDelegate
+            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) { return nil; }
+            fileParser:parser];
+    [second load:@[replaced, kept]];
+    [self waitForExpectations:@[secondDelegate.deliveryExpectation] timeout:VIBE_TEST_HANG_TIMEOUT];
+    VibeSpinFor(kVibeTestNegativeWindow);
+
+    @synchronized (parseLock) {
+        XCTAssertEqual(parsed.count, 3u, @"only the replaced file parses again");
+        XCTAssertEqualObjects(parsed.lastObject, @"rekeyed.mp3");
+    }
+    XCTAssertNotEqual(replaced.metadata, oldTags);
+    XCTAssertEqualObjects([(VibeLoaderTestMetadata *)replaced.metadata marker], @"rekeyed.mp3 3");
+    XCTAssertEqualObjects(replaced.metadata.cacheKey, [replacedURL cacheKey]);
+    XCTAssertEqualObjects(secondDelegate.deliveredTracks, (@[replaced]));
+    XCTAssertEqual(kept.metadata, keptTags, @"an unchanged file keeps its tags");
 }
 
 @end

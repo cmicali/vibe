@@ -108,6 +108,7 @@ NS_ASSUME_NONNULL_BEGIN
 // AudioTrackMetadataLoader+Parse.m, for the loader's other files.
 @interface AudioTrackMetadataLoader (ParseInternal)
 
+- (BOOL)holdsCurrentMetadata:(id<AudioTrackMetadataHolder>)track;
 - (BOOL)loadTrackFromDiskCache:(id<AudioTrackMetadataHolder>)track;
 - (BOOL)scheduleParseForEntry:(MetadataScanEntry *)entry
                 userInitiated:(BOOL)userInitiatedParse;
