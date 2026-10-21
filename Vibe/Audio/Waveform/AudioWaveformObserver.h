@@ -19,8 +19,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)appendMonoSamples:(const float *)samples frameCount:(NSUInteger)frameCount;
 
 // Asked once, after the last block, and only of a complete decode. The cache
-// files it beside the summary under the observer's identifier.
-- (NSNumber *)waveformResult;
+// files it beside the summary under the observer's identifier. It must be a
+// property-list object: an NSNumber, NSString, NSDate or NSData, or an
+// NSArray or NSDictionary (string keys) of those. Anything else is a
+// programming error, which asserts in Debug and is dropped in Release.
+- (id)waveformResult;
 
 @end
 
@@ -28,9 +31,10 @@ typedef id<AudioWaveformSink> _Nonnull (^AudioWaveformSinkFactory)(double sample
 
 @interface AudioWaveformObserver : NSObject
 
-// The identifier names the result in the archive, so it never changes. The
-// block makes one sink per decode, given the file's rate and the window's
-// frames.
+// The identifier names the result in the archive. An app versions an
+// observer by changing its identifier, so a changed algorithm leaves old
+// results uncovered and nothing else needs a bump. The block makes one sink
+// per decode, given the file's rate and the window's frames.
 - (instancetype)initWithIdentifier:(NSString *)identifier
                        sinkFactory:(AudioWaveformSinkFactory)sinkFactory NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
@@ -38,10 +42,6 @@ typedef id<AudioWaveformSink> _Nonnull (^AudioWaveformSinkFactory)(double sample
 @property (nonatomic, readonly, copy) NSString *identifier;
 
 - (id<AudioWaveformSink>)sinkForSampleRate:(double)sampleRate window:(NSRange)window;
-
-// Every identifier an observer was made with in this process. Format 6 of the
-// archive lists no identifiers, so an entry reads the results of these.
-+ (NSSet<NSString *> *)identifiers;
 
 @end
 

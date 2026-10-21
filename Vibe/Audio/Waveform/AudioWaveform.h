@@ -38,9 +38,9 @@ typedef wavecore::Summary AudioWaveform;
 // The entry-format version. It is encoded in every archive and embedded in the
 // disk cache's name, since AudioWaveformCache derives
 // "audio_waveform_cache_v<N>" from it, so both invalidation mechanisms move
-// together. Bump it to invalidate every cached entry, as after a format change
-// or a BPM-analyzer change that should re-detect. Mismatched entries simply
-// regenerate.
+// together. Bump it to invalidate every cached entry, as after a format
+// change. A changed observer needs no bump: it takes a new identifier
+// (AudioWaveformObserver.h). Mismatched entries simply regenerate.
 extern const int kCodableAudioWaveformVersion;
 
 @interface CodableAudioWaveform : NSObject <NSCoding>
@@ -48,10 +48,11 @@ extern const int kCodableAudioWaveformVersion;
 // Owned: freed with the wrapper.
 @property (nonatomic, readonly) AudioWaveform *waveform;
 
-// Each observer's result, by its identifier (AudioWaveformObserver.h). They
-// share the summary's decode, key and lifecycle. An observer the decode did
-// not run has no result, so a request that lists it misses and decodes again.
-@property (nonatomic, copy) NSDictionary<NSString *, NSNumber *> *results;
+// Each observer's result, a property-list object, by its identifier
+// (AudioWaveformObserver.h). They share the summary's decode, key and
+// lifecycle. An observer the decode did not run has no result, so a request
+// that lists it misses and decodes again.
+@property (nonatomic, copy) NSDictionary<NSString *, id> *results;
 
 // Takes ownership.
 - (instancetype)initWithWaveform:(std::unique_ptr<AudioWaveform>)waveform;

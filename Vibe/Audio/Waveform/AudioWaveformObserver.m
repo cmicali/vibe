@@ -5,8 +5,6 @@
 
 #import "AudioWaveformObserver.h"
 
-static NSMutableSet<NSString *> *sIdentifiers;
-
 @implementation AudioWaveformObserver {
     AudioWaveformSinkFactory _sinkFactory;
 }
@@ -16,24 +14,12 @@ static NSMutableSet<NSString *> *sIdentifiers;
     if (self) {
         _identifier = [identifier copy];
         _sinkFactory = [sinkFactory copy];
-        @synchronized (AudioWaveformObserver.class) {
-            if (!sIdentifiers) {
-                sIdentifiers = [NSMutableSet set];
-            }
-            [sIdentifiers addObject:_identifier];
-        }
     }
     return self;
 }
 
 - (id<AudioWaveformSink>)sinkForSampleRate:(double)sampleRate window:(NSRange)window {
     return _sinkFactory(sampleRate, window);
-}
-
-+ (NSSet<NSString *> *)identifiers {
-    @synchronized (AudioWaveformObserver.class) {
-        return sIdentifiers ? [sIdentifiers copy] : [NSSet set];
-    }
 }
 
 @end

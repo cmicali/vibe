@@ -135,8 +135,7 @@
 
 - (void)wireCollaboratorHandlers {
     // Asked once per request, so a settings change lands on the next load.
-    // The iOS card installs its own, tempo only. Both observers are made now,
-    // so every entry marks the one it skipped.
+    // The iOS card installs its own, tempo only.
     AudioWaveformObserver *tempo = AudioBPMAnalyzer.waveformObserver;
     AudioWaveformObserver *key = AudioKeyAnalyzer.waveformObserver;
     self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{

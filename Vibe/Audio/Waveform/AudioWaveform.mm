@@ -4,18 +4,21 @@
 //
 
 #import "AudioWaveform.h"
-#import "AudioWaveformObserver.h"
 
-#include <cmath>
-#include <cstring>
 #include <vector>
 
 // See the declaration in AudioWaveform.h.
-const int kCodableAudioWaveformVersion = 6;
+const int kCodableAudioWaveformVersion = 7;
 
-// Beside each result, whether the decode ran its observer.
-static NSString *VibeRanKey(NSString *identifier) {
-    return [identifier stringByAppendingString:@"Analyzed"];
+// What a result may be made of: the property-list classes, and no others.
+static NSSet<Class> *VibeWaveformResultClasses(void) {
+    static NSSet<Class> *classes;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        classes = [NSSet setWithObjects:NSDictionary.class, NSArray.class, NSString.class,
+                   NSNumber.class, NSDate.class, NSData.class, nil];
+    });
+    return classes;
 }
 
 @implementation CodableAudioWaveform {
@@ -39,29 +42,16 @@ static NSString *VibeRanKey(NSString *identifier) {
     [coder encodeInt:kCodableAudioWaveformVersion forKey:@"version"];
     std::vector<uint8_t> summary = _waveform ? _waveform->encode() : std::vector<uint8_t>();
     [coder encodeBytes:summary.data() length:summary.size() forKey:@"summary"];
-    // Format 6's own shapes: a floating result inline, as the tempo always
-    // was, and any other as an object, as the key always was. An absent
-    // object decodes as nil, never as a 0 that could pass for a result.
-    [self.results enumerateKeysAndObjectsUsingBlock:^(NSString *identifier, NSNumber *result, BOOL *stop) {
-        const char *type = result.objCType;
-        if (strcmp(type, @encode(float)) == 0) {
-            [coder encodeFloat:result.floatValue forKey:identifier];
-        }
-        else if (strcmp(type, @encode(double)) == 0) {
-            [coder encodeDouble:result.doubleValue forKey:identifier];
-        }
-        else {
-            [coder encodeObject:result forKey:identifier];
-        }
-        [coder encodeBool:YES forKey:VibeRanKey(identifier)];
-    }];
-    // Every observer this process knows that the decode did not run is
-    // marked, so a build that reads an absent mark as run still misses.
-    for (NSString *identifier in AudioWaveformObserver.identifiers) {
-        if (self.results[identifier] == nil) {
-            [coder encodeBool:NO forKey:VibeRanKey(identifier)];
-        }
+    // An archive of its own, with secure coding, so the read can hold it to
+    // the allowed classes whatever the outer coder does. The entry lists its
+    // own identifiers, so a reader needs no list of names.
+    NSError *error = nil;
+    NSData *results = [NSKeyedArchiver archivedDataWithRootObject:self.results requiringSecureCoding:YES error:&error];
+    if (!results) {
+        LogError(@"Waveform results would not archive: %@", error);
+        results = [NSData data];
     }
+    [coder encodeBytes:(const uint8_t *)results.bytes length:results.length forKey:@"results"];
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder {
@@ -82,21 +72,18 @@ static NSString *VibeRanKey(NSString *identifier) {
         if (!_waveform || !_waveform->isComplete()) {
             return nil;
         }
-        // A result that will not read is kept as NaN rather than dropped: the
-        // observer ran, so the entry still covers it, and a bad value is no
-        // reason to throw away good waveform data. Its reader decides.
-        NSMutableDictionary<NSString *, NSNumber *> *results = [NSMutableDictionary dictionary];
-        for (NSString *identifier in AudioWaveformObserver.identifiers) {
-            if (![coder decodeBoolForKey:VibeRanKey(identifier)]) {
-                continue;
-            }
-            id object = [coder decodeObjectForKey:identifier];
-            if ([object isKindOfClass:NSNumber.class]) {
-                results[identifier] = object;
-            }
-            else {
-                results[identifier] = @(!object && [coder containsValueForKey:identifier]
-                                        ? [coder decodeDoubleForKey:identifier] : NAN);
+        // Results that will not read reject the entry, as a bad summary
+        // does. Its observers then run again on the next decode.
+        bytes = [coder decodeBytesForKey:@"results" returnedLength:&length];
+        NSData *data = bytes ? [NSData dataWithBytes:bytes length:length] : nil;
+        id results = data ? [NSKeyedUnarchiver unarchivedObjectOfClasses:VibeWaveformResultClasses()
+                                                                fromData:data error:NULL] : nil;
+        if (![results isKindOfClass:NSDictionary.class]) {
+            return nil;
+        }
+        for (id identifier in results) {
+            if (![identifier isKindOfClass:NSString.class]) {
+                return nil;
             }
         }
         _results = [results copy];

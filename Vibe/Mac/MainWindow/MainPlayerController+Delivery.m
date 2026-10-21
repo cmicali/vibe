@@ -55,7 +55,7 @@
 // Only what was found is stamped: an undetectable tempo or key leaves the
 // row's as it was.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache
-            didLoadResults:(NSDictionary<NSString *, NSNumber *> *)results
+            didLoadResults:(NSDictionary<NSString *, id> *)results
                   forTrack:(AudioTrack *)analyzed {
     float bpm = [AudioBPMAnalyzer tempoInResults:results];
     VibeMusicalKey key = [AudioKeyAnalyzer keyInResults:results];

@@ -2,7 +2,7 @@
 
 `AudioBPMAnalyzer` and `AudioKeyAnalyzer` (ObjC++ and Accelerate) both ride the waveform loader's decode pass (`Audio/Waveform/AGENTS.md`), so neither costs a second file read. Neither knows the loader, and the loader does not know them.
 
-**`AudioAnalysisObservers.h` is Vibe's binding of the two.** Each analyzer is its own sink, through a category. Each has one observer, identified as `bpm` and `key`, the archive's names for them since format 6. The same file reads a tempo or a key back out of a decode's results, and degrades a bad one to unknown. It stays in Vibe when the analyzers move to vibe-libs.
+**`AudioAnalysisObservers.h` is Vibe's binding of the two.** Each analyzer is its own sink, through a category. Each has one observer, identified as `bpm` and `key`, and each result is an `NSNumber`. A change to what either computes takes a new identifier, so every entry analyzed the old way misses and analyzes again. The same file reads a tempo or a key back out of a decode's results, and degrades a bad one to unknown. It stays in Vibe when the analyzers move to vibe-libs.
 
 **Tempo runs on both platforms; key is macOS-only.** Both classes compile into both targets, and the tests exercise them. A decode runs one only when its `VibeWaveformAnalysisProvider` lists its observer. The mac's provider reads the two settings. The iOS card's lists only the tempo, under `analyzeBPM`, so on iOS `AudioTrack.detectedKey` stays unset and a track's `key` is its tag's. `analyzeBPM` is shared in `AppSettings`, and `analyzeKey` is macOS-only.
 

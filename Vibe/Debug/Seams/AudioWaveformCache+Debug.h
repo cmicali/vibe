@@ -18,7 +18,7 @@
 // are the entry's, by observer identifier.
 - (void)cacheWaveformForURL:(NSURL *)url
                  completion:(void (^)(BOOL ok, BOOL wasCached,
-                                      NSDictionary<NSString *, NSNumber *> *results))completion;
+                                      NSDictionary<NSString *, id> *results))completion;
 
 // A file's waveform data, decoded through the same path when it is not
 // cached, combined into columns (0: one per chunk): the peak min and max,

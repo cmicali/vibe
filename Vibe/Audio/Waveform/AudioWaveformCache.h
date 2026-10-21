@@ -117,7 +117,7 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // waveform callback. Match the track's sourceKey against each playlist row
 // before installing a result.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache
-            didLoadResults:(NSDictionary<NSString *, NSNumber *> *)results
+            didLoadResults:(NSDictionary<NSString *, id> *)results
                   forTrack:(id<VibePlayableItem>)track;
 
 @end

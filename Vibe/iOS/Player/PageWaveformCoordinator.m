@@ -201,7 +201,7 @@
 // Straight through: the track is the match, and the hold does not apply. The
 // tempo only: key detection is macOS-only.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache
-            didLoadResults:(NSDictionary<NSString *, NSNumber *> *)results
+            didLoadResults:(NSDictionary<NSString *, id> *)results
                   forTrack:(AudioTrack *)track {
     float bpm = [AudioBPMAnalyzer tempoInResults:results];
     if (bpm > 0) {

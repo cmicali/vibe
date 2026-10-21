@@ -214,12 +214,22 @@
 
     // Only a complete decode's sinks finish, so an entry never holds a
     // result read from part of its window.
-    NSMutableDictionary<NSString *, NSNumber *> *results = [NSMutableDictionary dictionaryWithCapacity:sinks.count];
+    NSMutableDictionary<NSString *, id> *results = [NSMutableDictionary dictionaryWithCapacity:sinks.count];
     std::vector<uint64_t> finishNanos(sinks.count);
     for (NSUInteger i = 0; self.isComplete && i < sinks.count; i++) {
         uint64_t phaseStart = VibeLoadClockNow();
-        results[observers[i].identifier] = [sinks[i] waveformResult];
+        id observed = [sinks[i] waveformResult];
         finishNanos[i] = VibeLoadClockNow() - phaseStart;
+        // The archive holds property-list objects only. Anything else is a
+        // sink's bug, dropped so the entry still files.
+        BOOL fileable = observed != nil && [NSPropertyListSerialization propertyList:observed
+                                                                    isValidForFormat:NSPropertyListBinaryFormat_v1_0];
+        NSAssert(fileable, @"Waveform observer %@ gave a result that is not a property list", observers[i].identifier);
+        if (!fileable) {
+            LogWarn(@"Waveform observer %@ gave a result that is not a property list; dropped", observers[i].identifier);
+            continue;
+        }
+        results[observers[i].identifier] = observed;
     }
     result.results = results;
     nanos.total = VibeLoadClockNow() - loadStart;

@@ -47,7 +47,7 @@
     self.peak = peak;
     self.frames += frameCount;
 }
-- (NSNumber *)waveformResult {
+- (id)waveformResult {
     self.finishes++;
     return @(self.frames);
 }
@@ -151,7 +151,7 @@
     _failures++;
 }
 - (void)audioWaveformCache:(AudioWaveformCache *)cache
-            didLoadResults:(NSDictionary<NSString *, NSNumber *> *)results
+            didLoadResults:(NSDictionary<NSString *, id> *)results
                   forTrack:(id<VibePlayableItem>)track {
     [_resultTracks addObject:track];
     [_results addObject:results];

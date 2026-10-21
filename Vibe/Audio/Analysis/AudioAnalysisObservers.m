@@ -21,14 +21,14 @@
     return observer;
 }
 
-// A float, which the archive keeps inline.
-- (NSNumber *)waveformResult {
+- (id)waveformResult {
     return @([self finish]);
 }
 
 // A bad tempo degrades to unknown: it is no reason to drop good waveform data.
-+ (float)tempoInResults:(NSDictionary<NSString *, NSNumber *> *)results {
-    float bpm = results[AudioBPMAnalyzer.waveformObserver.identifier].floatValue;
++ (float)tempoInResults:(NSDictionary<NSString *, id> *)results {
+    id tempo = results[AudioBPMAnalyzer.waveformObserver.identifier];
+    float bpm = [tempo isKindOfClass:NSNumber.class] ? [tempo floatValue] : 0;
     return isfinite(bpm) && bpm > 0 ? bpm : 0;
 }
 
@@ -48,16 +48,15 @@
     return observer;
 }
 
-// An integer, which the archive keeps as an object.
-- (NSNumber *)waveformResult {
+- (id)waveformResult {
     return @([self finish]);
 }
 
 // TRAP: 0 is C major, so an absent or unreadable key must answer
 // VibeMusicalKeyNone, never the 0 a message to nil returns.
-+ (VibeMusicalKey)keyInResults:(NSDictionary<NSString *, NSNumber *> *)results {
-    NSNumber *key = results[AudioKeyAnalyzer.waveformObserver.identifier];
-    double value = key != nil ? key.doubleValue : NAN;
++ (VibeMusicalKey)keyInResults:(NSDictionary<NSString *, id> *)results {
+    id key = results[AudioKeyAnalyzer.waveformObserver.identifier];
+    double value = [key isKindOfClass:NSNumber.class] ? [key doubleValue] : NAN;
     return value >= 0 && value < 24 && value == floor(value) ? (VibeMusicalKey)value : VibeMusicalKeyNone;
 }
 

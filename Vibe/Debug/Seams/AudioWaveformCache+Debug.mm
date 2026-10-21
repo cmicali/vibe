@@ -66,7 +66,7 @@ static std::atomic<double> sDebugDecodeSeconds{0};
 }
 
 - (void)cacheWaveformForURL:(NSURL *)url
-                 completion:(void (^)(BOOL, BOOL, NSDictionary<NSString *, NSNumber *> *))completion {
+                 completion:(void (^)(BOOL, BOOL, NSDictionary<NSString *, id> *))completion {
     [self waveformForURL:url completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
         if (completion) completion(waveform != nil, wasCached, waveform.results ?: @{});
     }];

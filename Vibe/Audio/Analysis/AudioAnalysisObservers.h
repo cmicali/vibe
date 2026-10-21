@@ -15,22 +15,22 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioBPMAnalyzer (WaveformObserver) <AudioWaveformSink>
 
-// Identified as "bpm", the archive's name for the tempo since format 6.
+// Identified as "bpm". Its result is the tempo, an NSNumber.
 @property (class, readonly) AudioWaveformObserver *waveformObserver;
 
 // The tempo in a decode's results, or 0 when it is absent or undetectable.
-+ (float)tempoInResults:(NSDictionary<NSString *, NSNumber *> *)results;
++ (float)tempoInResults:(NSDictionary<NSString *, id> *)results;
 
 @end
 
 @interface AudioKeyAnalyzer (WaveformObserver) <AudioWaveformSink>
 
-// Identified as "key", the archive's name for the key since format 6.
+// Identified as "key". Its result is the key, an NSNumber.
 @property (class, readonly) AudioWaveformObserver *waveformObserver;
 
 // The key in a decode's results, or VibeMusicalKeyNone when it is absent or
 // undetectable.
-+ (VibeMusicalKey)keyInResults:(NSDictionary<NSString *, NSNumber *> *)results;
++ (VibeMusicalKey)keyInResults:(NSDictionary<NSString *, id> *)results;
 
 @end
 

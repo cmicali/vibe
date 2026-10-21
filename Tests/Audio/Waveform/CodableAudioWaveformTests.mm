@@ -3,9 +3,8 @@
 //  VibeTests
 //
 //  The cache entry: the summary's archive under its version, and the
-//  observers' results that ride along. Format 6 holds Vibe's tempo and key,
-//  so these read the entries the analyzers' own fields wrote before the
-//  observers. The summary's own bytes are tested in
+//  observers' results that ride along, each a property-list object under its
+//  identifier. The summary's own bytes are tested in
 //  WaveformCore/WaveformSummaryTests.
 //
 
@@ -34,27 +33,27 @@ static NSData *SummaryBytes(bool bands, bool complete = true) {
     return [NSData dataWithBytes:blob.data() length:blob.size()];
 }
 
-// An entry as format 6 was written before the observers: the tempo inline,
-// the key as an object, and both flags.
-static void EncodeFormat6(NSCoder *coder, int version, NSData *summary, float bpm, id key,
-                          BOOL bpmAnalyzed, BOOL keyAnalyzed) {
-    [coder encodeInt:version forKey:@"version"];
-    if (summary) {
-        [coder encodeBytes:(const uint8_t *)summary.bytes length:summary.length forKey:@"summary"];
-    }
-    [coder encodeFloat:bpm forKey:@"bpm"];
-    if (key) {
-        [coder encodeObject:key forKey:@"key"];
-    }
-    [coder encodeBool:bpmAnalyzed forKey:@"bpmAnalyzed"];
-    [coder encodeBool:keyAnalyzed forKey:@"keyAnalyzed"];
-}
-
-static NSData *ArchiveWithKeys(int version, NSData *summary, float bpm, id key, BOOL analyzed = YES) {
+// An entry as this format writes one, with its parts given: the results as
+// raw bytes, so a test can hand it bytes that will not read.
+static NSData *ArchiveWithParts(int version, NSData *summary, NSData *results) {
     NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
-    EncodeFormat6(archiver, version, summary, bpm, key, analyzed, analyzed);
+    [archiver encodeInt:version forKey:@"version"];
+    if (summary) {
+        [archiver encodeBytes:(const uint8_t *)summary.bytes length:summary.length forKey:@"summary"];
+    }
+    if (results) {
+        [archiver encodeBytes:(const uint8_t *)results.bytes length:results.length forKey:@"results"];
+    }
     [archiver finishEncoding];
     return archiver.encodedData;
+}
+
+static NSData *ResultBytes(id results) {
+    return [NSKeyedArchiver archivedDataWithRootObject:results requiringSecureCoding:YES error:NULL];
+}
+
+static NSData *ArchiveWithKeys(int version, NSData *summary) {
+    return ArchiveWithParts(version, summary, ResultBytes(@{}));
 }
 
 static CodableAudioWaveform *DecodeArchive(NSData *data) {
@@ -66,47 +65,21 @@ static CodableAudioWaveform *DecodeArchive(NSData *data) {
     return decoded;
 }
 
-static NSData *Archive(CodableAudioWaveform *original) {
-    NSError *error = nil;
-    return [NSKeyedArchiver archivedDataWithRootObject:original requiringSecureCoding:NO error:&error];
-}
-
+// Through PINCache's own shape: an insecure root archive.
 static CodableAudioWaveform *RoundTrip(CodableAudioWaveform *original) {
     NSError *error = nil;
-    NSKeyedUnarchiver *unarchiver = [[NSKeyedUnarchiver alloc] initForReadingFromData:Archive(original) error:&error];
+    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:original requiringSecureCoding:NO error:&error];
+    NSKeyedUnarchiver *unarchiver = [[NSKeyedUnarchiver alloc] initForReadingFromData:data error:&error];
     unarchiver.requiresSecureCoding = NO;
     CodableAudioWaveform *decoded = [unarchiver decodeObjectForKey:NSKeyedArchiveRootObjectKey];
     [unarchiver finishDecoding];
     return decoded;
 }
 
-// Stands for the entry as the analyzers' own fields encoded it.
-@interface Format6Entry : NSObject <NSCoding>
-@property (nonatomic) NSData *summary;
-@property (nonatomic) float bpm;
-@property (nonatomic) NSInteger key;
-@property (nonatomic) BOOL bpmAnalyzed;
-@property (nonatomic) BOOL keyAnalyzed;
-@end
-
-@implementation Format6Entry
-// Another test class's observers, in this process only, are marked skipped.
-- (void)encodeWithCoder:(NSCoder *)coder {
-    EncodeFormat6(coder, kCodableAudioWaveformVersion, self.summary, self.bpm, @(self.key),
-                  self.bpmAnalyzed, self.keyAnalyzed);
-    for (NSString *identifier in AudioWaveformObserver.identifiers) {
-        if (![@[@"bpm", @"key"] containsObject:identifier]) {
-            [coder encodeBool:NO forKey:[identifier stringByAppendingString:@"Analyzed"]];
-        }
-    }
-}
-- (instancetype)initWithCoder:(NSCoder *)coder {
-    return [super init];
-}
-@end
-
-static NSDictionary *PropertyList(NSData *archive) {
-    return [NSPropertyListSerialization propertyListWithData:archive options:0 format:NULL error:NULL];
+static CodableAudioWaveform *RoundTripResults(NSDictionary *results) {
+    CodableAudioWaveform *original = [[CodableAudioWaveform alloc] initWithWaveform:SampleSummary(false)];
+    original.results = results;
+    return RoundTrip(original);
 }
 
 static NSString *Tempo(void) {
@@ -117,15 +90,21 @@ static NSString *Key(void) {
     return AudioKeyAnalyzer.waveformObserver.identifier;
 }
 
-@implementation CodableAudioWaveformTests
-
-// An entry reads the results of the observers already made, as the mac makes
-// both at launch.
-- (void)setUp {
-    [super setUp];
-    (void)Tempo();
-    (void)Key();
+// Format 6, as the analyzers' own fields wrote it: the tempo inline, the key
+// as an object, and a flag for each.
+static NSData *Format6Archive(NSData *summary) {
+    NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
+    [archiver encodeInt:6 forKey:@"version"];
+    [archiver encodeBytes:(const uint8_t *)summary.bytes length:summary.length forKey:@"summary"];
+    [archiver encodeFloat:128 forKey:@"bpm"];
+    [archiver encodeObject:@9 forKey:@"key"];
+    [archiver encodeBool:YES forKey:@"bpmAnalyzed"];
+    [archiver encodeBool:YES forKey:@"keyAnalyzed"];
+    [archiver finishEncoding];
+    return archiver.encodedData;
 }
+
+@implementation CodableAudioWaveformTests
 
 - (void)testEncodeThenDecodePreservesTheSummaryBandsAndResults {
     CodableAudioWaveform *original = [[CodableAudioWaveform alloc] initWithWaveform:SampleSummary(true)];
@@ -145,89 +124,71 @@ static NSString *Key(void) {
 }
 
 - (void)testAnEntryWithoutBandsDecodesWithoutThem {
-    CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, SummaryBytes(false), 120, nil));
+    CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, SummaryBytes(false)));
     XCTAssertNotNil(decoded);
     XCTAssertFalse(decoded.waveform->hasBands());
+    XCTAssertEqualObjects(decoded.results, @{});
 }
 
 - (void)testMismatchedVersionIsRejected {
     // Old entries decode their absent version as 0, which must also fail.
-    XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion + 1, SummaryBytes(true), 120, nil)));
-    XCTAssertNil(DecodeArchive(ArchiveWithKeys(0, SummaryBytes(true), 120, nil)));
+    XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion + 1, SummaryBytes(true))));
+    XCTAssertNil(DecodeArchive(ArchiveWithKeys(0, SummaryBytes(true))));
+}
+
+// Format 6 named the tempo and key in fields of their own. It is a miss like
+// any older version, so its file decodes again and files its results anew.
+- (void)testAFormat6EntryIsAMiss {
+    XCTAssertGreaterThan(kCodableAudioWaveformVersion, 6);
+    XCTAssertNil(DecodeArchive(Format6Archive(SummaryBytes(true))));
 }
 
 - (void)testAMissingOrBrokenSummaryIsRejected {
-    XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, nil, 120, nil)));
-    XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, [NSData data], 120, nil)));
+    XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, nil)));
+    XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, [NSData data])));
     NSData *valid = SummaryBytes(true);
     XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion,
-                                               [valid subdataWithRange:NSMakeRange(0, valid.length - 8)], 120, nil)));
+                                               [valid subdataWithRange:NSMakeRange(0, valid.length - 8)])));
 }
 
 // The cache only files a complete decode, so anything else is corruption.
 - (void)testAnIncompleteSummaryIsRejected {
-    XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, SummaryBytes(true, false), 120, nil)));
+    XCTAssertNil(DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, SummaryBytes(true, false))));
 }
 
-#pragma mark - The format does not change
+#pragma mark - Results
 
-// An entry with both results archives to the property list the analyzers'
-// own fields wrote, so neither build re-analyzes the other's entries.
-- (void)testAnEntryWithBothResultsArchivesAsFormat6Did {
-    NSData *summary = SummaryBytes(true);
-    Format6Entry *before = [Format6Entry new];
-    before.summary = summary;
-    before.bpm = 127.5f;
-    before.key = 0;
-    before.bpmAnalyzed = YES;
-    before.keyAnalyzed = YES;
-    NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
-    [archiver setClassName:NSStringFromClass(CodableAudioWaveform.class) forClass:Format6Entry.class];
-    [archiver encodeObject:before forKey:NSKeyedArchiveRootObjectKey];
-    [archiver finishEncoding];
-
-    CodableAudioWaveform *after = [[CodableAudioWaveform alloc] initWithWaveform:SampleSummary(true)];
-    after.results = @{Tempo(): @127.5f, Key(): @0};
-    XCTAssertEqualObjects(Archive(after), archiver.encodedData, @"byte for byte");
+// Every property-list class survives the archive, nested as deep as a beat
+// grid or a loudness curve would be.
+- (void)testEveryPropertyListClassRoundTrips {
+    NSDictionary *results = @{
+        @"number": @128.5f,
+        @"integer": @9,
+        @"string": @"8A",
+        @"date": [NSDate dateWithTimeIntervalSince1970:1700000000.25],
+        @"data": [NSData dataWithBytes:"\x00\x01\xfe\xff" length:4],
+        @"array": @[@0.5, @1.0, @1.5, @"beat"],
+        @"dictionary": @{@"curve": @[@-14.2, @-13.9], @"unit": @"LUFS", @"at": @[[NSDate dateWithTimeIntervalSince1970:0]]},
+        @"empty": @[],
+    };
+    CodableAudioWaveform *decoded = RoundTripResults(results);
+    XCTAssertNotNil(decoded);
+    XCTAssertEqualObjects(decoded.results, results);
 }
 
-// An observer the decode skipped is marked, and its value left out. A build
-// that reads the fields reads that value as none, so the marks decide.
-- (void)testASkippedObserverIsMarkedAsFormat6Marked {
-    CodableAudioWaveform *original = [[CodableAudioWaveform alloc] initWithWaveform:SampleSummary(false)];
-    original.results = @{Tempo(): @120.0f};
-    NSDictionary *entry = nil;
-    for (id object in PropertyList(Archive(original))[@"$objects"]) {
-        if ([object isKindOfClass:NSDictionary.class] && object[@"version"]) {
-            entry = object;
-        }
-    }
-    XCTAssertEqualObjects(entry[@"bpmAnalyzed"], @YES);
-    XCTAssertEqualObjects(entry[@"keyAnalyzed"], @NO);
-    XCTAssertEqualObjects(entry[@"bpm"], @120.0f);
-    XCTAssertNil(entry[@"key"], @"absent, which the fields read as none, never C major");
-}
-
-- (void)testAFormat6EntryReadsAsResults {
-    CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, SummaryBytes(false), 98.25f, @(14)));
-    XCTAssertEqualObjects(decoded.results[Tempo()], @98.25);
-    XCTAssertEqualObjects(decoded.results[Key()], @14);
-}
-
-- (void)testAnUnmarkedOrSkippedObserverHasNoResult {
-    CodableAudioWaveform *skipped = DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, SummaryBytes(false), 0, @(-1), NO));
-    XCTAssertNotNil(skipped);
-    XCTAssertEqual(skipped.results.count, 0u);
-
-    NSKeyedArchiver *archiver = [[NSKeyedArchiver alloc] initRequiringSecureCoding:NO];
-    [archiver encodeInt:kCodableAudioWaveformVersion forKey:@"version"];
+// Results that will not read reject the entry, as a bad summary does, so its
+// file decodes again: absent, not an archive, a root that is no dictionary,
+// a key that is no string, or a class outside the property list.
+- (void)testResultsThatWillNotReadRejectTheEntry {
     NSData *summary = SummaryBytes(false);
-    [archiver encodeBytes:(const uint8_t *)summary.bytes length:summary.length forKey:@"summary"];
-    [archiver encodeFloat:120 forKey:@"bpm"];
-    [archiver finishEncoding];
-    CodableAudioWaveform *unmarked = DecodeArchive(archiver.encodedData);
-    XCTAssertNotNil(unmarked);
-    XCTAssertNil(unmarked.results[Tempo()], @"every format 6 entry carries its marks");
+    XCTAssertNil(DecodeArchive(ArchiveWithParts(kCodableAudioWaveformVersion, summary, nil)));
+    XCTAssertNil(DecodeArchive(ArchiveWithParts(kCodableAudioWaveformVersion, summary,
+                                                [@"not an archive" dataUsingEncoding:NSUTF8StringEncoding])));
+    XCTAssertNil(DecodeArchive(ArchiveWithParts(kCodableAudioWaveformVersion, summary, ResultBytes(@[@1]))));
+    XCTAssertNil(DecodeArchive(ArchiveWithParts(kCodableAudioWaveformVersion, summary, ResultBytes(@{@1: @2}))));
+    NSData *url = ResultBytes(@{@"link": [NSURL URLWithString:@"https://example.com"]});
+    XCTAssertNotNil(url);
+    XCTAssertNil(DecodeArchive(ArchiveWithParts(kCodableAudioWaveformVersion, summary, url)));
 }
 
 #pragma mark - BPM coercion (not rejection)
@@ -235,9 +196,9 @@ static NSString *Key(void) {
 - (void)testNonFiniteOrNegativeBPMIsCoercedToZero {
     // A bad tempo is not a reason to throw away good waveform data: it
     // degrades to "unknown", and still covers the tempo.
-    for (float bad : {(float)NAN, (float)INFINITY, -5.0f, 0.0f}) {
-        CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, SummaryBytes(false), bad, nil));
-        XCTAssertNotNil(decoded, @"bpm %f must not reject the entry", bad);
+    for (id bad in @[@((float)NAN), @((float)INFINITY), @-5.0f, @0.0f, @"128", @[@128]]) {
+        CodableAudioWaveform *decoded = RoundTripResults(@{Tempo(): bad});
+        XCTAssertNotNil(decoded, @"bpm %@ must not reject the entry", bad);
         XCTAssertNotNil(decoded.results[Tempo()]);
         XCTAssertEqual([AudioBPMAnalyzer tempoInResults:decoded.results], 0.0f);
     }
@@ -247,9 +208,9 @@ static NSString *Key(void) {
 
 - (void)testAbsentKeyDecodesAsNone {
     // Not the 0 an integer decode fabricates, which is C major.
-    CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, SummaryBytes(false), 120, nil));
+    CodableAudioWaveform *decoded = RoundTripResults(@{Tempo(): @120.0f});
     XCTAssertNotNil(decoded);
-    XCTAssertNotNil(decoded.results[Key()], @"marked, so it covers the key");
+    XCTAssertNil(decoded.results[Key()], @"not run, so it does not cover the key");
     XCTAssertEqual([AudioKeyAnalyzer keyInResults:decoded.results], VibeMusicalKeyNone);
     XCTAssertEqual([AudioKeyAnalyzer keyInResults:@{}], VibeMusicalKeyNone);
 }
@@ -257,12 +218,12 @@ static NSString *Key(void) {
 - (void)testOutOfRangeOrWrongClassKeyIsCoercedToNone {
     // 0 is a valid key (C major), so the coercion must come from range and
     // class checks, never from a nil-ish read.
-    for (id bad in @[@(24), @(-2), @"8A", @[@(3)]]) {
-        CodableAudioWaveform *decoded = DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, SummaryBytes(false), 120, bad));
+    for (id bad in @[@(24), @(-2), @(3.5), @"8A", @[@(3)]]) {
+        CodableAudioWaveform *decoded = RoundTripResults(@{Key(): bad});
         XCTAssertNotNil(decoded, @"key %@ must not reject the entry", bad);
         XCTAssertEqual([AudioKeyAnalyzer keyInResults:decoded.results], VibeMusicalKeyNone, @"key %@ must coerce to none", bad);
     }
-    CodableAudioWaveform *cMajor = DecodeArchive(ArchiveWithKeys(kCodableAudioWaveformVersion, SummaryBytes(false), 120, @(0)));
+    CodableAudioWaveform *cMajor = RoundTripResults(@{Key(): @(0)});
     XCTAssertEqual([AudioKeyAnalyzer keyInResults:cMajor.results], 0, @"C major is preserved, not mistaken for absent");
 }
 
