@@ -1,16 +1,18 @@
 # Tempo and key detection
 
-`AudioBPMAnalyzer` and `AudioKeyAnalyzer` (ObjC++ and Accelerate) both ride the waveform loader's decode pass (`Audio/Waveform/AGENTS.md`), so neither costs a second file read.
+`AudioBPMAnalyzer` and `AudioKeyAnalyzer` (ObjC++ and Accelerate) both ride the waveform loader's decode pass (`Audio/Waveform/AGENTS.md`), so neither costs a second file read. Neither knows the loader, and the loader does not know them.
 
-**Tempo runs on both platforms; key is macOS-only.** Both classes compile into both targets, and the tests exercise them. The decode pass builds one only when its `VibeWaveformAnalysisProvider` asks. The mac's provider reads the two settings. The iOS card's answers `{analyzeBPM, NO}`, so on iOS `AudioTrack.detectedKey` stays unset and a track's `key` is its tag's. `analyzeBPM` is shared in `AppSettings`, and `analyzeKey` is macOS-only.
+**`AudioAnalysisObservers.h` is Vibe's binding of the two.** Each analyzer is its own sink, through a category. Each has one observer, identified as `bpm` and `key`, the archive's names for them since format 6. The same file reads a tempo or a key back out of a decode's results, and degrades a bad one to unknown. It stays in Vibe when the analyzers move to vibe-libs.
 
-Results travel in `CodableAudioWaveform.bpm`/`.key`, arrive through `audioWaveformCache:didDetectBPM:forTrack:` and `didDetectKey:forTrack:`, and land in the transient `AudioTrack.detectedBPM`/`.detectedKey`. A cue row is analyzed over its own window, so a mix gets a tempo and key per track. A receiver stamps every row whose `sourceKey` is the delivered track's (`Playlist.stampTracksSounding:usingBlock:`), never just the current one (root `AGENTS.md`, async deliveries).
+**Tempo runs on both platforms; key is macOS-only.** Both classes compile into both targets, and the tests exercise them. A decode runs one only when its `VibeWaveformAnalysisProvider` lists its observer. The mac's provider reads the two settings. The iOS card's lists only the tempo, under `analyzeBPM`, so on iOS `AudioTrack.detectedKey` stays unset and a track's `key` is its tag's. `analyzeBPM` is shared in `AppSettings`, and `analyzeKey` is macOS-only.
+
+Results travel in `CodableAudioWaveform.results`, arrive through `audioWaveformCache:didLoadResults:forTrack:`, and land in the transient `AudioTrack.detectedBPM`/`.detectedKey`. A cue row is analyzed over its own window, so a mix gets a tempo and key per track. A receiver stamps every row whose `sourceKey` is the delivered track's (`Playlist.stampTracksSounding:usingBlock:`), never just the current one (root `AGENTS.md`, async deliveries).
 
 **A whole file's tag beats analysis; a cue row's never does** (root `AGENTS.md`). `AudioTrack.rowTagMetadata` is nil for a windowed row. `AudioTrackMetadata.bpm` reads TagLib's PropertyMap "BPM" (ID3 TBPM, MP4 tmpo, Vorbis BPM). `AudioTrackMetadata.key` reads "INITIALKEY" (ID3 TKEY, Vorbis/FLAC INITIALKEY), falling back to the MP4 freeform atom "initialkey". It is parsed through `VibeMusicalKeyFromString` (musical names, Camelot, Open Key).
 
 ## Tempo
 
-`AppSettings.analyzeBPM` (Settings > Playback on both platforms, default **on**) gates the ride-along. On iOS the detected tempo also drives the FX pad's delay taps (`iOS/Player/AGENTS.md`). Off, the waveform caches with no BPM. A file scanned while off is analyzed again only when a request that runs the analyzer misses its entry (`Audio/Waveform/AGENTS.md`). Tagged BPM and `scan_bpm` are unaffected.
+`AppSettings.analyzeBPM` (Settings > Playback on both platforms, default **on**) gates the ride-along. On iOS the detected tempo also drives the FX pad's delay taps (`iOS/Player/AGENTS.md`). Off, the waveform caches with no BPM. A file scanned while off is analyzed again only when a request that lists the tempo's observer misses its entry (`Audio/Waveform/AGENTS.md`). Tagged BPM and `scan_bpm` are unaffected.
 
 While streaming it builds a power-spectrum spectral-flux onset envelope. At end of file it runs autocorrelation and a harmonic comb over 60–200 BPM. A time-domain phase comb rescores the top candidates over a window of ≤40 seconds, to resolve 2:1 and 3:2 metrical errors. An interpolated fine pass then polishes the winner's period. Below `kMinConfidence` it returns 0: noise, speech, rubato.
 
@@ -39,7 +41,7 @@ The last two exist because profile correlation finds a *scale*, not a tonal cent
 
 Frames are normalized to one vote and **never log-compressed**. Compressing raw magnitudes squashes loud passages harder than quiet ones.
 
-The key type, Camelot and musical-name formatting and tag parsing live in `Audio/MusicalKey.h`. **TRAP: a `VibeMusicalKey` of 0 is C major** (root `AGENTS.md`). `CodableAudioWaveform.key`, `AudioTrackMetadata.key` and `AudioTrack.detectedKey` are each set to `VibeMusicalKeyNone` explicitly.
+The key type, Camelot and musical-name formatting and tag parsing live in `Audio/MusicalKey.h`. **TRAP: a `VibeMusicalKey` of 0 is C major** (root `AGENTS.md`). `AudioKeyAnalyzer keyInResults:`, `AudioTrackMetadata.key` and `AudioTrack.detectedKey` each answer `VibeMusicalKeyNone` explicitly.
 
 ## Cost
 

@@ -4,6 +4,7 @@
 //
 
 #import "PageWaveformCoordinator.h"
+#import "AudioAnalysisObservers.h"
 #import "AudioTrack.h"
 #import "AudioWaveformCache.h"
 #import "AudioWorkScheduler.h"
@@ -197,10 +198,15 @@
     [_delegate pageWaveformCoordinator:self didFailWaveformForIndex:failedIndex];
 }
 
-// Straight through: the track is the match, and the hold does not apply. No
-// key twin: key detection is macOS-only.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forTrack:(AudioTrack *)track {
-    [_delegate pageWaveformCoordinator:self didDetectBPM:bpm forTrack:track];
+// Straight through: the track is the match, and the hold does not apply. The
+// tempo only: key detection is macOS-only.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache
+            didLoadResults:(NSDictionary<NSString *, NSNumber *> *)results
+                  forTrack:(AudioTrack *)track {
+    float bpm = [AudioBPMAnalyzer tempoInResults:results];
+    if (bpm > 0) {
+        [_delegate pageWaveformCoordinator:self didDetectBPM:bpm forTrack:track];
+    }
 }
 
 @end

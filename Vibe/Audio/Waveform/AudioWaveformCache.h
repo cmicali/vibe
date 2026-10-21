@@ -25,13 +25,14 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 
 @property (nullable, weak) id <AudioWaveformCacheDelegate> delegate;
 
-// What a decode should compute beyond the waveform. A provider rather than a
-// value because it is asked once per request, on the main thread, so a
-// settings change lands on the next request with nobody republishing it; and
-// that answer is the request's loader's, so the lookup and the decode agree on
-// the bands. Unset is none of it. A cached entry without the bands misses for
-// a request asking for them, so an owner that comes to want them asks for its
-// track again (AGENTS.md).
+// What a decode should compute beyond the waveform: the bands and the
+// observers. A provider rather than a value because it is asked once per
+// request, on the main thread, so a settings change lands on the next request
+// with nobody republishing it; and that answer is the request's loader's, so
+// the lookup and the decode agree. Unset is none of it. A cached entry
+// without the bands or an observer's result misses for a request asking for
+// it, so an owner that comes to want more asks for its track again
+// (AGENTS.md).
 @property (nullable, copy) VibeWaveformAnalysisProvider analysisProvider;
 
 // The PINCache store name, derived from the entry format version; see the
@@ -81,8 +82,8 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // cancelled, and its uncancellable stat/open worker keeps the path's claim
 // until it returns, so a same-file request waits and restarts once rather
 // than adding a stranded worker. A live detached decode is reattached in
-// place. BPM and key from a detached decode are still delivered, with the
-// track they were loaded for. The receiver matches it against its playlist.
+// place. A detached decode's results are still delivered, with the track they
+// were loaded for. The receiver matches it against its playlist.
 - (void)cancelLoad;
 
 @end
@@ -109,16 +110,15 @@ typedef VibeWaveformAnalysis (^VibeWaveformAnalysisProvider)(void);
 // loadWaveformForTrack: starts a fresh attempt for the same window.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(id<VibePlayableItem>)track;
 
-// Delivers a nonzero tempo on main after a completed load or cache hit.
-// Active loads deliver it after final didLoadData:. Detached loads and cache
-// previews can deliver analysis without a waveform callback. Match the
-// track's sourceKey against each playlist row before installing the result.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forTrack:(id<VibePlayableItem>)track;
-
-// The key detection twin of didDetectBPM:, with the same timing, threading
-// and matching contract. key is a valid VibeMusicalKey — it never fires with
-// VibeMusicalKeyNone.
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forTrack:(id<VibePlayableItem>)track;
+// Delivers an entry's results, by observer identifier, on main after a
+// completed load or cache hit, whenever it holds any. They may include
+// observers this request did not list. Active loads deliver them after final
+// didLoadData:. Detached loads and cache previews can deliver them without a
+// waveform callback. Match the track's sourceKey against each playlist row
+// before installing a result.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache
+            didLoadResults:(NSDictionary<NSString *, NSNumber *> *)results
+                  forTrack:(id<VibePlayableItem>)track;
 
 @end
 

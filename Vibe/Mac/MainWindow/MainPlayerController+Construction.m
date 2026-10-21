@@ -18,6 +18,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "ArtworkDisplayController.h"
+#import "AudioAnalysisObservers.h"
 #import "AudioFileConverter.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
@@ -134,13 +135,22 @@
 
 - (void)wireCollaboratorHandlers {
     // Asked once per request, so a settings change lands on the next load.
-    // The iOS card installs its own, tempo only.
+    // The iOS card installs its own, tempo only. Both observers are made now,
+    // so every entry marks the one it skipped.
+    AudioWaveformObserver *tempo = AudioBPMAnalyzer.waveformObserver;
+    AudioWaveformObserver *key = AudioKeyAnalyzer.waveformObserver;
     self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{
         AppSettings *settings = AppSettings.sharedInstance;
+        NSMutableArray<AudioWaveformObserver *> *observers = [NSMutableArray arrayWithCapacity:2];
+        if (settings.analyzeBPM) {
+            [observers addObject:tempo];
+        }
+        if (settings.analyzeKey) {
+            [observers addObject:key];
+        }
         return (VibeWaveformAnalysis){
-            .bpm = settings.analyzeBPM,
-            .key = settings.analyzeKey,
             .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.currentTheme.waveformStyle],
+            .observers = observers,
         };
     };
     _waveformAnalysisWanted = self.waveformCache.analysisProvider();

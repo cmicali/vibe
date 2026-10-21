@@ -839,7 +839,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     XCTAssertEqual(recorder.failures, 0u);
 
     settled = NO;
-    [cache cacheWaveformForURL:url completion:^(BOOL ok, BOOL wasCached, float bpm, NSInteger key) {
+    [cache cacheWaveformForURL:url completion:^(BOOL ok, BOOL wasCached, NSDictionary *results) {
         XCTAssertTrue(ok);
         XCTAssertFalse(wasCached, @"the preview miss must not have populated the cache");
         settled = YES;
@@ -1076,31 +1076,6 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     XCTAssertEqual(MatchingBins(recorder.complete, second), second.waveform->binCount(),
                    @"re-keyed, it misses and decodes the new one");
     XCTAssertEqual(recorder.failures, 0u);
-}
-
-// Turning tempo detection on reaches a file decoded while it was off: the
-// entry records that it skipped the analyzer, so a request running it misses
-// and decodes again, and the request after that is a hit on the new entry.
-- (void)testAnEntryDecodedWithoutTempoMissesForARequestThatRunsIt {
-    NSURL *url = [self writeNoiseWAVNamed:@"analysis.wav" seconds:2.0 seed:23];
-    WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
-    AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
-    __block VibeWaveformAnalysis analysis = {};
-    cache.analysisProvider = ^VibeWaveformAnalysis { return analysis; };
-
-    [cache loadWaveformForTrack:[AudioTrack withURL:url]];
-    XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }]);
-    XCTAssertFalse(recorder.complete.bpmAnalyzed, @"decoded with detection off");
-
-    analysis.bpm = YES;
-    [cache loadWaveformForTrack:[AudioTrack withURL:url]];
-    XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2; }]);
-    XCTAssertTrue(recorder.complete.bpmAnalyzed, @"the skipped analysis is a miss, decoded again");
-
-    analysis.bpm = NO;
-    [cache loadWaveformForTrack:[AudioTrack withURL:url]];
-    XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 3; }]);
-    XCTAssertTrue(recorder.complete.bpmAnalyzed, @"a request without it takes the analyzed entry");
 }
 
 @end

@@ -11,8 +11,6 @@
 
 #import "AudioWaveformLoaderInternal.h"
 #import "AudioWaveform.h"
-#import "AudioBPMAnalyzer.h"
-#import "AudioKeyAnalyzer.h"
 #import "AudioLoadTiming.h"
 #import "CloudFileMaterializer.h"
 #import "CueWindowMath.h"
@@ -140,30 +138,31 @@
     }
     BOOL sizedByEstimate = file.lengthIsEstimated;
     std::unique_ptr<wavecore::SummaryBuilder> builder;
-    AudioBPMAnalyzer *bpmAnalyzer = nil;
-    AudioKeyAnalyzer *keyAnalyzer = nil;
+    NSArray<AudioWaveformObserver *> *observers = self.analysis.observers;
+    NSMutableArray<id<AudioWaveformSink>> *sinks = [NSMutableArray arrayWithCapacity:observers.count];
+    std::vector<uint64_t> appendNanos(observers.count);
     for (;;) {
         if (!builder) {
             builder = [self builderForPass:&pass sampleRate:file.processingFormat.sampleRate];
-            // Tempo and key detection share the waveform's mono buffers.
-            // Neither needs a second read of the track window.
-            // With one off there is no analyzer, and the entry is filed
-            // without that analysis (bpmAnalyzed, keyAnalyzed). A later
-            // request that runs it misses on the entry and decodes again. The
-            // explicit scan_bpm and scan_key debug paths run the analyzers
-            // directly and ignore this.
-            VibeWaveformAnalysis analysis = self.analysis;
-            bpmAnalyzer = analysis.bpm ? [[AudioBPMAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate] : nil;
-            keyAnalyzer = analysis.key ? [[AudioKeyAnalyzer alloc] initWithSampleRate:file.processingFormat.sampleRate] : nil;
+            // The observers share the waveform's mono blocks, so none needs a
+            // second read of the window. One the request did not list leaves
+            // no result, and a later request that lists it misses on the
+            // entry and decodes again.
+            [sinks removeAllObjects];
+            for (AudioWaveformObserver *observer in observers) {
+                [sinks addObject:[observer sinkForSampleRate:file.processingFormat.sampleRate
+                                                      window:NSMakeRange((NSUInteger)pass.windowStart,
+                                                                         (NSUInteger)pass.totalFrames)]];
+            }
         }
 
         if (![self runDecodePass:&pass
                             file:file
                         filename:filename
                          builder:builder.get()
-                     bpmAnalyzer:bpmAnalyzer
-                     keyAnalyzer:keyAnalyzer
-                           nanos:&nanos]) {
+                           sinks:sinks
+                           nanos:&nanos
+                     appendNanos:appendNanos.data()]) {
             // Cancelled mid-decode, so the data really is partial. A cancel
             // that lands after the loop has read every frame falls through
             // instead: the decode is complete and worth caching for the next
@@ -213,25 +212,26 @@
     self.isComplete = [self isDecodeComplete:&pass filename:filename];
     CodableAudioWaveform *result = [[CodableAudioWaveform alloc] initWithWaveform:builder->finish(self.isComplete)];
 
-    if (self.isComplete && bpmAnalyzer) {
+    // Only a complete decode's sinks finish, so an entry never holds a
+    // result read from part of its window.
+    NSMutableDictionary<NSString *, NSNumber *> *results = [NSMutableDictionary dictionaryWithCapacity:sinks.count];
+    std::vector<uint64_t> finishNanos(sinks.count);
+    for (NSUInteger i = 0; self.isComplete && i < sinks.count; i++) {
         uint64_t phaseStart = VibeLoadClockNow();
-        result.bpmAnalyzed = YES;
-        result.bpm = [bpmAnalyzer finish];
-        nanos.bpmFinish = VibeLoadClockNow() - phaseStart;
+        results[observers[i].identifier] = [sinks[i] waveformResult];
+        finishNanos[i] = VibeLoadClockNow() - phaseStart;
     }
-    if (self.isComplete && keyAnalyzer) {
-        uint64_t phaseStart = VibeLoadClockNow();
-        result.keyAnalyzed = YES;
-        result.key = [keyAnalyzer finish];
-        nanos.keyFinish = VibeLoadClockNow() - phaseStart;
-    }
+    result.results = results;
     nanos.total = VibeLoadClockNow() - loadStart;
 #if DEBUG
+    NSMutableDictionary<NSString *, NSArray<NSNumber *> *> *observerNanos = [NSMutableDictionary dictionary];
+    for (NSUInteger i = 0; i < sinks.count; i++) {
+        observerNanos[observers[i].identifier] = @[@(appendNanos[i]), @(finishNanos[i])];
+    }
     [AudioLoadTiming recordPath:filename
                    audioSeconds:(NSTimeInterval)pass.totalFrames / file.processingFormat.sampleRate
-                     bpmEnabled:bpmAnalyzer != nil
-                     keyEnabled:keyAnalyzer != nil
-                          nanos:nanos];
+                          nanos:nanos
+                      observers:observerNanos];
 #endif
     return result;
 }
@@ -317,7 +317,7 @@
 
 // Reads the file in large blocks, downmixes each to mono once, and feeds the
 // block to the summary, which splits the bands from the mono, and the mono to
-// both analyzers, on a serial queue one block behind the decode. It continues
+// every sink, on a serial queue one block behind the decode. It continues
 // from pass->framesRead, so a pass sized by an estimate can read on to the
 // exact length. NO when the pass has nothing worth keeping — a cancel that
 // landed while frames were still missing, or buffers that would not allocate.
@@ -329,9 +329,9 @@
                  file:(AudioFileHandle *)file
              filename:(NSString *)filename
               builder:(wavecore::SummaryBuilder *)builder
-          bpmAnalyzer:(AudioBPMAnalyzer *)bpmAnalyzer
-          keyAnalyzer:(AudioKeyAnalyzer *)keyAnalyzer
-                nanos:(VibeLoadPhaseNanos *)nanos {
+                sinks:(NSArray<id<AudioWaveformSink>> *)sinks
+                nanos:(VibeLoadPhaseNanos *)nanos
+          appendNanos:(uint64_t *)appendNanos {
 
     const AVAudioFramePosition totalFrames = pass->totalFrames;
     const NSUInteger numChannels = pass->numChannels;
@@ -353,7 +353,7 @@
 
     // Scratch for the shared interleaved-to-mono mix, one per pipeline slot.
     // Each decode buffer is downmixed once and fed to both the summary and
-    // the analyzers. Mono files skip the mix entirely, since
+    // the sinks. Mono files skip the mix entirely, since
     // AudioWaveformMonoMix returns the buffer itself.
     std::vector<float> monoScratches[2];
     if (numChannels > 1) {
@@ -363,8 +363,8 @@
     // Everything the processing blocks touch. They run one at a time on the
     // serial queue and the decode loop never reads these until the final
     // drain, so no lock is needed. The phase accumulators are split by
-    // ownership for the same reason: the processing side writes procNanos,
-    // the decode loop writes only nanos->read.
+    // ownership for the same reason: the processing side writes procNanos
+    // and appendNanos, the decode loop writes only nanos->read.
     dispatch_queue_t processQueue = dispatch_queue_create("com.vibe.waveform.process",
             dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));
     __block VibeLoadPhaseNanos procNanos = {};
@@ -433,18 +433,18 @@
         dispatch_semaphore_t slotDone = slotFree[slot];
         dispatch_async(processQueue, ^{
             // The downmix counts as baseline: the summary needs it whether or
-            // not an analyzer is running.
+            // not a sink is running.
             uint64_t procStart = VibeLoadClockNow();
             const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], scratch,
                                                      numFrames, numChannels);
             procNanos.chunk += VibeLoadClockNow() - procStart;
 
-            procStart = VibeLoadClockNow();
-            [bpmAnalyzer appendMonoSamples:mono frameCount:numFrames];
-            procNanos.bpmAppend += VibeLoadClockNow() - procStart;
-            procStart = VibeLoadClockNow();
-            [keyAnalyzer appendMonoSamples:mono frameCount:numFrames];
-            procNanos.keyAppend += VibeLoadClockNow() - procStart;
+            NSUInteger index = 0;
+            for (id<AudioWaveformSink> sink in sinks) {
+                procStart = VibeLoadClockNow();
+                [sink appendMonoSamples:mono frameCount:numFrames];
+                appendNanos[index++] += VibeLoadClockNow() - procStart;
+            }
 
             // The summary slices the block into its bins, and splits the
             // bands from the mono when it keeps them.
@@ -491,8 +491,6 @@
     // read and the pass is single-threaded again.
     dispatch_sync(processQueue, ^{});
     nanos->chunk += procNanos.chunk;
-    nanos->bpmAppend += procNanos.bpmAppend;
-    nanos->keyAppend += procNanos.keyAppend;
 
     pass->framesRead = framesRead;
     pass->readError = readError;

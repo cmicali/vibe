@@ -180,7 +180,9 @@
         // for (the bands, a tempo, a key); its entry misses and decodes again.
         VibeWaveformAnalysis wanted = self.waveformCache.analysisProvider();
         AudioTrack *track = self.playlistController.currentTrack;
-        if (!VibeWaveformAnalysisCovers(_waveformAnalysisWanted, wanted) && track && [self displayState] == TrackDisplayStateTrack) {
+        BOOL covered = VibeWaveformAnalysisCovers(_waveformAnalysisWanted.bands,
+                                                  VibeWaveformObserverIdentifiers(_waveformAnalysisWanted), wanted);
+        if (!covered && track && [self displayState] == TrackDisplayStateTrack) {
             [self.waveformCache loadWaveformForTrack:track];
         }
         _waveformAnalysisWanted = wanted;
