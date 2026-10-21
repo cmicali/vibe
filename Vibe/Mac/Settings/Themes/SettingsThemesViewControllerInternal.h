@@ -16,11 +16,6 @@ NS_ASSUME_NONNULL_BEGIN
 // Both pages' popups; a cap, not a size.
 static const CGFloat kAppearancePopUpWidth = 220;
 
-// A color well's binding to one side of its theme pair; see wellForDark:base:effect:.
-static NSString *const kWellBase = @"base";
-static NSString *const kWellEffect = @"effect";
-static NSString *const kWellDark = @"dark";
-
 // Not a symbol-name shape, so it can never reach a glyph field.
 static NSString *const kGlyphChoiceCustomImage = @"custom-image";
 
@@ -84,8 +79,8 @@ static NSString *const kChoiceStandard = @"standard";
     NSMutableDictionary<NSString *, NSStackView *> *_playlistColorPairs;
     // Every Dark/Light well pair, for Single Mode's collapse to one well.
     NSMutableArray<NSStackView *> *_darkLightPairs;
-    // Every themed color well → its pair's base key, side and effect.
-    NSMapTable<NSColorWell *, NSDictionary *> *_wellBindings;
+    // Every themed color row, each bound to its bases (colorRowForBases:…).
+    NSMutableArray<SettingsColorRow *> *_colorRows;
     NSMapTable<VibeSwitch *, void (^)(AppTheme *, BOOL)> *_themeSwitchWrites;
     NSPopUpButton *_waveformPopUp;
     NSPopUpButton *_waveformTypePopUp;
@@ -149,8 +144,8 @@ static NSString *const kChoiceStandard = @"standard";
 // Closes the font panel and deactivates every color well.
 - (void)closeEditorPanels;
 
-// Copy and Paste on every color well and on each color or font row, run once
-// the page is built.
+// Copy and Paste on every color row, its wells and the row they sit in, and
+// on each font row, run once the page is built.
 - (void)addCopyPasteMenusIn:(NSView *)editor;
 
 // resolveLayoutStateFromSettings is implemented here too: every conditional
@@ -158,7 +153,6 @@ static NSString *const kChoiceStandard = @"standard";
 
 // The rows' targets, which the builders in +Editor.m name.
 - (void)themeModeChanged:(id)sender;
-- (void)colorWellChanged:(NSColorWell *)sender;
 - (void)backgroundStyleChanged:(id)sender;
 - (void)windowTintChanged:(id)sender;
 - (void)defaultArtworkChanged:(id)sender;

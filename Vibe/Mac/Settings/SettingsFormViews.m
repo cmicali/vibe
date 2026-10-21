@@ -6,6 +6,7 @@
 #import "SettingsFormViews.h"
 #import "NSView+DarkMode.h"
 #import "NSString+FormLabel.h"
+#import "PlatformColor.h"
 
 static const CGFloat kRowPaddingV = 8;
 static const CGFloat kRowMinHeight = 40;
@@ -295,6 +296,23 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
     return [self rowWithTitle:title caption:nil controls:controls];
 }
 
+static void AddCaptionedControls(NSStackView *row, NSArray<NSView *> *controls, NSArray<NSString *> *captions) {
+    row.spacing = 6;
+    for (NSUInteger i = 0; i < controls.count; i++) {
+        NSTextField *label = [NSTextField labelWithString:captions[i]];
+        label.textColor = NSColor.secondaryLabelColor;
+        [row addArrangedSubview:controls[i]];
+        [row addArrangedSubview:label];
+        [row setCustomSpacing:16 afterView:label];
+    }
+}
+
++ (NSStackView *)captionedControls:(NSArray<NSView *> *)controls captions:(NSArray<NSString *> *)captions {
+    NSStackView *row = [NSStackView stackViewWithViews:@[]];
+    AddCaptionedControls(row, controls, captions);
+    return row;
+}
+
 + (instancetype)rowWithTitle:(nullable NSString *)title
                      caption:(nullable NSString *)caption
                     controls:(NSArray<NSView *> *)controls {
@@ -545,6 +563,144 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
 @end
 
 #pragma mark - Section
+
+@implementation SettingsColorRow {
+    NSArray<NSColorWell *> *_wells;
+    NSColor *(^_read)(NSUInteger);
+    void (^_write)(NSUInteger, NSColor *);
+    void (^_changed)(BOOL);
+}
+
++ (instancetype)rowWithCaptions:(NSArray<NSString *> *)captions
+                  supportsAlpha:(BOOL)supportsAlpha
+                           read:(NSColor *(^)(NSUInteger))read
+                          write:(void (^)(NSUInteger, NSColor *))write
+                        changed:(void (^)(BOOL))changed {
+    NSMutableArray<NSColorWell *> *wells = [NSMutableArray array];
+    for (NSUInteger i = 0; i < captions.count; i++) {
+        NSColorWell *well = [[NSColorWell alloc] init];
+        if (@available(macOS 14.0, *)) {
+            well.supportsAlpha = supportsAlpha;
+        } else {
+            // Pre-14 wells follow the shared panel, which nothing else opens;
+            // a well without alpha stores what it gets opaque.
+            NSColorPanel.sharedColorPanel.showsAlpha = YES;
+        }
+        [well.widthAnchor constraintEqualToConstant:44].active = YES;
+        [well.heightAnchor constraintEqualToConstant:24].active = YES;
+        [wells addObject:well];
+    }
+    SettingsColorRow *row = [self stackViewWithViews:@[]];
+    AddCaptionedControls(row, wells, captions);
+    row->_wells = wells;
+    row->_read = [read copy];
+    row->_write = [write copy];
+    row->_changed = [changed copy];
+    for (NSColorWell *well in wells) {
+        well.target = row;
+        well.action = @selector(wellChanged:);
+    }
+    return row;
+}
+
+- (NSArray<NSColorWell *> *)wells {
+    return _wells;
+}
+
+- (void)refresh {
+    for (NSUInteger i = 0; i < _wells.count; i++) {
+        _wells[i].color = _read(i);
+    }
+}
+
+- (void)seed {
+    for (NSUInteger i = 0; i < _wells.count; i++) {
+        _write(i, _read(i));
+    }
+}
+
+- (void)wellChanged:(NSColorWell *)well {
+    _write([_wells indexOfObjectIdenticalTo:well], well.color);
+    _changed(YES);
+}
+
+// The wells their choice or a fold has not hidden.
+- (NSArray<NSColorWell *> *)shownWells {
+    NSMutableArray<NSColorWell *> *shown = [NSMutableArray array];
+    for (NSColorWell *well in _wells) {
+        if (!well.isHiddenOrHasHiddenAncestor) {
+            [shown addObject:well];
+        }
+    }
+    return shown;
+}
+
+- (nullable NSString *)copyString {
+    NSMutableArray<NSString *> *hexes = [NSMutableArray array];
+    for (NSColorWell *well in self.shownWells) {
+        NSString *hex = VibeHexStringFromColor(well.color);
+        if (hex) [hexes addObject:hex];
+    }
+    return hexes.count ? [hexes componentsJoinedByString:@" "] : nil;
+}
+
+- (void)copy:(id)sender {
+    NSString *string = self.copyString;
+    if (!string) return;
+    [NSPasteboard.generalPasteboard clearContents];
+    [NSPasteboard.generalPasteboard setString:string forType:NSPasteboardTypeString];
+}
+
+- (BOOL)pasteString:(NSString *)text {
+    NSMutableCharacterSet *separators = NSMutableCharacterSet.whitespaceAndNewlineCharacterSet;
+    [separators addCharactersInString:@","];
+    NSArray<NSString *> *words = [[text componentsSeparatedByCharactersInSet:separators]
+            filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]];
+    NSArray<NSColorWell *> *wells = self.shownWells;
+    NSMutableArray<NSColor *> *colors = [NSMutableArray array];
+    for (NSString *word in words) {
+        NSColor *color = VibeColorFromHexString(word);
+        if (!color) return NO;
+        [colors addObject:color];
+    }
+    if (wells.count == 0 || colors.count == 0 || (colors.count > 1 && colors.count < wells.count)) {
+        return NO;
+    }
+    for (NSUInteger i = 0; i < wells.count; i++) {
+        _write([_wells indexOfObjectIdenticalTo:wells[i]], colors[colors.count == 1 ? 0 : i]);
+    }
+    [self refresh];
+    _changed(NO);
+    return YES;
+}
+
+- (void)paste:(id)sender {
+    NSString *text = [NSPasteboard.generalPasteboard stringForType:NSPasteboardTypeString];
+    if (!text || ![self pasteString:text]) {
+        NSBeep();
+    }
+}
+
+// Validation checks only the pasteboard's types. Paste itself reads the text.
+- (BOOL)validateMenuItem:(NSMenuItem *)item {
+    if (item.action == @selector(copy:)) {
+        return self.copyString != nil;
+    }
+    if (item.action == @selector(paste:)) {
+        if (![NSPasteboard.generalPasteboard availableTypeFromArray:@[NSPasteboardTypeString]]) {
+            return NO;
+        }
+        NSArray<NSColorWell *> *wells = self.shownWells;
+        BOOL enabled = wells.count > 0;
+        for (NSColorWell *well in wells) {
+            enabled = enabled && well.enabled;
+        }
+        return enabled;
+    }
+    return YES;
+}
+
+@end
 
 @implementation SettingsSectionView
 

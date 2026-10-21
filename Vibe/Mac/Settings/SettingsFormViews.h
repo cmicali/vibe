@@ -49,6 +49,8 @@ static const CGFloat kSettingsRowInset = 16;
 + (instancetype)rowWithTitle:(nullable NSString *)title
                      caption:(nullable NSString *)caption
                     controls:(NSArray<NSView *> *)controls;
+// [control caption] [control caption] …, one cluster per captioned control.
++ (NSStackView *)captionedControls:(NSArray<NSView *> *)controls captions:(NSArray<NSString *> *)captions;
 // Spans the card's width with no trailing cluster.
 // TRAP: the content is pinned leading-to-trailing, so it must carry no
 // required width, fixed or capped: the pin climbs to the window's content
@@ -98,6 +100,38 @@ static const CGFloat kSettingsRowInset = 16;
 
 // The sidebar search's mark: an accent wash behind the row.
 @property (nonatomic) BOOL searchHighlighted;
+
+@end
+
+// A row of captioned color wells bound to the pane's model by blocks. The
+// row holds no value: read answers what well `index` shows, and write stores
+// a pick for it. A pick writes, then calls changed with continuous YES, as the
+// panel streams. seed writes what each well shows, in order, so a revealed
+// row's surface matches it at once; it calls nothing. Every well's target is
+// the row, which is how the debug walker drives one.
+//
+// Copy and Paste: the row answers copy: and paste: for a menu item that
+// targets it, and validates both. Colors copy as #RRGGBB, or #RRGGBBAA with
+// alpha, the shown wells' in row order, separated by spaces. One pasted color
+// fills every shown well. Otherwise the wells take the colors in order, and
+// extra colors drop. A paste writes every well, refreshes, then calls changed
+// once with continuous NO.
+@interface SettingsColorRow : NSStackView <NSMenuItemValidation>
+
++ (instancetype)rowWithCaptions:(NSArray<NSString *> *)captions
+                  supportsAlpha:(BOOL)supportsAlpha
+                           read:(NSColor *(^)(NSUInteger index))read
+                          write:(void (^)(NSUInteger index, NSColor *color))write
+                        changed:(void (^)(BOOL continuous))changed;
+
+@property (readonly) NSArray<NSColorWell *> *wells;
+
+// read's answer into every well.
+- (void)refresh;
+- (void)seed;
+
+- (void)copy:(nullable id)sender;
+- (void)paste:(nullable id)sender;
 
 @end
 
