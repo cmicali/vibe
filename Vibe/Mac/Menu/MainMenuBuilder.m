@@ -19,7 +19,7 @@
 #import "OpenRecentMenuController.h"
 #import "OutputDevicesMenuController.h"
 #import "SettingsRules.h"
-#import "ShortcutRules.h"
+#import "MenuShortcutRules.h"
 #import "VibeStrings.h"
 
 #if VIBE_DIRECT_DISTRIBUTION
@@ -564,6 +564,51 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
     return display;
 }
 
+static NSString *ShortcutLabel(NSMenuItem *item) {
+    NSString *identifier = item.identifier;
+    if ([identifier isEqualToString:kVibeMenuPlay]) {
+        return STR_SETTINGS_SHORTCUTS_PLAY_PAUSE;
+    }
+    if ([identifier isEqualToString:kVibeMenuConvertToFLAC]) {
+        return VibeConvertMenuTitle(NO);
+    }
+    NSString *title = VibeSkipMenuTitle(identifier, AppSettings.sharedInstance.skipBaseBars, YES) ?: item.title;
+    NSMenu *parent = item.menu.supermenu;
+    if (parent && parent != NSApp.mainMenu) {
+        NSInteger index = [parent indexOfItemWithSubmenu:item.menu];
+        if (index >= 0) {
+            return [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_SUBMENU_ITEM,
+                                              [parent itemAtIndex:index].title, title];
+        }
+    }
+    return title;
+}
+
+static void CollectShortcutRows(NSMenu *menu, NSMutableArray<NSArray *> *rows) {
+    for (NSMenuItem *item in menu.itemArray) {
+        // Repeat is a submenu whose own item is the cycling command.
+        if (item.identifier && [VibeShortcutIdentifiers() containsObject:item.identifier]) {
+            [rows addObject:@[item.identifier, ShortcutLabel(item),
+                              @(VibeShortcutDefault(VibeShortcutTable(), item.identifier))]];
+        }
+        if (item.submenu) {
+            CollectShortcutRows(item.submenu, rows);
+        }
+    }
+}
+
++ (NSArray<NSArray *> *)shortcutCommandRows {
+    NSMutableArray<NSArray *> *groups = [NSMutableArray array];
+    for (NSMenuItem *topLevel in NSApp.mainMenu.itemArray) {
+        NSMutableArray<NSArray *> *rows = [NSMutableArray array];
+        CollectShortcutRows(topLevel.submenu, rows);
+        if (rows.count) {
+            [groups addObject:@[topLevel.title, rows]];
+        }
+    }
+    return groups;
+}
+
 + (void)applyShortcuts {
     NSDictionary *overrides = AppSettings.sharedInstance.shortcutOverrides;
     for (NSString *identifier in VibeShortcutIdentifiers()) {
@@ -583,7 +628,7 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
 }
 
 + (VibeShortcut)carriedShortcutForIdentifier:(NSString *)identifier overrides:(NSDictionary *)overrides {
-    VibeShortcut shortcut = VibeShortcutEffective(identifier, overrides);
+    VibeShortcut shortcut = VibeShortcutEffective(VibeShortcutTable(), identifier, overrides);
     if (shortcut == kVibeShortcutNone) {
         return kVibeShortcutNone;
     }
@@ -593,7 +638,7 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
     unsigned short layoutKeyCode = isCharacter ? LayoutKeyCode(key, modifiers) : kVibeShortcutKeyMask;
     unichar layoutCharacter = isCharacter
             ? 0 : [self characterForKeyCode:VibeShortcutCanonicalKeyCode(key) modifiers:modifiers];
-    return VibeShortcutForMenuItem(identifier, shortcut, layoutKeyCode, layoutCharacter, overrides);
+    return VibeShortcutForMenuItem(VibeShortcutTable(), identifier, shortcut, layoutKeyCode, layoutCharacter, overrides);
 }
 
 @end

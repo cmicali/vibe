@@ -10,6 +10,7 @@
 #import "PitchFaderView.h"
 #import "AppSettings+Mac.h"
 #import "MainMenuBuilder.h"
+#import "MenuShortcutRules.h"
 #import "MainPlayerController+Settings.h"
 
 #if DEBUG
@@ -232,7 +233,7 @@ NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> 
             break;
     }
     VibeDebugSettingsRefreshSelectedPane();
-    VibeShortcut stored = VibeShortcutEffective(identifier, AppSettings.sharedInstance.shortcutOverrides);
+    VibeShortcut stored = VibeShortcutEffective(VibeShortcutTable(), identifier, AppSettings.sharedInstance.shortcutOverrides);
     return VibeJSONString(@{
         @"ok": @YES,
         @"command": identifier,

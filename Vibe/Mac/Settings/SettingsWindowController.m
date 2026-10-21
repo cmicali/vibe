@@ -7,6 +7,7 @@
 #import "MenuValidationRules.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
+#import "MainMenuBuilder.h"
 #import "MainPlayerController+Settings.h"
 #import "SettingsAboutViewController.h"
 #import "SettingsAdvancedViewController.h"
@@ -59,7 +60,8 @@ static NSString *const kThemesPaneIdentifier = @"themes";
         ],
         @[
             [window paneItemWithViewController:[[SettingsShortcutsViewController alloc]
-                                                       initWithPlayerController:playerController effectsSink:sink]
+                                                       initWithPlayerController:playerController effectsSink:sink
+                                                                    commandRows:^{ return MainMenuBuilder.shortcutCommandRows; }]
                                     identifier:@"shortcuts" label:STR_SETTINGS_SHORTCUTS symbolName:@"keyboard"],
         ],
         @[

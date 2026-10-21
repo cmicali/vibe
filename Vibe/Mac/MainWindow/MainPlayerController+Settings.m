@@ -21,6 +21,7 @@
 #import "WaveformView.h"
 #import "Fonts.h"
 #import "MainMenuBuilder.h"
+#import "MenuShortcutRules.h"
 #import "PlaylistTableView.h"
 #import "MainPlayerContentView.h"
 #import "PitchControlPanel.h"
@@ -48,7 +49,7 @@
         }
     }
     AppSettings *settings = AppSettings.sharedInstance;
-    settings.shortcutOverrides = VibeShortcutOverridesByAssigning(settings.shortcutOverrides, identifier,
+    settings.shortcutOverrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), settings.shortcutOverrides, identifier,
                                                                   shortcut, character, loser);
     [self applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
     return VibeShortcutAssignmentStored;
@@ -64,7 +65,7 @@
 }
 
 - (void)applyOpenShortcutHint {
-    VibeShortcut open = VibeShortcutEffective(kVibeMenuOpen, AppSettings.sharedInstance.shortcutOverrides);
+    VibeShortcut open = VibeShortcutEffective(VibeShortcutTable(), kVibeMenuOpen, AppSettings.sharedInstance.shortcutOverrides);
     [self.playerContentView setOpenShortcut:open == kVibeShortcutNone
             ? nil : [MainMenuBuilder displayStringForShortcut:open]];
 }

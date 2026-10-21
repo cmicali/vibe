@@ -2,14 +2,17 @@
 //  ShortcutRules.h
 //  Vibe
 //
-//  The remappable shortcuts: which commands have one, their defaults, and the
-//  decisions the key monitor, the menu bar and the Keyboard Shortcuts pane
-//  must agree on. Carbon-free, so the host-less tests compile it: the caller
-//  translates a key code to its character under the current layout.
+//  Remappable shortcuts: the encoding, the reserved keys, and the decisions a
+//  key monitor, a menu bar and a recorder pane must agree on, over the app's
+//  own command table. Carbon-free, so the host-less tests compile it: the
+//  caller translates a key code to its character under the current layout.
+//
+//  The command table is the app's: @[identifier, @(default)] pairs, in the
+//  order a hand-edited duplicate resolves. The first command wins. Every
+//  function that takes `commands` takes that table.
 //
 
 #import <AppKit/AppKit.h>
-#import "MenuValidationRules.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -83,85 +86,14 @@ static inline BOOL VibeShortcutIsKeypadKey(unsigned short keyCode) {
     return NO;
 }
 
-// Pairs of identifier and default, in the order a hand-edited duplicate
-// resolves: the first command wins. Identity is the menu identifier, so a
-// shortcut is the menu item's key equivalent too. Key codes are HIToolbox's
-// kVK_* values, inline so Carbon stays unimported.
-static inline NSArray<NSArray *> *VibeShortcutTable(void) {
-    static NSArray<NSArray *> *table;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSEventModifierFlags cmd = NSEventModifierFlagCommand;
-        table = @[
-            @[kVibeMenuPlay,              @(VibeShortcutMake(49, 0))],   // Space
-            @[kVibeMenuPreviousTrack,     @(VibeShortcutMake(11, 0))],   // B
-            @[kVibeMenuNextTrack,         @(VibeShortcutMake(45, 0))],   // N
-            @[kVibeMenuPlaySelected,      @(VibeShortcutMake(kVibeKeyCodeReturn, 0))],
-            @[kVibeMenuShuffle,           @(VibeShortcutMakeCharacter('s', cmd | NSEventModifierFlagOption))],
-            @[kVibeMenuRepeat,            @(VibeShortcutMakeCharacter('r', cmd))],
-            @[kVibeMenuSkipForward,       @(VibeShortcutMake(0, 0))],    // A
-            @[kVibeMenuSkipForwardMore,   @(VibeShortcutMake(1, 0))],    // S
-            @[kVibeMenuSkipForwardMost,   @(VibeShortcutMake(2, 0))],    // D
-            @[kVibeMenuSkipBack,          @(VibeShortcutMake(6, 0))],    // Z
-            @[kVibeMenuSkipBackMore,      @(VibeShortcutMake(7, 0))],    // X
-            @[kVibeMenuSkipBackMost,      @(VibeShortcutMake(8, 0))],    // C
-            @[kVibeMenuPitchRange8,       @(kVibeShortcutNone)],
-            @[kVibeMenuPitchRange16,      @(kVibeShortcutNone)],
-            @[kVibeMenuFXLowKill,         @(VibeShortcutMake(12, 0))],   // Q
-            @[kVibeMenuFXLowKillBoost,    @(VibeShortcutMake(13, 0))],   // W
-            @[kVibeMenuFXReverb,          @(VibeShortcutMake(14, 0))],   // E
-            @[kVibeMenuFXDelay,           @(VibeShortcutMake(15, 0))],   // R
-            @[kVibeMenuFXShortDelay,      @(VibeShortcutMake(17, 0))],   // T
-            @[kVibeMenuShowPlaylist,      @(VibeShortcutMake(48, 0))],   // Tab
-            @[kVibeMenuShowPitch,         @(VibeShortcutMake(35, 0))],   // P
-            @[VibeWindowSizeMenuIdentifier(VibeWindowSizePresetSmall),   @(kVibeShortcutNone)],
-            @[VibeWindowSizeMenuIdentifier(VibeWindowSizePresetDefault), @(kVibeShortcutNone)],
-            @[VibeWindowSizeMenuIdentifier(VibeWindowSizePresetLarge),   @(kVibeShortcutNone)],
-            @[kVibeMenuAlwaysOnTop,       @(kVibeShortcutNone)],
-            @[kVibeMenuLockWindowPosition, @(kVibeShortcutNone)],
-            @[kVibeMenuOpen,              @(VibeShortcutMakeCharacter('o', cmd))],
-            @[kVibeMenuSavePlaylist,      @(VibeShortcutMakeCharacter('s', cmd))],
-            @[kVibeMenuEditCopyName,      @(VibeShortcutMakeCharacter('c', cmd | NSEventModifierFlagShift))],
-            @[kVibeMenuEditRemoveFromPlaylist, @(VibeShortcutMake(kVibeKeyCodeDelete, 0))],
-            @[kVibeMenuConvertToFLAC,     @(kVibeShortcutNone)],
-            @[kVibeMenuConvertDeleteOriginal, @(kVibeShortcutNone)],
-            // Last: a default added later loses its key to an override stored
-            // before it. A duplicate resolves in table order.
-            @[kVibeMenuOpenLink,          @(VibeShortcutMakeCharacter('l', cmd))],
-            @[kVibeMenuEditMoveToTrash,   @(VibeShortcutMake(kVibeKeyCodeDelete, cmd))],
-            @[kVibeMenuAddToPlaylist,     @(VibeShortcutMakeCharacter('o', cmd | NSEventModifierFlagShift))],
-            @[kVibeMenuShowInFinder,      @(VibeShortcutMakeCharacter('r', cmd | NSEventModifierFlagShift))],
-        ];
-    });
-    return table;
-}
-
-static inline NSArray<NSString *> *VibeShortcutIdentifiers(void) {
-    static NSArray<NSString *> *identifiers;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSMutableArray<NSString *> *all = [NSMutableArray array];
-        for (NSArray *entry in VibeShortcutTable()) {
-            [all addObject:entry[0]];
+// kVibeShortcutNone for an identifier that is not in the table.
+static inline VibeShortcut VibeShortcutDefault(NSArray<NSArray *> *commands, NSString *identifier) {
+    for (NSArray *entry in commands) {
+        if ([entry[0] isEqualToString:identifier]) {
+            return [entry[1] unsignedIntegerValue];
         }
-        identifiers = all;
-    });
-    return identifiers;
-}
-
-// kVibeShortcutNone for an identifier that is not a remappable command.
-static inline VibeShortcut VibeShortcutDefault(NSString *identifier) {
-    static NSDictionary<NSString *, NSNumber *> *defaults;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSMutableDictionary *all = [NSMutableDictionary dictionary];
-        for (NSArray *entry in VibeShortcutTable()) {
-            all[entry[0]] = entry[1];
-        }
-        defaults = all;
-    });
-    NSNumber *shortcut = defaults[identifier];
-    return shortcut != nil ? shortcut.unsignedIntegerValue : kVibeShortcutNone;
+    }
+    return kVibeShortcutNone;
 }
 
 // A stored value is a number naming a key code and modifiers, or None. A
@@ -176,17 +108,18 @@ static inline BOOL VibeShortcutIsStorable(id _Nullable value) {
 }
 
 // The override when it is well-formed, else the default.
-static inline VibeShortcut VibeShortcutEffective(NSString *identifier, NSDictionary *_Nullable overrides) {
+static inline VibeShortcut VibeShortcutEffective(NSArray<NSArray *> *commands, NSString *identifier,
+                                                 NSDictionary *_Nullable overrides) {
     id stored = overrides[identifier];
-    return VibeShortcutIsStorable(stored) ? [stored unsignedIntegerValue] : VibeShortcutDefault(identifier);
+    return VibeShortcutIsStorable(stored) ? [stored unsignedIntegerValue] : VibeShortcutDefault(commands, identifier);
 }
 
 // Never assignable, and passed on by the monitor whatever is bound: the fixed
 // system shortcuts (matched by character, as their menu items match), the
-// arrows the playlist's selection uses with any modifier, Escape, and every
-// keypad key but Enter, which a menu cannot draw apart from the main
-// keyboard's. character is the key's lowercase character under the current
-// layout, 0 when it has none.
+// arrows a list's selection uses with any modifier, Escape, and every keypad
+// key but Enter, which a menu cannot draw apart from the main keyboard's.
+// character is the key's lowercase character under the current layout, 0
+// when it has none.
 static inline BOOL VibeShortcutIsReserved(unsigned short keyCode, unichar character,
                                           NSEventModifierFlags modifiers) {
     keyCode = VibeShortcutCanonicalKeyCode(keyCode);
@@ -221,18 +154,21 @@ static inline BOOL VibeShortcutIsReserved(unsigned short keyCode, unichar charac
 // none: a key-code shortcut matched by physical key, a character default by
 // character (the key's lowercase character, 0 when unknown), each with the
 // exact modifier set. A hand-edited duplicate resolves in table order.
-static inline NSString *_Nullable VibeShortcutOwner(VibeShortcut shortcut, unichar character,
-        NSDictionary *_Nullable overrides, NSString *_Nullable excluding) {
+static inline NSString *_Nullable VibeShortcutOwner(NSArray<NSArray *> *commands, VibeShortcut shortcut,
+        unichar character, NSDictionary *_Nullable overrides, NSString *_Nullable excluding) {
     if (shortcut == kVibeShortcutNone) {
         return nil;
     }
     unsigned short keyCode = VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut));
     NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
-    for (NSString *identifier in VibeShortcutIdentifiers()) {
+    for (NSArray *entry in commands) {
+        NSString *identifier = entry[0];
         if (excluding && [identifier isEqualToString:excluding]) {
             continue;
         }
-        VibeShortcut owned = VibeShortcutEffective(identifier, overrides);
+        id stored = overrides[identifier];
+        VibeShortcut owned = VibeShortcutIsStorable(stored) ? [stored unsignedIntegerValue]
+                                                            : [entry[1] unsignedIntegerValue];
         if (owned == kVibeShortcutNone || VibeShortcutModifiers(owned) != modifiers) {
             continue;
         }
@@ -250,8 +186,9 @@ static inline NSString *_Nullable VibeShortcutOwner(VibeShortcut shortcut, unich
 // command in table order, as in the key monitor.
 // layoutKeyCode maps a character default, or kVibeShortcutKeyMask for none.
 // layoutCharacter maps a physical key, or 0 for none.
-static inline VibeShortcut VibeShortcutForMenuItem(NSString *identifier, VibeShortcut shortcut,
-        unsigned short layoutKeyCode, unichar layoutCharacter, NSDictionary *_Nullable overrides) {
+static inline VibeShortcut VibeShortcutForMenuItem(NSArray<NSArray *> *commands, NSString *identifier,
+        VibeShortcut shortcut, unsigned short layoutKeyCode, unichar layoutCharacter,
+        NSDictionary *_Nullable overrides) {
     if (shortcut == kVibeShortcutNone) {
         return kVibeShortcutNone;
     }
@@ -262,7 +199,7 @@ static inline VibeShortcut VibeShortcutForMenuItem(NSString *identifier, VibeSho
     if (VibeShortcutIsReserved(keyCode, character, modifiers)) {
         return kVibeShortcutNone;
     }
-    NSString *owner = VibeShortcutOwner(VibeShortcutMake(keyCode, modifiers), character, overrides, nil);
+    NSString *owner = VibeShortcutOwner(commands, VibeShortcutMake(keyCode, modifiers), character, overrides, nil);
     return owner == nil || [owner isEqualToString:identifier] ? shortcut : kVibeShortcutNone;
 }
 
@@ -271,61 +208,59 @@ static inline VibeShortcut VibeShortcutForMenuItem(NSString *identifier, VibeSho
 // matches while Option bends it (⌥⌘S types ß), so the press is tried as what
 // it typed, 0 without ⌘, and as what it types unmodified. A key-code binding
 // can land on a reserved shortcut after a layout switch; the system's wins.
-static inline NSString *_Nullable VibeShortcutCommandForPress(unsigned short keyCode,
-        NSEventModifierFlags modifiers, unichar typed, unichar unmodified, NSDictionary *_Nullable overrides) {
+static inline NSString *_Nullable VibeShortcutCommandForPress(NSArray<NSArray *> *commands,
+        unsigned short keyCode, NSEventModifierFlags modifiers, unichar typed, unichar unmodified,
+        NSDictionary *_Nullable overrides) {
     keyCode = VibeShortcutCanonicalKeyCode(keyCode);
     modifiers &= kVibeShortcutModifierMask;
     if (VibeShortcutIsReserved(keyCode, typed, modifiers) || VibeShortcutIsReserved(keyCode, unmodified, modifiers)) {
         return nil;
     }
     VibeShortcut pressed = VibeShortcutMake(keyCode, modifiers);
-    NSString *owner = typed != 0 && typed != unmodified ? VibeShortcutOwner(pressed, typed, overrides, nil) : nil;
-    return owner ?: VibeShortcutOwner(pressed, unmodified, overrides, nil);
+    NSString *owner = typed != 0 && typed != unmodified
+            ? VibeShortcutOwner(commands, pressed, typed, overrides, nil) : nil;
+    return owner ?: VibeShortcutOwner(commands, pressed, unmodified, overrides, nil);
 }
 
 // What the overrides hold for identifier: nil at its default, so the store
 // stays sparse.
-static inline NSNumber *_Nullable VibeShortcutStoredValue(NSString *identifier, VibeShortcut shortcut) {
-    return shortcut == VibeShortcutDefault(identifier) ? nil : @(shortcut);
+static inline NSNumber *_Nullable VibeShortcutStoredValue(NSArray<NSArray *> *commands, NSString *identifier,
+                                                          VibeShortcut shortcut) {
+    return shortcut == VibeShortcutDefault(commands, identifier) ? nil : @(shortcut);
 }
 
 // The overrides after giving identifier shortcut (None clears it). A command
 // that held the shortcut loses it and is named in *loser; the recording
 // wins rather than being refused. The caller has already refused a reserved
-// shortcut. An identifier that is not a remappable command changes nothing.
+// shortcut. An identifier that is not in the table changes nothing.
 static inline NSDictionary<NSString *, NSNumber *> *VibeShortcutOverridesByAssigning(
-        NSDictionary *_Nullable overrides, NSString *identifier, VibeShortcut shortcut,
-        unichar character, NSString *_Nullable *_Nullable loser) {
+        NSArray<NSArray *> *commands, NSDictionary *_Nullable overrides, NSString *identifier,
+        VibeShortcut shortcut, unichar character, NSString *_Nullable *_Nullable loser) {
     NSMutableDictionary *result = [NSMutableDictionary dictionary];
-    for (NSString *known in VibeShortcutIdentifiers()) {
-        if (VibeShortcutIsStorable(overrides[known])) {
-            result[known] = overrides[known];
+    BOOL known = NO;
+    for (NSArray *entry in commands) {
+        NSString *command = entry[0];
+        known = known || [command isEqualToString:identifier];
+        if (VibeShortcutIsStorable(overrides[command])) {
+            result[command] = overrides[command];
         }
     }
     NSString *owner = nil;
-    if ([VibeShortcutIdentifiers() containsObject:identifier]) {
+    if (known) {
         if (shortcut != kVibeShortcutNone) {
             shortcut = VibeShortcutMake(VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut)),
                                         VibeShortcutModifiers(shortcut));
         }
-        owner = VibeShortcutOwner(shortcut, character, result, identifier);
+        owner = VibeShortcutOwner(commands, shortcut, character, result, identifier);
         if (owner) {
-            result[owner] = VibeShortcutStoredValue(owner, kVibeShortcutNone);
+            result[owner] = VibeShortcutStoredValue(commands, owner, kVibeShortcutNone);
         }
-        result[identifier] = VibeShortcutStoredValue(identifier, shortcut);
+        result[identifier] = VibeShortcutStoredValue(commands, identifier, shortcut);
     }
     if (loser) {
         *loser = owner;
     }
     return result;
-}
-
-// Which commands a held key repeats: the transport ones, which walk the
-// track or the playlist, but Play Selected. A held Space, Tab, P or ⌘R would
-// flutter.
-static inline BOOL VibeShortcutCommandRepeats(NSString *identifier) {
-    return VibeMenuValidationDomainForIdentifier(identifier) == VibeMenuValidationDomainTransport
-            && ![identifier isEqualToString:kVibeMenuPlaySelected];
 }
 
 NS_ASSUME_NONNULL_END
