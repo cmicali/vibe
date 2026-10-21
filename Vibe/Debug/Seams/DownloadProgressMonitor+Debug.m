@@ -8,6 +8,7 @@
 #if DEBUG
 
 #import "DownloadProgressMonitorInternal.h"
+#import "VibeMacros.h"
 
 #include <os/lock.h>
 

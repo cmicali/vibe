@@ -8,6 +8,7 @@
 
 #import "FilePaths.h"
 #import "CloudFileMaterializer.h"
+#import "VibeMacros.h"
 
 #if DEBUG
 #import "AudioFileMaterializationCoordinator+Debug.h"

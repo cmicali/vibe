@@ -4,6 +4,7 @@
 //
 
 #import "PINCache+VibeAudioCache.h"
+#import "HelperMacros.h"
 
 // Each store has its own budget. A waveform entry grows with its track, about
 // 50 KiB a minute and double that with bands. Metadata and display-art sizes

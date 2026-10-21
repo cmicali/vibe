@@ -12,6 +12,7 @@
 #import "DownloadProgressMonitor+Debug.h"
 #import "PlaceholderFiles+Debug.h"
 #import "PlaceholderFiles.h"
+#import "VibeMacros.h"
 
 #include <os/lock.h>
 

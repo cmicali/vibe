@@ -7,6 +7,8 @@
 #import "CloudFileMaterializer.h"
 #import "FilePaths.h"
 #import "PlaceholderFiles.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 #include <errno.h>
 #include <sys/stat.h>

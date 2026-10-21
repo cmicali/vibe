@@ -7,6 +7,7 @@
 #import "DownloadProgressRules.h"
 #import "DownloadProgressSourceAdapters.h"
 #import "DownloadProgressMonitor+Debug.h"
+#import "VibeMacros.h"
 
 @implementation DownloadProgressMonitor {
     float _lastRawReported;

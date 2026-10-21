@@ -8,6 +8,7 @@
 
 #import "FilePaths.h"
 #import "DownloadProgressMonitor.h"
+#import "HelperMacros.h"
 
 @interface VibeCloudTransferEntry : NSObject
 @property (nonatomic, strong) NSURL *url;

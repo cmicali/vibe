@@ -7,6 +7,7 @@
 #import "NetworkReadAheadMath.h"
 #import "NetworkReadAheadRules.h"
 #import "CloudFileAvailability.h"
+#import "VibeMacros.h"
 #if DEBUG
 #import "NetworkReadAhead+Debug.h"
 #endif

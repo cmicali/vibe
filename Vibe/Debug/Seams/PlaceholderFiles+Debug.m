@@ -7,6 +7,8 @@
 
 #if DEBUG
 
+#import "VibeMacros.h"
+
 #include <errno.h>
 #include <string.h>
 #include <sys/mount.h>

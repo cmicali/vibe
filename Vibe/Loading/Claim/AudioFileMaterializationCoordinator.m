@@ -12,6 +12,8 @@
 #import "CloudTransferRegistryInternal.h"
 #import "NSURL+Hash.h"
 #import "PlaceholderFiles.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 #import <os/lock.h>
 
