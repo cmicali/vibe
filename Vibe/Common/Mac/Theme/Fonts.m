@@ -4,7 +4,6 @@
 //
 
 #import "Fonts.h"
-#import "AppTheme.h"
 
 @implementation Fonts {
 
@@ -62,32 +61,24 @@ static NSString *fontCacheKey(CGFloat size, BOOL bold) {
     }
 }
 
-#pragma mark Themed slots
+#pragma mark Slots
 
-// Indexed by VibeFontSlot; guarded by @synchronized(Fonts.class).
-static NSString *slotFace[kVibeFontSlotCount];
-static CGFloat slotSize[kVibeFontSlotCount];
+// Slot → @[face, size, numeric]; guarded by @synchronized(Fonts.class), as
+// is the resolved cache.
+static NSMutableDictionary<NSNumber *, NSArray *> *slotTable;
 static NSMutableDictionary<NSString *, NSFont *> *slotCache;
 
-// So a slot resolved before the first push is not size 0.
-+ (void)initialize {
-    if (self == Fonts.class) {
-        [self applyThemeFonts:[[AppTheme alloc] init]];
-    }
-}
-
-+ (void)applyThemeFonts:(AppTheme *)theme {
++ (void)setFace:(NSString *)face size:(CGFloat)size numeric:(BOOL)numeric forSlot:(NSInteger)slot {
     @synchronized (self) {
-        for (NSInteger slot = VibeFontSlotNone + 1; slot < kVibeFontSlotCount; slot++) {
-            NSString *face = [theme fontFaceForSlot:(VibeFontSlot)slot];
-            slotFace[slot] = face.length ? face : nil;
-            slotSize[slot] = [theme fontSizeForSlot:(VibeFontSlot)slot];
+        if (!slotTable) {
+            slotTable = [NSMutableDictionary new];
         }
+        slotTable[@(slot)] = @[face ?: @"", @(size), @(numeric)];
         [slotCache removeAllObjects];
     }
 }
 
-+ (NSFont *)fontForSlot:(VibeFontSlot)slot bold:(BOOL)bold {
++ (NSFont *)fontForSlot:(NSInteger)slot bold:(BOOL)bold {
     @synchronized (self) {
         if (!slotCache) {
             slotCache = [NSMutableDictionary new];
@@ -97,17 +88,19 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
         if (cached) {
             return cached;
         }
-        CGFloat size = slotSize[slot];
+        NSArray *entry = slotTable[@(slot)];
+        NSString *face = entry[0];
+        CGFloat size = [entry[1] doubleValue];
+        BOOL numeric = [entry[2] boolValue];
         NSFont *font = nil;
-        NSString *face = slotFace[slot];
-        if (face) {
+        if (face.length) {
             font = [NSFont fontWithName:face size:size];
             if (font && bold) {
                 NSFont *bolded = [NSFontManager.sharedFontManager convertFont:font
                                                                   toHaveTrait:NSBoldFontMask];
                 font = bolded ?: font;
             }
-            if (font && (slot == VibeFontSlotInfo || slot == VibeFontSlotPlaylistDuration)) {
+            if (font && numeric) {
                 // Monospaced digits, so ticking times do not jitter; a face
                 // without the feature ignores it.
                 NSFontDescriptor *mono = [font.fontDescriptor fontDescriptorByAddingAttributes:@{
@@ -121,39 +114,11 @@ static NSMutableDictionary<NSString *, NSFont *> *slotCache;
         }
         // The nested caches take their own locks, never this one: no deadlock.
         if (!font) {
-            font = (slot == VibeFontSlotInfo || slot == VibeFontSlotPlaylistDuration)
-                    ? [self fontForNumbers:size bold:bold]
-                    : [self font:size bold:bold];
+            font = numeric ? [self fontForNumbers:size bold:bold] : [self font:size bold:bold];
         }
         slotCache[key] = font;
         return font;
     }
-}
-
-+ (NSFont *)titleFont {
-    return [self fontForSlot:VibeFontSlotTitle bold:NO];
-}
-
-+ (NSFont *)artistFont {
-    return [self fontForSlot:VibeFontSlotArtist bold:NO];
-}
-
-+ (NSFont *)infoFontBold:(BOOL)bold {
-    return [self fontForSlot:VibeFontSlotInfo bold:bold];
-}
-
-+ (NSDictionary<NSAttributedStringKey, id> *)infoTextAttributesAligned:(NSTextAlignment)alignment {
-    NSMutableParagraphStyle *paragraph = [[NSParagraphStyle new] mutableCopy];
-    paragraph.alignment = alignment;
-    return @{NSKernAttributeName: @(-1.2), NSParagraphStyleAttributeName: paragraph};
-}
-
-+ (NSFont *)playlistFont {
-    return [self fontForSlot:VibeFontSlotPlaylist bold:NO];
-}
-
-+ (NSFont *)playlistDurationFont {
-    return [self fontForSlot:VibeFontSlotPlaylistDuration bold:NO];
 }
 
 @end

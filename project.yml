@@ -918,6 +918,7 @@ targets:
       - path: Vibe/Playlist/Mac/PlaylistTextCell.m
       - path: Vibe/Playlist/Mac/PlaylistCoverImageView.m
       - path: Vibe/Common/Mac/Theme/Fonts.m
+      - path: Vibe/Common/Mac/Theme/Fonts+Theme.m
       - path: Vibe/Controls/EqualizerIndicatorView.m
       - path: Vibe/Controls/LoadingIndicatorView.m
       - path: Vibe/Controls/LoadingIndicator.m

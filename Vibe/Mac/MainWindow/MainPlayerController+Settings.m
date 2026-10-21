@@ -19,7 +19,7 @@
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
 #import "WaveformView.h"
-#import "Fonts.h"
+#import "Fonts+Theme.h"
 #import "MainMenuBuilder.h"
 #import "PlaylistTableView.h"
 #import "MainPlayerContentView.h"

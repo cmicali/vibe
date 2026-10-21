@@ -110,8 +110,8 @@ typedef NS_ENUM(NSInteger, VibeShortcutAssignment) {
 // and the key equivalents after the window is up.
 - (void)applyOpenShortcutHint;
 
-// Pushes the theme's fonts into Fonts, which may not read a setting.
-// buildContentInWindow: runs it before any label exists.
+// Pushes the theme's fonts into Fonts' slots (Fonts+Theme), which read no
+// setting. buildContentInWindow: runs it before any label exists.
 - (void)applyStoredFonts;
 
 // Applies stored settings. Dependent effects can close the pitch panel and

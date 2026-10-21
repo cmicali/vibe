@@ -9,7 +9,7 @@
 #import "NSTextField+Label.h"
 #import "WaveformTheme.h"
 #import "WaveformTheme+Settings.h"
-#import "Fonts.h"
+#import "Fonts+Theme.h"
 #import "Formatters.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"

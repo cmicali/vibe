@@ -7,7 +7,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AudioTrack.h"
-#import "Fonts.h"
+#import "Fonts+Theme.h"
 #import "PlaylistCoverImageView.h"
 #import "PlaylistRowView.h"
 #import "PlaylistTextCell.h"
