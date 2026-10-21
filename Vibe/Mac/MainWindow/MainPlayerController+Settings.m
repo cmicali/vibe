@@ -22,6 +22,7 @@
 #import "Fonts+Theme.h"
 #import "MainMenuBuilder.h"
 #import "MenuShortcutRules.h"
+#import "ShortcutLayout.h"
 #import "PlaylistTableView.h"
 #import "MainPlayerContentView.h"
 #import "PitchControlPanel.h"
@@ -55,11 +56,11 @@
     if (shortcut != kVibeShortcutNone) {
         unsigned short keyCode = VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut));
         NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
-        character = [MainMenuBuilder characterForKeyCode:keyCode modifiers:modifiers];
+        character = VibeShortcutCharacterForKeyCode(keyCode, modifiers);
         if (VibeShortcutIsReserved(keyCode, character, modifiers)) {
             return VibeShortcutAssignmentReserved;
         }
-        if (![MainMenuBuilder labelForKeyCode:keyCode modifiers:modifiers]) {
+        if (!VibeShortcutKeyLabel(keyCode, modifiers)) {
             return VibeShortcutAssignmentUnusable;
         }
     }
@@ -78,7 +79,7 @@
 - (void)applyOpenShortcutHint {
     VibeShortcut open = VibeShortcutEffective(VibeShortcutTable(), kVibeMenuOpen, AppSettings.sharedInstance.shortcutOverrides);
     [self.playerContentView setOpenShortcut:open == kVibeShortcutNone
-            ? nil : [MainMenuBuilder displayStringForShortcut:open]];
+            ? nil : VibeShortcutDisplayString(open)];
 }
 
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects {
