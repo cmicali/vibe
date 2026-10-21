@@ -9,6 +9,7 @@ Vibe > Settings… (⌘,) is `SettingsWindowController`, Vibe's subclass of `Set
 - The panes and their groups are General, Themes, Appearance | Playback, Audio Output, Files | Keyboard Shortcuts | Advanced, About.
 - Each tab item has a **stable, unlocalized identifier** (`general`, `themes`, `appearance`, `playback`, `audio`, `files`, `shortcuts`, `advanced`, `about`), which `settings_open` selects by. Sidebar labels reuse menu strings where the word is the same. The rest are `settings.*` keys.
 - **The Themes pane has two pages**, its list and its editor (`themes/editor`). A sidebar pick opens it at its list, so only Back and Forward reopen the editor where it was left. The search opens the editor for a hit only the editor holds.
+- The subclass names the frame autosave key, `SettingsWindow`, right after init. The generic window names none.
 - `AppDelegate` creates the window lazily and keeps it alive. File > Close is nil-targeted, so this controller's `closeFile:` catches ⌘W ahead of the player's.
 
 ## Vibe's panes on the pane base

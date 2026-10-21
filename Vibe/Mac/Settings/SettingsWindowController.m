@@ -77,6 +77,8 @@ static NSString *const kThemesPaneIdentifier = @"themes";
                            undoTitle:STR_MENU_EDIT_UNDO redoTitle:STR_MENU_EDIT_REDO
                    searchPlaceholder:STR_SETTINGS_SEARCH_PLACEHOLDER noResultsText:STR_SETTINGS_SEARCH_NO_RESULTS];
     if (self) {
+        // Before the window first shows, so the frame Vibe saved restores.
+        self.windowFrameAutosaveName = @"SettingsWindow";
         // Under Auto, the preview toggle shows the system's side, so an OS
         // flip must re-resolve it.
         [NSApp addObserver:self forKeyPath:@"effectiveAppearance" options:0 context:NULL];
