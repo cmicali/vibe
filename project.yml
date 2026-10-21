@@ -321,7 +321,7 @@ targets:
     preBuildScripts:
       # build/generated/VibeGitInfo.h for the launch provenance block; reading
       # .git needs ENABLE_USER_SCRIPT_SANDBOXING: NO (set below).
-      - script: '"$SRCROOT/scripts/build/generate-git-info.sh"'
+      - script: '"$SRCROOT/vibe-libs/core/Common/generate-git-info.sh"'
         name: Generate Git Info
         basedOnDependencyAnalysis: false
         outputFiles:
@@ -490,7 +490,7 @@ targets:
         # under one team; notarization rejects a build without it.
         ENABLE_HARDENED_RUNTIME: NO
         ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES    # Open URL, in both builds
-        ENABLE_USER_SCRIPT_SANDBOXING: NO           # generate-git-info.sh reads .git
+        ENABLE_USER_SCRIPT_SANDBOXING: NO           # vibe-libs' generate-git-info.sh reads .git
         ENABLE_USER_SELECTED_FILES: readwrite
         EXCLUDED_ARCHS: ""
         LD_RUNPATH_SEARCH_PATHS:
@@ -620,7 +620,7 @@ targets:
       - path: Resources/vibe-theme.mp3
         buildPhase: resources
     preBuildScripts:
-      - script: '"$SRCROOT/scripts/build/generate-git-info.sh"'
+      - script: '"$SRCROOT/vibe-libs/core/Common/generate-git-info.sh"'
         name: Generate Git Info
         basedOnDependencyAnalysis: false
         outputFiles:
@@ -708,7 +708,7 @@ targets:
         # link the classes they drive. settingPresets is none, so nothing sets
         # this for us.
         SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VIBE_APP"
-        ENABLE_USER_SCRIPT_SANDBOXING: NO     # generate-git-info.sh reads .git
+        ENABLE_USER_SCRIPT_SANDBOXING: NO     # vibe-libs' generate-git-info.sh reads .git
         PROVISIONING_PROFILE_SPECIFIER: ""
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
@@ -882,7 +882,7 @@ targets:
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
       - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
       - path: Vibe/Audio/PINCache+VibeAudioCache.m
-      - path: Vibe/Util/Categories/NSURL+FileIdentity.m   # AudioFileConverter+Sandbox's same-file test
+      - path: vibe-libs/core/Common/NSURL+FileIdentity.m   # AudioFileConverter+Sandbox's same-file test
       - path: Vibe/ThirdParty/PINCache/PINCache.m
         compilerFlags: *third-party-flags
       - path: Vibe/ThirdParty/PINCache/PINMemoryCache.m
@@ -936,11 +936,11 @@ targets:
       - path: Vibe/WaveformUI/Mac/WaveformView+Loading.mm
       - path: Vibe/Util/Mac/NSDraggingImageComponent+Util.m
       - path: Vibe/Util/Mac/NSTextField+Label.m
-      - path: Vibe/Util/VibeWeakProxy.m
+      - path: vibe-libs/core/Common/VibeWeakProxy.m
       - path: Vibe/Playlist/Playlist.m
       - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Playlist/Mac/PlaylistFile+Session.m
-      - path: Vibe/Util/UIUpdateTimer.m
+      - path: vibe-libs/core/Common/UIUpdateTimer.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
       # The iOS shell's Foundation-only model: the session and its stores.
@@ -1065,7 +1065,7 @@ targets:
       - path: Vibe/Audio/AudioPlayer+Diagnostics.m
       - path: Vibe/Debug/Seams/AudioPlayer+Debug.m   # the render suites drive the player through it
       - path: Vibe/Debug/Seams/AudioLevelPublisher+Debug.m   # debugEqualizerState reads its counters
-      - path: Vibe/Util/StallWatch.m
+      - path: vibe-libs/core/Common/StallWatch.m
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
       - path: Vibe/Audio/Mac/Devices/AudioPlayer+BitPerfect.m
       - path: Vibe/Audio/Levels/AudioLevelMeter.m
@@ -1143,7 +1143,7 @@ targetTemplates:
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator+HandleOpen.m
       - path: Vibe/Debug/Seams/AudioFileMaterializationCoordinator+Debug.m   # stage 2 counts its handle opens
       - path: Vibe/Loading/Claim/AudioFileMaterializationTokens.m
-      - path: Vibe/Loading/Claim/AudioWorkScheduler.m
+      - path: vibe-libs/core/Common/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
@@ -1165,7 +1165,7 @@ targetTemplates:
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil+BitPerfect.m
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil+Diagnostics.m
       - path: Vibe/Audio/AudioOutputUnit.m
-      - path: Vibe/Util/FilePaths.m
+      - path: vibe-libs/core/Common/FilePaths.m
       - path: Vibe/Loading/PlaceholderFiles.m
       - path: Vibe/Debug/Seams/PlaceholderFiles+Debug.m   # its dataless test asks the probe first
       - path: Vibe/Playlist/FolderWalk.m
@@ -1174,9 +1174,9 @@ targetTemplates:
       - path: Vibe/Playlist/PlaylistFile+CUE.m
       - path: Vibe/Common/PlayableExtensions.m
       - path: Vibe/Util/Formatters.m
-      - path: Vibe/Util/Categories/NSURL+Hash.m
-      - path: Vibe/Util/Categories/NSURL+Emptiness.m
-      - path: Vibe/Debug/Oracles/VibeWorkTally.m
+      - path: vibe-libs/core/Common/NSURL+Hash.m
+      - path: vibe-libs/core/Common/NSURL+Emptiness.m
+      - path: vibe-libs/core/Common/VibeWorkTally.m
       # The artwork, settings and theme files the tag parse (VibeAudioTests) and
       # the shell (VibeTests) both reach.
       - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m

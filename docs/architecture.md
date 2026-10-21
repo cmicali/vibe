@@ -44,8 +44,8 @@ Vibe/
     Renderers/         the waveform styles and the morph engine
     Mac/               WaveformView (macOS)
     iOS/               WaveformScrubberView (iOS)
-  Util/                helpers with no feature
-    Categories/        portable categories, such as NSURL+Hash
+  Util/                Vibe's helpers with no feature
+    Categories/        portable categories, such as NSString+CPPStrings
     Mac/ and iOS/      the AppKit and UIKit categories
   Debug/               the debug command channel, compiled into Debug builds only
     Channel/           the transport: command and reply files
@@ -132,7 +132,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### Util
 
-`Vibe/Util/` is code with no feature. If you can name the feature a file serves, it belongs in that feature's directory instead. `FilePaths` compares paths by spelling, without touching the disk (`VibeComparablePath`). `Formatters` builds the info lines. `StallWatch` samples stuck threads for the beta logs. `Categories/` holds portable categories, such as `NSURL+Hash`. Its `cacheKey` keys the metadata and waveform caches. `Mac/` and `iOS/` hold the AppKit and UIKit categories. Read next: `Vibe/Util/AGENTS.md`.
+`Vibe/Util/` is code with no feature. If you can name the feature a file serves, it belongs in that feature's directory instead. `Formatters` builds the info lines. `Categories/` holds `NSString+CPPStrings`. `Mac/` and `iOS/` hold the AppKit and UIKit categories. The helpers another app could use are in vibe-libs' `core/Common`. `FilePaths` there compares paths by spelling, without touching the disk (`VibeComparablePath`). `NSURL+Hash`'s `cacheKey` keys the metadata and waveform caches. `StallWatch` samples stuck threads for the beta logs. Read next: `Vibe/Util/AGENTS.md`.
 
 ### Debug
 

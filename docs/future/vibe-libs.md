@@ -17,9 +17,9 @@ The other app is closed source and is never named in this repository or in `vibe
 
 Only five files in the moving code read `AppSettings`: one in folder art and four in the waveform views and theme. The real blockers:
 
-1. **The prefix header.** `Vibe-Prefix.pch` gave every file the `Log*`, `VIBE_REALTIME_*` and signpost macros. The brackets moved in #314 and the log macros in #319. The signposts and the work tally are still there.
+1. **The prefix header.** `Vibe-Prefix.pch` gave every file the `Log*`, `VIBE_REALTIME_*` and signpost macros. The brackets moved in #314 and the log macros in #319. The signposts and the work tally moved with `core/Common`. They compile where `project.yml` defines `VIBE_SIGNPOSTS`, in Debug, since a vibe-libs header may not read `DEBUG`.
 2. **Strings.** `AudioErrorRules.h` maps error codes to `STR_ERROR_*`. `AudioTrack` has two labels. Every renderer returns a localized style name. Metadata, Loading and Util have one site each.
-3. **Debug imports in production code.** Seven are unguarded, for `AudioLoadTiming.h` and the work tally, and eight sit under `#if DEBUG`.
+3. **Debug imports in production code.** Seven were unguarded, for `AudioLoadTiming.h` and the work tally, and eight sit under `#if DEBUG`. The work tally moved to `core/Common`, so the one unguarded import left is the waveform loader's `AudioLoadTiming.h`. Its header carries `#if DEBUG`, so it needs a seam's shape before it moves with WaveformLoading.
 4. **`Audio/` and `Loading/` imported each other.** One shared header of open rules, the loader's typed handle, and the read-ahead's test hooks made the cycle. Seams 14 and 15 below untangled it.
 5. **One shell reach.** `FolderArtResolver` imports the mac's `FolderAccessManager`.
 6. **Platform halves** are categories on `AudioPlayer` that the core calls under `TARGET_OS_OSX`. They cannot be a separate module.
@@ -28,7 +28,7 @@ Only five files in the moving code read `AppSettings`: one in folder art and fou
 
 | Group | Pieces | Mostly from |
 | --- | --- | --- |
-| `core/` | Common, Graphics | `Util/`, `NSURL+Hash`, and the prefix header's macros. `Common/Platform*` and `Common/Mac/Theme/Fonts` moved in #350. |
+| `core/` | Common, Graphics | `Util/`, `NSURL+Hash`, and the prefix header's macros. `Common/Platform*` and `Common/Mac/Theme/Fonts` moved in #350. The rest of `core/Common` moved after it, with the work lanes from `Loading/Claim/` and the work tally from `Debug/Oracles/`. |
 | `files/` | FileLoading, RemoteFiles, HTTP, ShareLinks, SandboxAccess, DiskCache | `Loading/`, `Mac/App/FolderAccessManager`, the cache helper |
 | `audio/` | AudioTypes, DSP, Analysis, Decode, Meter, FX, OutputDevices, Player | `Audio/`, `Common/PlayableExtensions` |
 | `media/` | Tags, Metadata, Playlists, FolderScan, PlayQueue | `Audio/Metadata/`, `iOS/Search/FileSearchIndex`, and the shared half of `Playlist/` except `AudioTrack`, which stays |
@@ -41,7 +41,7 @@ Only five files in the moving code read `AppSettings`: one in folder art and fou
 
 **What stays in Vibe:** both shells, the playlist row (`AudioTrack`), the playlist table, the settings store and every pane's content, strings, themes and the Themes pane, the main menu and its command table, the About window, the link store, Dropbox, Convert to FLAC, the debug verbs and their command tables, and the widget.
 
-**Moves with its users, no source change:** `NSString+CPPStrings`, `VibeWeakProxy`, `PlayableExtensions`, the debug seams, simulators, and `AudioLoadTiming`. `Util/StallWatch` needs one import to move. It logs, and no prefix header gives it the log macros in vibe-libs. `HelperMacros.h` moves with `core/Common`. Until then, a file that uses its `clampRange` cannot move unchanged. #350 spelled it as `MIN(MAX())` in the two Graphics files that used it. The dark-mode helpers and the platform aliases moved with Graphics in #350. `NSView+DarkMode.h` first gained an AppKit import, because no prefix header supplies AppKit in vibe-libs. Convert is wholly `Vibe/Mac/Convert/` and stays. `AudioFileHandle`'s writing half stays in the engine. `VibeWidget/` is untouched.
+**Moves with its users, no source change:** `NSString+CPPStrings`, `PlayableExtensions`, the debug seams, simulators, and `AudioLoadTiming`. `VibeWeakProxy`, `StallWatch` and `HelperMacros.h` moved with `core/Common`. `StallWatch` gained one import there, since it logs and no prefix header gives it the log macros in vibe-libs. A moved file that uses `clampRange` now imports `HelperMacros.h`. #350 had spelled it as `MIN(MAX())` in the two Graphics files that used it. The dark-mode helpers and the platform aliases moved with Graphics in #350. `NSView+DarkMode.h` first gained an AppKit import, because no prefix header supplies AppKit in vibe-libs. Convert is wholly `Vibe/Mac/Convert/` and stays. `AudioFileHandle`'s writing half stays in the engine. `VibeWidget/` is untouched.
 
 **After the moves, `project.yml`** drops the `Vibe/Audio`, `Vibe/WaveformUI` and `Vibe/Controls` entries, the four vendored flag anchors and their 22 entries, and the eleven TagLib header search paths. `Vibe/Loading` keeps only `iOS/Dropbox` and the link store. `Vibe/ThirdParty` goes. `Vibe/Mac/Settings` keeps the panes and the window subclass. `Vibe/Mac/Controls` keeps the artwork view and the pitch controls.
 
