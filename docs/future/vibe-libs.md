@@ -1,6 +1,6 @@
 # Future: vibe-libs, the shared toolbox
 
-**Status: planned 2026-10-17, revised 2026-10-18 after two reviews, and revised 2026-10-20 after a third: the shell pieces join on a second track, as cuts 24 to 29, and the one prefix is `Vibe`. Merged on 2026-10-20: the pilot (#314 moved the realtime-effects brackets, #315 took the varispeed from the submodule), the log macros (#319), and cuts 1, 3 and 4 (#316 to #318). Cuts 6 to 11 and 24 to 29 merged on 2026-10-20 and 2026-10-21.**
+**Status: planned 2026-10-17, revised 2026-10-18 after two reviews, and revised 2026-10-20 after a third: the shell pieces join on a second track, as cuts 24 to 29, and the one prefix is `Vibe`. Merged on 2026-10-20: the pilot (#314 moved the realtime-effects brackets, #315 took the varispeed from the submodule), the log macros (#319), and cuts 1, 3, and 4 (#316 to #318). Cuts 6 to 11 and 24 to 29 merged on 2026-10-20.**
 
 Everything in Vibe that another app could use moves to [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries for macOS and iOS apps. Vibe and another app each take only the pieces they want. **vibe-libs' [docs/plan.md](https://github.com/cmicali/vibe-libs/blob/main/docs/plan.md) is the authority** for the pieces, their dependency map, the build shape, the order of the moves, the performance proof, and what the other app needs when. This doc covers only what changes in Vibe.
 
