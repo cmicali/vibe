@@ -1,22 +1,3 @@
-* Nou: „Deschideți URL” redă un link web sau un link de partajare Dropbox, Google Drive ori iCloud Drive, iar un link copiat se redă din fila Fișiere
-* Nou: widgeturi cu formă de undă, mare, pentru ecranul de blocare și cu copertă pe toată suprafața, cu butoanele de playlist, redare și piesa următoare de pe Mac
-* Nou: stilul de formă de undă Spectru, cu colorarea „Pe secțiuni”, astfel încât fiecare parte a unei piese își păstrează o culoare
-* Nou: temele 3 benzi: Rekord Bin, Dengine și culori personalizate
-* Nou: măriți forma de undă până la nivelul eșantioanelor
-* Nou: redare Ogg Vorbis și MP3 în format liber
-* Nou: coperți pentru piesele din iCloud și Dropbox care nu sunt descărcate
-* Nou: starea „Se încarcă în buffer…” cât timp o piesă așteaptă o partajare de rețea lentă sau o descărcare
-* Nou: piesa temă vibe, care se încarcă la pornire până când redați sau deschideți ceva
-* Modificat: stilurile de formă de undă au fost redenumite: Simplu devine Bare, Cupertino simplu devine Progres, iar cele patru stiluri Detaliat devin unul singur, cu o configurare de tip
-* Modificat: „Piesa precedentă” pe prima piesă o repornește
-* Modificat: linia capului de redare este ușor transparentă
-* Modificat: tema Cupertino întunecă doar coperta din spatele butoanelor de redare, cu un gradient mai deschis
-* Îmbunătățit: capul de redare, salturile și tema widgetului
-* Îmbunătățit: fila Fișiere grupează locurile sub Locații
-* Îmbunătățit: în Configurări, „La sfârșitul piesei” și „Afișarea timpului” se aleg pe loc, iar paletele 3 benzi poartă numele culorilor lor
-* Îmbunătățit: redarea din partajări de rețea: o conexiune întreruptă pune redarea pe pauză cu „Conexiune pierdută”, un server lent nu mai blochează schimbarea pieselor, iar piesele hi-res se redau fluent
-* Îmbunătățit: piesele MP3, FLAC, WAV și AIFF se deschid mai repede
-* Remediat: redarea fără pauze a fișierelor MP3 mono și MPEG-2
-* Remediat: fișierele Opus al căror antet setează un volum se redau la nivelul greșit
-* Remediat: un fișier CAF corupt putea bloca scanarea metadatelor
-* Remediat: deschiderea unui link mai vechi putea înlocui deschiderea mai recentă a unui fișier
+* Modificat: fișierele MP3, FLAC, WAV, AIFF și Ogg Vorbis sunt redate mereu cu decodoarele proprii ale Vibe
+* Îmbunătățit: redarea fișierelor Ogg Vorbis care conțin și video sau un flux Skeleton
+* Remediat: fișierele MP3 de 320 kbps se deschideau încet

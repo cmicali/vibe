@@ -1,27 +1,7 @@
-* Nou: „Deschideți locația…” (⌘L) redă un link web sau un link de partajare Dropbox, Google Drive ori iCloud Drive
-* Nou: stilul de formă de undă Spectru, cu colorarea „Pe secțiuni”, astfel încât fiecare parte a unei piese își păstrează o culoare
-* Nou: temele RGB, Dark Core, Kinda Blue și Sectioned, plus pictograma aplicației Dark Core, oferite de JohnnyFireOne
-* Nou: „Mutați în Coș” (⌘⌫) șterge fișierul piesei selectate sau al celei în redare, cu „Anulați”
-* Nou: „Adăugați la playlist…” (⇧⌘O), „Afișați în Finder” (⇧⌘R) și un meniu Fereastră cu „Minimizați”, „Lățimea ferestrei”, „Mereu deasupra” și „Blocați poziția ferestrei”
-* Nou: starea „Se încarcă în buffer…” cât timp o piesă așteaptă o partajare de rețea lentă sau o descărcare
-* Nou: culori de temă pentru textul rândului în redare și al celui selectat și pentru barele egalizatorului rândului în redare, plus copertele implicite „Transparent”, „Fereastră”, „Simbol” și „Culoare personalizată”
-* Nou: faceți clic pe antetul panoului pitch pentru a comuta intervalul între 8 % și 16 %
-* Nou: redare MP3 în format liber
-* Nou: piesa temă vibe, care se încarcă la pornire până când redați sau deschideți ceva
-* Modificat: meniurile urmează convențiile macOS, cu Editare > Copiați, un submeniu Repetare și submeniurile Săriți înapoi și Săriți înainte, care arată fiecare distanță în măsuri sau secunde
-* Modificat: stilurile de formă de undă au fost redenumite: Simplu devine Bare, Cupertino simplu devine Progres, iar cele patru stiluri Detaliat devin unul singur, cu o configurare de tip
-* Modificat: „Piesa precedentă” pe prima piesă o repornește
-* Modificat: glisorul de volum apare lângă cursor, cu o configurare de temă pentru momentul în care este afișat
-* Modificat: linia capului de redare este ușor transparentă, iar barele egalizatorului rândului în redare sunt negre în modul luminos
-* Modificat: tema Cupertino întunecă doar coperta din spatele butoanelor de redare, cu un gradient mai deschis
-* Îmbunătățit: faderul pitch sună mai bine, cu un motor propriu de repitch și schimbări line
-* Îmbunătățit: ieșirea bit-perfect folosește cea mai mare adâncime de biți a dispozitivului, pentru schimbări de volum mai curate și redare fără pauze între piese pe 16 și 24 de biți
-* Îmbunătățit: redarea din partajări de rețea: o conexiune întreruptă pune redarea pe pauză cu „Conexiune pierdută”, un server lent nu mai blochează schimbarea pieselor, iar piesele hi-res se redau fluent
-* Îmbunătățit: piesele MP3, FLAC, WAV și AIFF se deschid mai repede
-* Îmbunătățit: fereastra Configurări are denumiri mai clare, motive sub rândurile dezactivate, o confirmare înainte de restabilirea valorilor implicite și o bară de salt în editorul de teme
-* Remediat: redarea fără pauze a fișierelor MP3 mono și MPEG-2
-* Remediat: fișierele Opus al căror antet setează un volum se redau la nivelul greșit
-* Remediat: piesele Ogg Vorbis își pierdeau primele 3 ms
-* Remediat: un fișier CAF corupt putea bloca scanarea metadatelor
-* Remediat: linia care urmărește cursorul pe forma de undă se pierdea peste partea deja redată
-* Remediat: pe macOS 27, schimbările de temă ștergeau selecția din playlist, iar memoria creștea la fiecare deschidere de playlist și schimbare de temă
+* Nou: schimbați volumul derulând cu mouse-ul sau trackpadul și cu tastele săgeată sus și jos (când este activat)
+* Nou: „Copiați” și „Lipiți” pentru culori și fonturi în meniul contextual al editorului de teme
+* Nou: mostra de culori a fiecărei teme în meniul „Vizualizare > Temă”
+* Modificat: fișierele MP3, FLAC, WAV, AIFF și Ogg Vorbis sunt redate mereu cu decodoarele proprii ale Vibe
+* Modificat: configurările de aspect și comportament ale glisorului de volum s-au mutat din teme în „Configurări > Aspect”
+* Îmbunătățit: redarea fișierelor Ogg Vorbis care conțin și video sau un flux Skeleton
+* Remediat: fișierele MP3 de 320 kbps se deschideau încet

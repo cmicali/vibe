@@ -1,22 +1,3 @@
-* Neu: „URL öffnen“ spielt einen Weblink oder einen Freigabelink von Dropbox, Google Drive oder iCloud Drive ab, und ein kopierter Link lässt sich im Tab „Dateien“ abspielen
-* Neu: Widgets mit Wellenform, im großen Format, für den Sperrbildschirm und mit randlosem Cover, mit den Tasten für Wiedergabeliste, Wiedergabe und nächsten Titel wie auf dem Mac
-* Neu: der Wellenform-Stil Spektrum, mit der Färbung „Nach Abschnitt“, bei der jeder Teil eines Titels eine Farbe behält
-* Neu: die 3-Band-Themen Rekord Bin, Dengine und eigene Farben
-* Neu: zoome die Wellenform bis hinunter zu den einzelnen Samples
-* Neu: Wiedergabe von Ogg Vorbis und MP3 im Free-Format
-* Neu: Cover für iCloud- und Dropbox-Titel, die nicht geladen sind
-* Neu: der Status „Puffern…“, während ein Titel auf eine langsame Netzwerkfreigabe oder einen Download wartet
-* Neu: der Titelsong „vibe“, der beim Start geladen wird, bis du etwas abspielst oder öffnest
-* Geändert: die Wellenform-Stile heißen anders: Einfach heißt jetzt Balken, Cupertino (einfach) heißt jetzt Fortschritt, und die vier Stile Detailliert sind einer mit der Einstellung „Typ“
-* Geändert: „Vorheriger Titel“ startet den ersten Titel neu
-* Geändert: die Linie an der Abspielposition ist leicht durchscheinend
-* Geändert: das Thema Cupertino dunkelt nur noch das Cover hinter den Wiedergabetasten ab, mit einem helleren Verlauf
-* Verbessert: Abspielposition, Sprünge und Thema des Widgets
-* Verbessert: der Tab „Dateien“ fasst Speicherorte unter „Orte“ zusammen
-* Verbessert: in den Einstellungen wählst du „Am Titelende“ und „Zeitanzeige“ direkt an Ort und Stelle, und die 3-Band-Paletten sind nach ihren Farben benannt
-* Verbessert: Wiedergabe von Netzwerkfreigaben: eine abgebrochene Verbindung pausiert mit „Verbindung verloren“, ein langsamer Server hält Titelwechsel nicht mehr auf, und Hi-Res-Titel laufen flüssig
-* Verbessert: MP3-, FLAC-, WAV- und AIFF-Titel öffnen schneller
-* Behoben: lückenlose Wiedergabe von Mono- und MPEG-2-MP3s
-* Behoben: Opus-Dateien, deren Header eine Lautstärke festlegt, wurden mit falschem Pegel abgespielt
-* Behoben: eine beschädigte CAF-Datei konnte den Metadaten-Scan blockieren
-* Behoben: ein älteres Öffnen eines Links konnte ein neueres Öffnen einer Datei ersetzen
+* Geändert: MP3-, FLAC-, WAV-, AIFF- und Ogg-Vorbis-Dateien werden immer mit Vibes eigenen Decodern abgespielt
+* Verbessert: die Wiedergabe von Ogg-Vorbis-Dateien, die auch Video oder einen Skeleton-Stream enthalten
+* Behoben: 320-kbit/s-MP3s wurden langsam geöffnet

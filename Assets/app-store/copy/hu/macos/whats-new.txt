@@ -1,27 +1,7 @@
-* Új: a Hely megnyitása… (⌘L) lejátszik egy webes linket, vagy egy Dropbox, Google Drive vagy iCloud Drive megosztási linket
-* Új: a Spektrum hullámformastílus, Szakaszonként színezéssel, így a szám minden része egy színt tart meg
-* Új: az RGB, Dark Core, Kinda Blue és Sectioned téma, valamint a Dark Core alkalmazásikonja, JohnnyFireOne munkája
-* Új: az Áthelyezés a Kukába (⌘⌫) törli a kijelölt vagy éppen játszott szám fájlját, és ez visszavonható
-* Új: Hozzáadás a lejátszási listához… (⇧⌘O), Megjelenítés a Finderben (⇧⌘R), valamint Ablak menü a Helyezés a Dockba, Ablakszélesség, Mindig felül és Ablak helyzetének rögzítése elemekkel
-* Új: Pufferelés… állapot, amíg egy szám lassú hálózati megosztásra vagy letöltésre vár
-* Új: témaszínek az éppen játszott és a kijelölt sor szövegéhez és az éppen játszott sor hangszínszabályzó-oszlopaihoz, valamint Átlátszó, Ablak, Szimbólum és Egyéni szín alapértelmezett borító
-* Új: kattints a pitch panel fejlécére, hogy a tartományát 8 % és 16 % között váltsd
-* Új: szabad formátumú (free format) MP3-fájlok lejátszása
-* Új: a vibe témaszám, amely indításkor betöltődik, amíg el nem indítasz vagy meg nem nyitsz valamit
-* Változás: a menük a macOS konvencióit követik, Szerkesztés > Másolás elemmel, Ismétlés almenüvel, valamint Ugrás vissza és Ugrás előre almenükkel, amelyek minden távolságot ütemekben vagy másodpercekben mutatnak
-* Változás: a hullámformastílusok új nevet kaptak: az Egyszerű mostantól Oszlopok, a Cupertino (egyszerű) mostantól Folyamatjelző, a négy Részletes stílus pedig egyetlen stílus lett típusbeállítással
-* Változás: az első számon az Előző szám újraindítja a számot
-* Változás: a hangerőcsúszka a mutató közelében jelenik meg, és egy témabeállítás szabja meg, mikor látszik
-* Változás: a lejátszófej vonala kissé áttetsző, az éppen játszott sor hangszínszabályzó-oszlopai pedig világos módban feketék
-* Változás: a Cupertino téma csak a lejátszásgombok mögötti borítót sötétíti el, világosabb színátmenettel
-* Fejlesztés: a pitch-csúszka jobban szól, saját hangmagasság-módosító motorral és sima váltásokkal
-* Fejlesztés: a bitpontos kimenet az eszköz legnagyobb bitmélységét használja, így tisztábbak a hangerőváltások, és szünetmentes a lejátszás a 16 és 24 bites számok között
-* Fejlesztés: hálózati megosztás lejátszása: megszakadt kapcsolatnál a lejátszás „Megszakadt a kapcsolat” üzenettel szünetel, a lassú szerver már nem akasztja meg a számváltásokat, a hi-res számok pedig akadás nélkül szólnak
-* Fejlesztés: az MP3-, FLAC-, WAV- és AIFF-számok gyorsabban nyílnak meg
-* Fejlesztés: a Beállítások ablakban egyértelműbbek a nevek, a letiltott sorok alatt ott az ok, az alapértékek visszaállítása előtt megerősítést kér, a témaszerkesztőben pedig ugrósáv van
-* Javítás: a monó és MPEG-2 MP3-fájlok szünetmentes lejátszása
-* Javítás: azok az Opus-fájlok, amelyek fejléce hangerőt állít be, rossz szinten szóltak
-* Javítás: az Ogg Vorbis számok első 3 ms-a elveszett
-* Javítás: egy sérült CAF-fájl megakaszthatta a metaadatok beolvasását
-* Javítás: a hullámforma rámutatási vonala elveszett a már lejátszott rész fölött
-* Javítás: macOS 27 alatt a témaváltás törölte a lejátszási lista kijelölését, és a memóriahasználat nőtt minden listamegnyitásnál és témaváltásnál
+* Új: a hangerő görgetéssel, egérrel vagy trackpaddel, valamint a fel és le nyílbillentyűkkel is állítható (ha be van kapcsolva)
+* Új: „Másolás” és „Beillesztés” a színekhez és betűtípusokhoz a témaszerkesztő helyi menüjében
+* Új: minden téma színmintája a „Nézet > Téma” menüben
+* Változás: az MP3, FLAC, WAV, AIFF és Ogg Vorbis fájlokat mindig a Vibe saját dekóderei játsszák le
+* Változás: a hangerőcsúszka megjelenési és működési beállításai a témákból a „Beállítások > Megjelenés” részbe kerültek
+* Fejlesztés: a videót vagy Skeleton-adatfolyamot is tartalmazó Ogg Vorbis fájlok lejátszása
+* Javítás: a 320 kbps-os MP3-ak lassan nyíltak meg

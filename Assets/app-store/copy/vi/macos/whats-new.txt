@@ -1,27 +1,7 @@
-* Mới: Mở vị trí… (⌘L) phát một liên kết web, hoặc liên kết chia sẻ từ Dropbox, Google Drive hay iCloud Drive
-* Mới: kiểu dạng sóng Phổ, với cách tô màu Theo đoạn để mỗi phần của bài hát giữ một màu
-* Mới: các chủ đề RGB, Dark Core, Kinda Blue và Sectioned, cùng biểu tượng ứng dụng Dark Core, do JohnnyFireOne đóng góp
-* Mới: Chuyển vào Thùng rác (⌘⌫) xóa tệp của bài đang chọn hoặc đang phát, có thể Hoàn tác
-* Mới: Thêm vào danh sách phát… (⇧⌘O), Hiển thị trong Finder (⇧⌘R) và menu Cửa sổ với Thu nhỏ, Chiều rộng cửa sổ, Luôn ở trên cùng và Khóa vị trí cửa sổ
-* Mới: trạng thái Đang tải bộ đệm… khi một bài chờ thư mục chia sẻ mạng chậm hoặc chờ tải xuống
-* Mới: màu chủ đề cho chữ của hàng đang phát và hàng đã chọn, cho các thanh bộ cân bằng của hàng đang phát, cùng ảnh bìa mặc định Trong suốt, Cửa sổ, Biểu tượng và Màu tùy chỉnh
-* Mới: bấm vào tiêu đề của bảng pitch để chuyển phạm vi giữa 8% và 16%
-* Mới: phát MP3 free-format
-* Mới: bài nhạc chủ đề vibe, được tải khi khởi động cho đến khi bạn phát hoặc mở một thứ gì đó
-* Thay đổi: các menu theo quy ước của macOS, với Sửa > Sao chép, menu con Lặp lại, và các menu con Tua lùi và Tua tới hiển thị từng khoảng cách theo ô nhịp hoặc giây
-* Thay đổi: các kiểu dạng sóng được đổi tên: Cơ bản giờ là Thanh, Cupertino (cơ bản) giờ là Tiến trình, và bốn kiểu Chi tiết gộp thành một kiểu có tùy chọn Loại
-* Thay đổi: nhấn Bản nhạc trước ở bài đầu tiên sẽ phát lại bài đó từ đầu
-* Thay đổi: thanh trượt âm lượng xuất hiện gần con trỏ, kèm một tùy chọn chủ đề cho thời điểm hiển thị
-* Thay đổi: đường đầu phát hơi trong suốt, và các thanh bộ cân bằng của hàng đang phát có màu đen ở chế độ sáng
-* Thay đổi: chủ đề Cupertino chỉ làm tối ảnh bìa phía sau các nút phát, với dải chuyển màu nhạt hơn
-* Cải thiện: fader pitch nghe hay hơn, nhờ bộ máy đổi cao độ riêng và thay đổi mượt mà
-* Cải thiện: đầu ra bit-perfect dùng độ sâu bit lớn nhất của thiết bị, để thay đổi âm lượng sạch hơn và phát liền mạch giữa các bài 16 và 24 bit
-* Cải thiện: phát từ thư mục chia sẻ mạng: kết nối bị ngắt sẽ tạm dừng với thông báo “Mất kết nối”, máy chủ chậm không còn làm đứng việc chuyển bài, và các bài hi-res phát mượt mà
-* Cải thiện: các bài MP3, FLAC, WAV và AIFF mở nhanh hơn
-* Cải thiện: cửa sổ Cài đặt có tên rõ ràng hơn, lý do bên dưới các hàng bị tắt, bước xác nhận trước khi khôi phục mặc định và thanh chuyển nhanh trong trình chỉnh sửa chủ đề
-* Sửa lỗi: phát liền mạch các tệp MP3 mono và MPEG-2
-* Sửa lỗi: tệp Opus có header đặt âm lượng bị phát sai mức
-* Sửa lỗi: bài Ogg Vorbis bị mất 3 ms đầu tiên
-* Sửa lỗi: tệp CAF bị hỏng có thể làm đứng quá trình quét siêu dữ liệu
-* Sửa lỗi: đường di chuột trên dạng sóng bị mất khi ở trên phần đã phát
-* Sửa lỗi: trên macOS 27, việc đổi chủ đề xóa vùng chọn trong danh sách phát, và bộ nhớ tăng mỗi lần mở danh sách phát hoặc đổi chủ đề
+* Mới: đổi âm lượng bằng cách cuộn chuột hoặc trackpad, và bằng phím mũi tên lên và xuống (khi được bật)
+* Mới: “Sao chép” và “Dán” cho màu và phông chữ trong menu chuột phải của trình sửa chủ đề
+* Mới: mẫu màu của từng chủ đề trong menu “Xem > Chủ đề”
+* Thay đổi: tệp MP3, FLAC, WAV, AIFF và Ogg Vorbis luôn được phát bằng bộ giải mã riêng của Vibe
+* Thay đổi: cài đặt giao diện và hành vi của thanh trượt âm lượng đã chuyển từ chủ đề sang “Cài đặt > Giao diện”
+* Cải thiện: phát tệp Ogg Vorbis có kèm video hoặc luồng Skeleton
+* Sửa lỗi: tệp MP3 320 kbps mở chậm

@@ -1,27 +1,7 @@
-* Novo: Otvori lokaciju… (⌘L) reproducira web-poveznicu ili poveznicu za dijeljenje s Dropboxa, Google Drivea ili iCloud Drivea
-* Novo: stil valnog oblika Spektar s bojenjem Po odjeljcima, tako da svaki dio pjesme zadrži jednu boju
-* Novo: teme RGB, Dark Core, Kinda Blue i Sectioned te ikona aplikacije Dark Core, doprinos korisnika JohnnyFireOne
-* Novo: Premjesti u Smeće (⌘⌫) briše datoteku odabrane pjesme ili pjesme koja se reproducira, uz mogućnost poništavanja
-* Novo: Dodaj na popis pjesama… (⇧⌘O), Prikaži u Finderu (⇧⌘R) i izbornik Prozor sa stavkama Minimiziraj, Širina prozora, Uvijek na vrhu i Zaključaj položaj prozora
-* Novo: status Međuspremanje… dok pjesma čeka sporo mrežno dijeljenje ili preuzimanje
-* Novo: boje teme za tekst retka koji se reproducira i odabranog retka te za trake ekvilajzera retka koji se reproducira, kao i zadani omoti Prozirno, Prozor, Simbol i Prilagođena boja
-* Novo: kliknite zaglavlje ploče za pitch kako biste promijenili njezin raspon između 8 % i 16 %
-* Novo: reprodukcija MP3 datoteka slobodnog formata (free format)
-* Novo: pjesma teme vibe, koja se učitava pri pokretanju dok nešto ne reproducirate ili otvorite
-* Promijenjeno: izbornici prate konvencije macOS-a, uz Uredi > Kopiraj, podizbornik Ponavljanje te podizbornike Preskoči natrag i Preskoči naprijed koji prikazuju svaki pomak u taktovima ili sekundama
-* Promijenjeno: stilovi valnog oblika preimenovani su: Osnovni je sada Stupci, Cupertino (osnovni) je sada Napredak, a četiri stila Detaljni spojena su u jedan s postavkom vrste
-* Promijenjeno: Prethodna pjesma na prvoj pjesmi pokreće je ispočetka
-* Promijenjeno: klizač glasnoće pojavljuje se blizu pokazivača, a postavka teme određuje kada se prikazuje
-* Promijenjeno: linija glave reprodukcije malo je prozirna, a trake ekvilajzera retka koji se reproducira crne su u svijetlom načinu
-* Promijenjeno: tema Cupertino zatamnjuje samo omot iza tipki za reprodukciju, uz svjetliji gradijent
-* Poboljšano: kontrola pitcha zvuči bolje zahvaljujući vlastitom mehanizmu za promjenu visine tona i glatkim promjenama
-* Poboljšano: bitovno točan izlaz koristi najveću dubinu bitova uređaja, za čišće promjene glasnoće i reprodukciju bez praznina između 16-bitnih i 24-bitnih pjesama
-* Poboljšano: reprodukcija s mrežnih dijeljenja: prekinuta veza pauzira uz „Veza je prekinuta”, spori poslužitelj više ne koči promjene pjesama, a hi-res pjesme reproduciraju se glatko
-* Poboljšano: MP3, FLAC, WAV i AIFF pjesme otvaraju se brže
-* Poboljšano: prozor Postavke ima jasnije nazive, razloge ispod onemogućenih redaka, potvrdu prije vraćanja zadanih postavki i traku za skok u uređivaču tema
-* Ispravljeno: reprodukcija bez praznina mono i MPEG-2 MP3 datoteka
-* Ispravljeno: Opus datoteke čije zaglavlje postavlja glasnoću reproducirale su se na pogrešnoj razini
-* Ispravljeno: Ogg Vorbis pjesme gubile su prve 3 ms
-* Ispravljeno: oštećena CAF datoteka mogla je zaustaviti skeniranje metapodataka
-* Ispravljeno: linija pokazivača na valnom obliku gubila se iznad reproduciranog dijela
-* Ispravljeno: u sustavu macOS 27 promjene teme brisale su odabir na popisu pjesama, a memorija je rasla pri svakom otvaranju popisa i promjeni teme
+* Novo: promjena glasnoće pomicanjem mišem ili dodirnom pločicom te tipkama sa strelicama gore i dolje (kada je uključeno)
+* Novo: „Kopiraj” i „Zalijepi” za boje i fontove u kontekstnom izborniku uređivača tema
+* Novo: uzorak boja svake teme u izborniku „Prikaz > Tema”
+* Promijenjeno: MP3, FLAC, WAV, AIFF i Ogg Vorbis datoteke uvijek se reproduciraju Vibeovim vlastitim dekoderima
+* Promijenjeno: postavke izgleda i ponašanja klizača glasnoće premještene su iz tema u „Postavke > Izgled”
+* Poboljšano: reprodukcija Ogg Vorbis datoteka koje sadrže i video ili Skeleton tok
+* Ispravljeno: MP3 datoteke od 320 kbps sporo su se otvarale
