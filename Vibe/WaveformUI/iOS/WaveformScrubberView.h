@@ -11,6 +11,7 @@
 //
 
 #import <UIKit/UIKit.h>
+#import "WaveformTheme.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -80,11 +81,26 @@ NS_ASSUME_NONNULL_BEGIN
 // (WaveformZoomMath.h).
 @property (nonatomic, readonly) CGFloat effectiveVisibleFraction;
 
-// Rebuilds only when the persisted style differs from the one on screen; the
-// owner fans it out, since a reused cell keeps its last renderer.
-- (void)syncWaveformStyle;
+// A WaveformRendererRegistry key, resolved through its fallback chain.
+// Rebuilds only when it differs from the style on screen; the owner fans it
+// out, since a reused cell keeps its last renderer.
+- (void)syncWaveformStyle:(nullable NSString *)identifier;
 
-// Likewise for the theme, custom colors and the playhead line.
+// Resolves the theme on every resolution: the renderer's install, the
+// appearance flip, syncWaveformTheme. The owner installs it with the
+// settings below (PlayerViewController.applyWaveformSettingsToCell:).
+@property (nonatomic, copy, nullable) WaveformThemeProvider themeProvider;
+
+// Pushed by the owner, never read from a store. Each lands on the next
+// syncWaveformTheme, whose signature carries both.
+// NO grounds the bars on a baseline.
+@property (nonatomic) BOOL centered;
+// The whole waveform draws as played and a line at the center marks the
+// position. The owner decides the style's default when nothing is chosen.
+@property (nonatomic) BOOL drawsPlayheadLine;
+
+// Re-resolves the theme, custom colors and the playhead line when the
+// provider's answer or the pushed settings changed.
 - (void)syncWaveformTheme;
 
 // THIS page's dominant art color for album_art; nil resolves to Mono. Per view

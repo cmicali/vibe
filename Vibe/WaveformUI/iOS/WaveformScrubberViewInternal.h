@@ -22,6 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
     // renderers' y-up space. It draws only _renderWindow.
     CALayer                 *_rendererHost;
     WaveformRenderer        *_renderer;
+    // The pushed style, resolved; the renderer's own once one exists.
     NSString                *_styleIdentifier;
     NSString                *_themeSignature;
     // The stretch of content the renderer last drew, in content points.
