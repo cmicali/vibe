@@ -32,14 +32,14 @@ The control is `Controls/LoadingIndicator`, and its traps are in `Controls/AGENT
 
 ## Accessibility
 
-**Both views are sliders** (`NSAccessibilitySliderRole`, `UIAccessibilityTraitAdjustable`), labelled `STR_A11Y_WAVEFORM`. The waveform is the only pointer or touch seek, so there is no other control to fall back to.
+**Both views are sliders** (`NSAccessibilitySliderRole`, `UIAccessibilityTraitAdjustable`). The waveform is the only pointer or touch seek, so there is no other control to fall back to. Each shell labels its view (`STR_A11Y_WAVEFORM`) where it builds it, so the views read no strings. The step and the spoken value are `WaveformAccessibility.h`, shared by both views.
 
 - **The step is 5% of the track (`kWaveformAccessibilityStep`), not seconds.** Each view knows a 0 to 1 progress and reports a 0 to 1 seek, never the duration.
 - **An adjustment reports the seek and waits for the position to come back** through the owner's normal progress write. Writing local progress would show a playhead that has not moved, and it would fight the next tick.
-- **The value is `Formatters`' `percentString:`**, since VoiceOver reads a bare 0.5 as "zero point five".
+- **The value is a whole percentage** (`VibeWaveformAccessibilityValue`), since VoiceOver reads a bare 0.5 as "zero point five".
 
 Neither view is adjustable with nothing loaded. The iOS `accessibilityIdentifier` names the element for the XCUITest driver's pinch (`Tests/iOSDriver/`) and is unrelated to the above.
 
 ## ObjC++ boundary
 
-The renderers and views are `.mm` for the C++ sample vectors. **Keep C++ types out of any header a plain ObjC `.m` imports.** `WaveformTheme.h`, `WaveformZoomMath.h` and the renderers' two math headers are safe here. `Renderers/WaveformRenderer.h` and `Renderers/WaveformMorphEngine.h` bring in `AudioWaveform.h` and `<vector>`, so only `.mm` files may import them.
+The renderers and views are `.mm` for the C++ sample vectors. **Keep C++ types out of any header a plain ObjC `.m` imports.** `WaveformTheme.h`, `WaveformZoomMath.h`, `WaveformAccessibility.h` and the renderers' two math headers are safe here. `Renderers/WaveformRenderer.h` and `Renderers/WaveformMorphEngine.h` bring in `AudioWaveform.h` and `<vector>`, so only `.mm` files may import them.
