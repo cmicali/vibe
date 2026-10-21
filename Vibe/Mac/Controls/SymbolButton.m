@@ -4,6 +4,7 @@
 //
 
 #import "SymbolButton.h"
+#import <QuartzCore/QuartzCore.h>
 #import "PlatformColor.h"
 
 static const CFTimeInterval kFadeDuration = 0.1;

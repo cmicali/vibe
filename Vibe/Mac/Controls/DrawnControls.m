@@ -4,6 +4,7 @@
 //
 
 #import "DrawnControls.h"
+#import <QuartzCore/QuartzCore.h>
 #import "NSView+DarkMode.h"
 #import "PlatformColor.h"
 
