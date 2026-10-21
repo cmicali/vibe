@@ -4,7 +4,6 @@
 //
 
 #import "DrawnControls.h"
-#import "Formatters.h"
 #import "NSView+DarkMode.h"
 #import "PlatformColor.h"
 
@@ -280,7 +279,7 @@ static const double kSliderStep = 0.05;
 }
 
 - (NSString *)accessibilityValueDescription {
-    return [Formatters.sharedInstance percentString:_value];
+    return _accessibilityValueFormatter ? _accessibilityValueFormatter(_value) : nil;
 }
 
 - (BOOL)accessibilityPerformIncrement {

@@ -58,6 +58,9 @@ static CGFloat LabelCellWidth(NSTextField *label, NSString *string, NSTextAlignm
         _slider = [[VibeSlider alloc] initWithFrame:NSZeroRect];
         _slider.doubleValue = AppSettings.sharedInstance.volume;
         _slider.accessibilityLabel = STR_A11Y_VOLUME;
+        _slider.accessibilityValueFormatter = ^NSString *(double value) {
+            return [Formatters.sharedInstance percentString:value];
+        };
         _slider.target = target;
         _slider.action = @selector(volumeChanged:);
         [self addSubview:_slider];

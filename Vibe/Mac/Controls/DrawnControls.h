@@ -28,6 +28,10 @@ NS_ASSUME_NONNULL_BEGIN
 // nil is the system's white knob.
 @property (nonatomic, copy, nullable) NSColor *knobColor;
 
+// The spoken value, from the 0-1 value: the shell installs its own percent
+// formatter. With none, VoiceOver reads the bare value.
+@property (nonatomic, copy, nullable) NSString *(^accessibilityValueFormatter)(double value);
+
 // Moves the value by that many 5% steps, a fraction included, and sends the
 // action when it moved, as a VoiceOver step does without its rounding. NO
 // when disabled or unmoved.
