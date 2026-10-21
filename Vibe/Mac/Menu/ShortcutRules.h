@@ -150,6 +150,13 @@ static inline BOOL VibeShortcutIsReserved(unsigned short keyCode, unichar charac
     return NO;
 }
 
+// What a recording comes to: stored, or refused before anything is stored.
+typedef NS_ENUM(NSInteger, VibeShortcutAssignment) {
+    VibeShortcutAssignmentStored,
+    VibeShortcutAssignmentReserved,   // VibeShortcutIsReserved
+    VibeShortcutAssignmentUnusable,   // a key no layout names, so no menu could draw it
+};
+
 // The command a key performs, or a recorded one would collide with, nil for
 // none: a key-code shortcut matched by physical key, a character default by
 // character (the key's lowercase character, 0 when unknown), each with the

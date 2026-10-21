@@ -243,7 +243,7 @@ NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> 
 }
 
 NSString *VibeResetShortcuts(MainPlayerController *controller) {
-    [controller resetShortcuts];
+    [controller setShortcutOverrides:@{}];
     VibeDebugSettingsRefreshSelectedPane();
     return VibeJSONString(@{@"ok": @YES});
 }
