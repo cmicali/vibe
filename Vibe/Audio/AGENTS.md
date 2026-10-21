@@ -35,7 +35,7 @@ The reading path is `AudioPlayer.h` → `AudioPlayer.m` → `AudioVoiceBus.h` �
 | `AudioFileHandle+MPEG.m` | dr_mp3's decode: the open, which frames the stream itself, the walk that indexes its frames, a headerless stream's estimated count and its settle, the seek, the reads and the packet decode |
 | `AudioFileHandle+Stream.m` | dr_flac's, dr_wav's and libvorbis's decode: which of Vibe's decoders takes the file, dr_mp3 included, the opens, the close and the reads. The byte reads they pass the decoders stay in `AudioFileHandle.m` |
 | `AudioFileHandleInternal.h` | the private header the three share: the ivars the decodes read, the core's reads and waits they call, and the decodes' methods the core calls |
-| `AudioPlayer+Diagnostics` | source/decode/path report assembly in every build; beta hooks, the stall watchers' start and suspension, and the signal probe. The watchdogs and the stack sampler are `Util/StallWatch` |
+| `AudioPlayer+Diagnostics` | source/decode/path report assembly in every build; beta hooks, the stall watchers' start and suspension, and the signal probe. The watchdogs and the stack sampler are vibe-libs' `core/Common/StallWatch` |
 | `AudioOutputUnit` | the hosted output unit both platforms pull the render with: its callback, gate, counters and its own HAL queue |
 | `Mac/Devices/AudioPlayer+Devices` | the unit's device binding, rates and device observations, and the mac's private device header (`Mac/Devices/AGENTS.md`) |
 | `Mac/Devices/AudioPlayer+BitPerfect` | bit-perfect and exclusive output: the format prepare and restore, the hog, and the report (`Mac/Devices/AGENTS.md`) |

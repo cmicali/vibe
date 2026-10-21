@@ -2,10 +2,10 @@
 <style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.s0{fill:#2a78d6;stroke:#2a78d6}.s1{fill:#eb6834;stroke:#eb6834}.s2{fill:#1baf7a;stroke:#1baf7a}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.s0{fill:#3987e5;stroke:#3987e5}.s1{fill:#d95926;stroke:#d95926}.s2{fill:#199e70;stroke:#199e70}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
 <rect class="bg" width="720" height="318" rx="10"/>
 <text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">CPU wakeups</text>
-<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Per second. Lower is better. The numbers in the key are 1.16&#x27;s.</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Per second. Lower is better. The numbers in the key are 1.17&#x27;s.</text>
 <rect class="s0" x="24" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">Playing</text>
-<text class="m" x="89.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">11</text>
+<text class="m" x="89.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">12</text>
 <rect class="s1" x="125.28" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="145.3" y="68.0" font-size="12" text-anchor="start">Paused</text>
 <text class="m" x="190.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">7</text>
@@ -26,43 +26,47 @@
 <text class="q" x="44.0" y="128.0" font-size="11" text-anchor="end">100</text>
 <line class="g" x1="52.0" y1="94.0" x2="696.0" y2="94.0" stroke-width="1"/>
 <text class="q" x="44.0" y="98.0" font-size="11" text-anchor="end">120</text>
-<text class="m" x="87.8" y="292.0" font-size="11" text-anchor="middle">1.8</text>
-<text class="m" x="159.3" y="292.0" font-size="11" text-anchor="middle">1.9</text>
-<text class="m" x="230.9" y="292.0" font-size="11" text-anchor="middle">1.10</text>
-<text class="m" x="302.4" y="292.0" font-size="11" text-anchor="middle">1.11</text>
-<text class="m" x="374.0" y="292.0" font-size="11" text-anchor="middle">1.12</text>
-<text class="m" x="445.6" y="292.0" font-size="11" text-anchor="middle">1.13</text>
-<text class="m" x="517.1" y="292.0" font-size="11" text-anchor="middle">1.14</text>
-<text class="m" x="588.7" y="292.0" font-size="11" text-anchor="middle">1.15</text>
-<text class="t" x="660.2" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.16</text>
-<path class="ln s0" stroke-width="2" d="M87.8,264.3 L159.3,263.9 L230.9,263.9 L302.4,263.5 L374.0,263.3 L445.6,263.5 L517.1,118.0 L588.7,250.4 L660.2,256.8"/>
-<circle class="s0 ring" cx="87.8" cy="264.3" r="3.5" stroke-width="2"><title>1.8, Playing: 6</title></circle>
-<circle class="s0 ring" cx="159.3" cy="263.9" r="3.5" stroke-width="2"><title>1.9, Playing: 7</title></circle>
-<circle class="s0 ring" cx="230.9" cy="263.9" r="3.5" stroke-width="2"><title>1.10, Playing: 7</title></circle>
-<circle class="s0 ring" cx="302.4" cy="263.5" r="3.5" stroke-width="2"><title>1.11, Playing: 7</title></circle>
-<circle class="s0 ring" cx="374.0" cy="263.3" r="3.5" stroke-width="2"><title>1.12, Playing: 7</title></circle>
-<circle class="s0 ring" cx="445.6" cy="263.5" r="3.5" stroke-width="2"><title>1.13, Playing: 7</title></circle>
-<circle class="s0 ring" cx="517.1" cy="118.0" r="3.5" stroke-width="2"><title>1.14, Playing: 104</title></circle>
-<circle class="s0 ring" cx="588.7" cy="250.4" r="3.5" stroke-width="2"><title>1.15, Playing: 16</title></circle>
-<circle class="s0 ring" cx="660.2" cy="256.8" r="3.5" stroke-width="2"><title>1.16, Playing: 11</title></circle>
-<path class="ln s1" stroke-width="2" d="M87.8,272.2 L159.3,272.2 L230.9,272.2 L302.4,271.9 L374.0,272.5 L445.6,272.5 L517.1,183.2 L588.7,263.8 L660.2,264.1"/>
-<circle class="s1 ring" cx="87.8" cy="272.2" r="3.5" stroke-width="2"><title>1.8, Paused: 1</title></circle>
-<circle class="s1 ring" cx="159.3" cy="272.2" r="3.5" stroke-width="2"><title>1.9, Paused: 1</title></circle>
-<circle class="s1 ring" cx="230.9" cy="272.2" r="3.5" stroke-width="2"><title>1.10, Paused: 1</title></circle>
-<circle class="s1 ring" cx="302.4" cy="271.9" r="3.5" stroke-width="2"><title>1.11, Paused: 1</title></circle>
-<circle class="s1 ring" cx="374.0" cy="272.5" r="3.5" stroke-width="2"><title>1.12, Paused: 1</title></circle>
-<circle class="s1 ring" cx="445.6" cy="272.5" r="3.5" stroke-width="2"><title>1.13, Paused: 1</title></circle>
-<circle class="s1 ring" cx="517.1" cy="183.2" r="3.5" stroke-width="2"><title>1.14, Paused: 61</title></circle>
-<circle class="s1 ring" cx="588.7" cy="263.8" r="3.5" stroke-width="2"><title>1.15, Paused: 7</title></circle>
-<circle class="s1 ring" cx="660.2" cy="264.1" r="3.5" stroke-width="2"><title>1.16, Paused: 7</title></circle>
-<path class="ln s2" stroke-width="2" d="M87.8,272.8 L159.3,272.5 L230.9,272.8 L302.4,272.8 L374.0,272.8 L445.6,272.8 L517.1,272.8 L588.7,272.5 L660.2,272.5"/>
-<circle class="s2 ring" cx="87.8" cy="272.8" r="3.5" stroke-width="2"><title>1.8, Idle, nothing loaded: 1</title></circle>
-<circle class="s2 ring" cx="159.3" cy="272.5" r="3.5" stroke-width="2"><title>1.9, Idle, nothing loaded: 1</title></circle>
-<circle class="s2 ring" cx="230.9" cy="272.8" r="3.5" stroke-width="2"><title>1.10, Idle, nothing loaded: 1</title></circle>
-<circle class="s2 ring" cx="302.4" cy="272.8" r="3.5" stroke-width="2"><title>1.11, Idle, nothing loaded: 1</title></circle>
-<circle class="s2 ring" cx="374.0" cy="272.8" r="3.5" stroke-width="2"><title>1.12, Idle, nothing loaded: 1</title></circle>
-<circle class="s2 ring" cx="445.6" cy="272.8" r="3.5" stroke-width="2"><title>1.13, Idle, nothing loaded: 1</title></circle>
-<circle class="s2 ring" cx="517.1" cy="272.8" r="3.5" stroke-width="2"><title>1.14, Idle, nothing loaded: 1</title></circle>
-<circle class="s2 ring" cx="588.7" cy="272.5" r="3.5" stroke-width="2"><title>1.15, Idle, nothing loaded: 1</title></circle>
-<circle class="s2 ring" cx="660.2" cy="272.5" r="3.5" stroke-width="2"><title>1.16, Idle, nothing loaded: 1</title></circle>
+<text class="m" x="84.2" y="292.0" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="148.6" y="292.0" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="213.0" y="292.0" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="277.4" y="292.0" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="341.8" y="292.0" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="406.2" y="292.0" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="470.6" y="292.0" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="535.0" y="292.0" font-size="11" text-anchor="middle">1.15</text>
+<text class="m" x="599.4" y="292.0" font-size="11" text-anchor="middle">1.16</text>
+<text class="t" x="663.8" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.17</text>
+<path class="ln s0" stroke-width="2" d="M84.2,271.2 L148.6,271.2 L213.0,271.2 L277.4,271.4 L341.8,271.2 L406.2,270.6 L470.6,119.9 L535.0,256.4 L599.4,256.4 L663.8,256.2"/>
+<circle class="s0 ring" cx="84.2" cy="271.2" r="3.5" stroke-width="2"><title>1.8, Playing: 2</title></circle>
+<circle class="s0 ring" cx="148.6" cy="271.2" r="3.5" stroke-width="2"><title>1.9, Playing: 2</title></circle>
+<circle class="s0 ring" cx="213.0" cy="271.2" r="3.5" stroke-width="2"><title>1.10, Playing: 2</title></circle>
+<circle class="s0 ring" cx="277.4" cy="271.4" r="3.5" stroke-width="2"><title>1.11, Playing: 2</title></circle>
+<circle class="s0 ring" cx="341.8" cy="271.2" r="3.5" stroke-width="2"><title>1.12, Playing: 2</title></circle>
+<circle class="s0 ring" cx="406.2" cy="270.6" r="3.5" stroke-width="2"><title>1.13, Playing: 2</title></circle>
+<circle class="s0 ring" cx="470.6" cy="119.9" r="3.5" stroke-width="2"><title>1.14, Playing: 103</title></circle>
+<circle class="s0 ring" cx="535.0" cy="256.4" r="3.5" stroke-width="2"><title>1.15, Playing: 12</title></circle>
+<circle class="s0 ring" cx="599.4" cy="256.4" r="3.5" stroke-width="2"><title>1.16, Playing: 12</title></circle>
+<circle class="s0 ring" cx="663.8" cy="256.2" r="3.5" stroke-width="2"><title>1.17, Playing: 12</title></circle>
+<path class="ln s1" stroke-width="2" d="M84.2,272.2 L148.6,272.2 L213.0,271.6 L277.4,272.2 L341.8,272.5 L406.2,272.8 L470.6,182.3 L535.0,263.5 L599.4,264.1 L663.8,264.1"/>
+<circle class="s1 ring" cx="84.2" cy="272.2" r="3.5" stroke-width="2"><title>1.8, Paused: 1</title></circle>
+<circle class="s1 ring" cx="148.6" cy="272.2" r="3.5" stroke-width="2"><title>1.9, Paused: 1</title></circle>
+<circle class="s1 ring" cx="213.0" cy="271.6" r="3.5" stroke-width="2"><title>1.10, Paused: 2</title></circle>
+<circle class="s1 ring" cx="277.4" cy="272.2" r="3.5" stroke-width="2"><title>1.11, Paused: 1</title></circle>
+<circle class="s1 ring" cx="341.8" cy="272.5" r="3.5" stroke-width="2"><title>1.12, Paused: 1</title></circle>
+<circle class="s1 ring" cx="406.2" cy="272.8" r="3.5" stroke-width="2"><title>1.13, Paused: 1</title></circle>
+<circle class="s1 ring" cx="470.6" cy="182.3" r="3.5" stroke-width="2"><title>1.14, Paused: 61</title></circle>
+<circle class="s1 ring" cx="535.0" cy="263.5" r="3.5" stroke-width="2"><title>1.15, Paused: 7</title></circle>
+<circle class="s1 ring" cx="599.4" cy="264.1" r="3.5" stroke-width="2"><title>1.16, Paused: 7</title></circle>
+<circle class="s1 ring" cx="663.8" cy="264.1" r="3.5" stroke-width="2"><title>1.17, Paused: 7</title></circle>
+<path class="ln s2" stroke-width="2" d="M84.2,272.5 L148.6,272.5 L213.0,272.5 L277.4,272.5 L341.8,272.5 L406.2,272.5 L470.6,272.5 L535.0,272.5 L599.4,272.8 L663.8,272.2"/>
+<circle class="s2 ring" cx="84.2" cy="272.5" r="3.5" stroke-width="2"><title>1.8, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="148.6" cy="272.5" r="3.5" stroke-width="2"><title>1.9, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="213.0" cy="272.5" r="3.5" stroke-width="2"><title>1.10, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="277.4" cy="272.5" r="3.5" stroke-width="2"><title>1.11, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="341.8" cy="272.5" r="3.5" stroke-width="2"><title>1.12, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="406.2" cy="272.5" r="3.5" stroke-width="2"><title>1.13, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="470.6" cy="272.5" r="3.5" stroke-width="2"><title>1.14, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="535.0" cy="272.5" r="3.5" stroke-width="2"><title>1.15, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="599.4" cy="272.8" r="3.5" stroke-width="2"><title>1.16, Idle, nothing loaded: 1</title></circle>
+<circle class="s2 ring" cx="663.8" cy="272.2" r="3.5" stroke-width="2"><title>1.17, Idle, nothing loaded: 1</title></circle>
 </svg>

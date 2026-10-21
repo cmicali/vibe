@@ -44,8 +44,8 @@ Vibe/
     Renderers/         the waveform styles and the morph engine
     Mac/               WaveformView (macOS)
     iOS/               WaveformScrubberView (iOS)
-  Util/                helpers with no feature
-    Categories/        portable categories, such as NSURL+Hash
+  Util/                Vibe's helpers with no feature
+    Categories/        portable categories, such as NSString+CPPStrings
     Mac/ and iOS/      the AppKit and UIKit categories
   Debug/               the debug command channel, compiled into Debug builds only
     Channel/           the transport: command and reply files
@@ -105,7 +105,7 @@ Each feature beside the engine has its own directory and doc:
 - **`FX/`**: `AudioFX` is the DJ effects on the master bus: a low-kill filter, a reverb, and two tempo-synced delays. The pitch fader's stage, `AudioVarispeed`, comes from vibe-libs (`vibe-libs/audio/DSP/`) and runs on macOS only. Doc: `Audio/FX/AGENTS.md`.
 - **`Metadata/`**: `AudioTrackMetadataCache` is the facade over tags, their disk cache, and the playlist scan. `AudioTrackMetadataLoader` is the scan behind it. `TagLibAudioFile` reads tags through TagLib. `Artwork/` holds `AudioTrackArtwork` and `EmbeddedThumbnailCache`. `Artwork/FolderArt/FolderArtResolver` finds a cover beside the files, on macOS. Docs: `Audio/Metadata/AGENTS.md` and `Audio/Metadata/Artwork/FolderArt/AGENTS.md`.
 - **`Waveform/`**: `AudioWaveformLoader` decodes a file into an `AudioWaveform`, and feeds each mono block to the observers its request lists. `AudioWaveformCache` owns the loaders and stores the results on disk through PINCache. The data is `Packages/WaveformCore`'s summary. Docs: `Audio/Waveform/AGENTS.md` and `Packages/WaveformCore/AGENTS.md`.
-- **`Analysis/`**: `AudioBPMAnalyzer` and `AudioKeyAnalyzer` ride the waveform's decode pass as observers, which each shell attaches (`AudioAnalysisObservers.h`). Neither reads the file a second time. Key detection runs on macOS only. Doc: `Audio/Analysis/AGENTS.md`.
+- **`Analysis/`**: `AudioBPMAnalyzer` and `AudioKeyAnalyzer` ride the waveform's decode pass as observers. The app's `Playlist/AudioAnalysisObservers.h` joins them to the decode, and each shell attaches them. Neither reads the file a second time. Key detection runs on macOS only. Doc: `Audio/Analysis/AGENTS.md`.
 - **`Levels/`**: `AudioLevelMeter` reads the final output inside the render and feeds the equalizer bars. Doc: `Audio/Levels/AGENTS.md`.
 - **`Mac/Devices/`**: `AudioDeviceManager` tracks the output devices. `AudioPlayer+Devices` binds the output unit to one. `AudioPlayer+BitPerfect` is bit-perfect and exclusive output. Doc: `Audio/Mac/Devices/AGENTS.md`.
 - **`iOS/`**: `AudioSessionController` manages the `AVAudioSession`. `AudioPlayer+Recovery` rebuilds the output when the system changes the route. Doc: `Audio/iOS/AGENTS.md`.
@@ -132,7 +132,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### Util
 
-`Vibe/Util/` is code with no feature. If you can name the feature a file serves, it belongs in that feature's directory instead. `FilePaths` compares paths by spelling, without touching the disk (`VibeComparablePath`). `Formatters` builds the info lines. `StallWatch` samples stuck threads for the beta logs. `Categories/` holds portable categories, such as `NSURL+Hash`. Its `cacheKey` keys the metadata and waveform caches. `Mac/` and `iOS/` hold the AppKit and UIKit categories. Read next: `Vibe/Util/AGENTS.md`.
+`Vibe/Util/` is code with no feature. If you can name the feature a file serves, it belongs in that feature's directory instead. `Formatters` builds the info lines. `Categories/` holds `NSString+CPPStrings`. `Mac/` and `iOS/` hold the AppKit and UIKit categories. The helpers another app could use are in vibe-libs' `core/Common`. `FilePaths` there compares paths by spelling, without touching the disk (`VibeComparablePath`). `NSURL+Hash`'s `cacheKey` keys the metadata and waveform caches. `StallWatch` samples stuck threads for the beta logs. Read next: `Vibe/Util/AGENTS.md`.
 
 ### Debug
 
@@ -152,7 +152,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### vibe-libs
 
-`vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`. Nothing builds differently. **Vibe uses five pieces today, besides the vendored libraries.** `core/Common` holds the log macros and the realtime-effects brackets, which the prefix header imports. It also holds the form-label colon rule, which both apps' settings use. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/DSP` holds the pitch fader's varispeed. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. Every vendored library but Sparkle is a piece under `third_party/` too. Controls and SettingsWindow are macOS only. Only the mac app lists them. More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in vibe-libs first. Vibe then bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc first.
+`vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`. Nothing builds differently. **Vibe uses five pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/DSP` holds the pitch fader's varispeed. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. Every vendored library but Sparkle is a piece under `third_party/` too. Controls and SettingsWindow are macOS only. Only the mac app lists them. More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in vibe-libs first. Vibe then bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc first.
 
 ### Third-party code
 

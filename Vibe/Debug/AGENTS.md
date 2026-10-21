@@ -10,7 +10,7 @@ Each shared subdirectory matches a section below.
 - **`Verbs/`** holds the verbs both platforms answer, one file per topic, and the protocol they are written against.
 - **`Oracles/`** holds the oracles.
 - **`Simulators/`** holds the simulators.
-- **`Seams/`** holds the `+Debug` categories over shared classes. The next section says why they live here. **A seam imports nothing from `Channel/` or `Verbs/`.** It belongs to the class it opens, and moves with that class to vibe-libs, which has no channel. A parser a seam and the channel share lives in `Util/`, as `IntegerTokenRules.h` does.
+- **`Seams/`** holds the `+Debug` categories over shared classes. The next section says why they live here. **A seam imports nothing from `Channel/` or `Verbs/`.** It belongs to the class it opens, and moves with that class to vibe-libs, which has no channel. A parser a seam and the channel share lives in vibe-libs' `core/Common`, as `IntegerTokenRules.h` does.
 
 `Mac/` and `iOS/` hold each platform's table and verbs. Each has its own `Seams/` for the `+Debug` categories over that shell's classes.
 
@@ -66,7 +66,7 @@ These exist for the stress driver, which cannot tell a healthy soak from a leaki
 - **The layout probe** (`dump_layout_anchors`, `sample_layout_anchors`) and **the frame probe** (`sample_frame_rate`, `--frame-rate-probe`) are the iOS shell's oracles for what a screenshot cannot judge: whether the live layout under the card held still, and whether an animation got its frames.
 - **`DebugHealth.{h,m}`**: `dump_health`'s process and UI resource counts, for diffing across a run, and `quiesce`, on both platforms. Each platform gives its UI block, its close and any pending work of its own through the surface. iOS has no `libproc`, so it counts file descriptors by probing the table. Warm the lazy FX units before taking a leak baseline. Quiesce pending work before comparing memory. Allocator reservations and live allocations are separate readings.
 - **`AudioLoadTiming.{h,m}`**: per-phase timings for one waveform decode pass, recorded by the loader and read afterwards, since that pass has no reply path. They are plain C accumulators, so the ObjC++ loader and the plain-ObjC channel share the header.
-- **`VibeWorkTally.{h,m}`**: a named counting window over the prefix header's signpost sites. It answers "how much of this work ran at all". Its functions are declared in `Vibe-Prefix.pch`, so call sites need no debug header.
+- **The work tally** is a named counting window over the signpost sites. It answers "how much of this work ran at all". It is vibe-libs' `core/Common/VibeWorkTally`, beside the signposts in `VibeMacros.h`, so call sites need no debug header. It compiles only under `VIBE_SIGNPOSTS`, which `project.yml` defines in Debug.
 
 ## The simulators of things the app cannot otherwise reach
 

@@ -12,6 +12,7 @@
 #import <MediaPlayer/MediaPlayer.h>
 #import "AudioTrackMetadata.h"
 #import "FakeTrackMetadata.h"
+#import "NSURL+Hash.h"
 
 @interface AudioTrackTests : XCTestCase
 @end
@@ -19,6 +20,7 @@
 @implementation AudioTrackTests {
     NSMutableArray<NSDictionary *> *_artRenders;
     NSMutableArray<NSDictionary *> *_artPublications;
+    NSURL *_tempDirectory;
 }
 
 static AudioTrack *TrackNamed(NSString *filename) {
@@ -356,6 +358,76 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
                                                    cueStart:4500 cueEnd:9000 title:nil performer:nil
                                                       sheet:nil trackNumber:4];
     XCTAssertFalse(VibePlayableItemIsFollowedContiguouslyBy(first, elsewhere), @"another file is another recording");
+}
+
+#pragma mark - Disk key memoization
+
+// A directory of this test's own, removed when it ends.
+- (NSURL *)tempDirectory {
+    if (!_tempDirectory) {
+        _tempDirectory = [NSURL fileURLWithPath:[NSTemporaryDirectory()
+                stringByAppendingPathComponent:[NSString stringWithFormat:@"vibe-hash-%@",
+                                                NSUUID.UUID.UUIDString]]];
+        [NSFileManager.defaultManager createDirectoryAtURL:_tempDirectory
+                               withIntermediateDirectories:YES
+                                                attributes:nil
+                                                     error:NULL];
+        NSURL *directory = _tempDirectory;
+        [self addTeardownBlock:^{
+            [NSFileManager.defaultManager removeItemAtURL:directory error:NULL];
+        }];
+    }
+    return _tempDirectory;
+}
+
+- (NSURL *)writeTempFileNamed:(NSString *)name contents:(NSString *)contents {
+    NSURL *url = [[self tempDirectory] URLByAppendingPathComponent:name];
+    [[contents dataUsingEncoding:NSUTF8StringEncoding] writeToURL:url atomically:YES];
+    return url;
+}
+
+- (void)testTrackMemoizesItsKey {
+    NSURL *file = [self writeTempFileNamed:@"a.mp3" contents:@"hello"];
+    AudioTrack *track = [AudioTrack withURL:file];
+
+    NSString *first = track.cacheKey;
+    XCTAssertNotNil(first);
+
+    // Deleting the file would change the answer if it were re-derived.
+    [NSFileManager.defaultManager removeItemAtURL:file error:NULL];
+    XCTAssertEqualObjects(track.cacheKey, first, @"second read must hit the memo");
+}
+
+- (void)testTrackDoesNotMemoizeAFailedStat {
+    // A stat failure is transient: memoizing nil would strand the track
+    // uncached, e.g. a cloud file that lands a moment later.
+    NSURL *file = [[self tempDirectory] URLByAppendingPathComponent:@"late.mp3"];
+    AudioTrack *track = [AudioTrack withURL:file];
+    XCTAssertNil(track.cacheKey);
+
+    [self writeTempFileNamed:@"late.mp3" contents:@"arrived"];
+    XCTAssertNotNil(track.cacheKey, @"a later call must retry rather than stay nil");
+}
+
+// A download that installed another version than its placeholder's: the memo
+// holds the old version's key until it is retired, then answers the file's.
+- (void)testAReplacedFileAnswersItsNewKeyOnceTheMemosAreRetired {
+    NSURL *file = [self writeTempFileNamed:@"a.mp3" contents:@"version one"];
+    AudioTrack *track = [AudioTrack withURL:file];
+    AudioTrack *row = [AudioTrack withURL:file];
+    NSString *old = track.cacheKey;
+    XCTAssertEqualObjects(row.cacheKey, old);
+
+    [self writeTempFileNamed:@"a.mp3" contents:@"version two, re-uploaded"];
+    NSString *installed = file.cacheKey;
+    XCTAssertNotEqualObjects(installed, old);
+    XCTAssertEqualObjects(track.cacheKey, old, @"memoized until retired");
+
+    [NSURL invalidateMemoizedCacheKeys];
+    XCTAssertEqualObjects(track.cacheKey, installed);
+    XCTAssertEqualObjects(row.cacheKey, installed, @"every track, not one");
+    [NSFileManager.defaultManager removeItemAtURL:file error:NULL];
+    XCTAssertEqualObjects(track.cacheKey, installed, @"and memoized again");
 }
 
 #pragma mark - Metadata installation
