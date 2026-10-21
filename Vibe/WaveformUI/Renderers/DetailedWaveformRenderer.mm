@@ -7,7 +7,6 @@
 #import "WaveformMorphEngine.h"
 #import "PlatformTypes.h"
 #import "PlatformColor.h"
-#import "VibeStrings.h"
 #import "WaveformZoomMath.h"
 
 #include <vector>
@@ -121,10 +120,6 @@ static void VibeFillSpans(float *bottoms, float *tops, const float *samples, siz
 
 + (NSString *)styleIdentifier {
     return @"detailed";
-}
-
-+ (NSString *)displayName {
-    return STR_WAVEFORM_STYLE_DETAILED;
 }
 
 - (double)columnsPerPoint {

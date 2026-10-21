@@ -6,6 +6,7 @@
 #import <XCTest/XCTest.h>
 #import <AppKit/AppKit.h>
 #import "WaveformTheme.h"
+#import "WaveformTheme+Settings.h"
 #import "AppSettings.h"
 #import "AppTheme.h"
 

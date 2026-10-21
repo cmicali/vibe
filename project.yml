@@ -952,6 +952,7 @@ targets:
       - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
       - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
       - path: Vibe/WaveformUI/WaveformTheme.m
+      - path: Vibe/Common/WaveformTheme+Settings.m
       - path: Vibe/WaveformUI/Renderers/WaveformMorphEngine.mm
       - path: Vibe/WaveformUI/Renderers/WaveformRenderer.mm
       - path: Vibe/WaveformUI/Renderers/BasicWaveformRenderer.mm

@@ -5,14 +5,7 @@
 
 #import "SettingsSidebarController.h"
 #import "SettingsPaneViewController.h"
-#import "SettingsWindowController.h"
-#import "VibeStrings.h"
-
-// Rows come from the tab controller's items, so the two cannot drift. A group
-// starts at each of these panes, after a spacer row.
-static NSSet<NSString *> *SidebarGroupStarts(void) {
-    return [NSSet setWithArray:@[@"playback", @"shortcuts", @"advanced"]];
-}
+#import "SettingsPanesWindowController.h"
 
 static const CGFloat kSidebarSpacerHeight = 12;
 
@@ -32,14 +25,26 @@ static const CGFloat kSidebarSpacerHeight = 12;
 @end
 
 @implementation SettingsSidebarController {
+    NSString *_searchPlaceholder, *_noResultsText;
     NSTableView *_tableView;
     NSSearchField *_searchField;
     NSTextField *_noResultsLabel;
-    // A tab item per row, NSNull for a group's spacer.
+    // A tab item per row, NSNull for a group's spacer. Rows come from the tab
+    // controller's items, so the two cannot drift.
     NSArray *_rows;
     // TRAP: the reload and reselection post selection changes; treated as the
     // user's, one would switch panes under the search being typed.
     BOOL _reloadingRows;
+}
+
+- (instancetype)initWithSearchPlaceholder:(NSString *)placeholder noResultsText:(NSString *)noResultsText {
+    self = [super initWithNibName:nil bundle:nil];
+    if (self) {
+        _searchPlaceholder = [placeholder copy];
+        _noResultsText = [noResultsText copy];
+        _groupStartIdentifiers = [NSSet set];
+    }
+    return self;
 }
 
 - (NSTableView *)tableView {
@@ -76,13 +81,13 @@ static const CGFloat kSidebarSpacerHeight = 12;
 
     _searchField = [[NSSearchField alloc] initWithFrame:NSZeroRect];
     _searchField.translatesAutoresizingMaskIntoConstraints = NO;
-    _searchField.placeholderString = STR_SETTINGS_SEARCH_PLACEHOLDER;
+    _searchField.placeholderString = _searchPlaceholder;
     _searchField.delegate = self;
     _searchField.target = self;
     _searchField.action = @selector(searchChanged:);
     _searchField.sendsSearchStringImmediately = YES;
 
-    _noResultsLabel = [NSTextField labelWithString:STR_SETTINGS_SEARCH_NO_RESULTS];
+    _noResultsLabel = [NSTextField labelWithString:_noResultsText];
     _noResultsLabel.translatesAutoresizingMaskIntoConstraints = NO;
     _noResultsLabel.textColor = NSColor.secondaryLabelColor;
     _noResultsLabel.hidden = YES;
@@ -116,7 +121,7 @@ static const CGFloat kSidebarSpacerHeight = 12;
 - (void)reloadRows {
     NSString *query = [self query];
     NSMutableArray *rows = [NSMutableArray array];
-    NSSet<NSString *> *groupStarts = SidebarGroupStarts();
+    NSSet<NSString *> *groupStarts = self.groupStartIdentifiers;
     for (NSTabViewItem *item in self.tabs.tabViewItems) {
         if (query.length) {
             SettingsPaneViewController *pane = (SettingsPaneViewController *)item.viewController;
@@ -244,8 +249,8 @@ static const CGFloat kSidebarSpacerHeight = 12;
         return;
     }
     // Clicking the selected row does not post a selection change.
-    SettingsWindowController *controller =
-            (SettingsWindowController *)self.view.window.windowController;
+    SettingsPanesWindowController *controller =
+            (SettingsPanesWindowController *)self.view.window.windowController;
     [controller paneWillBecomeSelected:_rows[(NSUInteger)row]];
 }
 

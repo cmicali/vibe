@@ -9,6 +9,7 @@
 #import "AppSettings.h"
 #import "AudioWaveform.h"
 #import "WaveformScrubberViewInternal.h"
+#import "WaveformRendererRegistry.h"
 #import "WaveformZoomMath.h"
 
 @interface ScrubberEvents : NSObject <WaveformScrubberViewDelegate>

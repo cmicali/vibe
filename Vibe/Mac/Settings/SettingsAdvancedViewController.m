@@ -50,6 +50,15 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     NSTimeInterval _lastVersionClick;
 }
 
+- (instancetype)initWithPlayerController:(MainPlayerController *)playerController
+                             effectsSink:(void (^)(NSUInteger))sink {
+    self = [super initWithEffectsSink:sink];
+    if (self) {
+        _playerController = playerController;
+    }
+    return self;
+}
+
 - (void)loadView {
     _refreshRatePopUp = [self popUpButtonWithWidth:kAdvancedPopUpWidth
                                             action:@selector(refreshRateChanged:)];
@@ -547,12 +556,12 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 
 - (void)refreshRateChanged:(id)sender {
     AppSettings.sharedInstance.uiUpdateHzCap = _refreshRatePopUp.selectedTag;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectUIUpdateRate];
+    [self applyLiveEffects:VibeSettingsLiveEffectUIUpdateRate];
 }
 
 - (void)allowBitPerfectAnyDeviceChanged:(id)sender {
     AppSettings.sharedInstance.allowBitPerfectOnAnyDevice = _allowBitPerfectAnyDeviceSwitch.state == NSControlStateValueOn;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
+    [self applyLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
 }
 
 #pragma mark - Cache

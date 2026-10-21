@@ -18,6 +18,7 @@
 #import "AppTheme.h"
 #import "Formatters.h"
 #import "WaveformTheme.h"
+#import "WaveformTheme+Settings.h"
 
 static const CGFloat kSliderWidth = 120;
 static const CGFloat kSliderHeight = 20;

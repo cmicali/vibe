@@ -17,6 +17,7 @@
 #import "ArtworkDisplayController.h"
 #import "AudioDevice.h"
 #import "AudioErrorRules.h"
+#import "StringRules.h"
 #import "AudioFileOpenRules.h"
 #import "AudioDeviceManager.h"
 #import "AudioTrack.h"

@@ -10,6 +10,16 @@
 @class WaveformRenderer;
 @class CodableAudioWaveform;
 
+// A stable registry identifier, never a display name. Persisted by the
+// settings and the themes.
+#define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
+// TRAP: Wiggle's, centered or not. Persisted, so it keeps its name though
+// Centered is a setting now: renaming it orphans every saved Wiggle.
+#define SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE                @"wiggle_centered"
+// Wiggle MC's through 1.14, Wiggle with Centered off since: AppTheme's gate
+// and the iOS migration map it, and nothing else may read it.
+#define SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC      @"wiggle"
+
 NS_ASSUME_NONNULL_BEGIN
 
 @interface WaveformRendererRegistry : NSObject
@@ -17,24 +27,20 @@ NS_ASSUME_NONNULL_BEGIN
 // All registered style identifiers. Order is unspecified.
 + (NSArray<NSString *> *)availableIdentifiers;
 
-// One identifier per style, in chooser order. The Detailed family's four
-// identifiers are one style, listed under its 4x type.
+// One identifier per style, in registration order, the same on every call.
+// The Detailed family's four identifiers are one style, listed under its 4x
+// type. Each chooser sorts the styles by name (Common/StringRules.h).
 + (NSArray<NSString *> *)styleIdentifiers;
 // The styleIdentifiers entry an identifier shows under.
 + (NSString *)styleIdentifierForIdentifier:(NSString *)identifier;
 // The style's types in chooser order, identifier among them. Empty for a
 // style without types.
 + (NSArray<NSString *> *)typeIdentifiersForIdentifier:(NSString *)identifier;
-// Localized, display only.
-+ (NSString *)typeDisplayNameForIdentifier:(NSString *)identifier;
 
 // Builds an identifier returned by resolveStyleIdentifier:, including variants
 // that share a class. Resolve once, then store and construct that same choice.
 + (WaveformRenderer *)rendererForResolvedIdentifier:(NSString *)identifier
                                          layer:(CALayer *)layer bounds:(CGRect)bounds isDark:(BOOL)isDark;
-
-// Localized display name, falling back to the identifier itself.
-+ (NSString *)displayNameForIdentifier:(NSString *)identifier;
 
 + (BOOL)supportsBarDensityForIdentifier:(NSString *)identifier;
 + (BOOL)supportsBarWidthForIdentifier:(NSString *)identifier;

@@ -12,7 +12,7 @@ NSString *const kVibeAudioErrorDomain = @"com.commonwealthrecordings.Vibe";
 NSString *const kVibeAudioErrorTrackURLKey = @"VibeAudioErrorTrackURL";
 
 // Descriptions are for logs, never localized; the UI's line is
-// VibeStatusForPlayError (AudioErrorRules.h).
+// VibeStatusForPlayError (Common/StringRules.h).
 NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError *underlying) {
     NSMutableDictionary *info = [NSMutableDictionary new];
     if (underlying) {

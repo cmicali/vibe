@@ -186,7 +186,7 @@ static void VibeBenchComponentsRegisterTick(void) {
         }
     });
 
-    // The codec line's two numbers, as fileInfoLine asks them in turn: a
+    // The codec line's two numbers, as fileInfoLineForMetadata: asks them in turn: a
     // thousand lines.
     VibeBenchComponentsAdd("ui-format", "file-info-numbers", "line", []() -> double {
         Formatters *formatters = Formatters.sharedInstance;

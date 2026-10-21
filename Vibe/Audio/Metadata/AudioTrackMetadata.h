@@ -27,6 +27,9 @@ FOUNDATION_EXPORT NSNotificationName const AudioTrackMetadataThumbnailDidLoadNot
 @property (copy, nullable, readonly) NSNumber *bitrate;
 @property (copy, nullable, readonly) NSNumber *sampleRate;
 @property (assign, readonly) NSTimeInterval duration;
+// FLAC, ALAC, AIFF, WAV, W64 or CAF. A lossless bitrate is implied by the
+// rate and depth, so the codec line leaves it out.
+@property (readonly, getter=isLossless) BOOL lossless;
 
 // The tagged tempo (ID3 TBPM, MP4 tmpo, Vorbis/FLAC BPM); 0 when untagged.
 @property (assign, readonly) float bpm;
@@ -65,12 +68,6 @@ FOUNDATION_EXPORT NSNotificationName const AudioTrackMetadataThumbnailDidLoadNot
 // AudioTrackMetadataThumbnailDidLoadNotification when the pixels land. Only
 // the file's own thumbnail is archived, never a folder cover.
 - (nullable VibeImage *)cachedThumbnail;
-
-// The codec line both screens render: file type, bitrate (lossy only) and
-// sample rate, through Formatters' info-line join, each only when present (a
-// zero rate is stored as nil); empty with no fileType. Main thread only
-// (Formatters).
-- (NSString *)fileInfoLine;
 
 @end
 

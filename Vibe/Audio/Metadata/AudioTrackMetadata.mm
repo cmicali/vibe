@@ -12,8 +12,6 @@
 #import "PlatformImage.h"
 #import "NSString+CPPStrings.h"
 #import "MusicalKey.h"
-#import "Formatters.h"
-#import "VibeStrings.h"
 
 #import <AudioToolbox/AudioToolbox.h>
 
@@ -399,7 +397,7 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
     self.parsedOK = YES;
 }
 
-- (bool)isLossless {
+- (BOOL)isLossless {
     if ([VibeAudioFileFormatFLAC isEqualToString:self.fileType]) return YES;
     if ([VibeAudioFileFormatALAC isEqualToString:self.fileType]) return YES;
     if ([VibeAudioFileFormatAIFF isEqualToString:self.fileType]) return YES;
@@ -407,23 +405,6 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
     if ([VibeAudioFileFormatW64 isEqualToString:self.fileType]) return YES;
     if ([VibeAudioFileFormatCAF isEqualToString:self.fileType]) return YES;
     return NO;
-}
-
-- (NSString *)fileInfoLine {
-    if (!self.fileType) {
-        return @"";
-    }
-    NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:self.fileType];
-    // A lossless bitrate is implied by the rate and depth: noise.
-    if (!self.isLossless && self.bitrate != nil) {
-        [parts addObject:[NSString stringWithFormat:STR_LABEL_BITRATE,
-                [[Formatters sharedInstance] decimalString:self.bitrate.doubleValue
-                                            fractionDigits:0]]];
-    }
-    if (self.sampleRate != nil) {
-        [parts addObject:[[Formatters sharedInstance] sampleRateString:self.sampleRate.doubleValue]];
-    }
-    return [[Formatters sharedInstance] infoLineFromFields:parts];
 }
 
 @end

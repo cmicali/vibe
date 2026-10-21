@@ -21,9 +21,11 @@
 #import "AppTheme+Archive.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme.h"
+#import "WaveformTheme+Settings.h"
 #import "MainPlayerController+Settings.h"
 #import "SettingsWindowController.h" // the toolbar navigation control follows the pane's pages
 #import "SettingsRules.h"
+#import "StringRules.h"
 #import "VibeStrings.h"
 
 static const NSUInteger kThemeListRowCount = 10;
@@ -179,12 +181,22 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     }
     if (forward) [AppSettings.sharedInstance redoThemeEdit];
     else [AppSettings.sharedInstance undoThemeEdit];
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self applyLiveEffects:VibeSettingsLiveEffectThemeApply];
     [self refreshFromSettings];
 }
 
+NSString *const kVibeThemeEditorPage = @"editor";
+
 - (BOOL)editorShown {
     return _editorShown;
+}
+
+- (NSString *)currentPage {
+    return _editorShown ? kVibeThemeEditorPage : nil;
+}
+
+- (void)showPage:(NSString *)page {
+    [self setEditorShown:[page isEqualToString:kVibeThemeEditorPage]];
 }
 
 - (void)setEditorShown:(BOOL)shown {
@@ -240,7 +252,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     AppSettings.sharedInstance.windowAppearancePreviewStyle =
             dark ? SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK
                  : SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+    [self applyLiveEffects:VibeSettingsLiveEffectWindowAppearance];
     // For callers other than the toggle (the debug channel).
     [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
@@ -251,7 +263,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     [self closeEditorPanels];
     if (AppSettings.sharedInstance.windowAppearancePreviewStyle) {
         AppSettings.sharedInstance.windowAppearancePreviewStyle = nil;
-        [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+        [self applyLiveEffects:VibeSettingsLiveEffectWindowAppearance];
     }
 }
 
@@ -320,7 +332,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     if (continuous) {
         [self applyLiveEffectsDuringDrag:effect];
     } else {
-        [self.playerController applySettingsLiveEffects:effect];
+        [self applyLiveEffects:effect];
         [self didApplyDragEffects:effect];
     }
     if (forked) {
@@ -330,7 +342,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
 
-- (void)didApplyDragEffects:(VibeSettingsLiveEffect)effects {
+- (void)didApplyDragEffects:(NSUInteger)effects {
     if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformTheme
                    | VibeSettingsLiveEffectWaveformLevels)) {
         [self refreshWaveformPreviews];
@@ -369,16 +381,15 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     _waveformPreviewKey = key;
     for (NSImageView *preview in _waveformPreviews) {
         preview.image = image;
-        preview.accessibilityLabel = [WaveformRendererRegistry displayNameForIdentifier:style];
+        preview.accessibilityLabel = VibeWaveformStyleDisplayName(style);
     }
 }
 
 - (NSPopUpButton *)waveformStylePopUpButton {
     NSPopUpButton *popUp = [self popUpButtonWithWidth:kAppearancePopUpWidth
                                                action:@selector(waveformStyleChanged:)];
-    for (NSString *identifier in [WaveformRendererRegistry styleIdentifiers]) {
-        [self addItem:[WaveformRendererRegistry displayNameForIdentifier:identifier]
-                value:identifier to:popUp];
+    for (NSString *identifier in VibeWaveformStylesByDisplayName([WaveformRendererRegistry styleIdentifiers])) {
+        [self addItem:VibeWaveformStyleDisplayName(identifier) value:identifier to:popUp];
     }
     return popUp;
 }
@@ -548,7 +559,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
 
 - (void)activateThemeWithIdentifier:(NSString *)identifier {
     [AppSettings.sharedInstance applyThemeWithIdentifier:identifier];
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self applyLiveEffects:VibeSettingsLiveEffectThemeApply];
     [self refreshFromSettings];
 }
 
@@ -588,7 +599,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
                 : (index > 0 ? _themeIdentifiers[index - 1] : nil);
     }
     [AppSettings.sharedInstance removeUserThemeWithIdentifier:selected fallingBackTo:neighbor];
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self applyLiveEffects:VibeSettingsLiveEffectThemeApply];
     [self refreshFromSettings];
 }
 

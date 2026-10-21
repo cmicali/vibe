@@ -240,7 +240,8 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
             [self setFileMetadataText:STR_LABEL_BUFFERING];
         }
         else {
-            [self setFileMetadataText:(AppSettings.sharedInstance.showFileInfo ? track.metadata.fileInfoLine : @"")];
+            [self setFileMetadataText:(AppSettings.sharedInstance.showFileInfo
+                    ? [Formatters.sharedInstance fileInfoLineForMetadata:track.metadata] : @"")];
         }
         break;
 
@@ -389,11 +390,7 @@ static BOOL VibeFXDisplayStatesEqual(VibeFXDisplayState a, VibeFXDisplayState b)
     self.fileMetadataTextField.toolTip = toolTip;
 }
 
-// TRAP: nil is a live input: an unscanned or unparseable track has nil
-// metadata, so the caller's fileInfoLine is nil, and
-// -[NSAttributedString initWithString:] raises on nil.
 - (void)setFileMetadataText:(NSString *)text {
-    text = text ?: @"";
     if ([_fileMetadataText isEqualToString:text]) {
         return;
     }

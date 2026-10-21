@@ -16,6 +16,7 @@
 #import "NSImage+Util.h"
 #import "PlatformColor.h"
 #import "SettingsRules.h"
+#import "StringRules.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
 
@@ -243,7 +244,7 @@ static void ForEachDescendantView(NSView *view, void (^block)(NSView *)) {
     NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:theme.waveformStyle];
     [_waveformTypePopUp removeAllItems];
     for (NSString *type in [WaveformRendererRegistry typeIdentifiersForIdentifier:style]) {
-        [self addItem:[WaveformRendererRegistry typeDisplayNameForIdentifier:type] value:type to:_waveformTypePopUp];
+        [self addItem:VibeWaveformTypeDisplayName(type) value:type to:_waveformTypePopUp];
     }
     [self selectValue:style in:_waveformTypePopUp];
     [self refreshWaveformBarSizing];

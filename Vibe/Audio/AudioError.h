@@ -27,7 +27,7 @@ typedef NS_ENUM(NSInteger, VibeAudioErrorCode) {
 };
 
 // Descriptions are for logs, never localized; the UI's line is
-// VibeStatusForPlayError (AudioErrorRules.h). An underlying error's
+// VibeStatusForPlayError (Common/StringRules.h). An underlying error's
 // description is appended in parentheses.
 NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError * _Nullable underlying);
 // The same, with the failing track's URL under kVibeAudioErrorTrackURLKey.

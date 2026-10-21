@@ -32,6 +32,15 @@
     SettingsSectionView *_deviceSection;
 }
 
+- (instancetype)initWithPlayerController:(MainPlayerController *)playerController
+                             effectsSink:(void (^)(NSUInteger))sink {
+    self = [super initWithEffectsSink:sink];
+    if (self) {
+        _playerController = playerController;
+    }
+    return self;
+}
+
 - (void)loadView {
     // TRAP: tiling the table runs before the first refreshOutputDevice, and
     // AppKit, denied an empty selection, selects row 0 itself; read as a
@@ -132,19 +141,19 @@
 
 - (void)toggleBitPerfect:(id)sender {
     AppSettings.sharedInstance.bitPerfectOutput = (_bitPerfectSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
+    [self applyLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
     [self refreshOutputDevice];
 }
 
 - (void)toggleExclusiveOutput:(id)sender {
     AppSettings.sharedInstance.exclusiveOutput = (_exclusiveOutputSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfect];
+    [self applyLiveEffects:VibeSettingsLiveEffectBitPerfect];
     [self refreshBitPerfectRows];
 }
 
 - (void)toggleDeclick:(id)sender {
     AppSettings.sharedInstance.declick = (_declickSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectDeclick];
+    [self applyLiveEffects:VibeSettingsLiveEffectDeclick];
 }
 
 #pragma mark - Output device
