@@ -163,7 +163,7 @@ targets:
     type: application
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources.
-    templates: [VibeLibsDSP]
+    templates: [VibeLibsDSP, VibeLibsGraphics]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -539,7 +539,7 @@ targets:
   VibeiOS:
     type: application
     platform: iOS
-    templates: [VibeLibsDSP]
+    templates: [VibeLibsDSP, VibeLibsGraphics]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -917,7 +917,7 @@ targets:
       - path: Vibe/Playlist/Mac/PlaylistRowView.m
       - path: Vibe/Playlist/Mac/PlaylistTextCell.m
       - path: Vibe/Playlist/Mac/PlaylistCoverImageView.m
-      - path: Vibe/Common/Mac/Theme/Fonts.m
+      - path: vibe-libs/core/Graphics/Mac/Fonts.m
       - path: Vibe/Common/Mac/Theme/Fonts+Theme.m
       - path: Vibe/Controls/EqualizerIndicatorView.m
       - path: Vibe/Controls/LoadingIndicatorView.m
@@ -1189,11 +1189,11 @@ targetTemplates:
       - path: Vibe/Common/Mac/Theme/AppTheme+Images.m
       - path: Vibe/Common/Mac/Theme/AppTheme+JSON.m
       - path: Vibe/Common/Mac/Theme/AppTheme.m
-      - path: Vibe/Common/PlatformColor.m
-      - path: Vibe/Common/PlatformImage.m
+      - path: vibe-libs/core/Graphics/PlatformColor.m
+      - path: vibe-libs/core/Graphics/PlatformImage.m
       - path: Vibe/Mac/App/FolderAccessManager.m
-      - path: Vibe/Util/Mac/NSImage+Util.m
-      - path: Vibe/Util/Mac/NSView+DarkMode.m
+      - path: vibe-libs/core/Graphics/Mac/NSImage+Util.m
+      - path: vibe-libs/core/Graphics/Mac/NSView+DarkMode.m
 
 schemes:
   VibeAudioTests:

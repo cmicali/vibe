@@ -5,7 +5,7 @@
 **`Util/` may not call anything stateful**: a singleton, a setting, a grant or a panel. Stateless code is fair game wherever it lives. `HelperMacros.h` and `VibeMacros.h` reach every translation unit through the `.pch`, so anything added to either is paid for everywhere. `VibeMacros.h` must stay free of `#if DEBUG` and of any app type, because files outside the app import it on their own.
 
 Two placements are not what the file names suggest.
-- `NSURL+Hash` also carries `NSData (Hash)`'s `sha1Hex`. It is the one spelling of the hex SHA-1 that the cache key's path hash and `AppTheme`'s content-addressed artwork names share. It sits under the URL's name because the two are one rule. It is one of the three categories `Common/` reaches for. The others are `Mac/NSView+DarkMode`'s `NSAppearance (DarkMode)` and `Mac/NSImage+Util`.
+- `NSURL+Hash` also carries `NSData (Hash)`'s `sha1Hex`. It is the one spelling of the hex SHA-1 that the cache key's path hash and `AppTheme`'s content-addressed artwork names share. It sits under the URL's name because the two are one rule. It is the one category `Common/` reaches for here. The other two it uses, `NSAppearance (DarkMode)` and `NSImage (Util)`, are in vibe-libs' `core/Graphics`.
 - `NSString+FormLabel`'s `vibeFormLabel` drops a settings string's form-layout colon ("Output:", French "Sortie :"). **The catalogs keep the colon**, because that is the form most mac panes draw. A grouped row asks here for the bare noun: the mac's cards and every iOS settings row. One rule then covers the French no-break space and CJK's fullwidth colon.
 
 ## FilePaths spells a path for comparison
@@ -24,7 +24,7 @@ Two placements are not what the file names suggest.
 
 ## Categories
 
-**Behavior added to a foreign class is a category, never a free function taking that class as its first argument.** A category on an AppKit or UIKit class belongs in `Mac/` or `iOS/`. A portable one with no feature belongs in `Categories/`. One that serves a feature, such as `PINCache+VibeAudioCache` for the audio caches, belongs in that feature's directory. One on the app's own classes belongs beside that class. The deliberate exceptions are `Common/PlatformImage.h`'s and `PlatformColor.h`'s free functions, where the class differs per target (root `AGENTS.md`, Vocabulary).
+**Behavior added to a foreign class is a category, never a free function taking that class as its first argument.** A category on an AppKit or UIKit class belongs in `Mac/` or `iOS/`. A portable one with no feature belongs in `Categories/`. One that serves a feature, such as `PINCache+VibeAudioCache` for the audio caches, belongs in that feature's directory. One on the app's own classes belongs beside that class. The deliberate exceptions are the free functions of vibe-libs' `PlatformImage.h` and `PlatformColor.h`, where the class differs per target (root `AGENTS.md`, Vocabulary).
 
 ## StallWatch samples stuck threads
 
