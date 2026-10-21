@@ -2,21 +2,22 @@
 //  VibeWorkTally.h
 //  Vibe
 //
-//  A named counting window over the prefix header's signpost sites: every
-//  interval that closes while a window is open is tallied by name, so "the
-//  rotation stutters" becomes a count and a total. Instruments answers "which
+//  A named counting window over the signpost sites: every interval that
+//  closes while a window is open is tallied by name, so "the rotation
+//  stutters" becomes a count and a total. Instruments answers "which
 //  work landed in the dropped frame"; this answers "how much of it ran at all",
 //  the number worth diffing across a change and the only one reachable over
 //  `devicectl ... --console` with no Instruments attached.
 //
-//  Begin, Add and End are also declared in Vibe-Prefix.pch, so call sites
-//  reach them through its macros without importing a debug header.
+//  The signpost macros import it, so call sites reach it through them. It
+//  exists only where the app defines VIBE_SIGNPOSTS to 1.
 //
 
 #import <Foundation/Foundation.h>
 
-#if DEBUG
-
+// TRAP: C linkage, spelled out: the waveform .mm files use the signpost macros,
+// and without it they reference mangled names the .m never defines, a link
+// error.
 __BEGIN_DECLS
 
 // Opens a window under `label`, discarding the previous one's counts. A window
@@ -34,5 +35,3 @@ void VibeWorkTallyEndWindow(void);
 NSDictionary *VibeWorkTallyTakeWindow(void);
 
 __END_DECLS
-
-#endif

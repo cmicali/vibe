@@ -4,8 +4,9 @@
 //
 
 #import "VibeWorkTally.h"
+#import "VibeMacros.h"
 
-#if DEBUG
+#if VIBE_SIGNPOSTS
 
 #import <os/lock.h>
 

@@ -26,19 +26,22 @@
 // The log macros and the realtime-effects brackets (vibe-libs/core/Common).
 #import "VibeMacros.h"
 
-// Frame-budget instrumentation, DEBUG only. An interval lands in Instruments'
-// Points of Interest track, under Animation Hitches, and is also tallied by
-// name (Vibe/Debug/Oracles/VibeWorkTally.h) for a device with no Instruments attached.
-#if DEBUG
+// Frame-budget instrumentation, only where the app defines VIBE_SIGNPOSTS to 1:
+// Vibe's Debug builds. An interval lands in Instruments' Points of Interest
+// track, under Animation Hitches, and is also tallied by name (VibeWorkTally.h)
+// for a device with no Instruments attached.
+#if VIBE_SIGNPOSTS
 
 #import <os/signpost.h>
+#import "VibeWorkTally.h"
 
+// Under the app's own bundle identifier, as the log is.
 static inline os_log_t VibeSignpostLog(void) {
     static os_log_t log;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        log = os_log_create("com.commonwealthrecordings.Vibe",
-                            OS_LOG_CATEGORY_POINTS_OF_INTEREST);
+        NSString *subsystem = NSBundle.mainBundle.bundleIdentifier ?: @"vibe-libs";
+        log = os_log_create(subsystem.UTF8String, OS_LOG_CATEGORY_POINTS_OF_INTEREST);
     });
     return log;
 }
@@ -46,16 +49,6 @@ static inline os_log_t VibeSignpostLog(void) {
 static inline uint64_t VibeMonotonicNanos(void) {
     return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
 }
-
-// Declared rather than imported, so no debug header reaches every translation
-// unit.
-// TRAP: C linkage, spelled out: the waveform .mm files use these macros, and
-// without it they reference mangled names the .m never defines — a link error.
-__BEGIN_DECLS
-extern void VibeWorkTallyAdd(const char *name, uint64_t nanos);
-extern void VibeWorkTallyBeginWindow(const char *label);
-extern void VibeWorkTallyEndWindow(void);
-__END_DECLS
 
 #define VibeWorkTallyBegin(label)  VibeWorkTallyBeginWindow(label)
 #define VibeWorkTallyEnd()         VibeWorkTallyEndWindow()
@@ -88,9 +81,9 @@ __END_DECLS
 // this at such sites.
 #define VibeTallyCount(name)  VibeWorkTallyAdd(#name, 0)
 
-#else   // !DEBUG
+#else   // !VIBE_SIGNPOSTS
 
-// An End with no Begin in scope fails only the Debug build.
+// An End with no Begin in scope fails only a build with signposts.
 #define VibeWorkTallyBegin(label)  ((void)0)
 #define VibeWorkTallyEnd()         ((void)0)
 #define VibeSignpostBegin(name)    ((void)0)
@@ -98,7 +91,7 @@ __END_DECLS
 #define VibeSignpostCount(name)    ((void)0)
 #define VibeTallyCount(name)       ((void)0)
 
-#endif  // DEBUG
+#endif  // VIBE_SIGNPOSTS
 
 // Marks a user-visible string deliberately not localized (format acronyms,
 // punctuation, product names). An unwrapped @"..." in UI code is a bug.

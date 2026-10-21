@@ -136,6 +136,7 @@ settings:
       GCC_OPTIMIZATION_LEVEL: 0
       GCC_PREPROCESSOR_DEFINITIONS:
         - "DEBUG=1"
+        - "VIBE_SIGNPOSTS=1"                # VibeMacros.h's signposts and the work tally
         - "VIBE_VERBOSE_LOGGING=$(VIBE_VERBOSE_LOGGING)"
         - "VIBE_BETA_DEBUG=$(VIBE_BETA_DEBUG)"
         - "$(inherited)"
