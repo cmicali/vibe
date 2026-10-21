@@ -23,6 +23,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Header, art and the end-of-playlist state, from the page's own track.
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index;
+// Every waveform setting the page's scrubber draws from, pushed: the style,
+// Centered, the playhead line and the theme provider. The scrubber reads
+// no store. Each no-ops when it already matches.
+- (void)applyWaveformSettingsToCell:(TrackPageCell *)cell;
 // The slow-open shimmer, from the model's currentOpenSlow: on the current page only.
 - (void)applyPlaybackLoadingToCell:(TrackPageCell *)cell atIndex:(NSUInteger)index;
 - (void)applyPlaybackLoadingToVisiblePages;
