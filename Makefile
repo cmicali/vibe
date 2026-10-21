@@ -77,13 +77,23 @@ install-ios: project
 # and clang-tidy read it. It covers the macOS app, VibeTests and the iOS app,
 # all Debug. Clang writes one fragment per file it compiles. So the build
 # starts from empty derived data every time. An incremental build would drop
-# every file it skipped. The entries point into build/CompileCommands for
-# header maps. `make clean` breaks them until the next run.
+# every file it skipped. The entries point into its derived data for header
+# maps. That lives in .cache/, not build/, so another session's `make clean`
+# cannot break the editor.
 #
 # TRAP: Xcode's -include names its built prefix header, which only another
 # clang of the same build can read. The merge points it back at the source, or
 # every Log* macro reads as undeclared.
-COMPILE_COMMANDS = build/CompileCommands
+#
+# TRAP: an editor's clangd is upstream LLVM, not Xcode's clang. The merge drops
+# the flags only Apple's clang knows. It also drops Clang modules. Under
+# -Werror, one unknown flag (-Wno-error=allocator-wrappers) fails every SDK
+# module build, and Foundation never loads. With that flag gone, CLion's clangd
+# crashes indexing a module-built preamble. No source uses @import, so textual
+# includes lose nothing. Without modules, XCTest's headers are user headers,
+# and -Wdocumentation fails them under -Werror. The merge marks XCTest's
+# directory as a system one.
+COMPILE_COMMANDS = .cache/CompileCommands
 COMPILE_COMMANDS_FLAGS = -derivedDataPath $(COMPILE_COMMANDS) -configuration Debug \
     'OTHER_CFLAGS=$$(inherited) -gen-cdb-fragment-path $$(SRCROOT)/$(COMPILE_COMMANDS)/fragments'
 compile-commands: project
@@ -93,7 +103,11 @@ compile-commands: project
 	xcodebuild -project Vibe.xcodeproj -scheme VibeiOS -destination 'generic/platform=iOS Simulator' \
 	    ARCHS=arm64 CODE_SIGNING_ALLOWED=NO $(COMPILE_COMMANDS_FLAGS) -quiet build
 	{ echo '['; cat $(COMPILE_COMMANDS)/fragments/*.json | sed -E -e '$$ s/,$$//' \
-	    -e 's#"[^"]*/SharedPrecompiledHeaders/[0-9]+/Vibe-Prefix\.pch"#"$(CURDIR)/Vibe/Common/Vibe-Prefix.pch"#'; \
+	    -e 's#"[^"]*/SharedPrecompiledHeaders/[0-9]+/Vibe-Prefix\.pch"#"$(CURDIR)/Vibe/Common/Vibe-Prefix.pch"#' \
+	    -e 's/"-Xclang", "-(clang-vendor-feature=[^"]*|fno-odr-hash-protocols|Wno-error=allocator-wrappers)", //g' \
+	    -e 's/"-(ivfsstatcache|index-store-path|index-unit-output-path)", "[^"]*", //g' \
+	    -e 's/"-[fg]modules[^"]*", //g' \
+	    -e 's#"-F(/[^"]*/Contents/Developer/Platforms/[^"]*)"#"-iframework", "\1"#g'; \
 	    echo ']'; } > compile_commands.json
 
 # The host-less unit tests (VibeTests) plus the cloud-runner oracle tests.

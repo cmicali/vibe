@@ -29,7 +29,7 @@ DerivedData/
 .idea/
 # clang's compilation database. `make compile-commands` writes it.
 /compile_commands.json
-# clangd's background index.
+# clangd's background index, and the compilation database's build.
 /.cache/
 
 # XcodeGen — the Xcode project is generated from project.yml; do not track it.
