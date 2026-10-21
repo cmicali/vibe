@@ -13,7 +13,7 @@
 #import "VolumeControlView.h"
 #import "NSTextField+Label.h"
 #import "NSView+DarkMode.h"
-#import "Fonts.h"
+#import "Fonts+Theme.h"
 #import "NSImage+Util.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"

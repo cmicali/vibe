@@ -13,7 +13,7 @@
 #import "VolumeControlView.h"
 #import "TransportMath.h"
 #import "NSView+DarkMode.h"
-#import "Fonts.h"
+#import "Fonts+Theme.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "VibeStrings.h"
