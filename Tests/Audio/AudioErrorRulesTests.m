@@ -1,5 +1,5 @@
 //
-// The inline status line for a play failure: one mapping, both platforms.
+// Which play failures a shell shows. The line is StringRulesTests'.
 //
 
 #import <XCTest/XCTest.h>
@@ -14,8 +14,6 @@
 static NSError *VibeErr(NSString *domain, NSInteger code) {
     return [NSError errorWithDomain:domain code:code userInfo:nil];
 }
-
-#pragma mark - The mapped codes
 
 - (void)testOnlyNotPlayingInOurDomainIsBenign {
     XCTAssertTrue(VibePlayErrorIsBenign(VibeErr(kVibeAudioErrorDomain, VibeAudioErrorNotPlaying)));
@@ -42,67 +40,6 @@ static NSError *VibeErr(NSString *domain, NSInteger code) {
         XCTAssertTrue(VibePlayErrorMatchesCurrentURL(error, nil));
         XCTAssertTrue(VibePlayErrorMatchesCurrentURL(error, [NSURL fileURLWithPath:@"/a.wav"]));
     }
-}
-
-- (void)testEachCodeMapsToItsOwnLine {
-    NSArray<NSNumber *> *codes = @[@(VibeAudioErrorFileOpenTimedOut),
-                                   @(VibeAudioErrorFileOpenFailed),
-                                   @(VibeAudioErrorEngineStartFailed),
-                                   @(VibeAudioErrorDeviceUnavailable),
-                                   @(VibeAudioErrorDeviceInUse),
-                                   @(VibeAudioErrorConnectionLost)];
-    NSMutableSet<NSString *> *lines = [NSMutableSet set];
-    for (NSNumber *code in codes) {
-        NSString *line = VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain, code.integerValue));
-        XCTAssertGreaterThan(line.length, 0u);
-        XCTAssertNotEqualObjects(line, VibeStatusForPlayError(VibeErr(@"other.domain", 1)),
-                                 @"a mapped code must not fall through to the generic line");
-        [lines addObject:line];
-    }
-    XCTAssertEqual(lines.count, codes.count, @"the mapped codes must not share a line");
-}
-
-- (void)testAnUnderlyingErrorOfOursNamesTheCause {
-    // A refused start reaches the shell wrapped in the caller's "could not resume".
-    NSError *inUse = VibeErr(kVibeAudioErrorDomain, VibeAudioErrorDeviceInUse);
-    NSError *wrapped = [NSError errorWithDomain:kVibeAudioErrorDomain code:VibeAudioErrorEngineStartFailed
-                                       userInfo:@{NSUnderlyingErrorKey: inUse}];
-    XCTAssertEqualObjects(VibeStatusForPlayError(wrapped), VibeStatusForPlayError(inUse));
-    NSError *hal = [NSError errorWithDomain:kVibeAudioErrorDomain code:VibeAudioErrorEngineStartFailed
-                                   userInfo:@{NSUnderlyingErrorKey: VibeErr(NSOSStatusErrorDomain, -10851)}];
-    XCTAssertEqualObjects(VibeStatusForPlayError(hal),
-                          VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain, VibeAudioErrorEngineStartFailed)),
-                          @"a foreign underlying error leaves the outer code's line");
-}
-
-#pragma mark - Everything else is the generic line
-
-- (void)testNotPlayingFallsThroughToGeneric {
-    // The shell drops it as benign before asking for a line.
-    XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain,
-                                                         VibeAudioErrorNotPlaying)),
-                          VibeStatusForPlayError(VibeErr(@"other.domain", 1)));
-}
-
-- (void)testUnknownCodeInOurDomainIsGeneric {
-    XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain, 9999)),
-                          VibeStatusForPlayError(VibeErr(@"other.domain", 1)));
-}
-
-- (void)testForeignDomainSharingACodeIsGeneric {
-    // NSPOSIXErrorDomain code 1 collides numerically with VibeAudioErrorFileOpenFailed.
-    XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(NSPOSIXErrorDomain,
-                                                         VibeAudioErrorFileOpenFailed)),
-                          VibeStatusForPlayError(VibeErr(@"other.domain", 1)));
-}
-
-// NSError refuses a nil domain at construction, so a nil domain reaches the
-// mapping only as a message to a nil error.
-- (void)testNilDomainIsGenericRatherThanACrash {
-    NSString *generic = VibeStatusForPlayError(VibeErr(@"other.domain", VibeAudioErrorFileOpenFailed));
-    XCTAssertEqualObjects(VibeStatusForPlayError((NSError *_Nonnull)nil), generic);
-    XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(@"", VibeAudioErrorFileOpenFailed)), generic,
-                          @"an empty domain is not ours, whatever its code");
 }
 
 @end

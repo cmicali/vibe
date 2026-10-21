@@ -8,6 +8,7 @@
 #import "AppSettings+Mac.h"
 #import "Formatters.h"
 #import "MainPlayerController+Settings.h"
+#import "StringRules.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
 
@@ -151,7 +152,7 @@ static NSString *const kTimeDisplayRemaining = @"remaining";
     [SettingsRowView setControl:_waveformGainSlider enabled:levels];
     [_waveformNormalizeRow setCaption:STR_SETTINGS_WAVEFORM_LEVELS_CAPTION
             detail:levels ? nil : [NSString stringWithFormat:STR_SETTINGS_WAVEFORM_LEVELS_UNAVAILABLE,
-                    [WaveformRendererRegistry displayNameForIdentifier:theme.waveformStyle]]];
+                    VibeWaveformStyleDisplayName(theme.waveformStyle)]];
 
     _timeLabelsSwitch.state = StateForBOOL(settings.showTimeLabels);
     [self selectValue:settings.showRemainingTime ? kTimeDisplayRemaining : kTimeDisplayTotal in:_timeDisplayPopUp];

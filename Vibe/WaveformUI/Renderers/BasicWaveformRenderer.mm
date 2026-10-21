@@ -4,7 +4,6 @@
 //
 
 #import "BasicWaveformRenderer.h"
-#import "VibeStrings.h"
 #import "PlatformColor.h"
 
 #include <cmath>
@@ -15,10 +14,6 @@
 
 + (NSString *)styleIdentifier {
     return @"basic";
-}
-
-+ (NSString *)displayName {
-    return STR_WAVEFORM_STYLE_BASIC;
 }
 
 - (double)columnsPerPoint {

@@ -32,6 +32,7 @@
 #import "FolderArtResolver.h"
 #import "LinkDropRules.h"
 #import "LinkStore.h"
+#import "StringRules.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if VIBE_DIRECT_DISTRIBUTION
@@ -336,7 +337,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
                         else {
                             firstError = firstError ?: error;
                             if (!status) {
-                                status = [LinkStore messageForError:error brief:YES];
+                                status = VibeLinkMessageForError(error, YES);
                                 failed = VibeLinkNameOfText(text);
                             }
                         }

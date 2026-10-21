@@ -17,6 +17,7 @@
 #import "FolderViewController.h"
 #import "LinkDropRules.h"
 #import "LinkStore.h"
+#import "StringRules.h"
 #import "LocationStore.h"
 #import "OpenURLSheetController.h"
 #import "OpenURLSheetController+Debug.h"
@@ -255,7 +256,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     __weak UIWindow *window = self.view.window;
     __weak FilesRootViewController *weakSelf = self;
     void (^settled)(NSURL *, NSError *) = ^(NSURL *file, NSError *error) {
-        NSString *message = error ? [LinkStore messageForError:error brief:NO] : nil;
+        NSString *message = error ? VibeLinkMessageForError(error, NO) : nil;
         dispatch_block_t alert = ^{
             UIViewController *root = window.rootViewController;
             if (message && root) {
@@ -366,7 +367,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         else if (read && strongSelf.viewIfLoaded.window) {
             NSError *invalid = [NSError errorWithDomain:VibeLinkErrorDomain code:VibeLinkErrorInvalid userInfo:nil];
             [strongSelf.vibeTopmostPresenter vibePresentAlertWithTitle:STR_LINK_ERROR_TITLE
-                                                               message:[LinkStore messageForError:invalid brief:NO]];
+                                                               message:VibeLinkMessageForError(invalid, NO)];
         }
     });
 }

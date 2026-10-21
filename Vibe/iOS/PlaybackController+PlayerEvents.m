@@ -12,6 +12,7 @@
 
 #import "AppStats.h"
 #import "AudioErrorRules.h"
+#import "StringRules.h"
 #import "AudioFileOpenRules.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"

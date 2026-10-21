@@ -9,7 +9,6 @@
 #import "WaveformBarMath.h"
 #import "AppSettings.h"
 #import "TestFilesystemGuard.h"
-#import "VibeStrings.h"
 
 #include <algorithm>
 #include <array>
@@ -612,8 +611,6 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
     NSArray *identifiers = [WaveformRendererRegistry availableIdentifiers];
     XCTAssertFalse([identifiers containsObject:SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC]);
     XCTAssertTrue([identifiers containsObject:SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE]);
-    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"wiggle_centered"], STR_WAVEFORM_STYLE_WIGGLE);
-    XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:@"spectrum"], STR_WAVEFORM_STYLE_SPECTRUM);
     XCTAssertEqual([self rendererForStyle:@"spectrum"].class, SpectrumWaveformRenderer.class);
     XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:@"missing-style"], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
     XCTAssertEqualObjects([WaveformRendererRegistry resolveStyleIdentifier:nil], SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT);
@@ -631,31 +628,22 @@ static std::vector<float> VibeDetailedColumns(DetailedWaveformRenderer *renderer
 }
 
 // The Detailed family is one style whose Type picks its identifier, so the
-// choosers list it once and keep each persisted identifier.
+// choosers list it once and keep each persisted identifier. The list is in
+// registration order, the same on every call, and a chooser sorts it.
 - (void)testDetailedTypesAreOneStyleInTheChoosers {
     NSArray<NSString *> *types = @[@"detailed", @"oversampling_detailed_x2",
                                    @"oversampling_detailed_x4", @"oversampling_detailed_x8"];
     NSArray<NSString *> *styles = WaveformRendererRegistry.styleIdentifiers;
     XCTAssertEqual(styles.count, WaveformRendererRegistry.availableIdentifiers.count - types.count + 1);
-    NSMutableSet<NSString *> *listedTypes = [NSMutableSet setWithArray:styles];
-    [listedTypes intersectSet:[NSSet setWithArray:types]];
-    XCTAssertEqualObjects(listedTypes, [NSSet setWithObject:@"oversampling_detailed_x4"]);
-    NSMutableSet<NSString *> *typeNames = [NSMutableSet set];
+    XCTAssertEqualObjects(styles, (@[@"basic", @"cupertino", @"cupertino_basic", @"sonic_cirrus",
+                                     @"oversampling_detailed_x4", @"three_band", @"spectrum", @"wiggle_centered"]));
+    XCTAssertEqualObjects(styles, WaveformRendererRegistry.styleIdentifiers);
     for (NSString *type in types) {
         XCTAssertEqualObjects([WaveformRendererRegistry typeIdentifiersForIdentifier:type], types);
         XCTAssertEqualObjects([WaveformRendererRegistry styleIdentifierForIdentifier:type], @"oversampling_detailed_x4");
-        XCTAssertEqualObjects([WaveformRendererRegistry displayNameForIdentifier:type], STR_WAVEFORM_STYLE_DETAILED);
-        [typeNames addObject:[WaveformRendererRegistry typeDisplayNameForIdentifier:type]];
     }
-    XCTAssertEqual(typeNames.count, types.count);
     XCTAssertEqualObjects([WaveformRendererRegistry typeIdentifiersForIdentifier:@"basic"], @[]);
     XCTAssertEqualObjects([WaveformRendererRegistry styleIdentifierForIdentifier:@"basic"], @"basic");
-    // NSPopUpButton drops an item whose title repeats another's.
-    NSMutableSet<NSString *> *styleNames = [NSMutableSet set];
-    for (NSString *style in styles) {
-        [styleNames addObject:[WaveformRendererRegistry displayNameForIdentifier:style]];
-    }
-    XCTAssertEqual(styleNames.count, styles.count);
 }
 
 - (void)testWiggleHighlightsWholeLoopsWithoutQuantizingThePlayedFill {
