@@ -14,6 +14,7 @@
 #import "AudioLevelMeter.h"
 #import "AudioOutputUnit.h"
 #import "AudioVoiceBus.h"
+#import "CueWindowMath.h"
 #import "PlaybackRequestCoordinator.h"
 #import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
@@ -75,6 +76,26 @@ static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 // once. Remote streams keep this delay.
 static const NSTimeInterval kWaitIndicatorDelaySeconds = 0.5;
 
+// The track's window in `file`'s frames (VibeCueWindow): the whole file for a
+// whole-file track, empty for a window the file does not reach. `estimated`,
+// when asked, says the window was taken from a length that is still an
+// estimate (AudioFileHandle lengthEstimated:).
+static inline NSRange VibeTrackWindowInFile(id<VibePlayableItem> track, AudioFileHandle *file,
+                                            BOOL *_Nullable estimated) {
+    BOOL guessed = NO;
+    AVAudioFramePosition length = [file lengthEstimated:&guessed];
+    if (estimated) {
+        *estimated = guessed;
+    }
+    return VibeCueWindow(track.cueStart, track.cueEnd, file.processingFormat.sampleRate, length, guessed);
+}
+
+// Where a voice of the track stops reading `file` (VibeCueEndFrame): 0, the
+// file's own end, for a track running to it.
+static inline int64_t VibeTrackEndFrameInFile(id<VibePlayableItem> track, AudioFileHandle *file) {
+    return VibeCueEndFrame(track.cueEnd, file.processingFormat.sampleRate);
+}
+
 @interface AudioPlayer () {
     dispatch_queue_t        _queue;
     os_unfair_lock          _stateLock;
@@ -122,13 +143,13 @@ static const NSTimeInterval kWaitIndicatorDelaySeconds = 0.5;
     // track's sourceKey, so another window of the same file is another park.
     NSString                *_prefetchedKey;
     AudioFileHandle             *_prefetchedFile;
-    AudioTrack              *_prefetchedTrack;
+    id<VibePlayableItem>    _prefetchedTrack;
     uint64_t                _prefetchGeneration;
-    AudioTrack              *_requestedPrefetchTrack;
+    id<VibePlayableItem>    _requestedPrefetchTrack;
     NSString                *_requestedPrefetchKey;
     VibeAudioPrefetchRequestState _prefetchRequestState;
     AudioFileOpenToken      *_prefetchOpenToken;
-    AudioTrack              *_successorTrack;   // the row queued on the current voice, else nil
+    id<VibePlayableItem>    _successorTrack;   // the row queued on the current voice, else nil
     AudioFileHandle             *_successorFile;    // the park's instance the bus was handed
 
     // ---- The render pipeline (AudioPlayer+Pipeline.m).
@@ -191,13 +212,13 @@ static const NSTimeInterval kWaitIndicatorDelaySeconds = 0.5;
 // The loading intent, mirrored under _stateLock for the main-thread getters
 // and a seek's identity snapshot. The last submitted play binds a seek to a
 // play submitted just before it, which the mirror does not show yet.
-@property (nonatomic, readonly, nullable) AudioTrack *loadingTrack;
+@property (nonatomic, readonly, nullable) id<VibePlayableItem> loadingTrack;
 @property (nonatomic, readonly) uint64_t loadingSubmittedPlayIdentifier;
 @property (nonatomic, readonly) uint64_t lastSubmittedPlayIdentifier;
-@property (nonatomic, readonly, nullable) AudioTrack *lastSubmittedPlayTrack;
+@property (nonatomic, readonly, nullable) id<VibePlayableItem> lastSubmittedPlayTrack;
 @property (nonatomic, readonly) BOOL loadingStartPaused;
 
-@property (nullable, strong, readwrite) AudioTrack *currentTrack;
+@property (nullable, strong, readwrite) id<VibePlayableItem> currentTrack;
 @property (atomic, readwrite) NSInteger currentlyRequestedAudioDeviceId;
 
 #pragma mark - Queue-side helpers implemented in AudioPlayer.m
@@ -242,7 +263,7 @@ static const NSTimeInterval kWaitIndicatorDelaySeconds = 0.5;
 // its file may be handed on. Retired voices are tracked until they end.
 - (VibeVoiceRamp)rampOnQueueToGain:(float)gain milliseconds:(uint64_t)milliseconds action:(VibeVoiceAction)action;
 // `frame` and `endFrame` are file frames; the stream ends at `endFrame`, 0 for
-// the file's own end (AudioTrack endFrameInFile:).
+// the file's own end (VibeTrackEndFrameInFile).
 - (VibeVoiceID)startVoiceOnQueueForFile:(AudioFileHandle *)file atFrame:(AVAudioFramePosition)frame
                                endFrame:(AVAudioFramePosition)endFrame
                        fadeMilliseconds:(uint64_t)milliseconds paused:(BOOL)paused;

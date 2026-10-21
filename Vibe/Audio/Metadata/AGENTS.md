@@ -36,7 +36,7 @@ A loader snapshots `AudioLoadingConfiguration`, so a settings change reaches onl
 
 **Pending misses are app-owned records picked one at a time, never sorted** (`MetadataScanOrderRules.h`, tested): already-local first, then untried before deferred, then neighborhood rank, then playlist index. A real playlist holds more than 100,000 misses, so a track change replaces only a small locked neighborhood snapshot and enqueues a coalesced kick. Each shell sends it from its one current-index funnel through `setNeighborhoodTracks:`. It hands over the playlist's `neighborhoodTracks` (the next two and the previous in play order, so shuffle ranks what will play), never the whole list, whose mac getter copies it.
 
-**The cache key is the row's `AudioTrack.cacheKey`, memoized for the row's life**, until a download installs another version than its placeholder's (`Loading/AGENTS.md`). Then every memo is retired and the next lookup stats the file again. A row already holding metadata keeps it until it is next parsed.
+**The cache key is the item's `cacheKey` (`VibePlayableItem`), which Vibe's row memoizes for its life**, until a download installs another version than its placeholder's (`Loading/AGENTS.md`). Then every memo is retired and the next lookup stats the file again. A row already holding metadata keeps it until it is next parsed.
 
 ## Duplicate rows and delivery
 

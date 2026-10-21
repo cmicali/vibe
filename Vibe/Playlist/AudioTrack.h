@@ -6,13 +6,15 @@
 #import <Foundation/Foundation.h>
 #import "PlatformTypes.h"
 #import "MusicalKey.h"
+#import "VibePlayableItem.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class AudioFileHandle;
 @class AudioTrackMetadata;
 
-@interface AudioTrack : NSObject
+// A playlist row: a file whole, or a cue sheet's window of one. What the
+// player and the caches read of it is VibePlayableItem.
+@interface AudioTrack : NSObject <VibePlayableItem>
 
 @property (copy, readonly) NSURL *url;
 
@@ -64,11 +66,6 @@ NS_ASSUME_NONNULL_BEGIN
 // YES when the row plays less than its whole file.
 - (BOOL)isWindowed;
 
-// YES when `track` is the next window of this row's file, beginning where this
-// one ends: one recording, which continues without a gap whatever the
-// crossfade.
-- (BOOL)isFollowedContiguouslyBy:(nullable AudioTrack *)track;
-
 // What sounds: the file's path, plus the window for a windowed row, so rows of
 // one file differ. An identity to compare, never a path to open. Fixed at
 // init, so a per-tick comparison allocates nothing.
@@ -80,22 +77,8 @@ NS_ASSUME_NONNULL_BEGIN
 // stats. It allocates, unlike sourceKey. Keep it off a per-frame path.
 - (nullable NSString *)standardizedSourceKey;
 
-// `key` with this row's window appended, so rows of one file key apart; `key`
-// itself for a whole file, and nil for nil. What the source keys and the per-window waveform entries and claims
-// are spelled with.
+// `key` with this row's window appended (VibeKeyByAppendingCueWindow).
 - (nullable NSString *)keyByAppendingWindowTo:(nullable NSString *)key;
-
-// The row's window in `file`'s frames (VibeCueWindow): the whole file for a
-// plain row, empty for a window the file does not reach. `estimated`, when
-// asked, says the window was taken from a length that is still an estimate
-// (AudioFileHandle lengthEstimated:).
-- (NSRange)frameWindowInFile:(AudioFileHandle *)file estimated:(nullable BOOL *)estimated;
-// Where a voice of this row stops reading `file`: its cue end in the file's
-// frames, unclamped, or 0, the file's own end, for a row running to it. Never
-// the length, which may be an estimate (a streaming MP3's): an end past where
-// the stream really ends stops there anyway, and a row's end rounds its marker
-// exactly as the next row's start does.
-- (int64_t)endFrameInFile:(AudioFileHandle *)file;
 
 // A fresh row for this one's audio at another URL — Convert's swap: the
 // window, names, duration and analysis carry across. Minted rather than
@@ -107,15 +90,10 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)new NS_UNAVAILABLE;
 
 // The memoized NSURL+Hash key for the metadata and waveform caches — the
-// file's, which a waveform entry extends with the window
-// (keyByAppendingWindowTo:). nil when the file cannot be statted — not
-// memoized, so a later call retries — and a caller must then skip caching.
+// file's, which a waveform entry extends with the window. nil when the file
+// cannot be statted — not memoized, so a later call retries — and a caller
+// must then skip caching. NSURL invalidateMemoizedCacheKeys retires the memo.
 - (nullable NSString *)cacheKey;
-
-// A file was replaced under its URL by another version (a download that
-// installed something other than its placeholder's size and mtime): every
-// track's next cacheKey stats its file again, once. Any thread.
-+ (void)invalidateMemoizedCacheKeys;
 
 - (NSString *)title;
 - (NSString *)artist;
@@ -138,11 +116,6 @@ NS_ASSUME_NONNULL_BEGIN
 // and a nil artist, which means no second line rather than an empty one.
 - (NSString *)displayTitle;
 - (nullable NSString *)displayArtist;
-
-// The last path component without its extension, trimmed: title until
-// metadata loads, and what a tagless file records, so the row does not change
-// when metadata arrives. Not standardized, which would stat the path.
-+ (NSString *)filenameTitleForURL:(NSURL *)url;
 
 @end
 

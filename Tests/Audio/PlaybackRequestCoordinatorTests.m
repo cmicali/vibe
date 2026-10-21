@@ -9,10 +9,10 @@
 
 #import "PlaybackRequestCoordinator.h"
 
-// The coordinator only stores and compares the row pointer, never messages
-// it, so a plain NSObject serves as the AudioTrack.
-static AudioTrack *FakeTrack(void) {
-    return (AudioTrack *)[NSObject new];
+// The coordinator only stores and compares the item pointer, never messages
+// it, so a plain NSObject serves as the item.
+static id<VibePlayableItem> FakeTrack(void) {
+    return (id<VibePlayableItem>)[NSObject new];
 }
 
 @interface PlaybackRequestCoordinatorTests : XCTestCase
@@ -22,8 +22,8 @@ static AudioTrack *FakeTrack(void) {
 
 - (void)testRebindBeforeSlowDeliveryUsesTheLatestTrackAndIntent {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    AudioTrack *first = FakeTrack();
-    AudioTrack *rebound = FakeTrack();
+    id<VibePlayableItem> first = FakeTrack();
+    id<VibePlayableItem> rebound = FakeTrack();
     uint64_t identifier = [state beginWithTrack:first path:@"/same.flac"
                                          intent:VibePendingPlaybackIntentMake(0, NO)
                           submittedPlayIdentifier:1];
@@ -46,8 +46,8 @@ static AudioTrack *FakeTrack(void) {
 
 - (void)testSlowRebindRequestsAReplacementLoadingDelivery {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    AudioTrack *first = FakeTrack();
-    AudioTrack *rebound = FakeTrack();
+    id<VibePlayableItem> first = FakeTrack();
+    id<VibePlayableItem> rebound = FakeTrack();
     uint64_t identifier = [state beginWithTrack:first path:@"/same.flac"
                                          intent:VibePendingPlaybackIntentMake(0, NO)
                           submittedPlayIdentifier:1];
@@ -68,7 +68,7 @@ static AudioTrack *FakeTrack(void) {
 
 - (void)testSlowSameRowReplayRequestsACurrentLoadingDelivery {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    AudioTrack *track = FakeTrack();
+    id<VibePlayableItem> track = FakeTrack();
     uint64_t identifier = [state beginWithTrack:track path:@"/same.flac"
                                          intent:VibePendingPlaybackIntentMake(0, NO)
                         submittedPlayIdentifier:1];
@@ -86,8 +86,8 @@ static AudioTrack *FakeTrack(void) {
 
 - (void)testRebindRefreshesPausedDeliveryForAReplacementTrack {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    AudioTrack *first = FakeTrack();
-    AudioTrack *rebound = FakeTrack();
+    id<VibePlayableItem> first = FakeTrack();
+    id<VibePlayableItem> rebound = FakeTrack();
     [state beginWithTrack:first path:@"/same.flac"
              intent:VibePendingPlaybackIntentMake(0, NO)
       submittedPlayIdentifier:1];
@@ -112,8 +112,8 @@ static AudioTrack *FakeTrack(void) {
 - (void)testStaleWorkersCannotMutateOrConsumeANewerRequest {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
     XCTAssertFalse([state isCurrentRequest:0]);
-    AudioTrack *first = FakeTrack();
-    AudioTrack *second = FakeTrack();
+    id<VibePlayableItem> first = FakeTrack();
+    id<VibePlayableItem> second = FakeTrack();
     uint64_t oldIdentifier = [state beginWithTrack:first path:@"/first.flac"
                                             intent:VibePendingPlaybackIntentMake(0, NO)
                              submittedPlayIdentifier:1];
@@ -136,9 +136,9 @@ static AudioTrack *FakeTrack(void) {
 
 - (void)testSeekIsAcceptedByEitherTheRowOrTheSubmittedPlay {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    AudioTrack *first = FakeTrack();
-    AudioTrack *rebound = FakeTrack();
-    AudioTrack *stranger = FakeTrack();
+    id<VibePlayableItem> first = FakeTrack();
+    id<VibePlayableItem> rebound = FakeTrack();
+    id<VibePlayableItem> stranger = FakeTrack();
     [state beginWithTrack:first path:@"/same.flac"
              intent:VibePendingPlaybackIntentMake(2, NO)
       submittedPlayIdentifier:1];
@@ -213,8 +213,8 @@ static AudioTrack *FakeTrack(void) {
 
 - (void)testDifferentPathDoesNotRebindTheCurrentRequest {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    AudioTrack *first = FakeTrack();
-    AudioTrack *second = FakeTrack();
+    id<VibePlayableItem> first = FakeTrack();
+    id<VibePlayableItem> second = FakeTrack();
     uint64_t firstIdentifier = [state beginWithTrack:first path:@"/first.flac"
                                                intent:VibePendingPlaybackIntentMake(0, NO)
                                 submittedPlayIdentifier:1];
@@ -249,7 +249,7 @@ static AudioTrack *FakeTrack(void) {
 
 - (void)testSameTrackRebindDoesNotNeedAnotherDelegateRefresh {
     PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
-    AudioTrack *track = FakeTrack();
+    id<VibePlayableItem> track = FakeTrack();
     [state beginWithTrack:track path:@"/same.flac"
              intent:VibePendingPlaybackIntentMake(4, YES)
       submittedPlayIdentifier:1];
@@ -270,14 +270,14 @@ static AudioTrack *FakeTrack(void) {
     static const NSUInteger kTraces = 80;
     static const NSUInteger kEventsPerTrace = 1500;
     static const NSUInteger kTracks = 17;
-    NSArray<AudioTrack *> *tracks = [self tracks:kTracks];
+    NSArray<id<VibePlayableItem>> *tracks = [self tracks:kTracks];
     NSArray<NSString *> *paths = @[@"/a.flac", @"/b.flac", @"/c.flac", @"/d.flac"];
 
     for (NSUInteger trace = 0; trace < kTraces; trace++) {
         PlaybackRequestCoordinator *state = [PlaybackRequestCoordinator new];
         uint64_t random = 0x9E3779B97F4A7C15ULL ^ trace;
         uint64_t currentIdentifier = 0;
-        AudioTrack *currentTrack = nil;
+        id<VibePlayableItem> currentTrack = nil;
         NSString *currentPath = nil;
         VibePendingPlaybackIntent currentIntent = VibePendingPlaybackIntentMake(0, NO);
         BOOL currentSlow = NO;
@@ -304,7 +304,7 @@ static AudioTrack *FakeTrack(void) {
             }
             else if (action == 1) {
                 random = [self nextRandom:random];
-                AudioTrack *rebound = tracks[random % tracks.count];
+                id<VibePlayableItem> rebound = tracks[random % tracks.count];
                 random = [self nextRandom:random];
                 VibePendingPlaybackIntent intent = VibePendingPlaybackIntentMake(
                         (NSTimeInterval)(random % 240), (random & 1) != 0);
@@ -334,7 +334,7 @@ static AudioTrack *FakeTrack(void) {
             }
             else if (action == 3) {
                 random = [self nextRandom:random];
-                AudioTrack *target = (random & 1) ? currentTrack : tracks[random % tracks.count];
+                id<VibePlayableItem> target = (random & 1) ? currentTrack : tracks[random % tracks.count];
                 random = [self nextRandom:random];
                 NSTimeInterval position = (NSTimeInterval)((NSInteger)(random % 480) - 120);
                 // The live play, a mismatched one, and 0 (cannot tell).
@@ -400,8 +400,8 @@ static AudioTrack *FakeTrack(void) {
     }
 }
 
-- (NSArray<AudioTrack *> *)tracks:(NSUInteger)count {
-    NSMutableArray<AudioTrack *> *tracks = [NSMutableArray arrayWithCapacity:count];
+- (NSArray<id<VibePlayableItem>> *)tracks:(NSUInteger)count {
+    NSMutableArray<id<VibePlayableItem>> *tracks = [NSMutableArray arrayWithCapacity:count];
     for (NSUInteger index = 0; index < count; index++) {
         [tracks addObject:FakeTrack()];
     }

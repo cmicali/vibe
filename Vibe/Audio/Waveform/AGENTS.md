@@ -36,7 +36,7 @@ The decoder and optional analysis both contribute to the pass cost. The loader *
 
 ## A cue row's waveform is its window
 
-The loader decodes only the row's window (`cueStart`/`cueEnd` through `VibeCueWindow`), and the analyzers ride the same window. A DJ mix gets a waveform, a tempo and a key per track. Everything keyed per file is keyed per window here: the claim (`AudioTrack.standardizedSourceKey`), the detached-loader pool and the disk entry all append the window through `AudioTrack.keyByAppendingWindowTo:`. Metadata stays the file's.
+The loader decodes only the row's window (`cueStart`/`cueEnd` through `VibeCueWindow`), and the analyzers ride the same window. A DJ mix gets a waveform, a tempo and a key per track. Everything keyed per file is keyed per window here. The claim (the standardized path), the detached-loader pool and the disk entry all append the window through `VibeKeyByAppendingCueWindow` (`VibePlayableItem.h`). Metadata stays the file's.
 
 ## Admission
 

@@ -1070,7 +1070,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2; }]);
     XCTAssertEqual(MatchingBins(recorder.complete, first), count, @"the stale memo serves the old version");
 
-    [AudioTrack invalidateMemoizedCacheKeys];
+    [NSURL invalidateMemoizedCacheKeys];
     [cache loadWaveformForTrack:track];
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 3; }]);
     XCTAssertEqual(MatchingBins(recorder.complete, second), second.waveform->binCount(),

@@ -8,7 +8,10 @@
 #include <CommonCrypto/CommonDigest.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <stdatomic.h>
 #include <string.h>
+
+static _Atomic uint64_t sCacheKeyGeneration;
 
 @implementation NSData (Hash)
 
@@ -28,6 +31,14 @@
 @end
 
 @implementation NSURL (Hash)
+
++ (uint64_t)cacheKeyGeneration {
+    return atomic_load(&sCacheKeyGeneration);
+}
+
++ (void)invalidateMemoizedCacheKeys {
+    atomic_fetch_add(&sCacheKeyGeneration, 1);
+}
 
 - (nullable NSString *)pathKey {
     NSString *path = VibeComparablePath(self.path);

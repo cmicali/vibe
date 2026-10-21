@@ -16,7 +16,6 @@
 #endif
 #import "AudioFX+Pipeline.h"
 #import "AudioLoadingConfiguration.h"
-#import "AudioTrack.h"
 #if TARGET_OS_OSX
 #import "AudioDeviceManager.h"
 #import "CoreAudioUtil.h"
@@ -265,15 +264,15 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 #pragma mark - Play
 
-- (void)play:(AudioTrack *)track {
+- (void)play:(id<VibePlayableItem>)track {
     [self playTrack:track atPosition:0 startPaused:NO declick:NO];
 }
 
-- (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused {
+- (void)play:(id<VibePlayableItem>)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused {
     [self playTrack:track atPosition:position startPaused:startPaused declick:YES];
 }
 
-- (void)playTrack:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused declick:(BOOL)declick {
+- (void)playTrack:(id<VibePlayableItem>)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused declick:(BOOL)declick {
     VibePendingPlaybackIntent intent = VibePendingPlaybackIntentMake(position, startPaused);
     // TRAP: minting and queue admission are one edge under _stateLock, as the
     // media-reset receipt's admission is, so a play cannot be identified on
@@ -291,7 +290,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 // Under _stateLock: the next submission's identifier, with the pre-Loading
 // handoff and the timeline's note, the same for every play however submitted.
-- (uint64_t)mintSubmittedPlayLockedForTrack:(AudioTrack *)track position:(NSTimeInterval)position
+- (uint64_t)mintSubmittedPlayLockedForTrack:(id<VibePlayableItem>)track position:(NSTimeInterval)position
                                      paused:(BOOL)paused submittedAt:(uint64_t *)submittedAt {
     uint64_t submittedPlayIdentifier = ++_nextSubmittedPlayIdentifier;
     _lastSubmittedPlayIdentifier = submittedPlayIdentifier;
@@ -302,7 +301,7 @@ static void *const kAudioPlayerQueueKey = (void *)&kAudioPlayerQueueKey;
 
 // The phases' order is the correctness; each constraint is commented at its
 // call.
-- (void)playOnQueue:(AudioTrack *)track intent:(VibePendingPlaybackIntent)intent declick:(BOOL)declick
+- (void)playOnQueue:(id<VibePlayableItem>)track intent:(VibePendingPlaybackIntent)intent declick:(BOOL)declick
 submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (_terminating) return;
     // The path is the file's, what the open and the Loading rebind are about;
@@ -357,7 +356,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // this file's open is already in flight, and a second would strand a blocked
 // worker. The delivery moves to the new row object (a re-drop makes fresh
 // instances).
-- (BOOL)rebindLoadingPlayOnQueueForTrack:(AudioTrack *)track path:(NSString *)path
+- (BOOL)rebindLoadingPlayOnQueueForTrack:(id<VibePlayableItem>)track path:(NSString *)path
                                   intent:(VibePendingPlaybackIntent)intent
                  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     if (_state != VibePlayerStateLoading) {
@@ -394,7 +393,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 
 // The request id pairs the logical open with its deadline. The coordinator
 // retains a dispatched handle run until its OS call returns.
-- (void)submitOpenOnQueueForTrack:(AudioTrack *)track openRequestId:(uint64_t)openId {
+- (void)submitOpenOnQueueForTrack:(id<VibePlayableItem>)track openRequestId:(uint64_t)openId {
     NSURL *openURL = track.url;
     _playOpenRequestId = openId;
     _deadlineTimeouts = _loadingConfiguration.openTimeouts;
@@ -451,7 +450,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // Retire a losing prefetch of this track before a late result can make
     // the current track its own successor.
     [self retirePrefetchOnQueueAtPoint:VibeAudioPrefetchAtPlaySettlement playKey:request.track.sourceKey];
-    AudioTrack *track = request.track;
+    id<VibePlayableItem> track = request.track;
     VibePendingPlaybackIntent startIntent = request.intent;
     [self noteOpenSettledForPlay:request.submittedPlayIdentifier track:track file:file error:error];
     // From the request's track, which a Loading rebind may have moved to
@@ -459,7 +458,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     // so a broken sheet cannot auto-advance through every row.
     double sampleRate = file.processingFormat.sampleRate;
     BOOL estimated = NO; // a settle after the window is taken is republished
-    NSRange window = file ? [track frameWindowInFile:file estimated:&estimated] : NSMakeRange(0, 0);
+    NSRange window = file ? VibeTrackWindowInFile(track, file, &estimated) : NSMakeRange(0, 0);
     if (estimated && track.cueEnd == 0) {
         // TRAP: an estimate is not the end, so a start past it — a stall's
         // replay of audio heard past it — is not clamped back to it, which
@@ -494,7 +493,8 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     _windowEstimated = estimated;
     AVAudioFramePosition startFrame = VibeClampedStartFrame(startIntent.position, sampleRate, window);
     NSTimeInterval startSeconds = VibeWindowSecondsAtFrame(startFrame, sampleRate, window);
-    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame endFrame:[track endFrameInFile:file]
+    VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
+                                              endFrame:VibeTrackEndFrameInFile(track, file)
                                       fadeMilliseconds:(_incomingFadeMilliseconds ?: kFadeDurationMilliseconds)
                                                 paused:startIntent.paused];
     if (startIntent.paused) {
@@ -519,7 +519,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
     self.currentTrack = track;
     _activeSubmittedPlayIdentifier = request.submittedPlayIdentifier;
-    track.duration = self.duration;
+    [track setDuration:self.duration];
     if ([self submittedPlayIsCurrent:request.submittedPlayIdentifier]) {
         [self playbackDidSucceedForPrefetchOnQueue];
     }
@@ -527,7 +527,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
         [self terminallyRetirePrefetchRequestOnQueue];
     }
     // Matched by submission, not track: a same-row replay is the same
-    // AudioTrack, so the previous play's start would pass the shell's guard.
+    // item, so the previous play's start would pass the shell's guard.
     uint64_t settledPlay = request.submittedPlayIdentifier;
     uint64_t deliveredAt = [self deliveryStamp];
     run_on_main_thread({
@@ -565,7 +565,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self cancelPlayOpenForRequest:openId];
     // A worker already inside AudioFileHandle keeps its path claim until the
     // call returns, and a same-path retry joins it.
-    AudioTrack *track = request.track;
+    id<VibePlayableItem> track = request.track;
     BOOL madeProgress = _deadlineMovedUptime > _deadlineArmedUptime;
     LogError(@"Timed out opening %@ (progress seen: %@)", track.url.path, madeProgress ? @"yes" : @"no");
     [self resetToStoppedStateOnQueue];
@@ -588,13 +588,13 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     });
 }
 
-- (void)noteDisplayedPosition:(NSTimeInterval)position forTrack:(AudioTrack *)track {
+- (void)noteDisplayedPosition:(NSTimeInterval)position forTrack:(id<VibePlayableItem>)track {
     [self recordDisplayedPosition:position forTrack:track];
 }
 
-- (void)prefetchTrack:(AudioTrack *)track {
+- (void)prefetchTrack:(id<VibePlayableItem>)track {
     dispatch_async(_queue, ^{
-        AudioTrack *target = VibeAudioPrefetchDepthAllowsSuccessor(self->_loadingConfiguration.prefetchDepth) ? track : nil;
+        id<VibePlayableItem> target = VibeAudioPrefetchDepthAllowsSuccessor(self->_loadingConfiguration.prefetchDepth) ? track : nil;
         [self prefetchOnQueue:target];
     });
 }
@@ -665,7 +665,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     [self publishState:VibePlayerStatePaused voice:_voice file:_file window:_window startSeconds:_voiceStartSeconds baseFrames:_promotedBaseFrames];
     // Or the output holds the device for as long as the user stays paused.
     [self scheduleOutputIdleStopOnQueue];
-    AudioTrack *track = self.currentTrack;
+    id<VibePlayableItem> track = self.currentTrack;
     run_on_main_thread({
         [self.delegate audioPlayer:self didPausePlaying:track];
     });
@@ -701,7 +701,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
               forVoice:_voice];
     [self publishState:VibePlayerStatePlaying voice:_voice file:_file window:_window startSeconds:_voiceStartSeconds baseFrames:_promotedBaseFrames];
     [self armSignalProbeOnQueue:@"resume"];
-    AudioTrack *track = self.currentTrack;
+    id<VibePlayableItem> track = self.currentTrack;
     uint64_t deliveredAt = [self deliveryStamp];
     run_on_main_thread({
         [self noteDelivery:@"didResumePlaying" forPlay:owningSubmittedPlayIdentifier
@@ -717,7 +717,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // stop or play submitted after the resume, and the replay would then undo
 // it; a play already submitted is queued behind this turn and replaces it.
 - (void)replayStalledTrackOnQueue {
-    AudioTrack *track = self.currentTrack;
+    id<VibePlayableItem> track = self.currentTrack;
     NSTimeInterval position = self.position;
     os_unfair_lock_lock(&_stateLock);
     BOOL newest = _activeSubmittedPlayIdentifier != 0 && _activeSubmittedPlayIdentifier == _nextSubmittedPlayIdentifier;
@@ -733,7 +733,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
             submittedPlayIdentifier:submittedPlayIdentifier];
 }
 
-- (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(AudioTrack *)track {
+- (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(id<VibePlayableItem>)track {
     __block BOOL loaded = NO;
     [self runSyncOnQueue:^{
         if (self->_state == VibePlayerStateLoading) {
@@ -759,7 +759,7 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
 // intended track is snapshotted here and the seek dropped if it moved on.
 - (void)seekToPosition:(NSTimeInterval)position {
     uint64_t submittedAt = [self noteSubmittedAction:@"seek" position:position];
-    AudioTrack *intendedTrack = self.currentTrack;
+    id<VibePlayableItem> intendedTrack = self.currentTrack;
     uint64_t intendedSubmittedPlayIdentifier = 0;
     os_unfair_lock_lock(&_stateLock);
     if (self.lastSubmittedPlayTrack) {
@@ -779,10 +779,10 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     });
 }
 
-- (void)seekOnQueueToPosition:(NSTimeInterval)position intendedTrack:(AudioTrack *)intendedTrack
+- (void)seekOnQueueToPosition:(NSTimeInterval)position intendedTrack:(id<VibePlayableItem>)intendedTrack
 intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submittedAt:(uint64_t)submittedAt {
     [self noteAdmittedAction:@"seek" submittedAt:submittedAt position:position];
-    AudioTrack *track = self.currentTrack;
+    id<VibePlayableItem> track = self.currentTrack;
     if (_state == VibePlayerStateLoading) {
         VibePlaybackRequest *request = _pendingRequest.currentRequest;
         [_pendingRequest seekToPosition:position ifCurrentTrackIs:intendedTrack
@@ -824,7 +824,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 // Every seek settles, a dropped one included: Control Center resyncs off it.
-- (void)notifySeekFinishedOnQueue:(AudioTrack *)track reason:(NSString *)reason submittedPlay:(uint64_t)play {
+- (void)notifySeekFinishedOnQueue:(id<VibePlayableItem>)track reason:(NSString *)reason submittedPlay:(uint64_t)play {
     [self noteSettled:@"seek" reason:reason];
     uint64_t deliveredAt = [self deliveryStamp];
     run_on_main_thread({
@@ -922,7 +922,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     }
 #endif
     os_unfair_lock_unlock(&_stateLock);
-    AudioTrack *track = self.currentTrack;
+    id<VibePlayableItem> track = self.currentTrack;
     if (!buffering) {
         LogInfo(@"Buffering: %@ held %.2f s, %@; %llu bytes arrived meanwhile", track.url.lastPathComponent,
                 NSProcessInfo.processInfo.systemUptime - _deadlineArmedUptime, outcome,
@@ -948,7 +948,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     os_unfair_lock_lock(&_stateLock);
     _bufferingNoticeShown = shown;
     os_unfair_lock_unlock(&_stateLock);
-    AudioTrack *track = self.currentTrack;
+    id<VibePlayableItem> track = self.currentTrack;
     if (!track) {
         return;
     }
@@ -966,7 +966,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // replays from here. Never didFinishPlaying: a stall is not the end of the
 // track.
 - (void)stallOnQueue {
-    AudioTrack *track = self.currentTrack;
+    id<VibePlayableItem> track = self.currentTrack;
     uint64_t submittedPlay = _activeSubmittedPlayIdentifier;
     [self republishEstimatedWindowOnQueue]; // so the position held is the one heard
     NSTimeInterval seconds = self.position;
@@ -1008,12 +1008,12 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // window alone is written: the origin is not moved, so the position does not
 // jump, only the total and its clamp.
 - (void)republishEstimatedWindowOnQueue {
-    AudioTrack *track = self.currentTrack;
+    id<VibePlayableItem> track = self.currentTrack;
     if (!_windowEstimated || !_file || !track) {
         return;
     }
     BOOL estimated = NO;
-    NSRange window = [track frameWindowInFile:_file estimated:&estimated];
+    NSRange window = VibeTrackWindowInFile(track, _file, &estimated);
     BOOL settled = !estimated;
     if (!settled && window.length <= _window.length) {
         return;
@@ -1025,7 +1025,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     if (!settled) {
         return;
     }
-    track.duration = self.duration;
+    [track setDuration:self.duration];
     [self deliverOnMainForSubmittedPlay:_activeSubmittedPlayIdentifier named:@"didSettleDuration" block:^{
         id<AudioPlayerDelegate> delegate = self.delegate;
         if ([delegate respondsToSelector:@selector(audioPlayer:didSettleDurationOfTrack:)]) {
@@ -1076,7 +1076,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // Snapshotted on main: a boundary promoting before the block runs would
 // otherwise end the track the skip meant to reach, two tracks ahead.
 - (void)finishCurrentTrack {
-    AudioTrack *intendedTrack = self.currentTrack;
+    id<VibePlayableItem> intendedTrack = self.currentTrack;
     dispatch_async(_queue, ^{
         if (self.currentTrack != intendedTrack) {
             return; // the boundary already advanced playback; the skip's goal is met
@@ -1128,7 +1128,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
             [self finishPlaybackOnQueue];
             return;
         }
-        AudioTrack *track = self.currentTrack;
+        id<VibePlayableItem> track = self.currentTrack;
         uint64_t submittedPlay = _activeSubmittedPlayIdentifier;
         [self resetToStoppedStateOnQueue];
         [self sendDelegateError:VibeAudioErrorForTrack(VibeAudioErrorEngineStartFailed,
@@ -1143,7 +1143,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 // at full volume, and fades). The output stop is deferred so the auto-advance
 // play reuses the running output.
 - (void)finishPlaybackOnQueue {
-    AudioTrack *track = self.currentTrack;
+    id<VibePlayableItem> track = self.currentTrack;
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
     VibeVoiceID voice = [self unpublishVoiceOnQueueEnteringTerminalState:VibePlayerStateStopped];
     [self retireVoiceOnQueue:voice milliseconds:kFadeDurationMilliseconds];
@@ -1209,7 +1209,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     VibeVoiceID oldVoice = [self unpublishVoiceOnQueue];
     [self retireVoiceOnQueue:oldVoice milliseconds:kFadeDurationMilliseconds];
     VibeVoiceID voice = [self startVoiceOnQueueForFile:file atFrame:startFrame
-                                              endFrame:[self.currentTrack endFrameInFile:file]
+                                              endFrame:VibeTrackEndFrameInFile(self.currentTrack, file)
                                       fadeMilliseconds:kFadeDurationMilliseconds
                                                 paused:_state == VibePlayerStatePaused];
     [self publishState:_state voice:voice file:file window:window
@@ -1423,7 +1423,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 - (void)notifyDidBeginLoadingForRequest:(VibePlaybackRequest *)request {
-    AudioTrack *track = request.track;
+    id<VibePlayableItem> track = request.track;
     uint64_t openRequestIdentifier = request.identifier;
     uint64_t submittedPlayIdentifier = request.submittedPlayIdentifier;
     [self deliverOnMainForSubmittedPlay:submittedPlayIdentifier named:@"didBeginLoading" block:^{
@@ -1432,7 +1432,7 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
 }
 
 - (void)notifyLoadingPausedForRequest:(VibePlaybackRequest *)request {
-    AudioTrack *track = request.track;
+    id<VibePlayableItem> track = request.track;
     BOOL paused = request.intent.paused;
     uint64_t submittedPlayIdentifier = request.submittedPlayIdentifier;
     [self deliverOnMainForSubmittedPlay:submittedPlayIdentifier named:@"didChangeLoadingPaused" block:^{

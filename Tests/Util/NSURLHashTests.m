@@ -150,7 +150,7 @@
     XCTAssertNotEqualObjects(installed, old);
     XCTAssertEqualObjects(track.cacheKey, old, @"memoized until retired");
 
-    [AudioTrack invalidateMemoizedCacheKeys];
+    [NSURL invalidateMemoizedCacheKeys];
     XCTAssertEqualObjects(track.cacheKey, installed);
     XCTAssertEqualObjects(row.cacheKey, installed, @"every track, not one");
     [NSFileManager.defaultManager removeItemAtURL:file error:NULL];

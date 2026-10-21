@@ -8,7 +8,7 @@
 
 #import "AudioTrack.h"
 #import "PlayableExtensions.h"
-#import "PlaybackIntent.h"
+#import "CueWindowMath.h"
 
 #include <libkern/OSByteOrder.h>
 #include <string.h>

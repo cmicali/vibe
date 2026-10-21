@@ -27,28 +27,6 @@ static inline VibePendingPlaybackIntent VibePendingPlaybackIntentBySeeking(
     return intent;
 }
 
-// CD frames, the unit of a cue window.
-static const NSUInteger kVibeCDFramesPerSecond = 75;
-
-// A track's window in file frames, from its cue window in CD frames (1/75 s):
-// rounded at the file's rate, the two rows meeting at a marker round the same
-// point, so they stay contiguous at a rate 75 does not divide. A cue end of 0,
-// or one past the file's, is the file's end; empty when nothing is left.
-// Against a length that is only an estimate (AudioFileHandle
-// lengthIsEstimated) nothing is refused or cut short: the cue end stands, and
-// a window to the file's end reaches a frame past its start at least; both
-// clamp once the length settles.
-static inline NSRange VibeCueWindow(NSUInteger cueStart, NSUInteger cueEnd, double sampleRate, int64_t fileLength,
-                                    BOOL lengthIsEstimated) {
-    int64_t start = llround((double)cueStart * sampleRate / kVibeCDFramesPerSecond);
-    int64_t cue = llround((double)cueEnd * sampleRate / kVibeCDFramesPerSecond);
-    if (lengthIsEstimated) {
-        fileLength = MAX(fileLength, cueEnd > 0 ? cue : start + 1);
-    }
-    int64_t end = cueEnd > 0 ? MIN(cue, fileLength) : fileLength;
-    return start < end ? NSMakeRange((NSUInteger)start, (NSUInteger)(end - start)) : NSMakeRange(0, 0);
-}
-
 // Seconds into the window → the file frame a voice starts at, clamped to the
 // window's last frame: a past-the-end start lands on the last frame rather
 // than on nothing.

@@ -5,7 +5,6 @@
 
 #import "AudioPlayer+Devices.h"
 #import "AudioPlayerInternal.h"
-#import "AudioTrack.h"
 #import "AudioFX.h"
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
@@ -555,7 +554,7 @@ static const NSTimeInterval kSlowDeviceRebindLogThresholdSeconds = 0.25;
     os_unfair_lock_lock(&_stateLock);
     VibePlayerState priorState = _state;
     os_unfair_lock_unlock(&_stateLock);
-    AudioTrack *trackToRestore = self.currentTrack;
+    id<VibePlayableItem> trackToRestore = self.currentTrack;
     // Only a live track is restored onto the new device. A finished, Stopped
     // track still carries currentTrack and _file, so rescheduling it from the
     // saved frame would resurrect it as Paused. A Loading track's open is in

@@ -14,11 +14,11 @@
 
 #import "AudioError.h"     // domain, userInfo key and codes; re-exported here
 #import "PlaybackIntent.h"
+#import "VibePlayableItem.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioPlayerDelegate;
-@class AudioTrack;
 @class AudioFX;
 @class AudioLoadingConfiguration;
 
@@ -27,7 +27,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nullable, weak) id <AudioPlayerDelegate> delegate;
 
 // The player is the single writer of both.
-@property (nullable, strong, readonly) AudioTrack* currentTrack;
+@property (nullable, strong, readonly) id<VibePlayableItem> currentTrack;
 @property (atomic, readonly)    NSInteger currentlyRequestedAudioDeviceId;
 
 // Turntable pitch in percent, clamped to ±maxPitch: speed and pitch move
@@ -103,7 +103,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - Transport
 
-- (void)play:(AudioTrack *)track;
+- (void)play:(id<VibePlayableItem>)track;
 // The user's toggle, of the state when it reaches the player queue,
 // including an in-flight open's landing intent.
 - (void)playPause;
@@ -116,13 +116,13 @@ NS_ASSUME_NONNULL_BEGIN
 // the player would land in, Loading's pending intent included. NO, intent
 // untouched, if stopped or a non-nil `track` is no longer current. Never
 // poll it.
-- (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(nullable AudioTrack *)track;
+- (BOOL)getPlaybackIntent:(VibePendingPlaybackIntent *)intent forTrack:(nullable id<VibePlayableItem>)track;
 
 // Starts a track at position (track seconds — into its window, which is its
 // whole file but for a cue row — clamped), optionally parked. For
 // Convert to FLAC's same-audio swap and a replacement that must land parked;
 // always declicks, never crossfades. Otherwise an ordinary play:.
-- (void)play:(AudioTrack *)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused;
+- (void)play:(id<VibePlayableItem>)track atPosition:(NSTimeInterval)position startPaused:(BOOL)startPaused;
 
 // Track seconds, clamped, playing or paused. didFinishSeeking: settles every
 // seek, one dropped because the track changed or nothing was loaded included.
@@ -139,13 +139,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)finishCurrentTrack;
 
 // Pre-opens the track that follows the current one at its end so a later
-// play: of the same source (AudioTrack.sourceKey: another cue row of the file
+// play: of the same source (sourceKey: another cue row of the file
 // opens its own) skips the open and starts a cloud download early; nil drops
 // the park. Single-use. It is also the gapless point: when gapless is allowed
 // the parked file is queued on the current voice. The promote delivers this
 // very object, so it must be the playlist's trackEndSuccessor — under Repeat
 // One the playing track itself.
-- (void)prefetchTrack:(nullable AudioTrack *)track;
+- (void)prefetchTrack:(nullable id<VibePlayableItem>)track;
 
 // The pending open's transfer moved: extends its abandon deadline, matched by
 // open identifier, never path, so an old monitor cannot extend a later open.
@@ -155,7 +155,7 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark - Beta diagnostics
 
 // Beta builds only (VIBE_VERBOSE_LOGGING); a no-op otherwise. Main thread.
-- (void)noteDisplayedPosition:(NSTimeInterval)position forTrack:(nullable AudioTrack *)track;
+- (void)noteDisplayedPosition:(NSTimeInterval)position forTrack:(nullable id<VibePlayableItem>)track;
 
 @end
 
@@ -208,7 +208,7 @@ NS_ASSUME_NONNULL_BEGIN
 // the grace period. Remote streams use the grace period. Followed by
 // didStartPlaying: or error:; a superseded load gets no terminal callback.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
-     didBeginLoading:(AudioTrack *)track
+     didBeginLoading:(id<VibePlayableItem>)track
 openRequestIdentifier:(uint64_t)openRequestIdentifier;
 
 // Play/pause changed what an in-flight open will land as, or a same-file
@@ -216,21 +216,21 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
 // Playing only, never playback-time accounting.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeLoadingPaused:(BOOL)paused
-                  forTrack:(AudioTrack *)track;
+                  forTrack:(id<VibePlayableItem>)track;
 
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(AudioTrack *)track;
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(AudioTrack *)track;
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(AudioTrack *)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didStartPlaying:(id<VibePlayableItem>)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didPausePlaying:(id<VibePlayableItem>)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didResumePlaying:(id<VibePlayableItem>)track;
 // track is nil for a seek with nothing playable loaded; still delivered so
 // the UI can settle.
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(nullable AudioTrack *)track;
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(AudioTrack *)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishSeeking:(nullable id<VibePlayableItem>)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didFinishPlaying:(id<VibePlayableItem>)track;
 // startedTrack, the object handed to prefetchTrack:, is already sounding:
 // advance the playlist WITHOUT play:. A track's end fires exactly one of
 // didFinishPlaying: or this.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
-    didAutoAdvanceFromTrack:(AudioTrack *)finishedTrack
-                    toTrack:(AudioTrack *)startedTrack;
+    didAutoAdvanceFromTrack:(id<VibePlayableItem>)finishedTrack
+                    toTrack:(id<VibePlayableItem>)startedTrack;
 
 - (void)audioPlayer:(AudioPlayer *)audioPlayer error:(NSError *)error;
 
@@ -269,19 +269,19 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier;
 // VibeAudioErrorConnectionLost.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBuffering:(BOOL)buffering
-              forTrack:(AudioTrack *)track;
+              forTrack:(id<VibePlayableItem>)track;
 
 // Main thread, when bufferingNoticeShown changes for the current play. It is
 // not a hold edge. It rises during a hold, and after a seek it can fall with
 // no hold edge.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer
     didChangeBufferingNotice:(BOOL)shown
-                    forTrack:(AudioTrack *)track;
+                    forTrack:(id<VibePlayableItem>)track;
 
 // Main thread, once, when the current play's duration settles: a streaming
 // MP3 opened on an estimated length (AudioFileHandle.lengthIsEstimated) has
 // counted its frames. Only the total moved; the position did not.
-- (void)audioPlayer:(AudioPlayer *)audioPlayer didSettleDurationOfTrack:(AudioTrack *)track;
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didSettleDurationOfTrack:(id<VibePlayableItem>)track;
 
 // Main thread, when outputIdle becomes YES after the idle stop or an iOS
 // media-services reset. Read outputIdle before acting on it; a newer

@@ -1,6 +1,12 @@
 # Playlist
 
-`Playlist` (the model), `FolderWalk` (the disk walk) and `PlaylistFile` (the CUE and M3U readers and the M3U writer) are shared with iOS. All three are tested. **`Mac/` is the `NSTableView` half and the last-playlist store, and has its own `AGENTS.md`.** The iOS list is `Vibe/iOS/PlaylistViewController`.
+`AudioTrack` (the row), `Playlist` (the model), `FolderWalk` (the disk walk) and `PlaylistFile` (the CUE and M3U readers and the M3U writer) are shared with iOS. All four are tested. **`Mac/` is the `NSTableView` half and the last-playlist store, and has its own `AGENTS.md`.** The iOS list is `Vibe/iOS/PlaylistViewController`.
+
+## The row
+
+**`AudioTrack` is one row: a file whole, or a cue sheet's window of one.** It holds the row's installed metadata, its analyzed tempo and key, and the sheet's names. `bpm` and `key` are the one home of the rule that tags beat analysis. `displayTitle` and `displayArtist` are the one place a track is named (root `AGENTS.md`).
+
+**It adopts `VibePlayableItem` (`Audio/VibePlayableItem.h`), which is all the player and the caches read of it.** That is its URL, its window in CD frames, `sourceKey`, `cacheKey` and the settled duration. `sourceKey` is fixed at init, so a per-tick comparison allocates nothing. `cacheKey` is memoized and stamped with `NSURL.cacheKeyGeneration`, so a download that installs another version retires every memo at once. The window's arithmetic is `Audio/CueWindowMath.h`, which the CUE reader shares.
 
 ## The model
 

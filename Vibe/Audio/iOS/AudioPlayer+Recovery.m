@@ -118,7 +118,7 @@
             _nextSubmittedPlayIdentifier;
     dispatch_async(_queue, ^{
         LogWarn(@"AudioPlayer: rebuilding the output after media services reset");
-        AudioTrack *resetTrack = self.currentTrack;
+        id<VibePlayableItem> resetTrack = self.currentTrack;
         // The voice's consumed frames, read before the bus is dropped; 0 for
         // a Stopped player, so replaying a finished track begins at zero.
         NSTimeInterval position = self.position;

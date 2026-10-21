@@ -7,7 +7,6 @@
 #import "AudioPlayerInternal.h"
 #import "AudioMasterBusInternal.h"
 #import "AudioFX+Pipeline.h"
-#import "AudioTrack.h"
 #import "AudioVarispeed.h"
 #if TARGET_OS_OSX
 #import "OutputFormatRules.h"

@@ -4,19 +4,15 @@
 //
 
 #import "AudioTrackInternal.h"
-#import "AudioFileHandle.h"
 #import "AudioFileOpenRules.h"
 #import "AudioTrackMetadata.h"
+#import "CueWindowMath.h"
 #import "Formatters.h"
+#import "NSURL+FilenameTitle.h"
 #import "NSURL+Hash.h"
-#import "PlaybackIntent.h"
 #import "VibeStrings.h"
 
 #include <stdatomic.h>
-
-// Bumped when a file is replaced under its URL by another version: a memo
-// stamped with an older one is stale.
-static _Atomic uint64_t sCacheKeyGeneration;
 
 @interface AudioTrack ()
 @property(copy, readwrite) NSURL *url;
@@ -33,8 +29,8 @@ static _Atomic uint64_t sCacheKeyGeneration;
     NSString *_sourceKey;
     // A cue row's own name — its TITLE, else "Track n" — or nil.
     NSString *_cueRowTitle;
-    // The sCacheKeyGeneration memoizedCacheKey was computed under; stored
-    // after it, so a reader matching it reads that key or a newer one.
+    // The NSURL.cacheKeyGeneration memoizedCacheKey was computed under;
+    // stored after it, so a reader matching it reads that key or a newer one.
     _Atomic uint64_t _memoizedCacheKeyGeneration;
 }
 
@@ -84,25 +80,8 @@ static _Atomic uint64_t sCacheKeyGeneration;
     return track;
 }
 
-- (NSRange)frameWindowInFile:(AudioFileHandle *)file estimated:(BOOL *)estimated {
-    BOOL guessed = NO;
-    AVAudioFramePosition length = [file lengthEstimated:&guessed];
-    if (estimated) {
-        *estimated = guessed;
-    }
-    return VibeCueWindow(_cueStart, _cueEnd, file.processingFormat.sampleRate, length, guessed);
-}
-
-- (int64_t)endFrameInFile:(AudioFileHandle *)file {
-    return _cueEnd > 0 ? llround((double)_cueEnd * file.processingFormat.sampleRate / kVibeCDFramesPerSecond) : 0;
-}
-
 - (BOOL)isWindowed {
     return _cueStart > 0 || _cueEnd > 0;
-}
-
-- (BOOL)isFollowedContiguouslyBy:(AudioTrack *)track {
-    return track && _cueEnd > 0 && track.cueStart == _cueEnd && [track.url isEqual:self.url];
 }
 
 - (NSString *)sourceKey {
@@ -114,9 +93,7 @@ static _Atomic uint64_t sCacheKeyGeneration;
 }
 
 - (NSString *)keyByAppendingWindowTo:(NSString *)key {
-    return key && self.isWindowed ? [NSString stringWithFormat:@"%@#%lu-%lu", key,
-                                            (unsigned long)_cueStart, (unsigned long)_cueEnd]
-                                  : key;
+    return VibeKeyByAppendingCueWindow(key, _cueStart, _cueEnd);
 }
 
 - (BOOL)installMetadataIfUnresolved:(AudioTrackMetadata *)metadata {
@@ -141,14 +118,10 @@ static _Atomic uint64_t sCacheKeyGeneration;
     }
 }
 
-+ (void)invalidateMemoizedCacheKeys {
-    atomic_fetch_add(&sCacheKeyGeneration, 1);
-}
-
 - (nullable NSString *)cacheKey {
     // Read before the stat, so a replacement landing during it stamps this
     // key stale.
-    uint64_t generation = atomic_load(&sCacheKeyGeneration);
+    uint64_t generation = NSURL.cacheKeyGeneration;
     NSString *key = atomic_load(&_memoizedCacheKeyGeneration) == generation ? self.memoizedCacheKey : nil;
     if (!key) {
         // Outside the monitor: the stat can block indefinitely on a hung
@@ -177,12 +150,7 @@ static _Atomic uint64_t sCacheKeyGeneration;
     if (self.metadata.title.length > 0) {
         return self.metadata.title;
     }
-    return self.url ? [AudioTrack filenameTitleForURL:self.url] : @"";
-}
-
-+ (NSString *)filenameTitleForURL:(NSURL *)url {
-    NSString *name = url.lastPathComponent.stringByDeletingPathExtension;
-    return [name stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet] ?: @"";
+    return self.url.filenameTitle ?: @"";
 }
 
 - (NSString *)artist {

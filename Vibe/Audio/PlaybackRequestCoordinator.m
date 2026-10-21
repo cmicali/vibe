@@ -6,7 +6,7 @@
 #import "PlaybackRequestCoordinator.h"
 
 @interface VibePlaybackRequest ()
-@property (nonatomic, strong) AudioTrack *track;
+@property (nonatomic, strong) id<VibePlayableItem> track;
 @property (nonatomic, copy) NSString *path;
 @property (nonatomic) VibePendingPlaybackIntent intent;
 @property (nonatomic) uint64_t identifier;
@@ -28,7 +28,7 @@
     return [self copyOfRequest:_currentRequest];
 }
 
-- (uint64_t)beginWithTrack:(AudioTrack *)track
+- (uint64_t)beginWithTrack:(id<VibePlayableItem>)track
                       path:(NSString *)path
                     intent:(VibePendingPlaybackIntent)intent
    submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
@@ -42,7 +42,7 @@
     return request.identifier;
 }
 
-- (VibePlaybackRequestRebind)rebindTrack:(AudioTrack *)track
+- (VibePlaybackRequestRebind)rebindTrack:(id<VibePlayableItem>)track
                                     path:(NSString *)path
                                   intent:(VibePendingPlaybackIntent)intent
                  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
@@ -94,7 +94,7 @@
 }
 
 - (BOOL)seekToPosition:(NSTimeInterval)position
-      ifCurrentTrackIs:(AudioTrack *)track
+      ifCurrentTrackIs:(id<VibePlayableItem>)track
  submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     VibePlaybackRequest *request = _currentRequest;
     if (!request) {

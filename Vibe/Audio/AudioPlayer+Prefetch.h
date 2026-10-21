@@ -23,8 +23,6 @@
 #import "AudioPrefetchRules.h"
 #import <AVFAudio/AVFAudio.h>
 
-@class AudioTrack;
-
 NS_ASSUME_NONNULL_BEGIN
 
 @interface AudioPlayer (Prefetch)
@@ -32,7 +30,7 @@ NS_ASSUME_NONNULL_BEGIN
 // nil drops the park, which is what a play past the last track does. A
 // request for another track suppressed behind playback retains its track and
 // resumes only after that playback succeeds.
-- (void)prefetchOnQueue:(nullable AudioTrack *)track;
+- (void)prefetchOnQueue:(nullable id<VibePlayableItem>)track;
 
 - (void)clearPrefetchOnQueue;
 - (void)terminallyRetirePrefetchRequestOnQueue;

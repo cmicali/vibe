@@ -1097,7 +1097,8 @@ targetTemplates:
     sources:
       - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # HTTPStub's sessionConfiguration
       - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
-      - path: Vibe/Audio/AudioTrack.m
+      - path: Vibe/Playlist/AudioTrack.m
+      - path: Vibe/Audio/Metadata/NSURL+FilenameTitle.m
       # Optimize the render path for long PCM comparisons without enabling fast math.
       - path: Vibe/Audio/AudioVoiceBus.m
         compilerFlags: &render-path-flags ["-O2"]

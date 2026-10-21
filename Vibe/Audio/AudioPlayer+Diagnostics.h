@@ -41,13 +41,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)performDiagnosticPhase:(NSString *)phase device:(NSInteger)deviceID operation:(BOOL (^)(void))operation;
 
 // Submission-side hooks. Any thread; they return a stamp for the queue side.
-- (uint64_t)noteSubmittedPlay:(uint64_t)submittedPlay track:(nullable AudioTrack *)track position:(NSTimeInterval)position paused:(BOOL)paused;
+- (uint64_t)noteSubmittedPlay:(uint64_t)submittedPlay track:(nullable id<VibePlayableItem>)track position:(NSTimeInterval)position paused:(BOOL)paused;
 - (uint64_t)noteSubmittedAction:(NSString *)action position:(NSTimeInterval)position;
 
 // Queue-side hooks.
 - (void)noteAdmittedPlay:(uint64_t)submittedPlay submittedAt:(uint64_t)submittedAt;
 - (void)noteAdmittedAction:(NSString *)action submittedAt:(uint64_t)submittedAt position:(NSTimeInterval)position;
-- (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(nullable AudioTrack *)track file:(nullable AudioFileHandle *)file error:(nullable NSError *)error;
+- (void)noteOpenSettledForPlay:(uint64_t)submittedPlay track:(nullable id<VibePlayableItem>)track file:(nullable AudioFileHandle *)file error:(nullable NSError *)error;
 - (void)noteVoiceStarted:(VibeVoiceID)voice file:(AudioFileHandle *)file fromFrame:(AVAudioFramePosition)frame reason:(NSString *)reason;
 - (void)noteBusEvent:(VibeVoiceEvent)event voice:(VibeVoiceID)voice current:(BOOL)current;
 // Every drain: the render-clock check, and the first-render line for a voice whose live event preceded its render.
@@ -66,9 +66,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Beta builds record the first UI position beyond each published playing
 // position, so a late display can be told from late audio. Player queue.
-- (void)notePublishedPlayingPosition:(NSTimeInterval)position track:(nullable AudioTrack *)track voice:(VibeVoiceID)voice;
+- (void)notePublishedPlayingPosition:(NSTimeInterval)position track:(nullable id<VibePlayableItem>)track voice:(VibeVoiceID)voice;
 // Main thread. The body of the public noteDisplayedPosition:forTrack:.
-- (void)recordDisplayedPosition:(NSTimeInterval)position forTrack:(nullable AudioTrack *)track;
+- (void)recordDisplayedPosition:(NSTimeInterval)position forTrack:(nullable id<VibePlayableItem>)track;
 
 @end
 
