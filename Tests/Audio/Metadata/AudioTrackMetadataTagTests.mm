@@ -12,7 +12,6 @@
 #import <XCTest/XCTest.h>
 
 #import "AudioTrack.h"
-#import "AudioTrackInternal.h"
 #import "AudioTrackMetadataInternal.h"
 #import "AudioTrackMetadataTagFixtures.h"
 #import "PlatformImage.h"

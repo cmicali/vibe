@@ -132,7 +132,7 @@ The pump proves the software path, **not** DAC samples, hardware negotiation, ex
 
 **Sources under test are compiled into the test target, not linked from the app.** A test for a new file adds that file to a source list in `project.yml`. A file both test targets compile goes in the `hostless-test-sources` template. A file only one target compiles goes in that target's own list. Keep the lists curated. TagLib and the real `AudioTrackMetadata` are compiled only into `VibeAudioTests`. Keep them out of `VibeTests` and the template.
 
-**Where a test needs an `AudioTrackMetadata`, use a duck-typed fake cast to the property type.** `FakeTrackMetadata` (`Support/`) is that fake, installed through `AudioTrackInternal.h`. `AudioTrack` only sends messages to its metadata and never names the class.
+**Where a test needs an `AudioTrackMetadata`, use a duck-typed fake cast to the property type.** `FakeTrackMetadata` (`Support/`) is that fake, installed through the row's `installMetadataIfUnresolved:`. `AudioTrack` only sends messages to its metadata and never names the class.
 
 **Share a private method under test through an `*Internal.h` the implementation imports too** (`FolderWalkInternal.h`), never by re-declaring selectors in the test. A rename then breaks the build instead of the run.
 

@@ -8,6 +8,8 @@
 
 **It adopts `VibePlayableItem` (`Audio/VibePlayableItem.h`), which is all the player and the caches read of it.** That is its URL, its window in CD frames, `sourceKey` and `cacheKey`. `sourceKey` is fixed at init, so a per-tick comparison allocates nothing. `cacheKey` is memoized and stamped with `NSURL.cacheKeyGeneration`, so a download that installs another version retires every memo at once. The window's arithmetic is `Audio/CueWindowMath.h`, which the CUE reader shares.
 
+**It also adopts `AudioTrackMetadataHolder` (`Audio/Metadata/`), which extends the playable item.** The metadata loader installs its results through it. That is the installed metadata, the install that happens only while the row has no answer, and the delivery that runs only while that answer is still installed. The check and the store share the row's monitor. **TRAP: the player's `id<VibePlayableItem>` needs an explicit cast to become an `AudioTrack *`.** clang converts it implicitly only when the playable item inherits every protocol the class adopts. It does not inherit the holder (`AudioTrack.h`).
+
 **The player never writes the row, so each shell stores its settled length.** `duration` takes the player's at `didStartPlaying:`, at `didAutoAdvanceFromTrack:toTrack:` and at `didSettleDurationOfTrack:` (`adoptSettledDurationOfTrack:`, in each shell's `+PlayerEvents`). It is written only while the player still sounds that row, since the player's duration is the sounding track's. Until then a windowed row answers its window, and a whole file its metadata's length.
 
 ## The model

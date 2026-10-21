@@ -11,7 +11,6 @@
 #import "AudioTrackMetadataCacheInternal.h"
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioLoadingConfiguration.h"
-#import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "FilePaths.h"
 #import "MetadataScanEntry.h"
@@ -82,7 +81,7 @@
     return self;
 }
 
-- (void)load:(NSArray<AudioTrack*>*)tracks {
+- (void)load:(NSArray<id<AudioTrackMetadataHolder>>*)tracks {
     __weak __typeof(self) weakSelf = self;
     // Off main: the walk over a large drop. High priority, so the sweep starts
     // ahead of queued parses.
@@ -91,11 +90,11 @@
         if (!setupSelf) return;
         // One record per file, its rows in playlist order.
         NSMutableArray<MetadataScanEntry *> *worklist = [NSMutableArray array];
-        NSMutableDictionary<NSString *, NSMutableArray<AudioTrack *> *> *rowsByPath =
+        NSMutableDictionary<NSString *, NSMutableArray<id<AudioTrackMetadataHolder>> *> *rowsByPath =
                 [NSMutableDictionary dictionaryWithCapacity:tracks.count];
         for (NSUInteger index = 0; index < tracks.count; index++) {
             if (setupSelf.isCancelled) break;
-            AudioTrack *track = tracks[index];
+            id<AudioTrackMetadataHolder> track = tracks[index];
             // A failed parse stays eligible: the file may be readable now.
             if (track.metadata.parsedOK) continue;
             BOOL alreadyQueued;
@@ -109,7 +108,7 @@
             if (alreadyQueued) continue;
             // Keyed like the parse claim, so two spellings share one record.
             NSString *path = VibeStandardizedAudioOpenPath(track.url);
-            NSMutableArray<AudioTrack *> *rows = rowsByPath[path];
+            NSMutableArray<id<AudioTrackMetadataHolder>> *rows = rowsByPath[path];
             if (!rows) {
                 rows = [NSMutableArray array];
                 rowsByPath[path] = rows;
@@ -181,7 +180,7 @@
 // Every miss takes the materialization path, including local files. The
 // first row reads for the file; a cache hit serves every row of a cue sheet.
 - (void)cacheCheckEntry:(MetadataScanEntry *)entry {
-    AudioTrack *track = entry.tracks.firstObject;
+    id<AudioTrackMetadataHolder> track = entry.tracks.firstObject;
     // An earlier loader may have resolved it since it was queued.
     if (track.metadata.parsedOK || [self loadTrackFromDiskCache:track]) {
         [self settleTracks:entry.tracks withMetadata:track.metadata];

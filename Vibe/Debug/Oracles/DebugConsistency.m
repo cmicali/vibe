@@ -131,7 +131,7 @@ NSUInteger VibeDebugCheckShared(NSMutableArray<NSDictionary *> *v,
     // so a gapless promotion can be one valid transient ahead of the playlist;
     // the re-check clears it. Loading has cleared currentTrack.
     checked++;
-    AudioTrack *playerTrack = player.currentTrack;
+    AudioTrack *playerTrack = (AudioTrack *)player.currentTrack;
     if (playerTrack && playerTrack != current) {
         VibeDebugViolation(v, @"player.current_track_matches_playlist",
                 @"player has %@ (%p), playlist has %@ (%p)",

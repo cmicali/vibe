@@ -6,21 +6,21 @@
 #import <Foundation/Foundation.h>
 #import "PlatformTypes.h"
 #import "MusicalKey.h"
-#import "VibePlayableItem.h"
+#import "AudioTrackMetadataHolder.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrackMetadata;
 
 // A playlist row: a file whole, or a cue sheet's window of one. What the
-// player and the caches read of it is VibePlayableItem.
-@interface AudioTrack : NSObject <VibePlayableItem>
+// player and the caches read of it is VibePlayableItem. The metadata loader
+// installs its results through AudioTrackMetadataHolder, which extends it.
+// TRAP: the player's id<VibePlayableItem> needs an explicit cast to become an
+// AudioTrack *. clang converts it implicitly only when the playable item
+// inherits every protocol the class adopts, and it does not inherit the holder.
+@interface AudioTrack : NSObject <AudioTrackMetadataHolder>
 
 @property (copy, readonly) NSURL *url;
-
-// Atomic: loader workers publish it while main reads it. nil until a loader
-// delivers.
-@property(atomic, strong, nullable, readonly) AudioTrackMetadata *metadata;
 
 // The tempo from the waveform decode pass; 0 means not yet analyzed or
 // undetectable. Transient: the waveform cache re-delivers it on every load.

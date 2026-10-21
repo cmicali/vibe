@@ -8,7 +8,6 @@
 
 #import "AudioTrackMetadataLoaderInternal.h"
 #import "AudioFileMaterializationCoordinator.h"
-#import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "FilePaths.h"
 #import "MetadataScanEntry.h"
@@ -51,7 +50,7 @@
 // submission; an in-flight or mid-stage-1 one adopts the mark at completion or
 // enqueue; any other track gets its own high-priority cache check, then joins
 // its file's pending record or mints one.
-- (void)prioritizeTrack:(AudioTrack *)track {
+- (void)prioritizeTrack:(id<AudioTrackMetadataHolder>)track {
     if (track.metadata.parsedOK) {
         [self retirePriorityMarksSatisfiedByTracks:@[track]];
         return;
@@ -706,7 +705,7 @@
 
 // _materializationLock held. The record not yet picked, pending or delayed,
 // that holds the row; a row is in at most one.
-- (MetadataScanEntry *)unpickedRecordHoldingTrackLocked:(AudioTrack *)track {
+- (MetadataScanEntry *)unpickedRecordHoldingTrackLocked:(id<AudioTrackMetadataHolder>)track {
     for (MetadataScanEntry *record in _pendingMaterializations) {
         if ([record holdsTrack:track]) {
             return record;
@@ -737,7 +736,7 @@
 - (MetadataPriorityMark *)leadEntryWithItsMarkedRowLocked:(MetadataScanEntry *)entry {
     MetadataPriorityMark *mark = [self priorityMarkForEntryLocked:entry];
     if (mark && entry.tracks.firstObject != mark.track) {
-        NSMutableArray<AudioTrack *> *tracks = [entry.tracks mutableCopy];
+        NSMutableArray<id<AudioTrackMetadataHolder>> *tracks = [entry.tracks mutableCopy];
         [tracks removeObjectIdenticalTo:mark.track];
         [tracks insertObject:mark.track atIndex:0];
         entry.tracks = tracks;
@@ -746,7 +745,7 @@
 }
 
 // _materializationLock held. Answers whether any mark was retired.
-- (BOOL)retirePriorityMarksTargetingTracksLocked:(NSArray<AudioTrack *> *)tracks {
+- (BOOL)retirePriorityMarksTargetingTracksLocked:(NSArray<id<AudioTrackMetadataHolder>> *)tracks {
     if (_priorityMarks.count == 0) {
         return NO;
     }
@@ -762,7 +761,7 @@
     return YES;
 }
 
-- (void)retirePriorityMarksSatisfiedByTracks:(NSArray<AudioTrack *> *)tracks {
+- (void)retirePriorityMarksSatisfiedByTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks {
     os_unfair_lock_lock(&_materializationLock);
     BOOL retired = [self retirePriorityMarksTargetingTracksLocked:tracks];
     os_unfair_lock_unlock(&_materializationLock);
@@ -782,7 +781,7 @@
     }];
     NSArray<MetadataScanEntry *> *removed = [[_pendingMaterializations filteredArrayUsingPredicate:samePath]
             arrayByAddingObjectsFromArray:[_delayedScanRetryEntries filteredSetUsingPredicate:samePath].allObjects];
-    NSMutableArray<AudioTrack *> *dropped = [entry.tracks mutableCopy];
+    NSMutableArray<id<AudioTrackMetadataHolder>> *dropped = [entry.tracks mutableCopy];
     for (MetadataScanEntry *record in removed) {
         [dropped addObjectsFromArray:record.tracks];
         [_pendingMaterializations removeObjectIdenticalTo:record];
@@ -793,7 +792,7 @@
     _scanOrderGeneration++;
 }
 
-- (void)abandonQueuedTrack:(AudioTrack *)track {
+- (void)abandonQueuedTrack:(id<AudioTrackMetadataHolder>)track {
     if (!track) {
         return;
     }
@@ -803,7 +802,7 @@
     // receivers must reject delivery for a departed row.
     MetadataScanEntry *record = [self unpickedRecordHoldingTrackLocked:track];
     if (record) {
-        NSMutableArray<AudioTrack *> *remaining = [record.tracks mutableCopy];
+        NSMutableArray<id<AudioTrackMetadataHolder>> *remaining = [record.tracks mutableCopy];
         [remaining removeObjectIdenticalTo:track];
         if (remaining.count > 0) {
             record.tracks = remaining;

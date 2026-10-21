@@ -10,8 +10,6 @@
 #import "AudioTrackMetadataLoaderInternal.h"
 #import "AudioTrackMetadataCacheInternal.h"
 #import "PINCache.h"
-#import "AudioTrack.h"
-#import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
 #import "AudioTrackArtwork.h"
@@ -49,7 +47,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
 // Reads file attributes and the cache, never the audio bytes. A dataless
 // file needs no download for this lookup.
-- (AudioTrackMetadata *)readCachedMetadataForTrack:(AudioTrack *)track {
+- (AudioTrackMetadata *)readCachedMetadataForTrack:(id<AudioTrackMetadataHolder>)track {
     if (_cacheReader) {
         return _cacheReader(track);
     }
@@ -82,9 +80,9 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     return cachedMetaData;
 }
 
-- (void)loadFromCacheOnly:(NSArray<AudioTrack *> *)tracks {
+- (void)loadFromCacheOnly:(NSArray<id<AudioTrackMetadataHolder>> *)tracks {
     __weak __typeof(self) weakSelf = self;
-    for (AudioTrack *track in tracks) {
+    for (id<AudioTrackMetadataHolder> track in tracks) {
         NSOperation *op = [NSBlockOperation blockOperationWithBlock:^{
             __typeof(self) strongSelf = weakSelf;
             if (strongSelf && !track.metadata) {
@@ -98,7 +96,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     }
 }
 
-- (BOOL)loadTrackFromDiskCache:(AudioTrack *)track {
+- (BOOL)loadTrackFromDiskCache:(id<AudioTrackMetadataHolder>)track {
     AudioTrackMetadata *cachedMetaData = [self readCachedMetadataForTrack:track];
     if (!cachedMetaData) {
         return NO;
@@ -140,7 +138,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         parse.qualityOfService = NSQualityOfServiceUserInitiated;
         parse.queuePriority = NSOperationQueuePriorityHigh;
     }
-    for (AudioTrack *track in entry.tracks) {
+    for (id<AudioTrackMetadataHolder> track in entry.tracks) {
         [_parseOperationsByTrack setObject:parse forKey:track];
     }
 #if DEBUG
@@ -153,7 +151,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
 - (void)finishParseOperation:(NSOperation *)operation forEntry:(MetadataScanEntry *)entry {
     os_unfair_lock_lock(&_materializationLock);
-    for (AudioTrack *track in entry.tracks) {
+    for (id<AudioTrackMetadataHolder> track in entry.tracks) {
         if ([_parseOperationsByTrack objectForKey:track] == operation) {
             [_parseOperationsByTrack removeObjectForKey:track];
         }
@@ -170,7 +168,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     os_unfair_lock_lock(&_materializationLock);
     [self leadEntryWithItsMarkedRowLocked:entry];
     os_unfair_lock_unlock(&_materializationLock);
-    NSArray<AudioTrack *> *tracks = entry.tracks;
+    NSArray<id<AudioTrackMetadataHolder>> *tracks = entry.tracks;
     if (tracks.firstObject.metadata.parsedOK) {
         [self settleTracks:tracks withMetadata:tracks.firstObject.metadata];
         return;
@@ -192,17 +190,17 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         [self finishTracks:tracks];
         return;
     }
-    AudioTrack *track = tracks[ownerIndex];
+    id<AudioTrackMetadataHolder> track = tracks[ownerIndex];
     // Another lane or a prior holder may have resolved it before the claim.
     AudioTrackMetadata *result = (track.metadata.parsedOK || [self loadTrackFromDiskCache:track])
             ? track.metadata : [self parseAndCacheMetadataForTrack:track];
     if (result.parsedOK) {
         // NO for a resolved holder, already published.
         BOOL publishHolder = [track installMetadataIfUnresolved:result];
-        NSMutableArray<AudioTrack *> *adopted = [NSMutableArray array];
+        NSMutableArray<id<AudioTrackMetadataHolder>> *adopted = [NSMutableArray array];
         BOOL completed = NO;
         do {
-            NSArray<AudioTrack *> *waiters =
+            NSArray<id<AudioTrackMetadataHolder>> *waiters =
                     [_parseCoordinator drainWaitersForSuccessfulClaim:claim
                                                               completed:&completed];
             [adopted addObjectsFromArray:
@@ -211,7 +209,7 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
         if (publishHolder) {
             [self publishTrack:track];
         }
-        for (AudioTrack *waiter in adopted) {
+        for (id<AudioTrackMetadataHolder> waiter in adopted) {
             [self publishTrack:waiter];
         }
         [self settleTracks:tracks withMetadata:result];
@@ -219,11 +217,11 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     }
 
     BOOL publishFallback = [track installMetadataIfUnresolved:result];
-    NSArray<AudioTrack *> *waiters = [_parseCoordinator completeClaim:claim];
+    NSArray<id<AudioTrackMetadataHolder>> *waiters = [_parseCoordinator completeClaim:claim];
     if (publishFallback) {
         [self publishTrack:track expectedMetadata:result];
     }
-    for (AudioTrack *waiter in waiters) {
+    for (id<AudioTrackMetadataHolder> waiter in waiters) {
         AudioTrackMetadata *copy = [result copy];
         if ([waiter installMetadataIfUnresolved:copy]) {
             [self publishTrack:waiter expectedMetadata:copy];
@@ -242,10 +240,10 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
     }
 }
 
-- (NSArray<AudioTrack *> *)installCopiesOfMetadata:(AudioTrackMetadata *)metadata
-                                           onTracks:(NSArray<AudioTrack *> *)tracks {
-    NSMutableArray<AudioTrack *> *installed = [NSMutableArray array];
-    for (AudioTrack *track in tracks) {
+- (NSArray<id<AudioTrackMetadataHolder>> *)installCopiesOfMetadata:(AudioTrackMetadata *)metadata
+                                                             onTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks {
+    NSMutableArray<id<AudioTrackMetadataHolder>> *installed = [NSMutableArray array];
+    for (id<AudioTrackMetadataHolder> track in tracks) {
         if (track.metadata.parsedOK) {
             continue;
         }
@@ -258,9 +256,9 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 }
 
 // Ends each track's scan and retires the marks they satisfy.
-- (void)finishTracks:(NSArray<AudioTrack *> *)tracks {
+- (void)finishTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks {
     os_unfair_lock_lock(&_materializationLock);
-    for (AudioTrack *track in tracks) {
+    for (id<AudioTrackMetadataHolder> track in tracks) {
         [_tracksWithScanInFlight removeObject:track];
     }
     BOOL retired = [self retirePriorityMarksTargetingTracksLocked:tracks];
@@ -272,14 +270,14 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
 // Copies into every track still unresolved and publishes it, then finishes
 // them all.
-- (void)settleTracks:(NSArray<AudioTrack *> *)tracks withMetadata:(AudioTrackMetadata *)metadata {
-    for (AudioTrack *adopted in [self installCopiesOfMetadata:metadata onTracks:tracks]) {
+- (void)settleTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks withMetadata:(AudioTrackMetadata *)metadata {
+    for (id<AudioTrackMetadataHolder> adopted in [self installCopiesOfMetadata:metadata onTracks:tracks]) {
         [self publishTrack:adopted];
     }
     [self finishTracks:tracks];
 }
 
-- (AudioTrackMetadata *)parseAndCacheMetadataForTrack:(AudioTrack *)track {
+- (AudioTrackMetadata *)parseAndCacheMetadataForTrack:(id<AudioTrackMetadataHolder>)track {
     AudioTrackMetadataCache *owner = _owner;
     // Before the parse, which can block for minutes: an invalidate during it
     // makes the result stale for the cache.
@@ -319,11 +317,11 @@ static void VibeInstallArchivedDisplayArtProvider(AudioTrackMetadata *metadata,
 
 // Not gated on isCancelled: every caller won an install. The identity guard
 // decides delivery, and the delegate drops a departed track.
-- (void)publishTrack:(AudioTrack *)track {
+- (void)publishTrack:(id<AudioTrackMetadataHolder>)track {
     [self publishTrack:track expectedMetadata:track.metadata];
 }
 
-- (void)publishTrack:(AudioTrack *)track
+- (void)publishTrack:(id<AudioTrackMetadataHolder>)track
     expectedMetadata:(AudioTrackMetadata *)expectedMetadata {
     if (!expectedMetadata) {
         return;
