@@ -440,7 +440,7 @@ static NSData *FuzzCorruptData(VibeFuzzRandom *random) {
                     [NSString stringWithFormat:@"corrupt.%@", extension]];
             XCTAssertTrue([data writeToURL:playlist atomically:YES], @"seed %llu", seed);
 
-            NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:playlist] valueForKey:@"url"];
+            NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:playlist] valueForKey:@"url"];
 
             // One URL per entry, in order, whatever the entries turned out to
             // be: the caller pairs them with the playlist's rows.
@@ -493,7 +493,7 @@ static NSData *FuzzCorruptData(VibeFuzzRandom *random) {
             }
             XCTAssertTrue([data writeToURL:url atomically:YES], @"seed %llu", seed);
 
-            NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:url];
+            NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:url]];
 
             XCTAssertNotEqual(rows.count, 1u, @"seed %llu", seed);
             NSUInteger next = 0;
@@ -539,7 +539,7 @@ static NSData *FuzzCorruptData(VibeFuzzRandom *random) {
             NSURL *playlist = [dir URLByAppendingPathComponent:@"mix.m3u"];
             [[list dataUsingEncoding:NSUTF8StringEncoding] writeToURL:playlist atomically:YES];
 
-            NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:playlist] valueForKey:@"url"];
+            NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:playlist] valueForKey:@"url"];
             XCTAssertEqual(urls.count, written.count, @"seed %llu", seed);
             for (NSUInteger i = 0; i < urls.count && i < written.count; i++) {
                 // Compared precomposed: the volume stores names decomposed. The

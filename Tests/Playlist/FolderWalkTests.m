@@ -10,6 +10,7 @@
 
 #import "AudioFixtures.h"
 #import "AudioTrack.h"
+#import "PlaylistEntry.h"
 #import "PlaceholderFiles+Debug.h"
 #import "FolderWalkInternal.h"
 #import "PlayableExtensions.h"
@@ -114,13 +115,14 @@
 }
 
 // Strips both spellings of the root: the walk answers in resolved paths, and
-// playlist resolution standardizes, which drops the /private prefix again. A
-// windowed row reads as its file plus its window (sourceKey).
-- (NSArray<NSString *> *)relativePaths:(NSArray<AudioTrack *> *)rows {
+// playlist resolution standardizes, which drops the /private prefix again.
+// Each entry is made into the row the app makes, and a windowed row reads as
+// its file plus its window (sourceKey).
+- (NSArray<NSString *> *)relativePaths:(NSArray<PlaylistEntry *> *)entries {
     NSArray<NSString *> *prefixes = @[[_root.path stringByAppendingString:@"/"],
                                       [_root.path.stringByStandardizingPath stringByAppendingString:@"/"]];
-    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:rows.count];
-    for (AudioTrack *row in rows) {
+    NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:entries.count];
+    for (AudioTrack *row in [AudioTrack rowsForEntries:entries]) {
         NSString *name = row.sourceKey;
         for (NSString *prefix in prefixes) {
             if ([name hasPrefix:prefix]) {
@@ -332,13 +334,14 @@ static NSString *const kTwoTrackSheet =
     [self makeFile:@"mix.flac"];
     NSURL *sheet = [self makeText:kTwoTrackSheet at:@"mix.cue"];
 
-    NSArray<AudioTrack *> *rows = [FolderWalk expandAndFilterList:@[sheet] sortedBy:VibeFolderOpenSortName
-                                                      folderCount:NULL];
+    NSArray<PlaylistEntry *> *entries = [FolderWalk expandAndFilterList:@[sheet] sortedBy:VibeFolderOpenSortName
+                                                            folderCount:NULL];
 
-    XCTAssertEqualObjects([self relativePaths:rows], (@[@"mix.flac#0-4500", @"mix.flac#4500-0"]));
-    XCTAssertEqualObjects(rows[1].cueTitle, @"Two");
-    XCTAssertEqualObjects(rows[1].cuePerformer, @"DJ");
-    XCTAssertEqualObjects(rows[1].cueSheetURL.path.stringByStandardizingPath, sheet.path.stringByStandardizingPath);
+    XCTAssertEqualObjects([self relativePaths:entries], (@[@"mix.flac#0-4500", @"mix.flac#4500-0"]));
+    XCTAssertEqualObjects(entries[1].cueTitle, @"Two");
+    XCTAssertEqualObjects(entries[1].cuePerformer, @"DJ");
+    XCTAssertEqualObjects(entries[1].cueSheetURL.path.stringByStandardizingPath,
+                          sheet.path.stringByStandardizingPath);
 }
 
 - (void)testASheetInAWalkedFolderClaimsItsFile {
@@ -370,7 +373,7 @@ static NSString *const kTwoTrackSheet =
     NSURL *sheet = [self makeText:kTwoTrackSheet at:@"album.cue"];
 
     for (NSArray<NSURL *> *listing in @[@[sheet, lower, upper], @[sheet, upper, lower]]) {
-        XCTAssertEqualObjects([self relativePaths:[FolderWalk rowsForWalk:listing]],
+        XCTAssertEqualObjects([self relativePaths:[FolderWalk entriesForWalk:listing]],
                               (@[@"mix.flac#0-4500", @"mix.flac#4500-0", @"Mix.flac"]));
     }
 }
@@ -382,7 +385,7 @@ static NSString *const kTwoTrackSheet =
                                                                          withString:@"MIX.FLAC"]
                                at:@"album.cue"];
 
-    XCTAssertEqualObjects(([self relativePaths:[FolderWalk rowsForWalk:@[sheet, lower, upper]]]),
+    XCTAssertEqualObjects(([self relativePaths:[FolderWalk entriesForWalk:@[sheet, lower, upper]]]),
                           (@[@"mix.flac", @"Mix.flac"]));
 }
 
@@ -392,7 +395,7 @@ static NSString *const kTwoTrackSheet =
     NSURL *sheet = [self makeText:@"TRACK 01 AUDIO\n INDEX 01 00:00:00\n"
                                   "TRACK 02 AUDIO\n INDEX 01 01:00:00\n" at:@"mix.cue"];
 
-    XCTAssertEqualObjects(([self relativePaths:[FolderWalk rowsForWalk:@[sheet, lower, upper]]]),
+    XCTAssertEqualObjects(([self relativePaths:[FolderWalk entriesForWalk:@[sheet, lower, upper]]]),
                           (@[@"mix.flac#0-4500", @"mix.flac#4500-0", @"Mix.flac"]));
 }
 
@@ -460,19 +463,19 @@ static NSString *const kTwoTrackSheet =
                     listed = url.path;
                 }
             }
-            NSDictionary<NSString *, NSArray<AudioTrack *> *> *walks = @{
+            NSDictionary<NSString *, NSArray<PlaylistEntry *> *> *walks = @{
                 @"walk": [FolderWalk expandAndFilterList:@[folder] sortedBy:VibeFolderOpenSortName
                                              folderCount:NULL],
-                @"listing": [FolderWalk rowsInDirectory:folder sortedBy:VibeFolderOpenSortName],
+                @"listing": [FolderWalk entriesInDirectory:folder sortedBy:VibeFolderOpenSortName],
             };
             for (NSString *walk in walks) {
-                NSArray<AudioTrack *> *rows = walks[walk];
+                NSArray<PlaylistEntry *> *entries = walks[walk];
                 NSString *context = [NSString stringWithFormat:@"%@, %@, %@: %@", rung[0], spelling[0],
-                                                               walk, [self relativePaths:rows]];
-                XCTAssertEqual(rows.count, 2u, @"%@", context);
-                for (AudioTrack *row in rows) {
-                    XCTAssertEqualObjects(row.url.path, listed, @"%@", context);
-                    XCTAssertTrue(row.isWindowed, @"%@", context);
+                                                               walk, [self relativePaths:entries]];
+                XCTAssertEqual(entries.count, 2u, @"%@", context);
+                for (PlaylistEntry *entry in entries) {
+                    XCTAssertEqualObjects(entry.url.path, listed, @"%@", context);
+                    XCTAssertTrue(entry.isWindowed, @"%@", context);
                 }
             }
         }
@@ -489,14 +492,14 @@ static NSString *const kTwoTrackSheet =
                                                                               withString:@"\"Uno\""]
                                  at:@"folder/CDImage.cue"];
 
-    NSArray<AudioTrack *> *rows = [FolderWalk expandAndFilterList:@[[self makeDirectory:@"folder"]]
-                                                         sortedBy:VibeFolderOpenSortName folderCount:NULL];
-    XCTAssertEqualObjects([self relativePaths:rows], (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
-    XCTAssertEqualObjects(rows.firstObject.cueTitle, @"One");
+    NSArray<PlaylistEntry *> *entries = [FolderWalk expandAndFilterList:@[[self makeDirectory:@"folder"]]
+                                                               sortedBy:VibeFolderOpenSortName folderCount:NULL];
+    XCTAssertEqualObjects([self relativePaths:entries], (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+    XCTAssertEqualObjects(entries.firstObject.cueTitle, @"One");
 
-    rows = [FolderWalk rowsForWalk:@[cdImage, album, image]];
-    XCTAssertEqualObjects([self relativePaths:rows], (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
-    XCTAssertEqualObjects(rows.firstObject.cueTitle, @"Uno");
+    entries = [FolderWalk entriesForWalk:@[cdImage, album, image]];
+    XCTAssertEqualObjects([self relativePaths:entries], (@[@"folder/mix.flac#0-4500", @"folder/mix.flac#4500-0"]));
+    XCTAssertEqualObjects(entries.firstObject.cueTitle, @"Uno");
 }
 
 // A later sheet still cuts every file no earlier sheet did.
@@ -822,12 +825,14 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
         NSURL *folder = folders[i];
         XCTestExpectation *expectation = [self expectationWithDescription:folder.lastPathComponent];
         [expectations addObject:expectation];
-        [FolderWalk expandAndFilterList:@[folder] sortedBy:VibeFolderOpenSortName completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
-            XCTAssertTrue(NSThread.isMainThread);
+        [FolderWalk expandAndFilterList:@[folder] sortedBy:VibeFolderOpenSortName
+                             completion:^(NSArray<PlaylistEntry *> *entries, NSUInteger folderCount) {
+            // On the worker, so the caller makes its rows off main.
+            XCTAssertFalse(NSThread.isMainThread);
             XCTAssertEqual(folderCount, 1u);
-            XCTAssertEqual(rows.count, 5u);
-            for (AudioTrack *row in rows) {
-                XCTAssertEqualObjects(row.url.URLByDeletingLastPathComponent.path, folder.path);
+            XCTAssertEqual(entries.count, 5u);
+            for (PlaylistEntry *entry in entries) {
+                XCTAssertEqualObjects(entry.url.URLByDeletingLastPathComponent.path, folder.path);
             }
             [expectation fulfill];
         }];
@@ -863,8 +868,9 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     for (NSURL *playlist in playlists) {
         XCTestExpectation *expectation = [self expectationWithDescription:playlist.path];
         [expectations addObject:expectation];
-        [FolderWalk expandAndFilterList:@[playlist] sortedBy:VibeFolderOpenSortName completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
-            XCTAssertEqual(rows.count, 0u);
+        [FolderWalk expandAndFilterList:@[playlist] sortedBy:VibeFolderOpenSortName
+                             completion:^(NSArray<PlaylistEntry *> *entries, NSUInteger folderCount) {
+            XCTAssertEqual(entries.count, 0u);
             [expectation fulfill];
         }];
     }
@@ -978,13 +984,45 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
         reported = directories;
     }];
 
-    NSArray<AudioTrack *> *files = [FolderWalk expandDirectory:[self makeDirectory:@"library"]
-                                                      sortedBy:VibeFolderOpenSortName];
+    NSArray<PlaylistEntry *> *files = [FolderWalk expandDirectory:[self makeDirectory:@"library"]
+                                                         sortedBy:VibeFolderOpenSortName];
     [FolderWalk setWalkedDirectoriesHandler:nil];
 
     XCTAssertEqualObjects([self relativePaths:files], (@[@"elsewhere/Song.mp3"]));
     XCTAssertEqualObjects(reported, [NSSet setWithObject:
             [_root.path stringByAppendingPathComponent:@"elsewhere"]]);
+}
+
+// The walk keeps the best-ranked file of each directory and knows nothing of
+// what the rank means. A directory whose files all pass keeps none.
+- (void)testTheWalkKeepsEachDirectorysBestRankedFile {
+    [self makeFile:@"library/a/Song.mp3"];
+    [self makeFile:@"library/a/fair.txt"];
+    [self makeFile:@"library/a/best.txt"];
+    [self makeFile:@"library/b/Song.mp3"];
+    [self makeFile:@"library/b/fair.txt"];
+    [self makeFile:@"library/c/Song.mp3"];
+    NSDictionary<NSString *, NSNumber *> *ranks = @{@"best.txt": @0, @"fair.txt": @5};
+    [FolderWalk setWalkedFileHandler:^NSUInteger(NSString *filename) {
+        NSNumber *rank = ranks[filename];
+        return rank != nil ? rank.unsignedIntegerValue : NSNotFound;
+    }];
+    __block NSDictionary<NSString *, NSString *> *kept = nil;
+    __block NSSet<NSString *> *reported = nil;
+    [FolderWalk setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
+                                             NSDictionary<NSString *, NSString *> *keptFilenameByDirectory) {
+        reported = directories;
+        kept = keptFilenameByDirectory;
+    }];
+
+    [FolderWalk expandDirectory:[self makeDirectory:@"library"] sortedBy:VibeFolderOpenSortName];
+    [FolderWalk setWalkedFileHandler:nil];
+    [FolderWalk setWalkedDirectoriesHandler:nil];
+
+    NSString *library = [_root.path stringByAppendingPathComponent:@"library"];
+    XCTAssertEqual(reported.count, 3u);
+    XCTAssertEqualObjects(kept, (@{[library stringByAppendingPathComponent:@"a"]: @"best.txt",
+                                   [library stringByAppendingPathComponent:@"b"]: @"fair.txt"}));
 }
 
 @end

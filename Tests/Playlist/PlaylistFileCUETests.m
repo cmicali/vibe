@@ -7,14 +7,18 @@
 #import "PlaylistFileTestCase.h"
 #import "PlaylistFile.h"
 #import "AudioTrack.h"
+#import "PlaylistEntry.h"
 #import "AudioFixtures.h"
 
 // Each name at /cue/<name>, and a track before any FILE line at /cue/image.
+// The rows are made from the reader's entries, as the app makes them.
 static NSArray<AudioTrack *> *CueRows(NSString *text) {
-    return [PlaylistFile cueRowsInText:text sheetURL:[NSURL fileURLWithPath:@"/cue/sheet.cue"]
-                         resolvingFile:^NSURL *(NSString *name, BOOL sole) {
+    NSArray<PlaylistEntry *> *entries =
+            [PlaylistFile cueEntriesInText:text sheetURL:[NSURL fileURLWithPath:@"/cue/sheet.cue"]
+                             resolvingFile:^NSURL *(NSString *name, BOOL sole) {
         return [NSURL fileURLWithPath:[@"/cue" stringByAppendingPathComponent:name ?: @"image"] isDirectory:NO];
     }];
+    return [AudioTrack rowsForEntries:entries];
 }
 
 // A row as "file start-end title/performer #number", one string to compare.
@@ -181,7 +185,7 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     XCTAssertEqualObjects([PlaylistFile fileNamesInCueText:text], @[@"image.flac"]);
 }
 
-#pragma mark - cueRowsInText: times and INDEX rules
+#pragma mark - cueEntriesInText: times and INDEX rules
 
 - (void)testCueTimesAreCDFrames {
     NSString *text = @"FILE \"a.flac\" WAVE\n"
@@ -298,7 +302,7 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     XCTAssertEqualObjects(CueRowSummaries(text), (@[@"image.flac 0-0 -/- #1"]));
 }
 
-#pragma mark - cueRowsInText: fields
+#pragma mark - cueEntriesInText: fields
 
 - (void)testCueTrackNumbersTitlesAndPerformers {
     NSString *text = @"PERFORMER \"VA\"\n"
@@ -409,7 +413,7 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     XCTAssertEqual(rows.lastObject.cueEnd, 0u);
 }
 
-#pragma mark - cueRowsInText: windows
+#pragma mark - cueEntriesInText: windows
 
 - (void)testCueRowsTileTheirFile {
     NSString *text = @"FILE \"a.flac\" WAVE\n"
@@ -490,16 +494,16 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
 
 - (void)testCueTracksBeforeAnyFileLineAskForTheImplicitImage {
     NSMutableArray *asked = [NSMutableArray new];
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsInText:@"TRACK 01 AUDIO\n  INDEX 01 00:00:00\n"
-                                                               "TRACK 02 AUDIO\n  INDEX 01 01:00:00\n"
-                                                     sheetURL:nil
-                                                resolvingFile:^NSURL *(NSString *name, BOOL sole) {
+    NSArray<PlaylistEntry *> *entries = [PlaylistFile cueEntriesInText:@"TRACK 01 AUDIO\n  INDEX 01 00:00:00\n"
+                                                                     "TRACK 02 AUDIO\n  INDEX 01 01:00:00\n"
+                                                           sheetURL:nil
+                                                      resolvingFile:^NSURL *(NSString *name, BOOL sole) {
         [asked addObject:@[name ?: NSNull.null, @(sole)]];
         return [NSURL fileURLWithPath:@"/cue/Mix.flac"];
     }];
     XCTAssertEqualObjects(asked, (@[@[NSNull.null, @YES]]));
-    XCTAssertEqual(rows.count, 2u);
-    XCTAssertEqual(rows[1].cueStart, 4500u);
+    XCTAssertEqual(entries.count, 2u);
+    XCTAssertEqual(entries[1].cueStart, 4500u);
 }
 
 - (void)testCueSoleIsYesOnlyForASheetNamingOneFile {
@@ -508,24 +512,24 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
         [soles addObject:@(sole)];
         return [NSURL fileURLWithPath:[@"/cue" stringByAppendingPathComponent:name]];
     };
-    [PlaylistFile cueRowsInText:@"FILE \"a.flac\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
-                       sheetURL:nil resolvingFile:resolve];
-    [PlaylistFile cueRowsInText:@"FILE \"a.flac\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
-                                 "FILE \"b.flac\" WAVE\n  TRACK 02 AUDIO\n    INDEX 01 00:00:00\n"
-                       sheetURL:nil resolvingFile:resolve];
+    [PlaylistFile cueEntriesInText:@"FILE \"a.flac\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
+                          sheetURL:nil resolvingFile:resolve];
+    [PlaylistFile cueEntriesInText:@"FILE \"a.flac\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
+                                    "FILE \"b.flac\" WAVE\n  TRACK 02 AUDIO\n    INDEX 01 00:00:00\n"
+                          sheetURL:nil resolvingFile:resolve];
     XCTAssertEqualObjects(soles, (@[@YES, @NO, @NO]));
 }
 
 - (void)testCueAnUnresolvedFileDropsOnlyItsRows {
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsInText:
+    NSArray<PlaylistEntry *> *entries = [PlaylistFile cueEntriesInText:
             @"FILE \"a.flac\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
              "FILE \"b.flac\" WAVE\n  TRACK 02 AUDIO\n    INDEX 01 00:00:00\n"
-                                                     sheetURL:nil
-                                                resolvingFile:^NSURL *(NSString *name, BOOL sole) {
+                                                           sheetURL:nil
+                                                      resolvingFile:^NSURL *(NSString *name, BOOL sole) {
         return [name isEqualToString:@"b.flac"] ? nil : [NSURL fileURLWithPath:@"/cue/a.flac"];
     }];
-    XCTAssertEqual(rows.count, 1u);
-    XCTAssertEqual(rows.firstObject.cueTrackNumber, 1);
+    XCTAssertEqual(entries.count, 1u);
+    XCTAssertEqual(entries.firstObject.cueTrackNumber, 1);
 }
 
 // Mutates a well-formed sheet at random: whatever comes back must still play —
@@ -578,10 +582,10 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     }
 }
 
-#pragma mark - cueRowsForSheetAtURL:
+#pragma mark - cueEntriesForSheetAtURL:
 
 - (NSArray<NSString *> *)rowFilesForSheet:(NSString *)sheet inDir:(NSURL *)dir {
-    return [[PlaylistFile cueRowsForSheetAtURL:[dir URLByAppendingPathComponent:sheet] knownFiles:nil]
+    return [[PlaylistFile cueEntriesForSheetAtURL:[dir URLByAppendingPathComponent:sheet] knownFiles:nil]
             valueForKeyPath:@"url.lastPathComponent"];
 }
 
@@ -589,7 +593,8 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     NSURL *dir = [self makeTempDirWithFiles:@[@"Mix.flac"] playlistName:@"Mix.cue"
                                        text:@"FILE \"Mix.flac\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
                                              "  TRACK 02 AUDIO\n    INDEX 01 01:00:00\n"];
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsForSheetAtURL:[dir URLByAppendingPathComponent:@"Mix.cue"] knownFiles:nil];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:
+            [PlaylistFile cueEntriesForSheetAtURL:[dir URLByAppendingPathComponent:@"Mix.cue"] knownFiles:nil]];
     XCTAssertEqual(rows.count, 2u);
     XCTAssertEqualObjects(rows[1].url.URLByDeletingLastPathComponent.path, dir.path);
     XCTAssertEqualObjects(rows[1].cueSheetURL.lastPathComponent, @"Mix.cue");
@@ -647,10 +652,10 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
     [data appendBytes:"  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n" length:38];
     NSURL *sheet = [dir URLByAppendingPathComponent:@"nul.cue"];
     [data writeToURL:sheet atomically:YES];
-    for (AudioTrack *row in [PlaylistFile cueRowsForSheetAtURL:sheet knownFiles:nil]) {
+    for (AudioTrack *row in [AudioTrack rowsForEntries:[PlaylistFile cueEntriesForSheetAtURL:sheet knownFiles:nil]]) {
         XCTAssertNotNil(row.url);
     }
-    for (NSURL *url in [[PlaylistFile rowsForPlaylistAtURL:sheet] valueForKey:@"url"]) {
+    for (NSURL *url in [[PlaylistFile entriesForPlaylistAtURL:sheet] valueForKey:@"url"]) {
         XCTAssertNotNil(url);
     }
 }
@@ -686,7 +691,7 @@ static NSArray<NSString *> *Windows(NSArray<AudioTrack *> *rows) {
 // The sheet's FILE names the rip's WAV; the audio is the FLAC itself.
 - (void)testAnEmbeddedTagSheetCutsTheFileIntoItsTracks {
     NSURL *flac = [self embeddedFLACWithText:kEmbeddedSheet block:nil rate:44100 id3:NO];
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:flac];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:flac]];
     XCTAssertEqualObjects(Windows(rows), (@[@"0-2250", @"2250-4500", @"4500-0"]));
     XCTAssertEqualObjects([rows valueForKey:@"cueTitle"], (@[@"One", @"Two", @"Three"]));
     for (AudioTrack *row in rows) {
@@ -701,8 +706,8 @@ static NSArray<NSString *> *Windows(NSArray<AudioTrack *> *rows) {
 - (void)testABinaryBlockCutsTheFileAtItsIndexOnes {
     NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(28 * 44100), @(2 * 44100), @NO],
                                             @[@3, @(60 * 44100), @0, @NO]], 90 * 44100);
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
-            [self embeddedFLACWithText:nil block:block rate:44100 id3:NO]];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:nil block:block rate:44100 id3:NO]]];
     XCTAssertEqualObjects(Windows(rows), (@[@"0-2250", @"2250-4500", @"4500-0"]));
     XCTAssertEqualObjects([rows valueForKey:@"cueTrackNumber"], (@[@1, @2, @3]));
     XCTAssertNil(rows.firstObject.cueTitle);
@@ -711,29 +716,29 @@ static NSArray<NSString *> *Windows(NSArray<AudioTrack *> *rows) {
 // Offsets off the CD's 588-sample grid round to the nearest CD frame.
 - (void)testABinaryBlockAtAnotherRateRoundsToCDFrames {
     NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(30 * 48000 + 100), @0, @NO]], 60 * 48000);
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
-            [self embeddedFLACWithText:nil block:block rate:48000 id3:NO]];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:nil block:block rate:48000 id3:NO]]];
     XCTAssertEqualObjects(Windows(rows), (@[@"0-2250", @"2250-0"]));
 }
 
 - (void)testTheTagSheetWinsOverTheBlockForItsTitles {
     NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(10 * 44100), @0, @NO]], 90 * 44100);
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
-            [self embeddedFLACWithText:kEmbeddedSheet block:block rate:44100 id3:NO]];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:kEmbeddedSheet block:block rate:44100 id3:NO]]];
     XCTAssertEqualObjects([rows valueForKey:@"cueTitle"], (@[@"One", @"Two", @"Three"]));
 }
 
 - (void)testALeadingID3TagAndAPictureAreSkippedToTheSheet {
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
-            [self embeddedFLACWithText:kEmbeddedSheet block:nil rate:44100 id3:YES]];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:kEmbeddedSheet block:nil rate:44100 id3:YES]]];
     XCTAssertEqual(rows.count, 3u);
 }
 
 - (void)testADataTrackIsNoRow {
     NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(30 * 44100), @0, @YES],
                                             @[@3, @(60 * 44100), @0, @NO]], 90 * 44100);
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
-            [self embeddedFLACWithText:nil block:block rate:44100 id3:NO]];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:nil block:block rate:44100 id3:NO]]];
     XCTAssertEqualObjects(Windows(rows), (@[@"0-4500", @"4500-0"]));
     XCTAssertEqualObjects([rows valueForKey:@"cueTrackNumber"], (@[@1, @3]));
 }
@@ -743,32 +748,32 @@ static NSArray<NSString *> *Windows(NSArray<AudioTrack *> *rows) {
     NSString *two = @"FILE \"a.wav\" WAVE\n  TRACK 01 AUDIO\n    INDEX 01 00:00:00\n"
                      "  TRACK 02 AUDIO\n    INDEX 01 00:30:00\n"
                      "FILE \"b.wav\" WAVE\n  TRACK 03 AUDIO\n    INDEX 01 00:00:00\n";
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
-            [self embeddedFLACWithText:two block:nil rate:44100 id3:NO]];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:
+            [self embeddedFLACWithText:two block:nil rate:44100 id3:NO]]];
     XCTAssertEqualObjects(Windows(rows), (@[@"0-2250", @"2250-0"]));
 }
 
 // A single track is the file itself: nothing to cut.
 - (void)testNoSheetASingleTrackOrNotAFLACGivesNoRows {
     NSString *one = @"FILE \"a.wav\" WAVE\n  TRACK 01 AUDIO\n    TITLE \"Only\"\n    INDEX 01 00:00:00\n";
-    XCTAssertEqualObjects([PlaylistFile cueRowsEmbeddedInFLACAtURL:
+    XCTAssertEqualObjects([PlaylistFile cueEntriesEmbeddedInFLACAtURL:
             [self embeddedFLACWithText:one block:nil rate:44100 id3:NO]], @[]);
-    XCTAssertEqualObjects([PlaylistFile cueRowsEmbeddedInFLACAtURL:
+    XCTAssertEqualObjects([PlaylistFile cueEntriesEmbeddedInFLACAtURL:
             [self embeddedFLACWithText:nil block:nil rate:44100 id3:NO]], @[]);
     NSURL *junk = [[self embeddedFLACWithText:nil block:nil rate:44100 id3:NO]
             URLByDeletingLastPathComponent];
     junk = [junk URLByAppendingPathComponent:@"junk.flac"];
     XCTAssertTrue([[@"not a flac at all" dataUsingEncoding:NSUTF8StringEncoding] writeToURL:junk atomically:YES]);
-    XCTAssertEqualObjects([PlaylistFile cueRowsEmbeddedInFLACAtURL:junk], @[]);
-    XCTAssertEqualObjects([PlaylistFile cueRowsEmbeddedInFLACAtURL:[junk URLByAppendingPathExtension:@"gone"]], @[]);
+    XCTAssertEqualObjects([PlaylistFile cueEntriesEmbeddedInFLACAtURL:junk], @[]);
+    XCTAssertEqualObjects([PlaylistFile cueEntriesEmbeddedInFLACAtURL:[junk URLByAppendingPathExtension:@"gone"]], @[]);
 }
 
 - (void)testATruncatedBlockReadsNoFurtherThanItHolds {
     NSData *block = VibeFLACCueSheetBlock(@[@[@1, @0, @0, @NO], @[@2, @(30 * 44100), @0, @NO],
                                             @[@3, @(60 * 44100), @0, @NO]], 90 * 44100);
     for (NSUInteger cut = 0; cut < block.length; cut += 7) {
-        NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
-                [self embeddedFLACWithText:nil block:[block subdataWithRange:NSMakeRange(0, cut)] rate:44100 id3:NO]];
+        NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:
+                [self embeddedFLACWithText:nil block:[block subdataWithRange:NSMakeRange(0, cut)] rate:44100 id3:NO]]];
         XCTAssertTrue(rows.count == 0 || rows.count >= 2, @"cut at %lu", (unsigned long)cut);
     }
 }

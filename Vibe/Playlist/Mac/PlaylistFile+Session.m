@@ -4,6 +4,7 @@
 //
 
 #import "PlaylistFile+Session.h"
+#import "AudioTrack.h"
 
 NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentIndex";
 
@@ -18,7 +19,8 @@ NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentInde
     }
     [NSFileManager.defaultManager createDirectoryAtURL:url.URLByDeletingLastPathComponent
             withIntermediateDirectories:YES attributes:nil error:nil];
-    BOOL saved = write ? write(error) : [self writeM3UForTracks:tracks relativeToDirectory:nil toURL:url error:error];
+    BOOL saved = write ? write(error) : [self writeM3UForEntries:[AudioTrack entriesForRows:tracks]
+                                             relativeToDirectory:nil toURL:url error:error];
     if (!saved) {
         [self removeSessionAtURL:url defaults:defaults];
         return NO;
@@ -35,7 +37,7 @@ NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentInde
 + (BOOL)restoreSessionAtURL:(NSURL *)url enabled:(BOOL)enabled defaults:(NSUserDefaults *)defaults
                      load:(void (^)(NSArray<AudioTrack *> *, NSUInteger, BOOL))load {
     if (!enabled) return NO;
-    NSArray<AudioTrack *> *rows = [self rowsInM3UData:[NSData dataWithContentsOfURL:url]];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[self entriesInM3UData:[NSData dataWithContentsOfURL:url]]];
     if (rows.count == 0) return NO;
     NSInteger stored = [defaults integerForKey:kVibeLastPlaylistCurrentIndexKey];
     NSUInteger index = stored < 0 ? 0 : MIN((NSUInteger)stored, rows.count - 1);

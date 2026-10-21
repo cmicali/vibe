@@ -14,7 +14,7 @@ Picture in Picture is a video affordance. It is not a suitable way to make a com
 
 ## Chapters in M4A and M4B as rows
 
-Revisit only if users ask for audiobooks or chaptered mixes. The shape would be the FLAC cue sheet's: AVFoundation's chapter metadata becomes window rows through `rowsForFile:`'s large-file gate (`Vibe/Playlist/AGENTS.md`).
+Revisit only if users ask for audiobooks or chaptered mixes. The shape would be the FLAC cue sheet's: AVFoundation's chapter metadata becomes window entries through `entriesForFile:`'s large-file gate (`Vibe/Playlist/AGENTS.md`).
 
 ## A wedged background handle open: widening the background lane
 

@@ -1168,6 +1168,7 @@ targetTemplates:
       - path: Vibe/Loading/PlaceholderFiles.m
       - path: Vibe/Debug/Seams/PlaceholderFiles+Debug.m   # its dataless test asks the probe first
       - path: Vibe/Playlist/FolderWalk.m
+      - path: Vibe/Playlist/PlaylistEntry.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Playlist/PlaylistFile+CUE.m
       - path: Vibe/Common/PlayableExtensions.m

@@ -10,6 +10,7 @@
 #import "Formatters.h"
 #import "NSURL+FilenameTitle.h"
 #import "NSURL+Hash.h"
+#import "PlaylistEntry.h"
 #import "VibeStrings.h"
 
 #include <stdatomic.h>
@@ -68,6 +69,32 @@
                         ? [NSString stringWithFormat:STR_LABEL_CUE_TRACK, (long)trackNumber] : nil);
     }
     return self;
+}
+
++ (NSArray<AudioTrack *> *)rowsForEntries:(NSArray<PlaylistEntry *> *)entries {
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:entries.count];
+    for (PlaylistEntry *entry in entries) {
+        // A whole file skips the cue initializer, which would spell the path twice.
+        BOOL whole = !entry.isWindowed && !entry.cueSheetURL && !entry.cueTitle && !entry.cuePerformer
+                && entry.cueTrackNumber == 0;
+        [rows addObject:whole ? [AudioTrack withURL:entry.url]
+                : [[AudioTrack alloc] initWithURL:entry.url cueStart:entry.cueStart cueEnd:entry.cueEnd
+                                            title:entry.cueTitle performer:entry.cuePerformer
+                                            sheet:entry.cueSheetURL trackNumber:entry.cueTrackNumber]];
+    }
+    return rows;
+}
+
++ (NSArray<PlaylistEntry *> *)entriesForRows:(NSArray<AudioTrack *> *)rows {
+    NSMutableArray<PlaylistEntry *> *entries = [NSMutableArray arrayWithCapacity:rows.count];
+    for (AudioTrack *row in rows) {
+        [entries addObject:[[PlaylistEntry alloc] initWithURL:row.url cueStart:row.cueStart cueEnd:row.cueEnd
+                                                        title:row.cueTitle performer:row.cuePerformer
+                                                        sheet:row.cueSheetURL trackNumber:row.cueTrackNumber
+                                                     duration:row.duration displayTitle:row.displayTitle
+                                                displayArtist:row.displayArtist]];
+    }
+    return entries;
 }
 
 - (AudioTrack *)replacementAtURL:(NSURL *)url {

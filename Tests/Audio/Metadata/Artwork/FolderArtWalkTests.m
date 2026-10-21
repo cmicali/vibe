@@ -9,6 +9,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "FolderArtResolverInternal.h"
+#import "FolderArtRules.h"
 #import "FolderWalkInternal.h"
 
 @interface FolderArtWalkTests : XCTestCase
@@ -39,15 +40,19 @@
     } accessProvider:^BOOL(NSString *directory) {
         return YES;
     }];
+    [FolderWalk setWalkedFileHandler:^NSUInteger(NSString *filename) {
+        return VibeFolderArtCandidateRank(filename);
+    }];
     [FolderWalk setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
-                                             NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
+                                             NSDictionary<NSString *, NSString *> *keptFilenameByDirectory) {
         [FolderArtResolver.sharedInstance noteListedDirectories:directories
-                                     artFilenameByDirectory:artFilenameByDirectory];
+                                     artFilenameByDirectory:keptFilenameByDirectory];
     }];
     [FolderArtResolver.sharedInstance invalidate];
 }
 
 - (void)tearDown {
+    [FolderWalk setWalkedFileHandler:nil];
     [FolderWalk setWalkedDirectoriesHandler:nil];
     // Back to the resolver's own answers: off, and any directory readable.
     [FolderArtResolver.sharedInstance setEnabledProvider:^BOOL{

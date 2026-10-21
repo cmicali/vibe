@@ -21,7 +21,7 @@
         }
         uint64_t openIntentGeneration = [self beginOpenIntent];
         dispatch_async(_workQueue, ^{
-            NSArray<AudioTrack *> *rows = [FolderWalk rowsForFile:url];
+            NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[FolderWalk entriesForFile:url]];
             run_on_main_thread({
                 [self finishOpenIntent:openIntentGeneration appending:NO tracks:rows
                              folderURL:nil addedFolders:@[] selectedURL:nil restored:NO

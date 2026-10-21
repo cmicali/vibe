@@ -12,6 +12,36 @@
 
 #include <memory>
 
+// Each version's own path from a playlist file to rows and back. Since the
+// readers and the writer take entries, the app makes the rows and entries.
+#if __has_include("PlaylistEntry.h")
+static NSArray<AudioTrack *> *VibeBenchPlaylistRows(NSURL *url) {
+    return [AudioTrack rowsForEntries:[PlaylistFile entriesForPlaylistAtURL:url]];
+}
+static NSArray<AudioTrack *> *VibeBenchM3URows(NSData *data) {
+    return [AudioTrack rowsForEntries:[PlaylistFile entriesInM3UData:data]];
+}
+static NSString *VibeBenchM3UText(NSArray<AudioTrack *> *rows) {
+    return [PlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:rows] relativeToDirectory:nil];
+}
+static BOOL VibeBenchWriteM3U(NSArray<AudioTrack *> *rows, NSURL *url) {
+    return [PlaylistFile writeM3UForEntries:[AudioTrack entriesForRows:rows] relativeToDirectory:nil toURL:url error:nil];
+}
+#else
+static NSArray<AudioTrack *> *VibeBenchPlaylistRows(NSURL *url) {
+    return [PlaylistFile rowsForPlaylistAtURL:url];
+}
+static NSArray<AudioTrack *> *VibeBenchM3URows(NSData *data) {
+    return [PlaylistFile rowsInM3UData:data];
+}
+static NSString *VibeBenchM3UText(NSArray<AudioTrack *> *rows) {
+    return [PlaylistFile m3uTextForTracks:rows relativeToDirectory:nil];
+}
+static BOOL VibeBenchWriteM3U(NSArray<AudioTrack *> *rows, NSURL *url) {
+    return [PlaylistFile writeM3UForTracks:rows relativeToDirectory:nil toURL:url error:nil];
+}
+#endif
+
 static void VibeBenchComponentsRegisterM3U(void) {
     // A 10,000-entry M3U of relative paths, every file present.
     auto m3u = std::make_shared<NSURL *>();
@@ -28,7 +58,7 @@ static void VibeBenchComponentsRegisterM3U(void) {
         return 10000;
     };
     VibeBenchComponentsAdd("m3u", "resolve-10k", "entry", prepare, [m3u]() {
-        NSArray<AudioTrack *> *rows = [PlaylistFile rowsForPlaylistAtURL:*m3u];
+        NSArray<AudioTrack *> *rows = VibeBenchPlaylistRows(*m3u);
         VibeBenchComponentsRequire(rows.count == 10000, "M3U resolved the wrong row count");
     });
 
@@ -38,17 +68,16 @@ static void VibeBenchComponentsRegisterM3U(void) {
         VibeBenchComponentsAdd("m3u", write ? "write-10k" : "restore-10k", "entry",
                               [prepare, m3u, rows, bytes]() -> double {
             prepare();
-            *rows = [PlaylistFile rowsForPlaylistAtURL:*m3u];
+            *rows = VibeBenchPlaylistRows(*m3u);
             VibeBenchComponentsRequire((*rows).count == 10000, "M3U write fixture lost rows");
-            *bytes = [[PlaylistFile m3uTextForTracks:*rows relativeToDirectory:nil] dataUsingEncoding:NSUTF8StringEncoding];
+            *bytes = [VibeBenchM3UText(*rows) dataUsingEncoding:NSUTF8StringEncoding];
             return 10000;
         }, [rows, bytes, m3u, write]() {
             if (write) {
                 NSURL *out = [[*m3u URLByDeletingLastPathComponent] URLByAppendingPathComponent:@"saved.m3u8"];
-                VibeBenchComponentsRequire([PlaylistFile writeM3UForTracks:*rows relativeToDirectory:nil toURL:out error:nil],
-                                           "M3U write failed");
+                VibeBenchComponentsRequire(VibeBenchWriteM3U(*rows, out), "M3U write failed");
             } else {
-                VibeBenchComponentsRequire([PlaylistFile rowsInM3UData:*bytes].count == 10000, "M3U restore lost rows");
+                VibeBenchComponentsRequire(VibeBenchM3URows(*bytes).count == 10000, "M3U restore lost rows");
             }
         });
     }
@@ -68,7 +97,7 @@ static void VibeBenchComponentsRegisterM3U(void) {
         return 90 * 20;
     }, [cue]() {
         for (int i = 0; i < 20; i++) {
-            VibeBenchComponentsRequire([PlaylistFile rowsForPlaylistAtURL:*cue].count == 90, "CUE parse lost rows");
+            VibeBenchComponentsRequire(VibeBenchPlaylistRows(*cue).count == 90, "CUE parse lost rows");
         }
     });
 }
