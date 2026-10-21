@@ -103,7 +103,7 @@
     return qualityOfService;
 }
 
-- (NSQualityOfService)debugParseQualityOfServiceForTrack:(AudioTrack *)track {
+- (NSQualityOfService)debugParseQualityOfServiceForTrack:(id<AudioTrackMetadataHolder>)track {
     os_unfair_lock_lock(&_materializationLock);
     NSOperation *operation = [_parseOperationsByTrack objectForKey:track];
     NSQualityOfService qualityOfService = operation

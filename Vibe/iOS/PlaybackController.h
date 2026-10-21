@@ -20,7 +20,7 @@
 
 @class AudioTrack;
 @class PlaybackController;
-@class Playlist;
+@class Playlist<__covariant ObjectType>;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -105,7 +105,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - What there is to play
 
-@property (nonatomic, readonly) Playlist *playlist;
+@property (nonatomic, readonly) Playlist<AudioTrack *> *playlist;
 @property (nonatomic, readonly, nullable) AudioTrack *currentTrack;
 @property (nonatomic, readonly) NSUInteger currentIndex;
 // The open folder's display name, nil before anything was opened.

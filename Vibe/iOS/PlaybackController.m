@@ -40,7 +40,11 @@ static const NSUInteger kUIUpdateHz = 3;
     if (self) {
         _observers = [NSPointerArray weakObjectsPointerArray];
 
-        _playlist = [[Playlist alloc] init];
+        _playlist = [[Playlist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
+            return track.url;
+        } sourceKey:^NSString *(AudioTrack *track) {
+            return track.sourceKey;
+        }];
         _playlist.observer = self;
         _metadataCache = [[AudioTrackMetadataCache alloc] init];
         _metadataCache.delegate = self;
@@ -806,7 +810,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     // runs on main.
     __weak PlaybackController *weakSelf = self;
     [_player beginMediaServicesResetWithCompletion:
-            ^(AudioTrack *resetTrack, NSTimeInterval position) {
+            ^(id<VibePlayableItem> resetTrack, NSTimeInterval position) {
         PlaybackController *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
@@ -818,7 +822,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
         // A restore may have replaced the row without a play; it owns its
         // parked state, and this older reset must not open its file.
         if (resetTrack && track == resetTrack) {
-            [strongSelf openParkedTrack:resetTrack atPosition:position];
+            [strongSelf openParkedTrack:(AudioTrack *)resetTrack atPosition:position];
         }
         else if (!track) {
             strongSelf->_parked = NO;

@@ -2,14 +2,15 @@
 // Playlist.h
 // Vibe
 //
-// The ordered track list and its current-index cursor, free of any view
-// dependency. THERE IS EXACTLY ONE OBSERVER SLOT, deliberately: a second
-// consumer gets whatever the first fans out to (PlaylistController on macOS,
+// The ordered list of the caller's entries and its current-index cursor, free
+// of any view dependency. An entry is an opaque object. The list keeps it,
+// hands the same object back, and never copies or compares it by content.
+// THERE IS EXACTLY ONE OBSERVER SLOT, deliberately: a second consumer gets
+// whatever the first fans out to (PlaylistController on macOS,
 // PlaybackController on iOS).
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioTrack.h"
 #import "RepeatMode.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -27,7 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Rows were appended at indexes; existing rows and currentIndex are untouched.
 - (void)playlist:(Playlist *)playlist didAppendTracksAtIndexes:(NSIndexSet *)indexes;
 
-// The track at index was replaced by a fresh AudioTrack.
+// The entry at index was replaced by the caller's fresh entry.
 - (void)playlist:(Playlist *)playlist didReplaceTrackAtIndex:(NSUInteger)index;
 
 // The rows at indexes left the list and currentIndex is final. The ONE event a
@@ -52,7 +53,18 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
-@interface Playlist : NSObject
+@interface Playlist<__covariant ObjectType> : NSObject
+
+// A list with no lookup by file. indexesOfTracksWithURL: and trackForURL: find
+// nothing, and stampTracksSounding:usingBlock: stamps nothing.
+- (instancetype)init;
+
+// The two key blocks are the only things the list reads of an entry. urlKey
+// gives its file, which indexes the rows of each file. sourceKey gives what it
+// sounds, the file and its window, which a stamp matches. Each must answer the
+// same for an entry for as long as it is in the list.
+- (instancetype)initWithURLKey:(NSURL * _Nullable (^)(ObjectType entry))urlKey
+                     sourceKey:(NSString * _Nullable (^)(ObjectType entry))sourceKey;
 
 @property (nonatomic, weak, nullable) id<PlaylistObserver> observer;
 
@@ -84,29 +96,29 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) NSUInteger structureGeneration;
 
 // A shallow copy, safe to iterate across async work while appends continue.
-- (NSArray<AudioTrack *> *)tracks;
+- (NSArray<ObjectType> *)tracks;
 
 // nil when out of range. No defensive copy: for one-off indexed reads on the
 // main thread; hold tracks when iterating across async work.
-- (nullable AudioTrack *)trackAtIndex:(NSUInteger)index;
+- (nullable ObjectType)trackAtIndex:(NSUInteger)index;
 
-- (nullable AudioTrack *)currentTrack;
+- (nullable ObjectType)currentTrack;
 - (NSUInteger)count;
 
 // The rows at indexes, in row order; out-of-range members are skipped, so a
 // selection that outran the model resolves to what is really there.
-- (NSArray<AudioTrack *> *)tracksAtIndexes:(NSIndexSet *)indexes;
+- (NSArray<ObjectType> *)tracksAtIndexes:(NSIndexSet *)indexes;
 
 // Live rows of the exact captured objects, in row order, deduplicated. A
 // departed object is ignored even if a new row now has its URL or old index.
-- (NSIndexSet *)indexesOfTracks:(NSArray<AudioTrack *> *)tracks;
+- (NSIndexSet *)indexesOfTracks:(NSArray<ObjectType> *)tracks;
 
 // The first forward survivor of a current-row removal — the next row, or
 // under shuffle the next unplayed entry — which is where the removal lands.
 // nil for a noncurrent edit, an invalid set, or when the landing is
 // backward/empty; it never wraps. The shell uses this to decide whether the
 // ordered playing intent may continue.
-- (nullable AudioTrack *)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes;
+- (nullable ObjectType)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes;
 
 // Replaces the whole list, landing on index: NSNotFound is the model's
 // choice, row 0 or under shuffle the new order's random first. Each row must
@@ -114,11 +126,11 @@ NS_ASSUME_NONNULL_BEGIN
 // object. TRAP: pass the row here rather than setting currentIndex after the
 // replace — under shuffle that set is a manual pick, which marks the order's
 // first entry played without it ever sounding.
-- (void)replaceAllWithTracks:(NSArray<AudioTrack *> *)tracks startingAtIndex:(NSUInteger)index;
+- (void)replaceAllWithTracks:(NSArray<ObjectType> *)tracks startingAtIndex:(NSUInteger)index;
 
 // Appends without touching currentIndex; an empty tracks is a no-op. Under
 // shuffle each row joins the unplayed part of the order at random.
-- (void)appendTracks:(NSArray<AudioTrack *> *)tracks;
+- (void)appendTracks:(NSArray<ObjectType> *)tracks;
 
 
 - (void)clear;
@@ -132,17 +144,17 @@ NS_ASSUME_NONNULL_BEGIN
 // the play order, wrapping to a fresh start under Repeat All. A shuffled wrap
 // makes the next order on first ask and keeps it, so the track a gapless
 // splice armed is the one next lands on.
-- (nullable AudioTrack *)nextTrack;
+- (nullable ObjectType)nextTrack;
 
 // The next track, the row two slots ahead in this cycle, and the previous
 // one. Missing entries are omitted. The metadata scan ranks these first.
-- (NSArray<AudioTrack *> *)neighborhoodTracks;
+- (NSArray<ObjectType> *)neighborhoodTracks;
 
 // What follows a track that plays out, or nil to park: nil under
 // pauseAtTrackEnd, the current track itself under Repeat One, otherwise
 // nextTrack. Every successor prefetch and both track-end reads ask this,
 // never a row neighbor.
-- (nullable AudioTrack *)trackEndSuccessor;
+- (nullable ObjectType)trackEndSuccessor;
 
 // Moves to trackEndSuccessor, returning NO and moving nothing when it is nil.
 // Under Repeat One it re-sets the same index, which still notifies.
@@ -151,7 +163,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Adopt a gapless boundary only while BOTH exact objects still describe it:
 // the finished track is current and the started one is trackEndSuccessor.
 // Refusal changes nothing; success performs the ordinary cursor notification.
-- (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack;
+- (BOOL)advanceFromTrack:(ObjectType)finishedTrack toTrack:(ObjectType)startedTrack;
 
 // The single source of truth for the boundary: nextTrack exists, and previous
 // has somewhere to go.
@@ -159,7 +171,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)hasPreviousTrack;
 
 // -1 when the track is nil or absent. An O(1) identity lookup.
-- (NSInteger)getIndexForTrack:(nullable AudioTrack *)track;
+- (NSInteger)getIndexForTrack:(nullable ObjectType)track;
 
 // Every row holding url — the same file can sit in the playlist more than
 // once, and a caller acting on a file has to reach all of them. Empty for nil.
@@ -167,25 +179,29 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSIndexSet *)indexesOfTracksWithURL:(nullable NSURL *)url;
 
 // The first row holding url, off the same index.
-- (nullable AudioTrack *)trackForURL:(nullable NSURL *)url;
-- (BOOL)isCurrentTrack:(AudioTrack *)track;
+- (nullable ObjectType)trackForURL:(nullable NSURL *)url;
+- (BOOL)isCurrentTrack:(ObjectType)track;
 
-// Runs `stamp` on every row sounding what `track` sounds — its sourceKey, the
-// file and the window — which is what an analyzed BPM or key delivery is valid
-// for: the first match alone would strand a duplicate row that happens to be
-// the one playing, and every row of the file would stamp one cue row's tempo
-// on the rest. Answers whether the current track was among them, which is
-// when a shell redraws or refeeds.
-- (BOOL)stampTracksSounding:(nullable AudioTrack *)track usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp;
+// Runs `stamp` on every row sounding what `track` sounds: the rows of its file
+// whose source key matches. That is what an analyzed BPM or key delivery is
+// valid for. The first match alone would strand a duplicate row that happens
+// to be the one playing. Every row of the file would stamp one cue row's
+// tempo on the rest. Answers whether the current track was among them, which
+// is when a shell redraws or refeeds.
+- (BOOL)stampTracksSounding:(nullable ObjectType)track usingBlock:(void (NS_NOESCAPE ^)(ObjectType track))stamp;
 
-// Points a row at a different file, returning the fresh AudioTrack now in it
-// (AudioTrack replacementAtURL:, which says what carries across), or nil when
-// index is out of range.
-- (nullable AudioTrack *)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url;
+// Puts replacement in the row at index. The caller makes it, and it must be
+// fresh: an object already in the list is refused, as is an out-of-range
+// index. The row keeps its place in both shuffle orders. Answers whether it
+// replaced.
+- (BOOL)replaceTrackAtIndex:(NSUInteger)index withTrack:(ObjectType)replacement;
 
-// Replaces every row still holding this file, even if the captured row left
-// during conversion. Returns the affected rows; transport is the shell's.
-- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url;
+// Replaces every row still holding track's file, even if the captured row
+// left during conversion. `replacement` makes each row's fresh entry from the
+// outgoing one, since each row may be a different cue window. Returns the
+// replaced rows; transport is the shell's.
+- (NSIndexSet *)replaceTracksMatchingTrack:(ObjectType)track
+                                usingBlock:(ObjectType (NS_NOESCAPE ^)(ObjectType outgoing))replacement;
 
 // Removes every row in indexes, returning the exact removed objects in
 // ascending row order, or nil — changing nothing, sending no event — when
@@ -199,7 +215,7 @@ NS_ASSUME_NONNULL_BEGIN
 // nothing, so removing the current row through it alone leaves the player
 // sounding a track the playlist no longer contains (MainPlayerController's
 // removal funnel is the coordinated version).
-- (nullable NSArray<AudioTrack *> *)removeTracksAtIndexes:(NSIndexSet *)indexes;
+- (nullable NSArray<ObjectType> *)removeTracksAtIndexes:(NSIndexSet *)indexes;
 
 // The removal's inverse, for the shell's undo: puts the exact objects back at
 // indexes, each clamped to the end so a restore after later edits still
@@ -209,7 +225,7 @@ NS_ASSUME_NONNULL_BEGIN
 // The cursor follows the current track; into an empty list it stays 0. Like
 // removal it touches no audio and sends ONE event with the cursor final —
 // restoring a removed current row does not replay it.
-- (void)insertTracks:(NSArray<AudioTrack *> *)tracks atIndexes:(NSIndexSet *)indexes;
+- (void)insertTracks:(NSArray<ObjectType> *)tracks atIndexes:(NSIndexSet *)indexes;
 
 // Moves the rows at sourceIndexes so they occupy destinationIndexes —
 // ascending to ascending, insertObjects:atIndexes: semantics, so both sets are

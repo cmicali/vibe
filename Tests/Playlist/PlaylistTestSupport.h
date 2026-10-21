@@ -1,6 +1,7 @@
 
 #import <Foundation/Foundation.h>
 
+#import "AudioTrack.h"
 #import "Playlist.h"
 
 // "1" or "0,2".
@@ -70,12 +71,28 @@ static inline AudioTrack *CueRowOf(NSString *filename, NSUInteger start, NSUInte
                                trackNumber:1];
 }
 
-static inline Playlist *PlaylistWithFiles(NSArray<NSString *> *filenames) {
+// Keyed as both shells key theirs, so it has lookup by file.
+static inline Playlist<AudioTrack *> *NewPlaylist(void) {
+    return [[Playlist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
+        return track.url;
+    } sourceKey:^NSString *(AudioTrack *track) {
+        return track.sourceKey;
+    }];
+}
+
+// The convert swap's replacement block.
+static inline AudioTrack *(^ReplacementAt(NSURL *url))(AudioTrack *) {
+    return ^AudioTrack *(AudioTrack *outgoing) {
+        return [outgoing replacementAtURL:url];
+    };
+}
+
+static inline Playlist<AudioTrack *> *PlaylistWithFiles(NSArray<NSString *> *filenames) {
     NSMutableArray<NSURL *> *urls = [NSMutableArray array];
     for (NSString *name in filenames) {
         [urls addObject:URLNamed(name)];
     }
-    Playlist *playlist = [Playlist new];
+    Playlist<AudioTrack *> *playlist = NewPlaylist();
     [playlist replaceAllWithTracks:Rows(urls) startingAtIndex:NSNotFound];
     return playlist;
 }

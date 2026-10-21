@@ -162,9 +162,9 @@ targets:
   Vibe:
     type: application
     platform: macOS
-    # vibe-libs' pieces, compiled in as this target's own sources. Controls is
-    # macOS only, so VibeiOS never lists it.
-    templates: [VibeLibsDSP, VibeLibsGraphics, VibeLibsControls]
+    # vibe-libs' pieces, compiled in as this target's own sources. Controls and
+    # SettingsWindow are macOS only, so VibeiOS never lists them.
+    templates: [VibeLibsDSP, VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow]
     templateAttributes:
       excludedPlatform: iOS
     sources:

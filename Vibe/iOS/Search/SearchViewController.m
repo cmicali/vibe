@@ -37,7 +37,7 @@ static const NSUInteger kMaxFileResults = 200;
 
 @implementation SearchViewController {
     PlaybackController *_playback;
-    Playlist           *_playlist;
+    Playlist<AudioTrack *> *_playlist;
     UISearchController *_searchController;
     // Indexes into the playlist; all of them for an empty query.
     NSArray<NSNumber *> *_matches;

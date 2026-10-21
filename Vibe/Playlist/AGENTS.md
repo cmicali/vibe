@@ -8,6 +8,8 @@
 
 **It adopts `VibePlayableItem` (`Audio/VibePlayableItem.h`), which is all the player and the caches read of it.** That is its URL, its window in CD frames, `sourceKey` and `cacheKey`. `sourceKey` is fixed at init, so a per-tick comparison allocates nothing. `cacheKey` is memoized and stamped with `NSURL.cacheKeyGeneration`, so a download that installs another version retires every memo at once. The window's arithmetic is `Audio/CueWindowMath.h`, which the CUE reader shares.
 
+**It also adopts `AudioTrackMetadataHolder` (`Audio/Metadata/`), which extends the playable item.** The metadata loader installs its results through it. That is the installed metadata, the install that happens only while the row has no answer, and the delivery that runs only while that answer is still installed. The check and the store share the row's monitor. **TRAP: the player's `id<VibePlayableItem>` needs an explicit cast to become an `AudioTrack *`.** clang converts it implicitly only when the playable item inherits every protocol the class adopts. It does not inherit the holder (`AudioTrack.h`).
+
 **Rows are made from entries in one place.** The walk and the readers return `PlaylistEntry` records: a file whole, or a CUE sheet's window of one with the sheet's names. `AudioTrack rowsForEntries:` makes a fresh row of each. `entriesForRows:` goes the other way for the writer. It adds each row's duration and display names, which the `#EXTINF` line takes. Only `AudioTrack` names both types, so the walk and `PlaylistFile` never name the row.
 
 **The player never writes the row, so each shell stores its settled length.** `duration` takes the player's at `didStartPlaying:`, at `didAutoAdvanceFromTrack:toTrack:` and at `didSettleDurationOfTrack:` (`adoptSettledDurationOfTrack:`, in each shell's `+PlayerEvents`). It is written only while the player still sounds that row, since the player's duration is the sounding track's. Until then a windowed row answers its window, and a whole file its metadata's length.
@@ -16,7 +18,11 @@
 
 `Playlist.h` states each method's contract. This section holds the rules a caller is checked against.
 
-**A row's identity is the object.** Callers mint a fresh `AudioTrack` per row: a file whole, or a cue sheet's window of one. Recreating rows from URLs would throw away installed metadata and artwork and defeat every identity check. The convert swap mints a fresh object for the same reason (`Mac/MainWindow/Convert/AGENTS.md`).
+**A row's identity is the object.** The model holds opaque entries. It keeps each one, hands the same object back, and never copies or compares it by content. Its entry-to-row map is keyed by pointer, so two entries for one file stay two rows. Vibe's entries are `AudioTrack` rows. Callers mint a fresh `AudioTrack` per row: a file whole, or a cue sheet's window of one. Recreating rows from URLs would throw away installed metadata and artwork and defeat every identity check.
+
+**The model reads an entry only through the two key blocks it is made with** (`initWithURLKey:sourceKey:`). The URL key indexes the rows of each file. The source key matches a stamp to the rows sounding one window. Both shells pass `AudioTrack.url` and `AudioTrack.sourceKey`. A model made with plain `init` has no lookup by file. `Playlist.h` imports neither `AudioTrack.h` nor `VibePlayableItem.h`. Its entry type is a lightweight generic, so a shell that declares `Playlist<AudioTrack *>` gets typed rows back.
+
+**The model mints no rows.** A replacement takes the caller's fresh entry, and one already in the list is refused. `replaceTracksMatchingTrack:usingBlock:` asks the block for each row's replacement, since each row may be a different cue window. The convert swap makes each one with `AudioTrack replacementAtURL:` (`Mac/MainWindow/Convert/AGENTS.md`). The model keeps the indexes, both shuffle orders, and one event per replaced row.
 
 **The model keeps two indexes.** A track-to-row map keeps `getIndexForTrack:` O(1) for the metadata sweep. A URL-to-rows index serves `indexesOfTracksWithURL:`, `stampTracksSounding:usingBlock:` and the convert swap. The URL index holds row sets because one file can sit in several rows. A delivery stamps every row of that file and window, so a duplicate row is never stranded.
 

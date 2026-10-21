@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import "AudioTrackInternal.h"
+#import "AudioTrack.h"
 #import "FilePaths.h"
 #import "AudioTrackMetadata.h"
 #import "CueWindowMath.h"

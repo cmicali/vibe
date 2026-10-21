@@ -24,7 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Fires before every off-lock scan-pick validation until cleared.
 - (void)debugSetBeforeScanPickValidation:(nullable dispatch_block_t)block;
 - (NSQualityOfService)debugLastScheduledParseQualityOfService;
-- (NSQualityOfService)debugParseQualityOfServiceForTrack:(AudioTrack *)track;
+- (NSQualityOfService)debugParseQualityOfServiceForTrack:(id<AudioTrackMetadataHolder>)track;
 // How the lane and the parse reach those debug-only ivars from their own files.
 // The first needs _materializationLock held.
 - (void)debugNoteScheduledParseQualityOfService:(NSQualityOfService)qualityOfService;

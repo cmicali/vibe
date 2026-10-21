@@ -7,7 +7,6 @@
 #import "PlaylistFileTestCase.h"
 #import "PlaylistFile.h"
 #import "AudioTrack.h"
-#import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
 #import "FakeTrackMetadata.h"
 

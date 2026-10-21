@@ -194,7 +194,7 @@ static NSDictionary *VibePlayerDictionary(MainPlayerController *controller) {
             @"shortDelaySend": @(fx.shortDelaySendEnabled),
         };
     }
-    AudioTrack *track = player.currentTrack;
+    AudioTrack *track = (AudioTrack *)player.currentTrack;
     if (track) {
         AudioTrackMetadata *metadata = track.metadata;
         d[@"track"] = @{

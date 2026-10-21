@@ -11,7 +11,6 @@
 #import "AudioLoadingConfiguration.h"
 #import "PINCache.h"
 #import "PINCache+VibeAudioCache.h"
-#import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "MetadataParseCoordinator.h"
 #import "AudioTrackMetadataCache+Debug.h"
@@ -32,7 +31,7 @@
     // Kept here, not only on the loader, so a replacement loader inherits them.
     NSArray<NSURL *>            *_neighborhood;
     // Weak: never pins a departed playlist's track.
-    __weak AudioTrack           *_lastPrioritizedTrack;
+    __weak id<AudioTrackMetadataHolder> _lastPrioritizedTrack;
     AudioLoadingConfiguration   *_loadingConfiguration;
 }
 
@@ -102,7 +101,7 @@
     _currentLoader = nil;
 }
 
--(void)loadMetadata:(NSArray<AudioTrack*>*)tracks {
+-(void)loadMetadata:(NSArray<id<AudioTrackMetadataHolder>>*)tracks {
     [self cancelScan];
     if (!tracks.count) {
         return;
@@ -115,14 +114,14 @@
     // Carry the current track's priority across the replacement, which often
     // replaces a pre-sweep single-track loader. Before load:, so stage 1
     // dedupes against it.
-    AudioTrack *priorityTrack = _lastPrioritizedTrack;
+    id<AudioTrackMetadataHolder> priorityTrack = _lastPrioritizedTrack;
     if (priorityTrack && !priorityTrack.metadata.parsedOK) {
         [loader prioritizeTrack:priorityTrack];
     }
     [loader load:tracks];
 }
 
-- (void)loadCachedMetadata:(NSArray<AudioTrack *> *)tracks {
+- (void)loadCachedMetadata:(NSArray<id<AudioTrackMetadataHolder>> *)tracks {
     if (!tracks.count) {
         return;
     }
@@ -133,7 +132,7 @@
     }
     _cacheOnlyLoader.delegate = self.delegate;
     AudioTrackMetadataLoader *loader = _cacheOnlyLoader;
-    NSArray<AudioTrack *> *snapshot = [tracks copy];
+    NSArray<id<AudioTrackMetadataHolder>> *snapshot = [tracks copy];
     // Serial behind init's construction: before the store exists a lookup
     // misses, and a miss here is final.
     dispatch_async(_cacheQueue, ^{
@@ -141,7 +140,7 @@
     });
 }
 
-- (void)abandonQueuedTrack:(AudioTrack *)track {
+- (void)abandonQueuedTrack:(id<AudioTrackMetadataHolder>)track {
     [_currentLoader abandonQueuedTrack:track];
 }
 
@@ -150,9 +149,9 @@
     [_currentLoader setNeighborhoodURLs:_neighborhood];
 }
 
-- (void)setNeighborhoodTracks:(NSArray<AudioTrack *> *)tracks {
+- (void)setNeighborhoodTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks {
     NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-    for (AudioTrack *track in tracks) {
+    for (id<AudioTrackMetadataHolder> track in tracks) {
         if (track.url) {
             [urls addObject:track.url];
         }
@@ -160,7 +159,7 @@
     [self setNeighborhoodURLs:urls];
 }
 
-- (void)loadMetadataNow:(AudioTrack *)track {
+- (void)loadMetadataNow:(id<AudioTrackMetadataHolder>)track {
     if (!track || track.metadata.parsedOK) {
         return;
     }
