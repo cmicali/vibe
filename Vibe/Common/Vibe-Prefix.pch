@@ -21,84 +21,10 @@
 #import <os/log.h>
 #include <sys/time.h>
 
+// The helper macros, and the log, realtime-effects and signpost macros
+// (vibe-libs/core/Common).
 #import "HelperMacros.h"
-
-// The log macros and the realtime-effects brackets (vibe-libs/core/Common).
 #import "VibeMacros.h"
-
-// Frame-budget instrumentation, DEBUG only. An interval lands in Instruments'
-// Points of Interest track, under Animation Hitches, and is also tallied by
-// name (Vibe/Debug/Oracles/VibeWorkTally.h) for a device with no Instruments attached.
-#if DEBUG
-
-#import <os/signpost.h>
-
-static inline os_log_t VibeSignpostLog(void) {
-    static os_log_t log;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        log = os_log_create("com.commonwealthrecordings.Vibe",
-                            OS_LOG_CATEGORY_POINTS_OF_INTEREST);
-    });
-    return log;
-}
-
-static inline uint64_t VibeMonotonicNanos(void) {
-    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-}
-
-// Declared rather than imported, so no debug header reaches every translation
-// unit.
-// TRAP: C linkage, spelled out: the waveform .mm files use these macros, and
-// without it they reference mangled names the .m never defines — a link error.
-__BEGIN_DECLS
-extern void VibeWorkTallyAdd(const char *name, uint64_t nanos);
-extern void VibeWorkTallyBeginWindow(const char *label);
-extern void VibeWorkTallyEndWindow(void);
-__END_DECLS
-
-#define VibeWorkTallyBegin(label)  VibeWorkTallyBeginWindow(label)
-#define VibeWorkTallyEnd()         VibeWorkTallyEndWindow()
-
-// `name` is a bare identifier that names the signpost and its locals, so
-// intervals nest without colliding. Begin and End must share a scope: put
-// Begin after any early-out (a cleanup attribute cannot carry the literal name
-// os_signpost requires).
-#define VibeSignpostBegin(name)                                                     \
-    os_signpost_id_t name##_spid = os_signpost_id_generate(VibeSignpostLog());      \
-    uint64_t name##_t0 = VibeMonotonicNanos();                                      \
-    os_signpost_interval_begin(VibeSignpostLog(), name##_spid, #name)
-
-#define VibeSignpostEnd(name)                                                       \
-    do {                                                                            \
-        os_signpost_interval_end(VibeSignpostLog(), name##_spid, #name);            \
-        VibeWorkTallyAdd(#name, VibeMonotonicNanos() - name##_t0);                  \
-    } while (0)
-
-// For work too small to time, where the count is the question.
-#define VibeSignpostCount(name)                                                     \
-    do {                                                                            \
-        os_signpost_event_emit(VibeSignpostLog(), OS_SIGNPOST_ID_EXCLUSIVE, #name); \
-        VibeWorkTallyAdd(#name, 0);                                                 \
-    } while (0)
-
-// The count with no trace event.
-// TRAP: a per-item or per-frame VibeSignpostCount emits thousands of events a
-// gesture, which perturbs the measurement and can leave the trace unusable. Use
-// this at such sites.
-#define VibeTallyCount(name)  VibeWorkTallyAdd(#name, 0)
-
-#else   // !DEBUG
-
-// An End with no Begin in scope fails only the Debug build.
-#define VibeWorkTallyBegin(label)  ((void)0)
-#define VibeWorkTallyEnd()         ((void)0)
-#define VibeSignpostBegin(name)    ((void)0)
-#define VibeSignpostEnd(name)      ((void)0)
-#define VibeSignpostCount(name)    ((void)0)
-#define VibeTallyCount(name)       ((void)0)
-
-#endif  // DEBUG
 
 // Marks a user-visible string deliberately not localized (format acronyms,
 // punctuation, product names). An unwrapped @"..." in UI code is a bug.

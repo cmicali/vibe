@@ -44,7 +44,7 @@ The loader decodes only the row's window (`cueStart`/`cueEnd` through `VibeCueWi
 
 ## Admission
 
-Cache-key stats, cache lookups, opens and decodes pass through **fixed-slot utility `AudioWorkScheduler`s** (`Loading/Claim/`). `stat` and the open can block for minutes on a cloud placeholder and have no cancellation point, so fixed slots are the resource bound. A stat keeps its slot while it visits the serial cache queue. Playback opens never pass through these schedulers, so background analysis cannot starve the open the user is waiting on.
+Cache-key stats, cache lookups, opens and decodes pass through **fixed-slot utility `AudioWorkScheduler`s** (vibe-libs' `core/Common`). `stat` and the open can block for minutes on a cloud placeholder and have no cancellation point, so fixed slots are the resource bound. A stat keeps its slot while it visits the serial cache queue. Playback opens never pass through these schedulers, so background analysis cannot starve the open the user is waiting on.
 
 **Lookups and decodes use separate lanes.** The lookup lane runs two, the decode lane `kMaxDetachedWaveformLoads + 1` = three. A decode is submitted from *inside* a lookup that still holds its slot. Sharing one scheduler would let a burst of lookups expire the decode they asked for, delivered as that file failing to load. The lookup and decode lanes each hold at most four pending items. A pending request whose lane stays full for ten seconds fails *admission*. A never-returning OS call still owns its slot for the process's life, but retries cannot multiply it.
 
