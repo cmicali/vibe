@@ -67,7 +67,7 @@ Each is mergeable alone and leaves every check passing. The vibe-libs plan names
 | 26 | Drawn slider formatter | `VibeSlider` calls `Formatters.percentString:` for its accessibility value. | One formatter block. | in review |
 | 27 | Fonts' slots | `Fonts` imports `AppTheme` for `VibeFontSlot` and `applyThemeFonts:`. | `Fonts` keeps a face-and-size table keyed by an integer slot. The enum, the five slots, and the theme push move beside `AppTheme`. | |
 | 28 | Shortcut encoding | `ShortcutRules.h` mixes the key-code-or-character encoding with Vibe's commands, their defaults, and the menu rules. | The encoding, the modifier mask, and the matching move. The command table stays. The Shortcuts pane takes rows of identifier, label, and default. | |
-| 29 | Color-pair row | The theme editor builds dark and light wells bound to an `AppTheme` base, seeds them, and copies and pastes them as hex. | The row, the seeding, and copy and paste move into `SettingsFormViews`, bound to a read block and a write block. The editor calls it. | |
+| 29 | Color-pair row | The theme editor builds dark and light wells bound to an `AppTheme` base, seeds them, and copies and pastes them as hex. | The row, the seeding, and copy and paste move into `SettingsFormViews`, bound to a read block and a write block. The editor calls it. | #345 |
 
 Cut 5, which retired `AudioTrack`'s two labels, is not planned. `AudioTrack` stays in Vibe.
 
