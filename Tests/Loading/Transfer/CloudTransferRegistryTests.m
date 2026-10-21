@@ -7,7 +7,7 @@
 
 #import <XCTest/XCTest.h>
 
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "CloudTransferRegistryInternal.h"
 
 @interface VibeTestTransferMonitor : NSObject <VibeCloudTransferMonitor>

@@ -80,7 +80,7 @@ The contracts are written in vibe-libs' plan. This is Vibe's side of each.
 | # | Seam | Today | Vibe's change |
 | --- | --- | --- | --- |
 | 13 | The playable-item protocol | Nine shared areas import the playlist row. | `AudioTrack` adopts the protocol and moves to `Vibe/Playlist/`. The CUE window math goes to AudioTypes. |
-| 14 | `AudioFileOpenRules.h` splits | It holds the open's delivery states, path spelling and the mount read-ahead rules. Four areas import it. | Each part goes to the piece that owns it. |
+| 14 | `AudioFileOpenRules.h` splits | It held the open's delivery states, path spelling and the mount read-ahead rules. Four areas imported it. | Done. The delivery states sit beside the open token, the path spelling in `Util/FilePaths`, the tail window beside the placeholder store, and the mount rule and the span beside the read-ahead. Each importer takes only the part it uses. |
 | 15 | The loader's handle | Its opener is a block, but typed as `AudioFileHandle`. `NetworkReadAhead.m` imports `AudioFileHandle+Debug.h` for its test hooks. | The handle becomes a small protocol. The hooks move to a debug header of the loader's own, and `AudioFileHandle (Debug)` forwards to them. |
 | 16 | TagLib and artwork | The TagLib wrapper returns an artwork extractor and reads remote ranges through the materializer. | Tags returns art bytes and takes a byte-range reader. |
 | 17 | The waveform decode's analyzers | The loader builds the tempo and key analyzers itself. | The app attaches them as observers. The archive and its coverage rules do not change. |

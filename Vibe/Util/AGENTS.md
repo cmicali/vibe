@@ -10,7 +10,7 @@ Two placements are not what the file names suggest.
 
 ## FilePaths spells a path for comparison
 
-**`VibeComparablePath` is path identity from the string alone.** It standardizes the spelling and drops the aliases `VibeAliasFreePath` drops: `/private` before `/tmp`, `/var` and `/etc`, and the data volume's firmlink. It never stats, so any thread may ask about any path. Its `TRAP:` says why.
+**`VibeComparablePath` is path identity from the string alone.** It standardizes the spelling and drops the aliases `VibeAliasFreePath` drops: `/private` before `/tmp`, `/var` and `/etc`, and the data volume's firmlink. It never stats, so any thread may ask about any path. Its `TRAP:` says why. `VibeStandardizedAudioOpenPath` spells a URL the same way. Every loader identity is keyed by it: the claim, the transfer, the parse, and the source key (`Loading/AGENTS.md`).
 
 ## Formatters joins every info line
 

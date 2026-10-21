@@ -9,7 +9,7 @@
 #import <XCTest/XCTest.h>
 #include <stdatomic.h>
 
-#import "AudioFileOpenRules.h"
+#import "NetworkReadAheadMath.h"
 #import "CloudFileMaterializer.h"
 #import "CloudFileMaterializer+Debug.h"
 #import "PlaceholderFiles+Debug.h"

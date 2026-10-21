@@ -13,7 +13,7 @@
 #import "AudioLoadingConfiguration.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "MetadataScanEntry.h"
 #import "MetadataRetryRules.h"
 

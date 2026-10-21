@@ -7,7 +7,7 @@
 #import "AudioFileMaterializationTokens.h"
 #import "AudioFileHandle.h"
 
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "AudioWorkScheduler.h"
 #import "CloudFileMaterializer.h"
 #import "CloudTransferRegistryInternal.h"

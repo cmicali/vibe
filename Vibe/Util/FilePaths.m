@@ -46,3 +46,14 @@ NSString *VibeComparablePath(NSString *path) {
     }
     return VibeAliasFreePath(standard);
 }
+
+// TRAP: never URLByStandardizingPath here. It stats a path that starts with
+// /private or holds "..", so it can stall the player or the claim's state
+// queue before the bounded probe begins. Every path an iOS provider hands over
+// starts with /private.
+NSString *VibeStandardizedAudioOpenPath(NSURL *url) {
+    if (url.isFileURL) {
+        return VibeComparablePath(url.path) ?: @"";
+    }
+    return url.absoluteString ?: @"";
+}

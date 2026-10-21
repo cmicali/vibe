@@ -554,7 +554,7 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
 
 #pragma mark The tail window
 
-// A small format's window (AudioFileOpenRules.h).
+// A small format's window (TailWindowMath.h).
 static const uint64_t kWindowBytes = 128 * 1024;
 
 // Every ranged read that completes calls this after its completion returns,
