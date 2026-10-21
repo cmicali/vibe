@@ -12,6 +12,8 @@
 
 **Rows are made from entries in one place.** The walk and the readers return `PlaylistEntry` records: a file whole, or a CUE sheet's window of one with the sheet's names. `AudioTrack rowsForEntries:` makes a fresh row of each. `entriesForRows:` goes the other way for the writer. It adds each row's duration and display names, which the `#EXTINF` line takes. Only `AudioTrack` names both types, so the walk and `PlaylistFile` never name the row.
 
+**The app joins the tempo and key analyzers to the waveform decode** (`AudioAnalysisObservers.h`). It lives here because the row is where tempo and key land. Analysis and the waveform loader do not know each other. Each analyzer is its own sink, through a category. Each has one observer. Their identifiers are `bpm` and `key`, and each result is an `NSNumber`. A change to what either computes takes a new identifier. Every entry analyzed the old way then misses and is analyzed again. The same file reads a tempo or a key back out of a decode's results. A bad one reads as unknown.
+
 **The player never writes the row, so each shell stores its settled length.** `duration` takes the player's at `didStartPlaying:`, at `didAutoAdvanceFromTrack:toTrack:` and at `didSettleDurationOfTrack:` (`adoptSettledDurationOfTrack:`, in each shell's `+PlayerEvents`). It is written only while the player still sounds that row, since the player's duration is the sounding track's. Until then a windowed row answers its window, and a whole file its metadata's length.
 
 ## The model
