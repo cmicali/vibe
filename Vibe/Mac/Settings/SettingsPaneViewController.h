@@ -122,6 +122,13 @@ static const CGFloat kSettingsCardRevealInset = 12;
 // and the debug channel's settings_reveal share it.
 + (void)scrollCardToTop:(NSView *)card animated:(BOOL)animated;
 
+// A pane with pages (a list and an editor) names the page it shows, nil for
+// its top. The window's history records it beside the pane's identifier and
+// reopens it through showPage:; a sidebar pick shows nil. Neither does
+// anything by default.
+- (nullable NSString *)currentPage;
+- (void)showPage:(nullable NSString *)page;
+
 // A write that must change the running app stores its value, then requests
 // the exact effects here. The sink applies them synchronously.
 - (void)applyLiveEffects:(NSUInteger)effects;

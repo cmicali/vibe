@@ -612,6 +612,13 @@ static void AppendLayoutText(NSView *view, NSMutableString *signature) {
     }];
 }
 
+- (NSString *)currentPage {
+    return nil;
+}
+
+- (void)showPage:(NSString *)page {
+}
+
 #pragma mark - Drags
 
 static const CFTimeInterval kSettingsDragInterval = 1.0 / 30;

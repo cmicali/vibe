@@ -185,8 +185,18 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     [self refreshFromSettings];
 }
 
+NSString *const kVibeThemeEditorPage = @"editor";
+
 - (BOOL)editorShown {
     return _editorShown;
+}
+
+- (NSString *)currentPage {
+    return _editorShown ? kVibeThemeEditorPage : nil;
+}
+
+- (void)showPage:(NSString *)page {
+    [self setEditorShown:[page isEqualToString:kVibeThemeEditorPage]];
 }
 
 - (void)setEditorShown:(BOOL)shown {

@@ -2,8 +2,12 @@
 //  SettingsWindowController.h
 //  Vibe
 //
+//  Vibe's settings window: the nine panes over the player, and the Themes
+//  pane's toolbar items (the dice, the theme history and the appearance
+//  preview). The window itself is SettingsPanesWindowController.
+//
 
-#import <Cocoa/Cocoa.h>
+#import "SettingsPanesWindowController.h"
 
 @class MainPlayerController;
 @class SettingsThemesViewController;
@@ -11,7 +15,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface SettingsWindowController : NSWindowController
+@interface SettingsWindowController : SettingsPanesWindowController
 
 - (instancetype)initWithPlayerController:(MainPlayerController *)playerController;
 
@@ -20,38 +24,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable SettingsThemesViewController *)themesPane;
 - (nullable SettingsAudioOutputViewController *)audioPane;
 
-- (void)refreshSelectedPane;
-
-// Called by the sidebar and the tab controller before a pane is selected.
-- (void)paneWillBecomeSelected:(NSTabViewItem *)item;
-
 // Selects the Themes pane and opens the active theme's editor. The window
 // must already be shown.
 - (void)showThemeEditor;
-
-// The window refuses engine-driven size changes (SettingsWindow), so every
-// programmatic resize must come through here.
-- (void)applyWindowFrame:(NSRect)frame;
-
-// The same funnel in content points, top-anchored.
-- (void)applyContentSize:(NSSize)size;
-
-// Records the location in the back/forward history and re-reads the
-// Themes pane's state into the toolbar. Called on every page swap and
-// pane switch.
-- (void)updateNavigation;
-
-// The toolbar's back/forward pill, across panes and the theme editor.
-- (BOOL)canNavigateForward:(BOOL)forward;
-- (void)navigateForward:(BOOL)forward;
-
-// Edit > Undo's target while the window is key: the theme history on
-// Themes, the selected pane's own undo stack elsewhere.
-- (IBAction)undo:(nullable id)sender;
-
-// Types query into the sidebar's search field, as a user would; answers the
-// identifiers of the panes left in the sidebar.
-- (NSArray<NSString *> *)searchSettingsFor:(NSString *)query;
 
 @end
 
