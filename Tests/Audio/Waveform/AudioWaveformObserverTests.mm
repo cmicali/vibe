@@ -18,6 +18,7 @@
 #import "AudioWaveform.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformObserver.h"
+#import "NSURL+Hash.h"
 #import "TestFilesystemGuard.h"
 
 #include <cmath>
@@ -408,6 +409,107 @@
     XCTAssertNotEqual(currentIndex, NSNotFound);
     XCTAssertEqualObjects(_recorder.results[lateIndex], @{@"test.frames": @88200});
     XCTAssertEqualObjects(_recorder.results[currentIndex], @{@"test.frames": @44100});
+}
+
+// What a download that installs another version does under a decode: the
+// file moves to another size, and every memoized key is retired. The rename
+// leaves the decode reading the version it opened.
+- (void)replace:(NSURL *)url withWAVOfSeconds:(double)seconds {
+    NSURL *next = [self writeWAVNamed:@"next.wav" seconds:seconds];
+    XCTAssertEqual(rename(next.fileSystemRepresentation, url.fileSystemRepresentation), 0);
+    [NSURL invalidateMemoizedCacheKeys];
+}
+
+// The disk store's entry count, once the writes in flight have landed.
+- (NSUInteger)filedEntries {
+    __block NSUInteger count = NSNotFound;
+    [_cache diskUsageWithCompletion:^(NSUInteger fileCount, unsigned long long totalBytes) {
+        count = fileCount;
+    }];
+    XCTAssertTrue([self eventually:^BOOL { return count != NSNotFound; }]);
+    return count;
+}
+
+// A decode that completes after its file was replaced by another version is
+// stale: neither its waveform nor its result reaches the track, and nothing
+// is filed under the old version's key. The current load decodes once more
+// under the new key and delivers the version the file now holds.
+- (void)testALateCompletionOfAReplacedVersionIsNotDelivered {
+    NSURL *url = [self writeWAVNamed:@"replaced.wav" seconds:2.0];
+    AudioTrack *track = [AudioTrack withURL:url];
+    [_frames holdNextDecode];
+    [_cache loadWaveformForTrack:track];
+    XCTAssertTrue([_frames awaitHeld]);
+    [self replace:url withWAVOfSeconds:3.0];
+    [_frames resume];
+
+    XCTAssertTrue([self eventually:^BOOL { return self->_recorder.completedTracks.count == 1; }]);
+    XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 1; }]);
+    VibeSpinFor(kVibeTestNegativeWindow);
+    XCTAssertEqual(_frames.sinks.count, 2u, @"the stale decode, then the new version's");
+    XCTAssertEqual(_frames.sinks.firstObject.frames, 88200u, @"the stale decode read the version it opened");
+    XCTAssertEqualObjects(_recorder.completedTracks, @[track]);
+    XCTAssertEqualObjects(_recorder.results, @[@{@"test.frames": @132300}], @"only the new version's result");
+    XCTAssertEqual(_recorder.failures, 0u);
+    XCTAssertTrue([self eventuallyCached:[AudioTrack withURL:url]]);
+    XCTAssertEqual([self filedEntries], 1u, @"the stale decode filed nothing");
+}
+
+// Retired memos alone are no new version: the key read again at completion
+// is the one the decode was looked up under, so it is delivered and filed.
+- (void)testALateCompletionOfAnUnchangedFileIsDelivered {
+    NSURL *url = [self writeWAVNamed:@"unchanged.wav" seconds:2.0];
+    AudioTrack *track = [AudioTrack withURL:url];
+    [_frames holdNextDecode];
+    [_cache loadWaveformForTrack:track];
+    XCTAssertTrue([_frames awaitHeld]);
+    [NSURL invalidateMemoizedCacheKeys];
+    [_frames resume];
+
+    XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 1; }]);
+    VibeSpinFor(kVibeTestNegativeWindow);
+    XCTAssertEqual(_frames.sinks.count, 1u, @"delivered, not decoded again");
+    XCTAssertEqualObjects(_recorder.completedTracks, @[track]);
+    XCTAssertEqualObjects(_recorder.results, @[@{@"test.frames": @88200}]);
+    XCTAssertEqual(_recorder.failures, 0u);
+    XCTAssertTrue([self eventuallyCached:[AudioTrack withURL:url]]);
+}
+
+// A cue row's key is its file's plus its window, read again the same way. An
+// unchanged image delivers its window. A replaced one is decoded once more,
+// and that decode reads the new version's window: quiet in the old version,
+// loud in the new.
+- (void)testACueWindowsLateCompletionIsCheckedUnderItsWindowedKey {
+    NSURL *url = [self writeWAVNamed:@"image.wav" seconds:4.0 quietFrom:1.0 to:3.0];
+    AudioTrack *row = [[AudioTrack alloc] initWithURL:url cueStart:75 cueEnd:150
+                                                title:nil performer:nil sheet:nil trackNumber:0];
+    [_frames holdNextDecode];
+    [_cache loadWaveformForTrack:row];
+    XCTAssertTrue([_frames awaitHeld]);
+    [NSURL invalidateMemoizedCacheKeys];
+    [_frames resume];
+    XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 1; }]);
+    XCTAssertEqual(_frames.sinks.count, 1u, @"an unchanged window is its key's version");
+    XCTAssertEqualObjects(_recorder.completedTracks, @[row]);
+
+    AudioTrack *next = [[AudioTrack alloc] initWithURL:url cueStart:150 cueEnd:225
+                                                 title:nil performer:nil sheet:nil trackNumber:0];
+    [_frames holdNextDecode];
+    [_cache loadWaveformForTrack:next];
+    XCTAssertTrue([_frames awaitHeld]);
+    [self replace:url withWAVOfSeconds:5.0];
+    [_frames resume];
+    XCTAssertTrue([self eventually:^BOOL { return self->_recorder.completedTracks.count == 2; }]);
+    XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 2; }]);
+    VibeSpinFor(kVibeTestNegativeWindow);
+    NSArray<WaveformRecordingSink *> *sinks = _frames.sinks;
+    XCTAssertEqual(sinks.count, 3u, @"the stale window's decode, then the new version's");
+    XCTAssertEqual(sinks[1].peak, 0.25f, @"the stale decode read the old version's window");
+    XCTAssertTrue(NSEqualRanges(sinks[2].window, NSMakeRange(88200, 44100)));
+    XCTAssertEqual(sinks[2].peak, 0.5f, @"the retry read the new version's");
+    XCTAssertEqualObjects(_recorder.completedTracks, (@[row, next]));
+    XCTAssertEqualObjects(_recorder.results.lastObject, @{@"test.frames": @44100});
+    XCTAssertEqual(_recorder.failures, 0u);
 }
 
 #pragma mark - A CUE window
