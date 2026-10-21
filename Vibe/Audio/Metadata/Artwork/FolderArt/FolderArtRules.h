@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  What a cover may be called and which name wins, shared by the resolver and
-//  FolderWalk.
+//  the walked-file handler the app gives FolderWalk.
 //
 
 #import <Foundation/Foundation.h>
@@ -95,23 +95,6 @@ static inline NSString *_Nullable VibeFolderArtBestCandidate(NSArray<NSString *>
         }
     }
     return best;
-}
-
-// The streaming form for a tree walk: the best cover so far per directory.
-static inline void VibeFolderArtNoteCandidate(NSString *_Nullable directory,
-                                              NSString *_Nullable filename,
-                                              NSMutableDictionary<NSString *, NSString *> *artByDirectory,
-                                              NSMutableDictionary<NSString *, NSNumber *> *rankByDirectory) {
-    NSUInteger rank = VibeFolderArtCandidateRank(filename);
-    if (rank == NSNotFound || directory.length == 0) {
-        return;
-    }
-    NSNumber *incumbent = rankByDirectory[directory];
-    if (!VibeFolderArtRankBeats(rank, incumbent != nil ? incumbent.unsignedIntegerValue : NSNotFound)) {
-        return;
-    }
-    rankByDirectory[directory] = @(rank);
-    artByDirectory[directory] = filename;
 }
 
 NS_ASSUME_NONNULL_END

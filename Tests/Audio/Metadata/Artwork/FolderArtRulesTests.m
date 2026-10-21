@@ -133,41 +133,4 @@
     XCTAssertFalse(VibeFolderArtRankBeats(NSNotFound, 7));
 }
 
-#pragma mark - Streaming accumulation (the folder walk)
-
-- (void)testNoteCandidateKeepsTheBestPerDirectory {
-    NSMutableDictionary<NSString *, NSString *> *art = [NSMutableDictionary dictionary];
-    NSMutableDictionary<NSString *, NSNumber *> *ranks = [NSMutableDictionary dictionary];
-    VibeFolderArtNoteCandidate(@"/A", @"01 Track.mp3", art, ranks);
-    VibeFolderArtNoteCandidate(@"/A", @"album.jpg", art, ranks);
-    VibeFolderArtNoteCandidate(@"/A", @"Cover.JPG", art, ranks);
-    VibeFolderArtNoteCandidate(@"/A", @"folder.jpg", art, ranks);
-    VibeFolderArtNoteCandidate(@"/B", @"front.png", art, ranks);
-    XCTAssertEqualObjects(art[@"/A"], @"Cover.JPG", @"best wins, spelling preserved");
-    XCTAssertEqualObjects(art[@"/B"], @"front.png");
-    XCTAssertEqual(art.count, 2u, @"directories with no cover leave no entry");
-}
-
-- (void)testNoteCandidateIgnoresNonCoversAndEmptyDirectories {
-    NSMutableDictionary<NSString *, NSString *> *art = [NSMutableDictionary dictionary];
-    NSMutableDictionary<NSString *, NSNumber *> *ranks = [NSMutableDictionary dictionary];
-    VibeFolderArtNoteCandidate(@"/A", @"01 Track.mp3", art, ranks);
-    VibeFolderArtNoteCandidate(@"/A", @"scan-cover.jpg", art, ranks);
-    VibeFolderArtNoteCandidate(@"", @"cover.jpg", art, ranks);
-    VibeFolderArtNoteCandidate(nil, @"cover.jpg", art, ranks);
-    VibeFolderArtNoteCandidate(@"/A", nil, art, ranks);
-    XCTAssertEqual(art.count, 0u);
-}
-
-- (void)testNoteCandidateAgreesWithBestCandidate {
-    NSArray<NSString *> *listing = @[@"02 B.wav", @"folder.png", @"cover.jpeg", @"art.txt"];
-    NSMutableDictionary<NSString *, NSString *> *art = [NSMutableDictionary dictionary];
-    NSMutableDictionary<NSString *, NSNumber *> *ranks = [NSMutableDictionary dictionary];
-    for (NSString *filename in listing) {
-        VibeFolderArtNoteCandidate(@"/A", filename, art, ranks);
-    }
-    XCTAssertEqualObjects(art[@"/A"], VibeFolderArtBestCandidate(listing),
-                          @"the streaming and whole-listing forms rank identically");
-}
-
 @end

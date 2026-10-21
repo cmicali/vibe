@@ -4,7 +4,6 @@
 //
 
 #import "FolderWalkInternal.h"
-#import "FolderArtRules.h"
 #import "NSURL+Emptiness.h"
 #import "PlaceholderFiles.h"
 #import "PlayableExtensions.h"
@@ -20,8 +19,15 @@
 
 // Installed at launch, read from the expansion workers: every access locks.
 static VibePlaylistFolderGrantHandler sPlaylistFolderGrantHandler;
+static VibeWalkedFileHandler sWalkedFileHandler;
 static VibeWalkedDirectoriesHandler sWalkedDirectoriesHandler;
 static VibeBulkOpenDirectoriesHandler sBulkOpenDirectoriesHandler;
+
+static VibeWalkedFileHandler WalkedFileHandler(void) {
+    @synchronized (FolderWalk.class) {
+        return sWalkedFileHandler;
+    }
+}
 
 static VibeWalkedDirectoriesHandler WalkedDirectoriesHandler(void) {
     @synchronized (FolderWalk.class) {
@@ -41,6 +47,12 @@ static VibeBulkOpenDirectoriesHandler BulkOpenDirectoriesHandler(void) {
 + (void)setPlaylistFolderGrantHandler:(VibePlaylistFolderGrantHandler)handler {
     @synchronized (self) {
         sPlaylistFolderGrantHandler = [handler copy];
+    }
+}
+
++ (void)setWalkedFileHandler:(VibeWalkedFileHandler)handler {
+    @synchronized (self) {
+        sWalkedFileHandler = [handler copy];
     }
 }
 
@@ -187,15 +199,16 @@ static BOOL VibeListedFileIsEmpty(NSURL *url, BOOL isLink, BOOL *dangling) {
     return url.isEmptyOrDirectory;
 }
 
-// The walk ranks cover candidates on the way past, so the walked-directories
-// handler gets each folder's answer for free. Only directories with playable
-// audio are reported.
+// The walk ranks each file through the walked-file handler on the way past,
+// so the walked-directories handler gets each folder's best file for free.
+// Only directories with playable audio are reported.
 + (NSArray<PlaylistEntry*>*) expandDirectory:(NSURL*)dir sortedBy:(VibeFolderOpenSort)sort {
 
     NSMutableArray<NSURL*> *results = [[NSMutableArray alloc] init];
     NSFileManager *fileManager = [NSFileManager defaultManager];
-    NSMutableDictionary<NSString*, NSString*> *artByDirectory = [NSMutableDictionary dictionary];
-    NSMutableDictionary<NSString*, NSNumber*> *artRankByDirectory = [NSMutableDictionary dictionary];
+    VibeWalkedFileHandler rankFile = WalkedFileHandler();
+    NSMutableDictionary<NSString*, NSString*> *keptByDirectory = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString*, NSNumber*> *keptRankByDirectory = [NSMutableDictionary dictionary];
     NSMutableSet<NSString*> *directoriesWalked = [NSMutableSet set];
     NSSet<NSString*> *supported = [self supportedExtensions];
 
@@ -247,8 +260,7 @@ static BOOL VibeListedFileIsEmpty(NSURL *url, BOOL isLink, BOOL *dangling) {
                 LogWarn(@"Could not read directory flag for %@: %@", url, error);
                 isFile = YES;
             }
-            // Non-audio entries still reach the folder-art bookkeeping below:
-            // a cover is exactly a non-audio entry.
+            // Every file reaches the walked-file handler below, audio or not.
             NSString *path = url.path;
             if (!isFile) {
                 // Recorded so a link into this subtree reads as covered; one a
@@ -295,8 +307,16 @@ static BOOL VibeListedFileIsEmpty(NSURL *url, BOOL isLink, BOOL *dangling) {
             if (lastDirectory.length > 0 && isAudio) {
                 [directoriesWalked addObject:lastDirectory];
             }
-            VibeFolderArtNoteCandidate(lastDirectory, path.lastPathComponent,
-                                       artByDirectory, artRankByDirectory);
+            NSString *filename = path.lastPathComponent;
+            NSUInteger rank = rankFile && lastDirectory.length > 0 ? rankFile(filename) : NSNotFound;
+            // NSNotFound is NSIntegerMax, so it is tested, never compared.
+            if (rank != NSNotFound) {
+                NSNumber *kept = keptRankByDirectory[lastDirectory];
+                if (kept == nil || rank < kept.unsignedIntegerValue) {
+                    keptRankByDirectory[lastDirectory] = @(rank);
+                    keptByDirectory[lastDirectory] = filename;
+                }
+            }
         }
 
         for (NSString *linked in linkedRoots) {
@@ -308,7 +328,7 @@ static BOOL VibeListedFileIsEmpty(NSURL *url, BOOL isLink, BOOL *dangling) {
 
     VibeWalkedDirectoriesHandler walked = WalkedDirectoriesHandler();
     if (walked && directoriesWalked.count > 0) {
-        walked(directoriesWalked, artByDirectory);
+        walked(directoriesWalked, keptByDirectory);
     }
 
     VibeSortAudioURLs(results, sort, YES);

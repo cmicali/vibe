@@ -993,4 +993,36 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
             [_root.path stringByAppendingPathComponent:@"elsewhere"]]);
 }
 
+// The walk keeps the best-ranked file of each directory and knows nothing of
+// what the rank means. A directory whose files all pass keeps none.
+- (void)testTheWalkKeepsEachDirectorysBestRankedFile {
+    [self makeFile:@"library/a/Song.mp3"];
+    [self makeFile:@"library/a/fair.txt"];
+    [self makeFile:@"library/a/best.txt"];
+    [self makeFile:@"library/b/Song.mp3"];
+    [self makeFile:@"library/b/fair.txt"];
+    [self makeFile:@"library/c/Song.mp3"];
+    NSDictionary<NSString *, NSNumber *> *ranks = @{@"best.txt": @0, @"fair.txt": @5};
+    [FolderWalk setWalkedFileHandler:^NSUInteger(NSString *filename) {
+        NSNumber *rank = ranks[filename];
+        return rank != nil ? rank.unsignedIntegerValue : NSNotFound;
+    }];
+    __block NSDictionary<NSString *, NSString *> *kept = nil;
+    __block NSSet<NSString *> *reported = nil;
+    [FolderWalk setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
+                                             NSDictionary<NSString *, NSString *> *keptFilenameByDirectory) {
+        reported = directories;
+        kept = keptFilenameByDirectory;
+    }];
+
+    [FolderWalk expandDirectory:[self makeDirectory:@"library"] sortedBy:VibeFolderOpenSortName];
+    [FolderWalk setWalkedFileHandler:nil];
+    [FolderWalk setWalkedDirectoriesHandler:nil];
+
+    NSString *library = [_root.path stringByAppendingPathComponent:@"library"];
+    XCTAssertEqual(reported.count, 3u);
+    XCTAssertEqualObjects(kept, (@{[library stringByAppendingPathComponent:@"a"]: @"best.txt",
+                                   [library stringByAppendingPathComponent:@"b"]: @"fair.txt"}));
+}
+
 @end

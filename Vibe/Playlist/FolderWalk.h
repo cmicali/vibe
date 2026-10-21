@@ -16,13 +16,19 @@ NS_ASSUME_NONNULL_BEGIN
 // answered. Unset (as in tests), unreadable entries are skipped.
 typedef BOOL (^VibePlaylistFolderGrantHandler)(NSURL *playlistURL);
 
-// What an expansion saw of the folders it touched, for the folder-art
-// resolver. Unset, it is discarded. Both are called on an expansion worker.
+// What an expansion saw of the folders it touched. Unset, it is discarded.
+// All three are called on an expansion worker.
 
-// Covers keyed by directory, spelled as on disk. Every directory was listed in
-// full, so "no cover" is an answer. Once per top-level folder expanded.
+// A file's rank, lower first, or NSNotFound to pass it over. A folder walk
+// asks it for every file it lists, by name, and keeps the first best-ranked
+// file of each directory. Unset, the walk keeps none.
+typedef NSUInteger (^VibeWalkedFileHandler)(NSString *filename);
+
+// The directories with playable audio, spelled as on disk, and the file kept
+// in each, by name. Every directory was listed in full, so a directory with no
+// kept file is an answer. Once per top-level folder expanded.
 typedef void (^VibeWalkedDirectoriesHandler)(NSSet<NSString *> *directories,
-                                             NSDictionary<NSString *, NSString *> *artFilenameByDirectory);
+                                             NSDictionary<NSString *, NSString *> *keptFilenameByDirectory);
 
 // The loose files' folders in a bulk open, unlisted: only that a listing each
 // is a fair price. Once per expansion; never for a single file.
@@ -32,6 +38,7 @@ typedef void (^VibeBulkOpenDirectoriesHandler)(NSSet<NSString *> *directories);
 @interface FolderWalk : NSObject
 
 + (void)setPlaylistFolderGrantHandler:(nullable VibePlaylistFolderGrantHandler)handler;
++ (void)setWalkedFileHandler:(nullable VibeWalkedFileHandler)handler;
 + (void)setWalkedDirectoriesHandler:(nullable VibeWalkedDirectoriesHandler)handler;
 + (void)setBulkOpenDirectoriesHandler:(nullable VibeBulkOpenDirectoriesHandler)handler;
 

@@ -30,6 +30,7 @@
 #import "FolderAccessManager.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
+#import "FolderArtRules.h"
 #import "LinkDropRules.h"
 #import "LinkStore.h"
 #import "StringRules.h"
@@ -111,10 +112,14 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
         return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
     }];
+    // The walk ranks each file it lists by folder art's cover rank.
+    [FolderWalk setWalkedFileHandler:^NSUInteger(NSString *filename) {
+        return VibeFolderArtCandidateRank(filename);
+    }];
     [FolderWalk setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
-                                             NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
+                                             NSDictionary<NSString *, NSString *> *keptFilenameByDirectory) {
         [FolderArtResolver.sharedInstance noteListedDirectories:directories
-                                     artFilenameByDirectory:artFilenameByDirectory];
+                                     artFilenameByDirectory:keptFilenameByDirectory];
     }];
     [FolderWalk setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
         [FolderArtResolver.sharedInstance preferListingForDirectories:directories];

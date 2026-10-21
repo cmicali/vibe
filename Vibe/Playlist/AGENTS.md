@@ -50,7 +50,8 @@ Under Repeat All the next cycle is a fresh shuffle. With more than one row, its 
 
 `FolderWalk` expands whatever the user opened (a file, a folder, a playlist file) into an ordered list of entries. Each is a `PlaylistEntry`, and the caller makes its rows from them (The row, above). It runs on background workers, never the main thread. `expandAndFilterList:sortedBy:completion:` completes on its worker, so the caller makes its rows there and then goes to main. **It calls no one. What it discovers is reported through handler blocks the app installs at launch.**
 - `setPlaylistFolderGrantHandler:`: the grant a playlist file's unreadable entries need (`Mac/App/`'s `FolderAccessManager+GrantPanel`).
-- `setWalkedDirectoriesHandler:` and `setBulkOpenDirectoriesHandler:`: the folders it listed and the covers it saw. The folder-art resolver takes them rather than paying for its own I/O (`Audio/Metadata/`).
+- `setWalkedFileHandler:`: a rank for each file a folder walk lists, by name. The walk keeps the first best-ranked file of each directory and knows nothing of what the rank means. The mac installs folder art's cover rank (`FolderArtRules.h`).
+- `setWalkedDirectoriesHandler:` and `setBulkOpenDirectoriesHandler:`: the folders it listed with the file it kept in each, and a bulk open's loose folders. The folder-art resolver takes them rather than paying for its own I/O (`Audio/Metadata/Artwork/FolderArt/`).
 
 **Unset handlers mean the walk still works and throws the extra facts away.** That is what the tests install. A walk that called a singleton behind a setting, a grant and a modal panel could not be tested, and this one is, fuzz suite included. `FolderWalkInternal.h` exposes the synchronous expansion steps for those tests. Do not import it outside `FolderWalk.m`, those tests and the bench harness.
 
