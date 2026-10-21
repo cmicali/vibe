@@ -95,7 +95,7 @@ Vibe's folder open becomes a caller of the catalog scan's walk, after FolderScan
 
 ## What changes in this repo's tooling
 
-Done in #315: the submodule script, `submodules: recursive` on every CI checkout, `check-layout` assertion 7, and the submodule in `perf.py` and `scripts/bench/build-version.sh` worktrees. `perf.py`'s `tool_spec` copies `templates` and `templateAttributes`. Done in #350: `check-layout` assertion 4 counts a vibe-libs piece's `Mac/` and `iOS/` halves as that platform's tree. Done before the vendored libraries move: `scripts/build/analyze.sh` also drops findings under `/third_party/`.
+Done in #315: the submodule script, `submodules: recursive` on every CI checkout, `check-layout` assertion 7, and the submodule in `perf.py` and `scripts/bench/build-version.sh` worktrees. `perf.py`'s `tool_spec` copies `templates` and `templateAttributes`. Done in #350: `check-layout` assertion 4 counts a vibe-libs piece's `Mac/` and `iOS/` halves as that platform's tree. Done in #352, before the vendored libraries move: `scripts/build/analyze.sh` also drops findings under `/third_party/`.
 
 Still to do, each with the move that needs it:
 
