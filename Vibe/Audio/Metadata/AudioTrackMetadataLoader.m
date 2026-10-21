@@ -95,8 +95,9 @@
         for (NSUInteger index = 0; index < tracks.count; index++) {
             if (setupSelf.isCancelled) break;
             id<AudioTrackMetadataHolder> track = tracks[index];
-            // A failed parse stays eligible: the file may be readable now.
-            if (track.metadata.parsedOK) continue;
+            // A failed parse stays eligible: the file may be readable now. So
+            // does another version's answer.
+            if ([setupSelf holdsCurrentMetadata:track]) continue;
             BOOL alreadyQueued;
             os_unfair_lock_lock(&setupSelf->_materializationLock);
             alreadyQueued = [setupSelf->_queuedTracks containsObject:track];
@@ -182,7 +183,7 @@
 - (void)cacheCheckEntry:(MetadataScanEntry *)entry {
     id<AudioTrackMetadataHolder> track = entry.tracks.firstObject;
     // An earlier loader may have resolved it since it was queued.
-    if (track.metadata.parsedOK || [self loadTrackFromDiskCache:track]) {
+    if ([self holdsCurrentMetadata:track] || [self loadTrackFromDiskCache:track]) {
         [self settleTracks:entry.tracks withMetadata:track.metadata];
         return;
     }
