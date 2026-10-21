@@ -27,6 +27,9 @@
 #if VIBE_BENCH_COMPONENTS_AVF_WAVEFORM_LOADER
 #import "AVFAudioWaveformLoader.h"
 #endif
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_OBSERVERS
+#import "AudioAnalysisObservers.h"
+#endif
 
 #include <libproc.h>
 #include <mach/mach.h>
@@ -248,7 +251,12 @@ id VibeBenchComponentsWaveformLoader(BOOL analyzers) {
 #else
     AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] init];
 #endif
-#if VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_OBSERVERS
+    if (analyzers) {
+        loader.analysis = (VibeWaveformAnalysis){
+            .observers = @[AudioBPMAnalyzer.waveformObserver, AudioKeyAnalyzer.waveformObserver]};
+    }
+#elif VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE
     if (analyzers) {
         loader.analysis = (VibeWaveformAnalysis){.bpm = YES, .key = YES};
     }

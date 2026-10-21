@@ -2,8 +2,8 @@
 //  AudioLoadTiming.h
 //  Vibe
 //
-//  Phase timings for one waveform decode pass, so the BPM and key analyzers'
-//  cost is measured in-process rather than inferred from the app's total CPU.
+//  Phase timings for one waveform decode pass, so each observer's cost is
+//  measured in-process rather than inferred from the app's total CPU.
 //  The decode has no reply path, so each pass records here and dump_timing and
 //  the file_cache reply read it after the fact. Plain C accumulators, so the
 //  ObjC++ loader and the plain-ObjC channel share the header.
@@ -18,11 +18,7 @@
 typedef struct {
     uint64_t read;       // AudioFileHandle readIntoBuffer — the decode itself
     uint64_t chunk;      // the shared mono downmix plus min/max chunk merging
-    uint64_t bpmAppend;  // streaming samples into AudioBPMAnalyzer
-    uint64_t bpmFinish;  // its end-of-file tempo estimation
-    uint64_t keyAppend;  // streaming samples into AudioKeyAnalyzer
-    uint64_t keyFinish;  // its end-of-file profile correlation
-    uint64_t total;      // the whole pass, the phases above plus progress delivery
+    uint64_t total;      // the whole pass, the phases above, the observers and progress delivery
 } VibeLoadPhaseNanos;
 
 // 0 in Release, so every accumulation folds away and call sites need no #if.
@@ -42,11 +38,12 @@ NS_ASSUME_NONNULL_BEGIN
 // main while the channel reads on main.
 @interface AudioLoadTiming : NSObject
 
+// observers maps each observer's identifier to its sink's append and finish
+// nanoseconds.
 + (void)recordPath:(NSString *)path
       audioSeconds:(NSTimeInterval)audioSeconds
-        bpmEnabled:(BOOL)bpmEnabled
-        keyEnabled:(BOOL)keyEnabled
-             nanos:(VibeLoadPhaseNanos)nanos;
+             nanos:(VibeLoadPhaseNanos)nanos
+         observers:(NSDictionary<NSString *, NSArray<NSNumber *> *> *)observers;
 
 // Seconds as doubles, newest first.
 + (NSArray<NSDictionary *> *)recentJSON;

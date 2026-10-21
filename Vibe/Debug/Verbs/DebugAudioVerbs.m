@@ -13,6 +13,7 @@
 #import "DebugCommandDispatch.h"
 #import "DebugWireFormat.h"
 #import "DebugChannel.h"
+#import "AudioAnalysisObservers.h"
 #import "AudioLevelMath.h"
 #import "AudioLoadTiming.h"
 #import "AudioPlayer.h"
@@ -196,7 +197,9 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                 // A cold decode of a long file runs well past the default
                 // client wait, hence the 60s clientTimeout.
                 [surface.debugWaveformCache cacheWaveformForURL:[NSURL fileURLWithPath:path]
-                                                     completion:^(BOOL ok, BOOL wasCached, float bpm, NSInteger key) {
+                                                     completion:^(BOOL ok, BOOL wasCached, NSDictionary *results) {
+                    float bpm = [AudioBPMAnalyzer tempoInResults:results];
+                    VibeMusicalKey key = [AudioKeyAnalyzer keyInResults:results];
                     NSDictionary *timing = [AudioLoadTiming newestJSONForPath:path];
                     NSMutableDictionary *body = [@{@"ok": @YES, @"path": path, @"wasCached": @(wasCached),
                                                    @"bpm": @(bpm), @"key": VibeMusicalKeyMusicalName(key),
@@ -231,7 +234,12 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                 [surface.debugWaveformCache dumpWaveformForURL:[NSURL fileURLWithPath:path]
                                                        columns:(NSUInteger)columns
                                                     completion:^(NSDictionary *dump) {
-                    VibeWriteDebugResponse(commandId, dump ? VibeJSONString(dump)
+                    NSMutableDictionary *reply = [dump mutableCopy];
+                    NSDictionary *results = reply[@"results"];
+                    [reply removeObjectForKey:@"results"];
+                    reply[@"bpm"] = @([AudioBPMAnalyzer tempoInResults:results]);
+                    reply[@"key"] = @([AudioKeyAnalyzer keyInResults:results]);
+                    VibeWriteDebugResponse(commandId, dump ? VibeJSONString(reply)
                             : VibeErrorJSON(@"waveform decode failed for '%@'", path));
                 }];
                 return nil; // response written by the completion above

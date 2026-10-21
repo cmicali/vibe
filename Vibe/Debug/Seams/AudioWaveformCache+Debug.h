@@ -11,19 +11,21 @@
 
 @interface AudioWaveformCache (Debug)
 
-// Decodes and persists a file's waveform, BPM and key through the normal
-// lookup-or-decode path, without cancelling or delivering to the current load.
-// A fresh decode waits for the disk write attempt. Main-thread completion:
-// ok is NO on failure, wasCached means no decode ran, bpm 0 and key -1 mean
-// none detected.
+// Decodes and persists a file's waveform and its observers' results through
+// the normal lookup-or-decode path, without cancelling or delivering to the
+// current load. A fresh decode waits for the disk write attempt. Main-thread
+// completion: ok is NO on failure, wasCached means no decode ran, and results
+// are the entry's, by observer identifier.
 - (void)cacheWaveformForURL:(NSURL *)url
-                 completion:(void (^)(BOOL ok, BOOL wasCached, float bpm, NSInteger key))completion;
+                 completion:(void (^)(BOOL ok, BOOL wasCached,
+                                      NSDictionary<NSString *, id> *results))completion;
 
 // A file's waveform data, decoded through the same path when it is not
 // cached, combined into columns (0: one per chunk): the peak min and max,
 // the mean square and the frame count per column, and the bands' mean
-// squares over each column's own window, as Spectrum reads them. Main-thread
-// completion, nil on failure.
+// squares over each column's own window, as Spectrum reads them. The
+// entry's results are under "results". Main-thread completion, nil on
+// failure.
 - (void)dumpWaveformForURL:(NSURL *)url
                    columns:(NSUInteger)columns
                 completion:(void (^)(NSDictionary *dump))completion;

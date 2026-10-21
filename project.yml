@@ -869,6 +869,8 @@ targets:
           - "iOSSim/**"                       # VibeiOSTests' suite: UIKit, on a simulator
       - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
       - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
+      - path: Vibe/Audio/Analysis/AudioAnalysisObservers.m
+      - path: Vibe/Audio/Waveform/AudioWaveformObserver.m
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Packages/WaveformCore/Sources
         excludes: ["**/.DS_Store", "**/*.md"]

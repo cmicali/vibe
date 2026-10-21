@@ -4,6 +4,7 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "AudioWaveformObserver.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -16,16 +17,29 @@ NS_ASSUME_NONNULL_BEGIN
 // What the decode pass computes beyond the waveform, since all of it rides
 // one pass. Zero is none of it, which is what the tests get.
 typedef struct {
-    BOOL bpm;
-    BOOL key;
     // The three bands' energies, which only 3-Band reads: four filters a
     // sample, so a decode skips them unless asked.
     BOOL bands;
+    // What else rides the pass, each matched by its identifier.
+    NSArray<AudioWaveformObserver *> *_Nullable observers;
 } VibeWaveformAnalysis;
 
-// Whether what a decode has (or ran) answers everything a request asks for.
-static inline BOOL VibeWaveformAnalysisCovers(VibeWaveformAnalysis have, VibeWaveformAnalysis want) {
-    return (!want.bpm || have.bpm) && (!want.key || have.key) && (!want.bands || have.bands);
+// Whether what a decode runs, or an entry holds, answers everything a request
+// asks for: the bands, and a result for every observer it lists.
+static inline BOOL VibeWaveformAnalysisCovers(BOOL bands, NSArray<NSString *> *identifiers, VibeWaveformAnalysis want) {
+    if (want.bands && !bands) {
+        return NO;
+    }
+    for (AudioWaveformObserver *observer in want.observers) {
+        if (![identifiers containsObject:observer.identifier]) {
+            return NO;
+        }
+    }
+    return YES;
+}
+
+static inline NSArray<NSString *> *VibeWaveformObserverIdentifiers(VibeWaveformAnalysis analysis) {
+    return [analysis.observers valueForKey:@"identifier"] ?: @[];
 }
 
 @interface AudioWaveformLoader : NSObject
@@ -33,7 +47,7 @@ static inline BOOL VibeWaveformAnalysisCovers(VibeWaveformAnalysis have, VibeWav
 @property (nullable, weak) id <AudioWaveformLoaderDelegate> delegate;
 
 // Set before load:, like the window below.
-@property (atomic) VibeWaveformAnalysis analysis;
+@property (nonatomic) VibeWaveformAnalysis analysis;
 
 - (instancetype)initWithDelegate:(id <AudioWaveformLoaderDelegate>)delegate;
 

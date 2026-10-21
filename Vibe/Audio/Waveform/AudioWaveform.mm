@@ -8,7 +8,18 @@
 #include <vector>
 
 // See the declaration in AudioWaveform.h.
-const int kCodableAudioWaveformVersion = 6;
+const int kCodableAudioWaveformVersion = 7;
+
+// What a result may be made of: the property-list classes, and no others.
+static NSSet<Class> *VibeWaveformResultClasses(void) {
+    static NSSet<Class> *classes;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        classes = [NSSet setWithObjects:NSDictionary.class, NSArray.class, NSString.class,
+                   NSNumber.class, NSDate.class, NSData.class, nil];
+    });
+    return classes;
+}
 
 @implementation CodableAudioWaveform {
     std::unique_ptr<AudioWaveform> _waveform;
@@ -18,7 +29,7 @@ const int kCodableAudioWaveformVersion = 6;
     self = [super init];
     if (self) {
         _waveform = std::move(waveform);
-        self.key = -1; // 0 is C major; see the property comment
+        _results = @{};
     }
     return self;
 }
@@ -31,12 +42,16 @@ const int kCodableAudioWaveformVersion = 6;
     [coder encodeInt:kCodableAudioWaveformVersion forKey:@"version"];
     std::vector<uint8_t> summary = _waveform ? _waveform->encode() : std::vector<uint8_t>();
     [coder encodeBytes:summary.data() length:summary.size() forKey:@"summary"];
-    [coder encodeFloat:self.bpm forKey:@"bpm"];
-    // As an object, not encodeInteger: an absent integer decodes as 0, which
-    // as a key means C major, whereas an absent object is unambiguously nil.
-    [coder encodeObject:@(self.key) forKey:@"key"];
-    [coder encodeBool:self.bpmAnalyzed forKey:@"bpmAnalyzed"];
-    [coder encodeBool:self.keyAnalyzed forKey:@"keyAnalyzed"];
+    // An archive of its own, with secure coding, so the read can hold it to
+    // the allowed classes whatever the outer coder does. The entry lists its
+    // own identifiers, so a reader needs no list of names.
+    NSError *error = nil;
+    NSData *results = [NSKeyedArchiver archivedDataWithRootObject:self.results requiringSecureCoding:YES error:&error];
+    if (!results) {
+        LogError(@"Waveform results would not archive: %@", error);
+        results = [NSData data];
+    }
+    [coder encodeBytes:(const uint8_t *)results.bytes length:results.length forKey:@"results"];
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder {
@@ -57,16 +72,21 @@ const int kCodableAudioWaveformVersion = 6;
         if (!_waveform || !_waveform->isComplete()) {
             return nil;
         }
-        float bpm = [coder decodeFloatForKey:@"bpm"];
-        self.bpm = std::isfinite(bpm) && bpm > 0 ? bpm : 0;
-        // Like bpm, a bad key degrades to "unknown" rather than rejecting the
-        // entry — it is not a reason to throw away good waveform data. Absent
-        // decodes nil, and nil falls to -1, never C major.
-        id keyValue = [coder decodeObjectForKey:@"key"];
-        NSInteger key = [keyValue isKindOfClass:[NSNumber class]] ? [keyValue integerValue] : -1;
-        self.key = (key >= 0 && key < 24) ? key : -1;
-        self.bpmAnalyzed = ![coder containsValueForKey:@"bpmAnalyzed"] || [coder decodeBoolForKey:@"bpmAnalyzed"];
-        self.keyAnalyzed = ![coder containsValueForKey:@"keyAnalyzed"] || [coder decodeBoolForKey:@"keyAnalyzed"];
+        // Results that will not read reject the entry, as a bad summary
+        // does. Its observers then run again on the next decode.
+        bytes = [coder decodeBytesForKey:@"results" returnedLength:&length];
+        NSData *data = bytes ? [NSData dataWithBytes:bytes length:length] : nil;
+        id results = data ? [NSKeyedUnarchiver unarchivedObjectOfClasses:VibeWaveformResultClasses()
+                                                                fromData:data error:NULL] : nil;
+        if (![results isKindOfClass:NSDictionary.class]) {
+            return nil;
+        }
+        for (id identifier in results) {
+            if (![identifier isKindOfClass:NSString.class]) {
+                return nil;
+            }
+        }
+        _results = [results copy];
     }
     return self;
 }

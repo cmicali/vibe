@@ -6,6 +6,7 @@
 #import "MainPlayerController+Delivery.h"
 #import "MainPlayerControllerInternal.h"
 
+#import "AudioAnalysisObservers.h"
 #import "AudioTrack.h"
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
@@ -51,15 +52,23 @@
     }
 }
 
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectBPM:(float)bpm forTrack:(AudioTrack *)analyzed {
+// Only what was found is stamped: an undetectable tempo or key leaves the
+// row's as it was.
+- (void)audioWaveformCache:(AudioWaveformCache *)cache
+            didLoadResults:(NSDictionary<NSString *, id> *)results
+                  forTrack:(AudioTrack *)analyzed {
+    float bpm = [AudioBPMAnalyzer tempoInResults:results];
+    VibeMusicalKey key = [AudioKeyAnalyzer keyInResults:results];
+    if (bpm <= 0 && key == VibeMusicalKeyNone) {
+        return;
+    }
     [self stampTracksSounding:analyzed usingBlock:^(AudioTrack *track) {
-        track.detectedBPM = bpm;
-    }];
-}
-
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didDetectKey:(NSInteger)key forTrack:(AudioTrack *)analyzed {
-    [self stampTracksSounding:analyzed usingBlock:^(AudioTrack *track) {
-        track.detectedKey = key;
+        if (bpm > 0) {
+            track.detectedBPM = bpm;
+        }
+        if (key != VibeMusicalKeyNone) {
+            track.detectedKey = key;
+        }
     }];
 }
 

@@ -38,9 +38,9 @@ typedef wavecore::Summary AudioWaveform;
 // The entry-format version. It is encoded in every archive and embedded in the
 // disk cache's name, since AudioWaveformCache derives
 // "audio_waveform_cache_v<N>" from it, so both invalidation mechanisms move
-// together. Bump it to invalidate every cached entry, as after a format change
-// or a BPM-analyzer change that should re-detect. Mismatched entries simply
-// regenerate.
+// together. Bump it to invalidate every cached entry, as after a format
+// change. A changed observer needs no bump: it takes a new identifier
+// (AudioWaveformObserver.h). Mismatched entries simply regenerate.
 extern const int kCodableAudioWaveformVersion;
 
 @interface CodableAudioWaveform : NSObject <NSCoding>
@@ -48,23 +48,11 @@ extern const int kCodableAudioWaveformVersion;
 // Owned: freed with the wrapper.
 @property (nonatomic, readonly) AudioWaveform *waveform;
 
-// The detected tempo; 0 means unknown or undetectable. It is not conceptually
-// waveform data, but it is the product of the same track-window decode pass and
-// shares the waveform's cache key and lifecycle, so it rides along in this
-// archive rather than paying for a second decode into a cache of its own.
-@property (nonatomic) float bpm;
-
-// The detected musical key (VibeMusicalKey, not imported to keep this C++
-// header out of MusicalKey.h's reverse closure); -1, VibeMusicalKeyNone, means
-// unknown. Same ride-along rationale as bpm. A fresh object must set -1: the
-// zero-filled default is C major.
-@property (nonatomic) NSInteger key;
-
-// Whether the decode ran each analyzer, so a request asking for one this
-// entry skipped misses and decodes again: turning detection on reaches files
-// first decoded with detection off. An absent archived flag reads YES.
-@property (nonatomic) BOOL bpmAnalyzed;
-@property (nonatomic) BOOL keyAnalyzed;
+// Each observer's result, a property-list object, by its identifier
+// (AudioWaveformObserver.h). They share the summary's decode, key and
+// lifecycle. An observer the decode did not run has no result, so a request
+// that lists it misses and decodes again.
+@property (nonatomic, copy) NSDictionary<NSString *, id> *results;
 
 // Takes ownership.
 - (instancetype)initWithWaveform:(std::unique_ptr<AudioWaveform>)waveform;

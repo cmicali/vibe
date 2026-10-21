@@ -14,9 +14,8 @@ static const NSUInteger kMaxRecordedLoads = 256;
 @interface AudioLoadTiming ()
 @property (copy) NSString *path;
 @property NSTimeInterval audioSeconds;
-@property BOOL bpmEnabled;
-@property BOOL keyEnabled;
 @property VibeLoadPhaseNanos nanos;
+@property (copy) NSDictionary<NSString *, NSArray<NSNumber *> *> *observers;
 @end
 
 @implementation AudioLoadTiming
@@ -26,15 +25,13 @@ static os_unfair_lock sLock = OS_UNFAIR_LOCK_INIT;
 
 + (void)recordPath:(NSString *)path
       audioSeconds:(NSTimeInterval)audioSeconds
-        bpmEnabled:(BOOL)bpmEnabled
-        keyEnabled:(BOOL)keyEnabled
-             nanos:(VibeLoadPhaseNanos)nanos {
+             nanos:(VibeLoadPhaseNanos)nanos
+         observers:(NSDictionary<NSString *, NSArray<NSNumber *> *> *)observers {
     AudioLoadTiming *entry = [AudioLoadTiming new];
     entry.path = path;
     entry.audioSeconds = audioSeconds;
-    entry.bpmEnabled = bpmEnabled;
-    entry.keyEnabled = keyEnabled;
     entry.nanos = nanos;
+    entry.observers = observers;
     os_unfair_lock_lock(&sLock);
     if (!sRecorded) {
         sRecorded = [NSMutableArray array];
@@ -49,21 +46,22 @@ static os_unfair_lock sLock = OS_UNFAIR_LOCK_INIT;
 - (NSDictionary *)json {
     VibeLoadPhaseNanos n = self.nanos;
     double (^seconds)(uint64_t) = ^double(uint64_t nanos) { return (double)nanos / NSEC_PER_SEC; };
-    uint64_t accounted = n.read + n.chunk + n.bpmAppend + n.bpmFinish + n.keyAppend + n.keyFinish;
+    __block uint64_t accounted = n.read + n.chunk;
+    NSMutableDictionary<NSString *, NSDictionary *> *observers = [NSMutableDictionary dictionary];
+    [self.observers enumerateKeysAndObjectsUsingBlock:^(NSString *identifier, NSArray<NSNumber *> *phases, BOOL *stop) {
+        uint64_t append = phases[0].unsignedLongLongValue, finish = phases[1].unsignedLongLongValue;
+        accounted += append + finish;
+        observers[identifier] = @{@"seconds": @(seconds(append + finish)),
+                                  @"appendSeconds": @(seconds(append)),
+                                  @"finishSeconds": @(seconds(finish))};
+    }];
     return @{
         @"file": self.path.lastPathComponent ?: @"",
         @"audioSeconds": @(self.audioSeconds),
-        @"bpmEnabled": @(self.bpmEnabled),
-        @"keyEnabled": @(self.keyEnabled),
         @"totalSeconds": @(seconds(n.total)),
         @"readSeconds": @(seconds(n.read)),
         @"chunkSeconds": @(seconds(n.chunk)),
-        @"bpmSeconds": @(seconds(n.bpmAppend + n.bpmFinish)),
-        @"bpmAppendSeconds": @(seconds(n.bpmAppend)),
-        @"bpmFinishSeconds": @(seconds(n.bpmFinish)),
-        @"keySeconds": @(seconds(n.keyAppend + n.keyFinish)),
-        @"keyAppendSeconds": @(seconds(n.keyAppend)),
-        @"keyFinishSeconds": @(seconds(n.keyFinish)),
+        @"observers": observers,
         // Progress snapshots and delivery, plus anything else in the pass.
         @"otherSeconds": @(seconds(n.total > accounted ? n.total - accounted : 0)),
         @"realtimeFactor": @(n.total > 0 ? self.audioSeconds / seconds(n.total) : 0),

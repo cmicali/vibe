@@ -2,6 +2,7 @@
 
 #import <XCTest/XCTest.h>
 
+#import "AudioAnalysisObservers.h"
 #import "AudioTrack.h"
 #import "AudioWaveformCache.h"   // AudioWaveformCacheDelegate, which the coordinator adopts
 #import "PageWaveformCoordinator.h"
@@ -315,12 +316,18 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end) {
 }
 
 // A tempo is forwarded as delivered — with its track, untargeted and unheld —
-// because the model matches it across every row, not by page.
+// because the model matches it across every row, not by page. An
+// undetectable one, and the key, are not forwarded.
 - (void)testTempoIsForwardedByTrackWhateverThePageAndHold {
     [_coordinator requestIndex:3 track:_tracks[3]];
     _coordinator.held = YES;
-    [(id<AudioWaveformCacheDelegate>)_coordinator audioWaveformCache:(AudioWaveformCache *)_cache
-                                                        didDetectBPM:128 forTrack:_tracks[5]];
+    id<AudioWaveformCacheDelegate> coordinator = (id<AudioWaveformCacheDelegate>)_coordinator;
+    NSString *tempo = AudioBPMAnalyzer.waveformObserver.identifier;
+    NSString *key = AudioKeyAnalyzer.waveformObserver.identifier;
+    [coordinator audioWaveformCache:(AudioWaveformCache *)_cache didLoadResults:@{tempo: @0.0f, key: @9}
+                           forTrack:_tracks[4]];
+    [coordinator audioWaveformCache:(AudioWaveformCache *)_cache didLoadResults:@{tempo: @128.0f}
+                           forTrack:_tracks[5]];
     XCTAssertEqualObjects(_delegate.tempoURLs, @[_tracks[5].url]);
     XCTAssertEqualObjects(_delegate.tempos, @[@128]);
 }

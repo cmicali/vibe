@@ -179,11 +179,12 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
     if (existing) {
         existing.deliveryTrack = track;
         _currentLoadTrack = track;
-        // A decode without the bands, a tempo or a key this request asks for,
+        // A decode without the bands or an observer this request asks for,
         // as when 3-Band is chosen or detection turned on mid-load, is stopped
         // rather than reattached or waited out: it would persist an entry this
         // very request misses on.
-        BOOL answers = VibeWaveformAnalysisCovers(existing.loader.analysis, analysis);
+        VibeWaveformAnalysis running = existing.loader.analysis;
+        BOOL answers = VibeWaveformAnalysisCovers(running.bands, VibeWaveformObserverIdentifiers(running), analysis);
         if (!answers) {
             [existing.loader cancel];
         }
@@ -288,13 +289,12 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
         [self->_waveformCache.diskCache removeObjectForKey:cacheKey];
         cachedWaveform = nil;
     }
-    // An entry decoded without the bands, or without an analyzer this
-    // request runs, is a miss for it, and that decode replaces it with one
-    // that has them. Every other request takes it, so no entry is ever
-    // invalidated for what it lacks.
-    if (cachedWaveform && !VibeWaveformAnalysisCovers((VibeWaveformAnalysis){
-                .bpm = cachedWaveform.bpmAnalyzed, .key = cachedWaveform.keyAnalyzed,
-                .bands = cachedWaveform.waveform->hasBands()}, analysis)) {
+    // An entry decoded without the bands, or without a result for an
+    // observer this request lists, is a miss for it, and that decode replaces
+    // it with one that has them. Every other request takes it, so no entry is
+    // ever invalidated for what it lacks.
+    if (cachedWaveform && !VibeWaveformAnalysisCovers(cachedWaveform.waveform->hasBands(),
+                                                      cachedWaveform.results.allKeys, analysis)) {
         cachedWaveform = nil;
     }
     return cachedWaveform;
@@ -316,7 +316,7 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
             BOOL current = generation == self->_cacheGeneration.load(std::memory_order_relaxed);
             completion(current ? waveform : nil);
             if (current && waveform) {
-                [self deliverAnalysis:waveform forTrack:track];
+                [self deliverResults:waveform forTrack:track];
             }
         });
     } failureQueue:dispatch_get_main_queue()
@@ -592,9 +592,9 @@ awaitPersist:(BOOL)awaitPersist
         if (!loader.isCancelled && !loader.isDetached) {
             [self.delegate audioWaveform:waveform didLoadData:1 forTrack:track];
         }
-        // Completed analysis remains valid for its window after cancellation.
-        // The receiver matches playlist rows by sourceKey before installing it.
-        [self deliverAnalysis:waveform forTrack:track];
+        // Completed results remain valid for their window after cancellation.
+        // The receiver matches playlist rows by sourceKey before installing them.
+        [self deliverResults:waveform forTrack:track];
     });
 }
 
@@ -608,14 +608,10 @@ awaitPersist:(BOOL)awaitPersist
     }
 }
 
-- (void)deliverAnalysis:(CodableAudioWaveform *)waveform forTrack:(id<VibePlayableItem>)track {
-    if (waveform.bpm > 0 &&
-        [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectBPM:forTrack:)]) {
-        [self.delegate audioWaveformCache:self didDetectBPM:waveform.bpm forTrack:track];
-    }
-    if (waveform.key >= 0 &&
-        [self.delegate respondsToSelector:@selector(audioWaveformCache:didDetectKey:forTrack:)]) {
-        [self.delegate audioWaveformCache:self didDetectKey:waveform.key forTrack:track];
+- (void)deliverResults:(CodableAudioWaveform *)waveform forTrack:(id<VibePlayableItem>)track {
+    if (waveform.results.count &&
+        [self.delegate respondsToSelector:@selector(audioWaveformCache:didLoadResults:forTrack:)]) {
+        [self.delegate audioWaveformCache:self didLoadResults:waveform.results forTrack:track];
     }
 }
 

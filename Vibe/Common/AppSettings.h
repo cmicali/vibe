@@ -140,9 +140,9 @@ void VibeNotifyDisplaySettingsChanged(void);
 
 // Settings > Playback > Detect BPM automatically, both platforms, default
 // YES. NO skips tempo detection. A file decoded while off is decoded again
-// when next asked for with it on (the waveform cache's bpmAnalyzed). The
-// loader is told through its analysis provider rather than reading this. Key detection is macOS-only
-// (analyzeKey, Mac/AppSettings+Mac.h).
+// when next asked for with it on, since its entry holds no tempo. Each shell
+// lists the tempo's observer in its analysis provider, so the loader never
+// reads this. Key detection is macOS-only (analyzeKey, Mac/AppSettings+Mac.h).
 - (BOOL)analyzeBPM;
 - (void)setAnalyzeBPM:(BOOL)analyze;
 

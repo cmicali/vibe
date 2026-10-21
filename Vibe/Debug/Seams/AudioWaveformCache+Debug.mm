@@ -65,13 +65,10 @@ static std::atomic<double> sDebugDecodeSeconds{0};
     }];
 }
 
-- (void)cacheWaveformForURL:(NSURL *)url completion:(void (^)(BOOL, BOOL, float, NSInteger))completion {
+- (void)cacheWaveformForURL:(NSURL *)url
+                 completion:(void (^)(BOOL, BOOL, NSDictionary<NSString *, id> *))completion {
     [self waveformForURL:url completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
-        float bpm = waveform.bpm; // nil → 0
-        // Explicitly -1 for nil: messaging nil returns 0, which as a
-        // key would read as C major.
-        NSInteger key = waveform ? waveform.key : -1;
-        if (completion) completion(waveform != nil, wasCached, bpm, key);
+        if (completion) completion(waveform != nil, wasCached, waveform.results ?: @{});
     }];
 }
 
@@ -108,7 +105,7 @@ static std::atomic<double> sDebugDecodeSeconds{0};
             @"bins": @(waveform->binCount()), @"binFrames": @(waveform->binFrames()),
             @"frames": @(waveform->totalFrames()), @"sampleRate": @(waveform->sampleRate()),
             @"columns": @(count), @"hasBands": @(waveform->hasBands()),
-            @"bpm": @(codable.bpm), @"key": @(codable.key),
+            @"results": codable.results,
             @"min": mins, @"max": maxes, @"loudest": loudest,
             @"bandLoudest": @{@"low": bandLoudest[0], @"mid": bandLoudest[1], @"high": bandLoudest[2]},
         });
