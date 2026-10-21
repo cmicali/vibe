@@ -9,7 +9,7 @@ Everything between a path and a usable handle. The audio core owns the handle, `
 | `PlaceholderFiles` | which files are placeholders: the dataless test and the remote placeholder rule. |
 | `Claim/AudioFileMaterializationCoordinator` | the claim, stage 1, and the snapshot |
 | `Claim/AudioFileMaterializationCoordinator+HandleOpen.m` | stage 2: the handle runs and the six-run ceiling. Its public call, `openURL:…`, is declared in the header's `(HandleOpen)` category |
-| `Claim/ServedFileHandle.h` | what stage 2 needs of the handle it serves: `holdStream` and `interruptReads`. `AudioFileHandle` adopts it. The caller's opener makes the handle, so nothing here names its class |
+| `Claim/ServedFileHandle.h` | what stage 2 needs of the handle it serves: `holdStream`. Interrupting is the opener's `interrupted` block. `AudioFileHandle` adopts it. The caller's opener makes the handle, so nothing here names its class |
 | `Claim/AudioFileMaterializationCoordinatorInternal.h` | the class extension both files share: the claim, waiter and handle-run records and every ivar. It also holds the test seams and stage 2's cross-file calls |
 | `Claim/AudioFileMaterializationTokens` | the request and open tokens. Each delivers its completion at most once, and its cancel detaches it from the coordinator |
 | `Claim/AudioWorkScheduler`, `Claim/AudioWorkAdmissionRules.h` | admission |

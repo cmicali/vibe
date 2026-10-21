@@ -76,7 +76,10 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenPurpose) {
 };
 
 // Stage 2's one handle call, the caller's. interrupted answers YES once the
-// run is cancelled, and the open's waits for a file's bytes end on it.
+// run is cancelled, and the open's waits for a file's bytes end on it. Every
+// wait the open makes must ask it: the handle-open ceiling is derived from
+// every byte wait being interruptible (root AGENTS.md). The caller interrupts
+// the handle's later waits itself.
 typedef id<ServedFileHandle> _Nullable (^VibeAudioFileOpener)(
         NSURL *url, BOOL (^interrupted)(void),
         NSError * _Nullable __autoreleasing * _Nullable error);
