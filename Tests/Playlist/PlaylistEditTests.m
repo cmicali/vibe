@@ -18,7 +18,7 @@
     for (NSUInteger i = 0; i < 40; i++) {
         [urls addObject:URLNamed([NSString stringWithFormat:@"%lu.mp3", (unsigned long)(i % 13)])];
     }
-    Playlist *playlist = [[Playlist alloc] init];
+    Playlist *playlist = NewPlaylist();
     [playlist replaceAllWithTracks:Rows(urls) startingAtIndex:NSNotFound];
     NSMutableArray<AudioTrack *> *departed = [NSMutableArray array];
     __block uint32_t state = 7;
@@ -70,7 +70,7 @@
     XCTAssertNil([playlist removeTracksAtIndexes:RowSet(2)]);
     XCTAssertEqual(playlist.count, 2u);
 
-    Playlist *empty = [Playlist new];
+    Playlist *empty = NewPlaylist();
     empty.observer = observer;
     XCTAssertNil([empty removeTracksAtIndexes:RowSet(0)]);
     XCTAssertEqual(empty.count, 0u);
@@ -78,7 +78,7 @@
 }
 
 - (void)testRemoveReturnsTheExactRowObject {
-    Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3"]);
+    Playlist<AudioTrack *> *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3"]);
     AudioTrack *b = [playlist trackAtIndex:1];
     XCTAssertEqual([playlist removeTracksAtIndexes:RowSet(1)].firstObject, b);
     XCTAssertEqual(playlist.count, 2u);
@@ -213,14 +213,14 @@
 }
 
 - (void)testInsertAfterCurrentLeavesTheCursorAlone {
-    Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
+    Playlist<AudioTrack *> *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
     [playlist insertTracks:@[[AudioTrack withURL:URLNamed(@"z.mp3")]] atIndexes:RowSet(1)];
     XCTAssertEqual(playlist.currentIndex, 0u);
     XCTAssertEqualObjects(playlist.currentTrack.url, URLNamed(@"a.mp3"));
 }
 
 - (void)testInsertIntoEmptyLeavesTheCursorOnTheNewRow {
-    Playlist *playlist = [Playlist new];
+    Playlist *playlist = NewPlaylist();
     AudioTrack *track = [AudioTrack withURL:URLNamed(@"a.mp3")];
     [playlist insertTracks:@[track] atIndexes:RowSet(0)];
     XCTAssertEqual(playlist.count, 1u);
@@ -229,7 +229,7 @@
 }
 
 - (void)testRemoveThenInsertRoundTripsRowsAndIndexes {
-    Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3"]);
+    Playlist<AudioTrack *> *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3"]);
     [playlist next];
     NSArray<AudioTrack *> *original = playlist.tracks;
     AudioTrack *removed = [playlist removeTracksAtIndexes:RowSet(2)].firstObject;

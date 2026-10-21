@@ -40,7 +40,11 @@ static const NSUInteger kUIUpdateHz = 3;
     if (self) {
         _observers = [NSPointerArray weakObjectsPointerArray];
 
-        _playlist = [[Playlist alloc] init];
+        _playlist = [[Playlist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
+            return track.url;
+        } sourceKey:^NSString *(AudioTrack *track) {
+            return track.sourceKey;
+        }];
         _playlist.observer = self;
         _metadataCache = [[AudioTrackMetadataCache alloc] init];
         _metadataCache.delegate = self;

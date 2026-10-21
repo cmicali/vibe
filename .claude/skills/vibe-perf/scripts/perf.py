@@ -90,6 +90,7 @@ def features(src):
     waveform, three_band = find('AudioWaveform.h'), find('ThreeBandWaveformRenderer.h')
     resampler = find('AudioResampler.h')
     registry = find('WaveformRendererRegistry.h')
+    playlist = find('Playlist.h')
     renderer = find('WaveformRenderer.h') or find('AudioWaveformRenderer.h')
     summary = next((src / 'Packages').rglob('WaveformSummary.hpp'), None) if (src / 'Packages').is_dir() else None
     raster = next((src / 'Packages').rglob('WaveformRaster.hpp'), None) if (src / 'Packages').is_dir() else None
@@ -118,6 +119,7 @@ def features(src):
         'VIBE_BENCH_COMPONENTS_WAVEFORM_WINDOW': loader is not None and 'NSUInteger cueStart' in loader.read_text(),
         'VIBE_BENCH_COMPONENTS_SPECTRUM_SECTIONS': three_band is not None and 'VibeSpectrumSections' in three_band.read_text(),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_OBSERVERS': find('AudioAnalysisObservers.h') is not None,
+        'VIBE_BENCH_COMPONENTS_PLAYLIST_KEYS': playlist is not None and 'initWithURLKey:' in playlist.read_text(),
     }
     lines = ['// Written by perf.py from this checkout\'s sources; see VibeBenchComponents.h.']
     lines += [f'#define {name} {int(value)}' for name, value in flags.items()]

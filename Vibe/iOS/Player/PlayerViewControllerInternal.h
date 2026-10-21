@@ -34,7 +34,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
         PlaybackObserver, UIGestureRecognizerDelegate> {
     PlaybackController      *_playback;
     // _playback's, held because every data-source callback reads it.
-    Playlist                *_playlist;
+    Playlist<AudioTrack *>  *_playlist;
 
     UICollectionView        *_pagesView;
     UICollectionViewFlowLayout *_pagesLayout;

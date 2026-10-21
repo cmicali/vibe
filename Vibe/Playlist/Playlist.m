@@ -6,11 +6,14 @@
 #import "Playlist.h"
 
 @implementation Playlist {
-    NSMutableArray<AudioTrack *> *_tracks;
+    NSURL * _Nullable (^_urlKey)(id entry);
+    NSString * _Nullable (^_sourceKey)(id entry);
+    NSMutableArray *_tracks;
     // Keeps getIndexForTrack: O(1): the metadata sweep resolves a row per
     // track, and a scan would make the sweep O(n²). Every mutator patches
-    // both indexes over the rows whose positions change.
-    NSMapTable<AudioTrack *, NSNumber *> *_trackIndexes;
+    // both indexes over the rows whose positions change. Keyed by pointer,
+    // never the entry's own isEqual:, so two entries for one file stay two.
+    NSMapTable<id, NSNumber *> *_trackIndexes;
     // The same, keyed by URL, for the BPM and key deliveries on every track
     // start. A file can occupy several rows, so the value is a row set.
     NSMutableDictionary<NSURL *, NSMutableIndexSet *> *_indexesByURL;
@@ -18,15 +21,15 @@
     // before the cursor are played, the cursor entry is the current row, and
     // entries after it are unplayed. nil while shuffle is off. Objects rather
     // than row numbers, so a move needs nothing and a remove or insert only
-    // drops or adds its own entries; the convert swap, which mints a fresh
+    // drops or adds its own entries; a replacement, which puts a fresh
     // object in place, swaps the entry with it.
-    NSMutableArray<AudioTrack *> *_playOrder;
+    NSMutableArray *_playOrder;
     NSUInteger _playOrderCursor;
     // Repeat All's next cycle, made on the first ask at the order's end and
     // kept so that nextTrack is where next lands. Any edit to the order drops
-    // it, but the convert swap swaps its entry as in _playOrder. nil whenever
+    // it, but a replacement swaps its entry as in _playOrder. nil whenever
     // _playOrder is.
-    NSMutableArray<AudioTrack *> *_nextPlayOrder;
+    NSMutableArray *_nextPlayOrder;
 }
 
 @synthesize randomBelow = _randomBelow;
@@ -36,6 +39,19 @@
     if (self) {
         [self resetStorage];
         _currentIndex = 0;
+        // Never nil, so the per-row reads need no branch.
+        _urlKey = ^NSURL *(id entry) { return nil; };
+        _sourceKey = ^NSString *(id entry) { return nil; };
+    }
+    return self;
+}
+
+- (instancetype)initWithURLKey:(NSURL * _Nullable (^)(id))urlKey
+                     sourceKey:(NSString * _Nullable (^)(id))sourceKey {
+    self = [self init];
+    if (self) {
+        _urlKey = [urlKey copy];
+        _sourceKey = [sourceKey copy];
     }
     return self;
 }
@@ -45,7 +61,10 @@
 - (void)resetStorage {
     _structureGeneration++;
     _tracks = [NSMutableArray new];
-    _trackIndexes = [NSMapTable strongToStrongObjectsMapTable];
+    _trackIndexes = [[NSMapTable alloc] initWithKeyOptions:NSPointerFunctionsStrongMemory
+                                                            | NSPointerFunctionsObjectPointerPersonality
+                                              valueOptions:NSPointerFunctionsStrongMemory
+                                                  capacity:0];
     _indexesByURL = [NSMutableDictionary dictionary];
 }
 
@@ -84,7 +103,7 @@
 }
 
 // What next and previous walk: the play order under shuffle, else the rows.
-- (NSArray<AudioTrack *> *)activeOrder {
+- (NSArray *)activeOrder {
     return _playOrder ?: _tracks;
 }
 
@@ -99,8 +118,8 @@
 }
 
 // Fisher-Yates: every order equally likely.
-- (NSMutableArray<AudioTrack *> *)shuffledTracks:(NSArray<AudioTrack *> *)tracks {
-    NSMutableArray<AudioTrack *> *order = [tracks mutableCopy];
+- (NSMutableArray *)shuffledTracks:(NSArray *)tracks {
+    NSMutableArray *order = [tracks mutableCopy];
     uint32_t (^randomBelow)(uint32_t) = self.randomBelow;
     for (NSUInteger i = order.count; i > 1; i--) {
         [order exchangeObjectAtIndex:i - 1 withObjectAtIndex:randomBelow((uint32_t)i)];
@@ -109,7 +128,7 @@
 }
 
 // A fresh order over every row with first, when it is a row, at the cursor.
-- (void)resetPlayOrderStartingWith:(nullable AudioTrack *)first {
+- (void)resetPlayOrderStartingWith:(nullable id)first {
     _playOrder = [self shuffledTracks:_tracks];
     _nextPlayOrder = nil;
     _playOrderCursor = 0;
@@ -121,7 +140,7 @@
 
 // An unplayed pick swaps into the next slot. A played pick moves from the
 // history to the current slot. Every other unplayed entry stays unplayed.
-- (void)splicePickIntoPlayOrder:(AudioTrack *)picked {
+- (void)splicePickIntoPlayOrder:(id)picked {
     NSUInteger position = [_playOrder indexOfObjectIdenticalTo:picked];
     if (position == NSNotFound || position == _playOrderCursor) {
         return;
@@ -140,13 +159,13 @@
 // in one pass rather than an insert apiece, which would be O(n·m) on a large
 // Add: the new tracks shuffled, then randomly interleaved with the waiting
 // ones, whose order is kept.
-- (void)addUnplayedTracksToPlayOrder:(NSArray<AudioTrack *> *)tracks {
+- (void)addUnplayedTracksToPlayOrder:(NSArray *)tracks {
     _nextPlayOrder = nil;
     uint32_t (^randomBelow)(uint32_t) = self.randomBelow;
-    NSArray<AudioTrack *> *added = [self shuffledTracks:tracks];
+    NSArray *added = [self shuffledTracks:tracks];
     NSRange unplayed = NSMakeRange(_playOrderCursor + 1, _playOrder.count - _playOrderCursor - 1);
-    NSArray<AudioTrack *> *waiting = [_playOrder subarrayWithRange:unplayed];
-    NSMutableArray<AudioTrack *> *merged = [NSMutableArray arrayWithCapacity:waiting.count + added.count];
+    NSArray *waiting = [_playOrder subarrayWithRange:unplayed];
+    NSMutableArray *merged = [NSMutableArray arrayWithCapacity:waiting.count + added.count];
     NSUInteger nextWaiting = 0;
     NSUInteger nextAdded = 0;
     while (merged.count < waiting.count + added.count) {
@@ -160,9 +179,9 @@
 
 // With more than one row, keep the previous cycle's last track from opening
 // the new cycle. An independent shuffle would repeat it one time in n.
-- (NSArray<AudioTrack *> *)nextPlayOrder {
+- (NSArray *)nextPlayOrder {
     if (!_nextPlayOrder) {
-        NSMutableArray<AudioTrack *> *order = [self shuffledTracks:_tracks];
+        NSMutableArray *order = [self shuffledTracks:_tracks];
         if (order.count > 1 && order.firstObject == _playOrder.lastObject) {
             NSUInteger swap = 1 + self.randomBelow((uint32_t)order.count - 1);
             [order exchangeObjectAtIndex:0 withObjectAtIndex:swap];
@@ -172,11 +191,11 @@
     return _nextPlayOrder;
 }
 
-- (NSArray<AudioTrack *> *)tracks {
+- (NSArray *)tracks {
     return [_tracks copy];
 }
 
-- (NSArray<AudioTrack *> *)tracksAtIndexes:(NSIndexSet *)indexes {
+- (NSArray *)tracksAtIndexes:(NSIndexSet *)indexes {
     if (indexes.count == 0) {
         return @[];
     }
@@ -189,13 +208,13 @@
     return [_tracks objectsAtIndexes:valid];
 }
 
-- (AudioTrack *)trackAtIndex:(NSUInteger)index {
+- (id)trackAtIndex:(NSUInteger)index {
     return index < _tracks.count ? _tracks[index] : nil;
 }
 
-- (NSIndexSet *)indexesOfTracks:(NSArray<AudioTrack *> *)tracks {
+- (NSIndexSet *)indexesOfTracks:(NSArray *)tracks {
     NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
-    for (AudioTrack *track in tracks) {
+    for (id track in tracks) {
         NSInteger row = [self getIndexForTrack:track];
         if (row >= 0) {
             [rows addIndex:(NSUInteger)row];
@@ -204,14 +223,14 @@
     return rows;
 }
 
-- (AudioTrack *)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes {
+- (id)forwardTrackAfterRemovingTracksAtIndexes:(NSIndexSet *)indexes {
     if (indexes.count == 0 || indexes.lastIndex >= _tracks.count
             || ![indexes containsIndex:_currentIndex]) {
         return nil;
     }
-    NSArray<AudioTrack *> *order = self.activeOrder;
+    NSArray *order = self.activeOrder;
     for (NSUInteger position = self.activeCursor + 1; position < order.count; position++) {
-        AudioTrack *track = order[position];
+        id track = order[position];
         if (![indexes containsIndex:(NSUInteger)[self getIndexForTrack:track]]) {
             return track;
         }
@@ -219,7 +238,7 @@
     return nil;
 }
 
-- (BOOL)advanceFromTrack:(AudioTrack *)finishedTrack toTrack:(AudioTrack *)startedTrack {
+- (BOOL)advanceFromTrack:(id)finishedTrack toTrack:(id)startedTrack {
     if (finishedTrack != self.currentTrack || !startedTrack
             || startedTrack != self.trackEndSuccessor) {
         return NO;
@@ -227,7 +246,7 @@
     return [self advanceAtTrackEnd];
 }
 
-- (AudioTrack *)currentTrack {
+- (id)currentTrack {
     if (_currentIndex < _tracks.count) {
         return _tracks[_currentIndex];
     }
@@ -238,10 +257,10 @@
     return _tracks.count;
 }
 
-- (void)replaceAllWithTracks:(NSArray<AudioTrack *> *)tracks startingAtIndex:(NSUInteger)index {
+- (void)replaceAllWithTracks:(NSArray *)tracks startingAtIndex:(NSUInteger)index {
     [self resetStorage];
     [self addTracks:tracks];
-    AudioTrack *start = [self trackAtIndex:index];
+    id start = [self trackAtIndex:index];
     if (_playOrder) {
         [self resetPlayOrderStartingWith:start];
         start = _playOrder.firstObject;
@@ -250,7 +269,7 @@
     [self.observer playlistDidReplaceAllTracks:self];
 }
 
-- (void)appendTracks:(NSArray<AudioTrack *> *)tracks {
+- (void)appendTracks:(NSArray *)tracks {
     if (!tracks.count) {
         return;
     }
@@ -261,8 +280,8 @@
     [self.observer playlist:self didAppendTracksAtIndexes:indexes];
 }
 
-- (void)addTracks:(NSArray<AudioTrack *> *)tracks {
-    for (AudioTrack *track in tracks) {
+- (void)addTracks:(NSArray *)tracks {
+    for (id track in tracks) {
         [self indexTrack:track atIndex:_tracks.count];
         [_tracks addObject:track];
     }
@@ -270,9 +289,9 @@
 
 // Both indexes for one row, so no mutator can record a track's row without
 // recording its URL's.
-- (void)indexTrack:(AudioTrack *)track atIndex:(NSUInteger)index {
+- (void)indexTrack:(id)track atIndex:(NSUInteger)index {
     [_trackIndexes setObject:@(index) forKey:track];
-    [self indexURL:track.url atIndex:index];
+    [self indexURL:_urlKey(track) atIndex:index];
 }
 
 - (void)indexURL:(NSURL *)url atIndex:(NSUInteger)index {
@@ -291,7 +310,7 @@
 // its source and destination. Entries outside that span stay valid.
 - (void)unindexRowsFrom:(NSUInteger)first to:(NSUInteger)end {
     for (NSUInteger row = first; row < end; row++) {
-        NSURL *url = _tracks[row].url;
+        NSURL *url = _urlKey(_tracks[row]);
         if (url) {
             [_indexesByURL[url] removeIndex:row];
         }
@@ -328,7 +347,7 @@
 
 // Rows that just joined the list. Into an empty order the current row, the
 // first new one, goes first, so the order still names it at the cursor.
-- (void)playOrderDidGainTracks:(NSArray<AudioTrack *> *)tracks {
+- (void)playOrderDidGainTracks:(NSArray *)tracks {
     if (!_playOrder) {
         return;
     }
@@ -339,11 +358,11 @@
     [self addUnplayedTracksToPlayOrder:tracks];
 }
 
-- (AudioTrack *)nextTrack {
+- (id)nextTrack {
     if (_tracks.count == 0) {
         return nil;
     }
-    NSArray<AudioTrack *> *order = self.activeOrder;
+    NSArray *order = self.activeOrder;
     NSUInteger cursor = self.activeCursor;
     if (cursor + 1 < order.count) {
         return order[cursor + 1];
@@ -354,11 +373,11 @@
     return _playOrder ? self.nextPlayOrder.firstObject : _tracks.firstObject;
 }
 
-- (NSArray<AudioTrack *> *)neighborhoodTracks {
-    NSMutableArray<AudioTrack *> *neighborhood = [NSMutableArray array];
-    NSArray<AudioTrack *> *order = self.activeOrder;
+- (NSArray *)neighborhoodTracks {
+    NSMutableArray *neighborhood = [NSMutableArray array];
+    NSArray *order = self.activeOrder;
     NSUInteger cursor = self.activeCursor;
-    AudioTrack *next = self.nextTrack;
+    id next = self.nextTrack;
     if (next) {
         [neighborhood addObject:next];
     }
@@ -371,7 +390,7 @@
     return neighborhood;
 }
 
-- (AudioTrack *)trackEndSuccessor {
+- (id)trackEndSuccessor {
     if (_pauseAtTrackEnd) {
         return nil;
     }
@@ -387,7 +406,7 @@
 }
 
 - (BOOL)next {
-    AudioTrack *next = self.nextTrack;
+    id next = self.nextTrack;
     if (!next) {
         return NO;
     }
@@ -429,8 +448,7 @@
     return YES;
 }
 
-- (NSInteger)getIndexForTrack:(AudioTrack *)track {
-    // An identity lookup: AudioTrack keeps NSObject's hash and isEqual.
+- (NSInteger)getIndexForTrack:(id)track {
     NSNumber *index = track ? [_trackIndexes objectForKey:track] : nil;
     return index != nil ? index.integerValue : -1;
 }
@@ -444,12 +462,15 @@
     return [_indexesByURL[url] copy] ?: [NSIndexSet indexSet];
 }
 
-- (BOOL)stampTracksSounding:(AudioTrack *)track usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp {
-    NSString *sourceKey = track.sourceKey;
+- (BOOL)stampTracksSounding:(id)track usingBlock:(void (NS_NOESCAPE ^)(id track))stamp {
+    if (!track) {
+        return NO;
+    }
+    NSString *sourceKey = _sourceKey(track);
     __block BOOL current = NO;
-    [[self indexesOfTracksWithURL:track.url] enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
-        AudioTrack *row = [self trackAtIndex:index];
-        if (![row.sourceKey isEqualToString:sourceKey]) {
+    [[self indexesOfTracksWithURL:_urlKey(track)] enumerateIndexesUsingBlock:^(NSUInteger index, BOOL *stop) {
+        id row = [self trackAtIndex:index];
+        if (![self->_sourceKey(row) isEqualToString:sourceKey]) {
             return;
         }
         stamp(row);
@@ -458,7 +479,7 @@
     return current;
 }
 
-- (AudioTrack *)trackForURL:(NSURL *)url {
+- (id)trackForURL:(NSURL *)url {
     if (!url) {
         return nil;
     }
@@ -468,28 +489,32 @@
     return rows ? [self trackAtIndex:rows.firstIndex] : nil;
 }
 
-- (BOOL)isCurrentTrack:(AudioTrack *)track {
+- (BOOL)isCurrentTrack:(id)track {
     return self.currentTrack == track;
 }
 
-- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url {
-    NSIndexSet *rows = [self indexesOfTracksWithURL:track.url];
-    [rows enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
-        [self replaceTrackAtIndex:row withURL:url];
+- (NSIndexSet *)replaceTracksMatchingTrack:(id)track
+                                usingBlock:(id (NS_NOESCAPE ^)(id outgoing))replacement {
+    NSMutableIndexSet *replaced = [NSMutableIndexSet indexSet];
+    [[self indexesOfTracksWithURL:_urlKey(track)] enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
+        if ([self replaceTrackAtIndex:row withTrack:replacement(self->_tracks[row])]) {
+            [replaced addIndex:row];
+        }
     }];
-    return rows;
+    return replaced;
 }
 
-- (AudioTrack *)replaceTrackAtIndex:(NSUInteger)index withURL:(NSURL *)url {
-    if (index >= _tracks.count || !url) {
-        return nil;
+- (BOOL)replaceTrackAtIndex:(NSUInteger)index withTrack:(id)incoming {
+    // A replacement already in the list would hold two rows, and the
+    // track-to-row map can name only one of them.
+    if (index >= _tracks.count || !incoming || [_trackIndexes objectForKey:incoming]) {
+        return NO;
     }
-    AudioTrack *outgoing = _tracks[index];
-    AudioTrack *incoming = [outgoing replacementAtURL:url];
+    id outgoing = _tracks[index];
     // Unindex the outgoing track and URL, or a late delivery for the departed
     // track or file would stamp a row it no longer occupies.
     [_trackIndexes removeObjectForKey:outgoing];
-    [self unindexURL:outgoing.url atIndex:index];
+    [self unindexURL:_urlKey(outgoing) atIndex:index];
     [self indexTrack:incoming atIndex:index];
     _tracks[index] = incoming;
     // No row moves, so the row keeps its place in both orders, and the next
@@ -497,33 +522,33 @@
     [self replaceOrderEntry:outgoing with:incoming in:_playOrder];
     [self replaceOrderEntry:outgoing with:incoming in:_nextPlayOrder];
     [self.observer playlist:self didReplaceTrackAtIndex:index];
-    return incoming;
+    return YES;
 }
 
 // The nil check is load-bearing: a message to a nil order answers 0, not
 // NSNotFound.
-- (void)replaceOrderEntry:(AudioTrack *)outgoing with:(AudioTrack *)incoming
-                       in:(NSMutableArray<AudioTrack *> *)order {
+- (void)replaceOrderEntry:(id)outgoing with:(id)incoming
+                       in:(NSMutableArray *)order {
     NSUInteger position = order ? [order indexOfObjectIdenticalTo:outgoing] : NSNotFound;
     if (position != NSNotFound) {
         order[position] = incoming;
     }
 }
 
-- (NSArray<AudioTrack *> *)removeTracksAtIndexes:(NSIndexSet *)indexes {
+- (NSArray *)removeTracksAtIndexes:(NSIndexSet *)indexes {
     if (indexes.count == 0 || indexes.lastIndex >= _tracks.count) {
         return nil;
     }
-    NSArray<AudioTrack *> *removed = [_tracks objectsAtIndexes:indexes];
+    NSArray *removed = [_tracks objectsAtIndexes:indexes];
     [self unindexRowsFrom:indexes.firstIndex to:_tracks.count];
     [_tracks removeObjectsAtIndexes:indexes];
-    for (AudioTrack *track in removed) {
+    for (id track in removed) {
         [_trackIndexes removeObjectForKey:track];
     }
     [self indexRowsFrom:indexes.firstIndex to:_tracks.count];
     // Dropped as unindexURL:atIndex: drops them.
-    for (AudioTrack *track in removed) {
-        NSURL *url = track.url;
+    for (id track in removed) {
+        NSURL *url = _urlKey(track);
         if (url && _indexesByURL[url].count == 0) {
             [_indexesByURL removeObjectForKey:url];
         }
@@ -546,11 +571,11 @@
     return removed;
 }
 
-- (void)insertTracks:(NSArray<AudioTrack *> *)tracks atIndexes:(NSIndexSet *)indexes {
+- (void)insertTracks:(NSArray *)tracks atIndexes:(NSIndexSet *)indexes {
     if (tracks.count == 0 || tracks.count != indexes.count) {
         return;
     }
-    AudioTrack *current = self.currentTrack;
+    id current = self.currentTrack;
     // Past-the-end indexes clamp rather than refuse: a removal's undo can land
     // after later edits shortened the list. Only the clamped case pays the
     // ascending per-row loop, and the event carries the landed set.
@@ -586,7 +611,7 @@
 // forwardTrackAfterRemovingTracksAtIndexes:'s answer — else to the last one
 // played. Ivar, not setter: one edit, one event.
 - (void)dropDepartedRowsFromPlayOrder {
-    NSIndexSet *departed = [_playOrder indexesOfObjectsPassingTest:^BOOL(AudioTrack *track, NSUInteger position, BOOL *stop) {
+    NSIndexSet *departed = [_playOrder indexesOfObjectsPassingTest:^BOOL(id track, NSUInteger position, BOOL *stop) {
         return [self getIndexForTrack:track] < 0;
     }];
     _playOrderCursor -= [departed countOfIndexesInRange:NSMakeRange(0, _playOrderCursor)];
@@ -611,8 +636,8 @@
     if ([sourceIndexes isEqualToIndexSet:destinationIndexes]) {
         return NO;
     }
-    AudioTrack *current = self.currentTrack;
-    NSArray<AudioTrack *> *moved = [_tracks objectsAtIndexes:sourceIndexes];
+    id current = self.currentTrack;
+    NSArray *moved = [_tracks objectsAtIndexes:sourceIndexes];
     NSUInteger first = MIN(sourceIndexes.firstIndex, destinationIndexes.firstIndex);
     NSUInteger end = MAX(sourceIndexes.lastIndex, destinationIndexes.lastIndex) + 1;
     [self unindexRowsFrom:first to:end];
