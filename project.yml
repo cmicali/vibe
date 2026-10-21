@@ -27,7 +27,8 @@ configs:
   AppStore: release
 
 # Shared between the app targets so a second platform cannot drift from the
-# first on where TagLib, PINCache and the generated git-info header live.
+# first on where WaveformCore's and the generated git-info headers live.
+# The vendored libraries' paths come from their vibe-libs templates.
 settingGroups:
   # Keep the app and widget versions together. Release scripts read the built app.
   # A stable release also sets VIBE_BETA_DEBUG to 0 (vibe-release).
@@ -40,26 +41,6 @@ settingGroups:
       - "$(inherited)"
       - "$(SRCROOT)/build/generated"      # VibeGitInfo.h, written by the pre-build script
       - "$(SRCROOT)/Packages/WaveformCore/Sources/WaveformCore/include"
-      # Ahead of taglib/ogg, whose vorbis/vorbisfile.h is TagLib's own.
-      - "$(SRCROOT)/Vibe/ThirdParty/vorbis/include"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/toolkit"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v1"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v2"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/mpeg/id3v2/frames"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/ape"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/mp4"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/flac"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/aiff"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/riff/wav"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg/vorbis"
-      - "$(SRCROOT)/Vibe/ThirdParty/taglib/ogg/opus"
-      - "$(SRCROOT)/Vibe/ThirdParty"
-      - "$(SRCROOT)/Vibe/ThirdParty/PINCache"
-      - "$(SRCROOT)/Vibe/ThirdParty/PINOperation"
 
 # ---- PROJECT-LEVEL settings (== PBXProject build configs) ----
 settings:
@@ -110,8 +91,8 @@ settings:
     VIBE_VERBOSE_LOGGING: $(VIBE_BETA_DEBUG)
     # Nothing else fails on a compiler warning: the analyze gate matches only
     # checker findings. If a toolchain warns on vendored code, give that file a
-    # per-file -Wno-* flag beside the PIN caches' entries rather than turning
-    # this off.
+    # per-file -Wno-* flag in its vibe-libs template rather than turning this
+    # off.
     GCC_TREAT_WARNINGS_AS_ERRORS: YES
     GCC_WARN_64_TO_32_BIT_CONVERSION: YES
     GCC_WARN_ABOUT_RETURN_TYPE: YES_ERROR
@@ -164,8 +145,14 @@ targets:
     type: application
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources. Controls and
-    # SettingsWindow are macOS only, so VibeiOS never lists them.
-    templates: [VibeLibsDSP, VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow]
+    # SettingsWindow are macOS only, so VibeiOS never lists them. The
+    # vendored libraries carry their own flags.
+    #
+    # TRAP: VibeLibsVorbis before VibeLibsTaglib. Header search paths follow
+    # this order, and taglib/ogg holds TagLib's own vorbis/vorbisfile.h.
+    templates: [VibeLibsDSP, VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow,
+                VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
+                VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -208,76 +195,6 @@ targets:
       # in neither.
       - path: Vibe/Debug
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      # Keep vendored diagnostics out of first-party analysis and documentation checks.
-      - path: Vibe/ThirdParty
-        excludes:
-          - "**/.DS_Store"
-          - "**/*.md"                         # nested AGENTS.md guidance: keep UNbundled
-          - "**/*.xcprivacy"                  # PIN privacy manifests: keep UNbundled
-          - "**/*.txt"                        # vendored LICENSE.txt: keep UNbundled
-          - "**/LICENSE.MPL"                  # TagLib's MPL 1.1 text: same, but not a .txt
-          - "Sparkle/**"                      # prebuilt; the Vibe target re-adds it as a dependency
-          - "**/*.inc"                        # r8brain's filter tables, #included by its headers: keep UNbundled
-          - "**/PINDiskCache.m"               # re-added below with its per-file flags
-          - "**/r8bsrc.cpp"                   # same
-          - "**/pffft_double.c"               # same
-          - "**/dr_mp3.c"                     # same
-          - "**/dr_flac.c"                    # same
-          - "**/dr_wav.c"                     # same
-          - "ogg/**"                          # libogg: re-added below as its C files alone
-          - "vorbis/**"                       # libvorbis: the same
-        compilerFlags: &third-party-flags
-          - "-Xclang"
-          - "-analyzer-disable-all-checks"
-          - "-Wno-documentation-html"
-      - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
-        compilerFlags: &pin-disk-cache-flags
-          - "-fobjc-arc-exceptions"
-          - "-Xclang"
-          - "-analyzer-disable-all-checks"
-      # r8brain's own C entry points, where every one of its header templates
-      # is instantiated, and its FFT: optimized in every configuration, since
-      # at -O0 it costs many times its optimized self, and a Debug build is
-      # where the resampler's quality and cost tests run. The empty
-      # R8BSRC_DECL is upstream's switch from a DLL to an object file;
-      # R8B_PFFFT_DOUBLE (NEON, double precision, Ooura's accuracy) is its
-      # README's speed setting. Its other, R8B_EXTFFT, is left off: at the 1%
-      # transition band it costs 3-10% more, not less (docs/audio-quality.md).
-      - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
-        compilerFlags: &r8brain-flags
-          - "-O3"
-          - "-DR8BSRC_DECL="
-          - "-DR8B_PFFFT_DOUBLE=1"
-          - "-DPFFFT_ENABLE_NEON=1"           # PFFFT's NEON path is opt-in; without it arm64 builds its scalar fallback
-          - "-w"                              # vendored C predates -Wstrict-prototypes; not ours to restyle
-          - "-Xclang"
-          - "-analyzer-disable-all-checks"
-      - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
-        compilerFlags: *r8brain-flags
-      # dr_mp3's, dr_flac's and dr_wav's implementation units,
-      # AudioFileHandle's default MPEG decoder and its FLAC and WAV/AIFF
-      # decoders: optimized in every configuration, as r8brain is, so a Debug
-      # build decodes as a shipped one does.
-      - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
-        compilerFlags: &dr-libs-flags
-          - "-O3"
-          - "-w"                              # vendored C, not ours to restyle
-          - "-Xclang"
-          - "-analyzer-disable-all-checks"
-      - path: Vibe/ThirdParty/dr_flac/dr_flac.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
-        compilerFlags: *dr-libs-flags
-      # libogg's framing and libvorbis's decoder, AudioFileHandle's Ogg Vorbis
-      # decoder, built as dr_flac is. Their C files alone join the project.
-      # Xcode's headermap finds a header by its name from any target, and
-      # libvorbis's vorbisfile.h would answer for TagLib's.
-      - path: Vibe/ThirdParty/ogg
-        includes: ["*.c"]
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/vorbis/lib
-        includes: ["*.c"]
-        compilerFlags: *dr-libs-flags
       - path: Vibe/Mac/App
         excludes:
           - "**/.DS_Store"
@@ -466,7 +383,7 @@ targets:
       base:
         # TRAP: in base, not in a settings group. A vibe-libs template's header
         # paths join a target's base setting but replace a group's, which
-        # silently drops TagLib's and WaveformCore's.
+        # silently drops WaveformCore's and the generated header's.
         HEADER_SEARCH_PATHS: *vibe-header-search-paths
         PRODUCT_NAME: "$(TARGET_NAME)"
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe
@@ -541,7 +458,9 @@ targets:
   VibeiOS:
     type: application
     platform: iOS
-    templates: [VibeLibsDSP, VibeLibsGraphics]
+    # VibeLibsVorbis before VibeLibsTaglib: see the Vibe target.
+    templates: [VibeLibsDSP, VibeLibsGraphics, VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache,
+                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -572,43 +491,6 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Debug
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
-      - path: Vibe/ThirdParty
-        excludes:
-          - "**/.DS_Store"
-          - "**/*.md"
-          - "**/*.xcprivacy"
-          - "**/*.txt"
-          - "**/LICENSE.MPL"
-          - "Sparkle/**"
-          - "**/*.inc"
-          - "**/PINDiskCache.m"
-          - "**/r8bsrc.cpp"
-          - "**/pffft_double.c"
-          - "**/dr_mp3.c"
-          - "**/dr_flac.c"
-          - "**/dr_wav.c"
-          - "ogg/**"
-          - "vorbis/**"
-        # Same flags as the macOS target above; see the comment there.
-        compilerFlags: *third-party-flags
-      - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
-        compilerFlags: *pin-disk-cache-flags
-      - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
-        compilerFlags: *r8brain-flags
-      - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
-        compilerFlags: *r8brain-flags
-      - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/dr_flac/dr_flac.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/ogg
-        includes: ["*.c"]
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/vorbis/lib
-        includes: ["*.c"]
-        compilerFlags: *dr-libs-flags
       - path: Resources/AppIcon.icon
       - path: Resources/Assets.xcassets       # record-bg, the no-art vinyl placeholder
       - path: Resources/PrivacyInfo.xcprivacy
@@ -851,7 +733,7 @@ targets:
   VibeTests:
     type: bundle.unit-test
     platform: macOS
-    templates: [hostless-test-sources]
+    templates: [hostless-test-sources, VibeLibsPINCache]
     sources:
       # The bundled built-in themes, so the suite's loader reads the SAME
       # files the app ships and testBundledThemesAreValid gates a theme PR.
@@ -883,16 +765,6 @@ targets:
       - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
       - path: Vibe/Audio/PINCache+VibeAudioCache.m
       - path: vibe-libs/core/Common/NSURL+FileIdentity.m   # AudioFileConverter+Sandbox's same-file test
-      - path: Vibe/ThirdParty/PINCache/PINCache.m
-        compilerFlags: *third-party-flags
-      - path: Vibe/ThirdParty/PINCache/PINMemoryCache.m
-        compilerFlags: *third-party-flags
-      - path: Vibe/ThirdParty/PINCache/PINDiskCache.m
-        compilerFlags: *pin-disk-cache-flags
-      - path: Vibe/ThirdParty/PINOperation/PINOperationGroup.m
-        compilerFlags: *third-party-flags
-      - path: Vibe/ThirdParty/PINOperation/PINOperationQueue.m
-        compilerFlags: *third-party-flags
       - path: Vibe/Debug/Oracles/AudioLoadTiming.m
       - path: Vibe/Debug/Seams/AudioLoadingConfiguration+Debug.m
       - path: Vibe/Debug/Simulators/VibeFakeCloud.m
@@ -1030,10 +902,6 @@ targets:
           - "$(SRCROOT)/Vibe/Debug/Seams"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
           - "$(SRCROOT)/Vibe/Mac/Convert"
-          # PINCache's angle-bracket self-import resolves from the vendored root.
-          - "$(SRCROOT)/Vibe/ThirdParty"
-          # libvorbis's headers, which AudioFileHandleInternal.h includes.
-          - "$(SRCROOT)/Vibe/ThirdParty/vorbis/include"
           # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
           # screen's state machine is testable here. The iOS sources compiled in
           # above are Foundation-only too.
@@ -1051,7 +919,9 @@ targets:
   VibeAudioTests:
     type: bundle.unit-test
     platform: macOS
-    templates: [hostless-test-sources]
+    # VibeLibsTaglib after the vorbis template hostless-test-sources lists:
+    # see the Vibe target.
+    templates: [hostless-test-sources, VibeLibsTaglib]
     sources:
       - path: Tests/AudioRender
       - path: Tests/Support/TestFilesystemGuard.m
@@ -1076,15 +946,13 @@ targets:
       - path: Vibe/Audio/Metadata/AudioTrackMetadata.mm
       - path: Vibe/Audio/Metadata/TagLibAudioFile.mm
       - path: Vibe/Util/Categories/NSString+CPPStrings.mm
-      - path: Vibe/ThirdParty/taglib
-        excludes: ["**/.DS_Store", "**/*.md", "**/LICENSE.MPL"]
-        compilerFlags: *third-party-flags
     settings:
       base:
         <<: *hostless-test-settings
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeAudioTests
-        # TagLib's headers. The hostless list above replaces the app group's
-        # HEADER_SEARCH_PATHS, so they ride on the system key.
+        # WaveformCore's and the generated headers. The hostless list above
+        # replaces the app group's HEADER_SEARCH_PATHS, so they ride on the
+        # system key.
         SYSTEM_HEADER_SEARCH_PATHS: *vibe-header-search-paths
     dependencies:
       - sdk: AppKit.framework
@@ -1097,6 +965,8 @@ targetTemplates:
   # The production sources both test targets compile. A file only one
   # target compiles goes in that target's own list.
   hostless-test-sources:
+    # The vendored resampler and decoders, with the flags the apps build them with.
+    templates: [VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav, VibeLibsVorbis]
     sources:
       - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # HTTPStub's sessionConfiguration
       - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
@@ -1110,10 +980,6 @@ targetTemplates:
       - path: Vibe/Audio/AudioVoiceBus+Decoder.m
         compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioResampler.mm
-      - path: Vibe/ThirdParty/r8brain/DLL/r8bsrc.cpp
-        compilerFlags: *r8brain-flags
-      - path: Vibe/ThirdParty/r8brain/fft/pffft_double.c
-        compilerFlags: *r8brain-flags
       - path: Vibe/Audio/FX/AudioFX.m
         compilerFlags: *render-path-flags
       - path: vibe-libs/audio/DSP/AudioVarispeed.m
@@ -1127,18 +993,6 @@ targetTemplates:
       - path: Vibe/Audio/AudioFileHandle+Stream.m
       - path: Vibe/Loading/Transfer/NetworkReadAhead.m
       - path: Vibe/Debug/Seams/AudioFileHandle+Debug.m   # the read-ahead tests' mount rule and read hook
-      - path: Vibe/ThirdParty/dr_mp3/dr_mp3.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/dr_flac/dr_flac.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/dr_wav/dr_wav.c
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/ogg
-        includes: ["*.c"]
-        compilerFlags: *dr-libs-flags
-      - path: Vibe/ThirdParty/vorbis/lib
-        includes: ["*.c"]
-        compilerFlags: *dr-libs-flags
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator.m
       - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator+HandleOpen.m
       - path: Vibe/Debug/Seams/AudioFileMaterializationCoordinator+Debug.m   # stage 2 counts its handle opens

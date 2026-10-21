@@ -118,4 +118,4 @@ Build and run the `Vibe` scheme with ⌘R. Command-line builds, tests and editor
 
 Vibe is licensed under the [Apache License 2.0](LICENSE).
 
-There is no package manager. All third-party code is vendored under `Vibe/ThirdParty/`. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists every component and its license. TagLib is dual-licensed, and Vibe uses it under the Mozilla Public License 1.1 rather than the LGPL because it is statically linked.
+There is no package manager. All third-party code is vendored. Every library but Sparkle is a piece under `third_party/` in [vibe-libs](https://github.com/cmicali/vibe-libs), the submodule at `vibe-libs/`. Sparkle is in `Vibe/ThirdParty/`. [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) lists every component and its license. TagLib is dual-licensed, and Vibe uses it under the Mozilla Public License 1.1 rather than the LGPL because it is statically linked.

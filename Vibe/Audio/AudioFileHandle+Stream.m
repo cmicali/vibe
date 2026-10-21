@@ -88,7 +88,7 @@ static AVAudioChannelLayout *VibeMaskLayout(UInt32 mask, UInt32 channels) {
 // The packet is the largest block. FLAC orders three to eight channels as
 // WAVE does, so each count is a mask. dr_flac answers the length, STREAMINFO's
 // or, for a stream that leaves it unknown, the end of its last frame
-// (ThirdParty/AGENTS.md).
+// (vibe-libs/third_party/dr_flac/AGENTS.md).
 - (BOOL)openFLACInterleaved:(BOOL)interleaved {
     static const UInt32 masks[] = {0x7, 0x33, 0x37, 0x3F, 0x70F, 0x63F};
     _flac = drflac_open(VibeStreamRead, VibeFLACSeek, VibeStreamTell, (__bridge void *)self, NULL);

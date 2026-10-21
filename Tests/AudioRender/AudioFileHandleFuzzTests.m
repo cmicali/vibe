@@ -725,7 +725,7 @@ static BOOL FuzzSeekTablePastEnd(NSMutableData *bytes, FuzzSource *source, VibeF
     return NO;
 }
 
-#pragma mark Named shapes: the dr_wav fixes (ThirdParty/AGENTS.md)
+#pragma mark Named shapes: the dr_wav fixes (vibe-libs/third_party/dr_wav/AGENTS.md)
 
 typedef NS_ENUM(NSUInteger, FuzzCOMM) { FuzzCOMM23, FuzzCOMMOdd, FuzzCOMMLong };
 
