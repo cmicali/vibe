@@ -52,7 +52,7 @@ Templates: a `CPListTemplate` of persistent roots, a `CPListTemplate` of the ope
 
 ### 4. Cloud folders
 
-A dataless track can take seconds to sound. The phone's loading fill reads `CloudTransferRegistry` (`Loading/AGENTS.md`). CarPlay has no custom progress fill, so use the list item's spinner while the open is pending. Validate the pending-open interaction in the CarPlay simulator and on a head unit.
+A dataless track can take seconds to sound. The phone's loading fill reads `CloudTransferRegistry` (vibe-libs' `files/FileLoading/AGENTS.md`). CarPlay has no custom progress fill, so use the list item's spinner while the open is pending. Validate the pending-open interaction in the CarPlay simulator and on a head unit.
 
 ## Files
 

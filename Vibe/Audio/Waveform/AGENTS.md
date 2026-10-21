@@ -64,7 +64,7 @@ Up to `kMaxDetachedWaveformLoads` (2) detached decodes run behind the active one
 
 ## A file still downloading rides the play's stream
 
-**The loader opens a streaming file like any other** (`AudioFileHandle` finds the transfer's `CloudFileAvailability`). Its decode fills in as the bytes arrive and completes only once the last byte has. The entry is filed under the placeholder's size and mtime, which the install keeps. A download that installed another version re-keys every track (`Loading/AGENTS.md`).
+**The loader opens a streaming file like any other** (`AudioFileHandle` finds the transfer's `CloudFileAvailability`). Its decode fills in as the bytes arrive and completes only once the last byte has. The entry is filed under the placeholder's size and mtime, which the install keeps. A download that installed another version re-keys every track (vibe-libs' `files/FileLoading/AGENTS.md`).
 
 **TRAP: a decode's version is checked at its completion, never at its start.** The key is taken before the open, so a decode can read another version than its key names. At completion the cache reads the item's `cacheKey` again, off main, and compares it with the key the decode was looked up under. The re-key has retired the memo by then. On a mismatch the result is neither filed nor delivered, waveform or results, since its bytes may be either version's. A current load decodes once more under the new key, through its claim's retry (`settleClaim:`). The item's key is compared, never a fresh stat, so the retry is keyed as the check is. A fresh stat would see a rewrite the memo hides, and every retry would mismatch again.
 

@@ -1,6 +1,6 @@
 # Dropbox (iOS)
 
-Dropbox access uses its HTTP API. This lets the app browse and search without relying on the Files provider's local listing. There is no SDK: a handful of endpoints over `NSURLSession`, all Objective-C. This directory has no UI. The shell that draws the account is `Vibe/iOS/AGENTS.md`. The mirror is a remote fetch backend (`Loading/AGENTS.md`), which `VibeiOSAppDelegate` installs at launch with `installAsRemoteBackend`, beside the Links store.
+Dropbox access uses its HTTP API. This lets the app browse and search without relying on the Files provider's local listing. There is no SDK: a handful of endpoints over `NSURLSession`, all Objective-C. This directory has no UI. The shell that draws the account is `Vibe/iOS/AGENTS.md`. The mirror is a remote fetch backend (vibe-libs' `files/FileLoading/AGENTS.md`), which `VibeiOSAppDelegate` installs at launch with `installAsRemoteBackend`, beside the Links store.
 
 | File | Owns |
 | --- | --- |

@@ -26,7 +26,7 @@ Tags, their disk cache, the playlist scan and embedded artwork. The artwork clas
 
 **`loadCachedMetadata:` is the cache check alone**, for rows whose audio is not on the device (the iOS browser's placeholders and dataless files). A hit installs and publishes as the sweep's does. A miss ends there, with no record, materialization or parse (`loadFromCacheOnly:`). It runs on a loader of its own that is never cancelled, so a later `loadMetadata:` or `cancelScan` cannot drop a lookup the caller will not repeat.
 
-**The foreground rule is the coordinator's; this directory only asks** (root `AGENTS.md`, `Loading/AGENTS.md`). The sweep asks `isForegroundTransferActive` before submitting a dataless record, and re-asks on a bounded 1 s clock while gated (`recheckForegroundGate`, the seam tests drive). Cache checks continue while gated. **An already-local file is exempt**, so on a partly downloaded folder local tags land straight through. The loader probes locality with `PlaceholderFiles.isDatalessFile:` at every enqueue, submit and requeue, because the playback open routinely downloads the very file a yielded record waits on.
+**The foreground rule is the coordinator's; this directory only asks** (root `AGENTS.md`, vibe-libs' `files/FileLoading/AGENTS.md`). The sweep asks `isForegroundTransferActive` before submitting a dataless record, and re-asks on a bounded 1 s clock while gated (`recheckForegroundGate`, the seam tests drive). Cache checks continue while gated. **An already-local file is exempt**, so on a partly downloaded folder local tags land straight through. The loader probes locality with `PlaceholderFiles.isDatalessFile:` at every enqueue, submit and requeue, because the playback open routinely downloads the very file a yielded record waits on.
 
 **Materialization results, not error text, decide retries** (`MetadataRetryRules.h`, tested):
 
@@ -37,7 +37,7 @@ A loader snapshots `AudioLoadingConfiguration`, so a settings change reaches onl
 
 **Pending misses are app-owned records picked one at a time, never sorted** (`MetadataScanOrderRules.h`, tested): already-local first, then untried before deferred, then neighborhood rank, then playlist index. A real playlist holds more than 100,000 misses, so a track change replaces only a small locked neighborhood snapshot and enqueues a coalesced kick. Each shell sends it from its one current-index funnel through `setNeighborhoodTracks:`. It hands over the playlist's `neighborhoodTracks` (the next two and the previous in play order, so shuffle ranks what will play), never the whole list, whose mac getter copies it.
 
-**The cache key is the item's `cacheKey` (`VibePlayableItem`), which Vibe's row memoizes for its life**, until a download installs another version than its placeholder's (`Loading/AGENTS.md`). Then every memo is retired and the next lookup stats the file again. A row already holding metadata keeps it until it is next parsed.
+**The cache key is the item's `cacheKey` (`VibePlayableItem`), which Vibe's row memoizes for its life**, until a download installs another version than its placeholder's (vibe-libs' `files/FileLoading/AGENTS.md`). Then every memo is retired and the next lookup stats the file again. A row already holding metadata keeps it until it is next parsed.
 
 ## Duplicate rows and delivery
 

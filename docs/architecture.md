@@ -31,7 +31,7 @@ Vibe/
     Levels/            the live output meter behind the equalizer bars
     Mac/Devices/       CoreAudio output devices and bit-perfect output (macOS)
     iOS/               the audio session and output recovery (iOS)
-  Loading/             from a path to a readable file
+  Loading/             the app's own transfers: HTTP, links, and Dropbox
     Claim/             which open runs, and when: the claim, admission, the handle ceiling
     Transfer/          the bytes: downloads, progress, streaming, the network read-ahead
     Net/               the app's own HTTP: transfers, placeholders, and Open URL's links
@@ -112,7 +112,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### Loading
 
-`Vibe/Loading/` takes a path and hands back a readable `AudioFileHandle`. The path may name a local file, a cloud placeholder that must download first, a file on a network share, or an Open URL link. `PlaceholderFiles` says whether a file is a placeholder. `Claim/AudioFileMaterializationCoordinator` owns materialization and playback handle opens. Metadata can also read remote byte ranges through the backend. It keeps one claim per path, decides which download may run, and puts the open the user is waiting on ahead of background reads. `Transfer/CloudFileMaterializer` runs one download that can be cancelled. `Transfer/CloudFileAvailability` says how much of a file is readable while it still downloads. `Transfer/NetworkReadAhead` reads a file on a network mount ahead of the player. `Transfer/CloudTransferRegistry` lists the files on the wire, and every loading bar reads it. `Net/` is the app's own HTTP: `HTTPTransferClient`, `RemotePlaceholderStore`, and `LinkStore` for Open URL. `iOS/Dropbox/` is the Dropbox account (`DropboxClient`) and its local mirror (`DropboxMirror`). Read next: `Vibe/Loading/AGENTS.md` for how the code works, and `docs/file-loading-spec.md` for the behavior it must keep.
+vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFileHandle`, which the player's opener makes. The path may name a local file, a cloud placeholder that must download first, a file on a network share, or an Open URL link. `PlaceholderFiles` says whether a file is a placeholder. `Claim/AudioFileMaterializationCoordinator` owns materialization and playback handle opens. Metadata can also read remote byte ranges through the backend. It keeps one claim per path, decides which download may run, and puts the open the user is waiting on ahead of background reads. `Transfer/CloudFileMaterializer` runs one download that can be cancelled. `Transfer/CloudFileAvailability` says how much of a file is readable while it still downloads. `Transfer/NetworkReadAhead` reads a file on a network mount ahead of the player. `Transfer/CloudTransferRegistry` lists the files on the wire, and every loading bar reads it. `Vibe/Loading/` keeps the app's own transfers. `Net/` is the app's own HTTP: `HTTPTransferClient`, `RemotePlaceholderStore`, and `LinkStore` for Open URL. `iOS/Dropbox/` is the Dropbox account (`DropboxClient`) and its local mirror (`DropboxMirror`). Read next: `vibe-libs/files/FileLoading/AGENTS.md` for how the code works, `Vibe/Loading/AGENTS.md` for what stays here, and `docs/file-loading-spec.md` for the behavior it must keep.
 
 ### Playlist
 
@@ -152,7 +152,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### vibe-libs
 
-`vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`. Nothing builds differently. **Vibe uses five pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/DSP` holds the pitch fader's varispeed. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. Every vendored library but Sparkle is a piece under `third_party/` too. Controls and SettingsWindow are macOS only. Only the mac app lists them. More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in vibe-libs first. Vibe then bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc first.
+`vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`. Nothing builds differently. **Vibe uses seven pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/DSP` holds the pitch fader's varispeed. `files/FileLoading` holds the file-open path, from a path to a readable file, with its debug seams and the fake cloud. `files/DiskCache` holds the bounded disk cache that the metadata and waveform caches build on. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. Every vendored library but Sparkle is a piece under `third_party/` too. Controls and SettingsWindow are macOS only. Only the mac app lists them. More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in vibe-libs first. Vibe then bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc first.
 
 ### Third-party code
 
@@ -177,8 +177,8 @@ This is the path a file takes from the moment the user opens it to the moment it
    │
  AudioPlayer play:                     player queue
    │
- AudioFileMaterializationCoordinator   Loading/Claim
-   │   stage 1: make the file readable Loading/Transfer
+ AudioFileMaterializationCoordinator   vibe-libs' files/FileLoading/Claim
+   │   stage 1: make the file readable files/FileLoading/Transfer
    │   stage 2: open it
    ▼
  AudioFileHandle                       parser, decoder, stream or read-ahead
@@ -200,19 +200,19 @@ Read `Vibe/Mac/App/AGENTS.md` ("Opening files is a funnel, not an event") and `V
 
 ### 2. The player takes the request
 
-`AudioPlayer play:` (`Audio/AudioPlayer.m`) gives the play a submission identity and queues it on the serial player queue. `PlaybackRequestCoordinator` gives the open its own identifier. It holds the open's row, its intent (playing or paused, and the start position), and whether it is slow. `submitOpenOnQueueForTrack:openRequestId:` asks the loading coordinator for a handle. It also arms the open's deadline. An open with no progress for 60 seconds is abandoned. Each movement of the download extends the deadline (`Loading/Claim/AudioFileOpenTimeoutMath.h`). A File Provider placeholder shows Loading as soon as it is classified as dataless. Other opens show Loading after half a second.
+`AudioPlayer play:` (`Audio/AudioPlayer.m`) gives the play a submission identity and queues it on the serial player queue. `PlaybackRequestCoordinator` gives the open its own identifier. It holds the open's row, its intent (playing or paused, and the start position), and whether it is slow. `submitOpenOnQueueForTrack:openRequestId:` asks the loading coordinator for a handle. It also arms the open's deadline. An open with no progress for 60 seconds is abandoned. Each movement of the download extends the deadline (`vibe-libs/files/FileLoading/Claim/AudioFileOpenTimeoutMath.h`). A File Provider placeholder shows Loading as soon as it is classified as dataless. Other opens show Loading after half a second.
 
 Read `Vibe/Audio/AGENTS.md` ("AudioPlayer" and "Opening a file").
 
 ### 3. Loading
 
-`AudioFileMaterializationCoordinator openURL:purpose:completionQueue:onDataless:completion:` (`Loading/Claim/`) owns the rest. Every request is keyed by the file's standardized path. The playback open, the prefetch, and the metadata scan all join one claim per path. Those requests share the same materialization work.
+`AudioFileMaterializationCoordinator openURL:purpose:opener:completionQueue:onDataless:completion:` (vibe-libs' `files/FileLoading/Claim/`) owns the rest. Every request is keyed by the file's standardized path. The playback open, the prefetch, and the metadata scan all join one claim per path. Those requests share the same materialization work.
 
-**Stage 1 makes the file readable.** A bounded probe asks `PlaceholderFiles isDatalessFile:`. A file found local needs no transfer lane or download. A placeholder waits for a transfer lane. Then it is published to `CloudTransferRegistry`, and its row shows a loading bar. `CloudFileMaterializer` (`Loading/Transfer/`) runs the download. A File Provider placeholder, such as an iCloud Drive file, downloads through `NSFileCoordinator`. A remote placeholder, such as an Open URL link or a file in the iOS Dropbox mirror, downloads through its store's fetch (`Loading/Net/`). A remote file can become readable before its download completes. While the user waits on an open, background downloads for metadata yield.
+**Stage 1 makes the file readable.** A bounded probe asks `PlaceholderFiles isDatalessFile:`. A file found local needs no transfer lane or download. A placeholder waits for a transfer lane. Then it is published to `CloudTransferRegistry`, and its row shows a loading bar. `CloudFileMaterializer` (vibe-libs' `files/FileLoading/Transfer/`) runs the download. A File Provider placeholder, such as an iCloud Drive file, downloads through `NSFileCoordinator`. A remote placeholder, such as an Open URL link or a file in the iOS Dropbox mirror, downloads through its store's fetch (`Loading/Net/`). A remote file can become readable before its download completes. While the user waits on an open, background downloads for metadata yield.
 
 **Stage 2 opens the handle** (`AudioFileMaterializationCoordinator+HandleOpen.m`). At most six handle opens run at once. Each calls `AudioFileHandle initForReading:interleaved:interrupted:error:` on a worker. The handle is delivered back on the player queue.
 
-Read `Vibe/Loading/AGENTS.md` ("One claim, two stages" and "The transfer registry") and `docs/file-loading-spec.md`.
+Read `vibe-libs/files/FileLoading/AGENTS.md` ("One claim, two stages" and "The transfer registry") and `docs/file-loading-spec.md`.
 
 ### 4. AudioFileHandle
 
@@ -299,9 +299,9 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | DJ effects or pitch | `Audio/FX/AGENTS.md`, `vibe-libs/audio/DSP/AGENTS.md` | `Audio/FX/AudioFX.m`, `vibe-libs/audio/DSP/AudioVarispeed.m` |
 | Output devices or bit-perfect output | `Audio/Mac/Devices/AGENTS.md` | `Audio/Mac/Devices/AudioPlayer+Devices.m`, `AudioPlayer+BitPerfect.m` |
 | The iOS audio session and routes | `Audio/iOS/AGENTS.md` | `Audio/iOS/AudioSessionController.m` |
-| Cloud downloads, their order, the loading bar | `Loading/AGENTS.md`, [file-loading-spec.md](file-loading-spec.md) | `Loading/Claim/AudioFileMaterializationCoordinator.m` |
-| Playing a file that is still downloading | `Loading/AGENTS.md` (CloudFileAvailability) | `Loading/Transfer/CloudFileAvailability.m` |
-| Files on a network share | `Loading/AGENTS.md` (The network-mount read-ahead) | `Loading/Transfer/NetworkReadAhead.m` |
+| Cloud downloads, their order, the loading bar | `vibe-libs/files/FileLoading/AGENTS.md`, [file-loading-spec.md](file-loading-spec.md) | `vibe-libs/files/FileLoading/Claim/AudioFileMaterializationCoordinator.m` |
+| Playing a file that is still downloading | `vibe-libs/files/FileLoading/AGENTS.md` (CloudFileAvailability) | `vibe-libs/files/FileLoading/Transfer/CloudFileAvailability.m` |
+| Files on a network share | `vibe-libs/files/FileLoading/AGENTS.md` (The network-mount read-ahead) | `vibe-libs/files/FileLoading/Transfer/NetworkReadAhead.m` |
 | Open URL and links | `Loading/Net/AGENTS.md`, `Mac/App/AGENTS.md` | `Loading/Net/LinkStore.m` |
 | Dropbox on iOS | `Loading/iOS/Dropbox/AGENTS.md` | `Loading/iOS/Dropbox/DropboxMirror.m` |
 | Tags, the metadata cache, or the scan | `Audio/Metadata/AGENTS.md` | `Audio/Metadata/AudioTrackMetadataLoader.m` |

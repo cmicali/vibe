@@ -127,6 +127,6 @@ Each is reported `SKIP` with its reason from `FAKE_ONLY`.
 
 - **Eviction is asynchronous.** `brctl evict` returns before the file is dataless. The runner waits for the flag. A provider that rematerializes a file by itself after the check is outside the runner's control.
 - **The provider's throttling is not the runner's to control.** iCloud can queue, slow or batch downloads. That moves timing, never what the app must do. Widen the waits with `--wait-scale` before reading a timeout as a finding.
-- **Cancelling stops the app waiting, not the provider** (`Vibe/Loading/AGENTS.md`). A cancelled file can still finish downloading. A file that turned local therefore never proves alone that the app asked for it. S2 and S21 pair it with the app's own metadata counts.
+- **Cancelling stops the app waiting, not the provider** (`vibe-libs/files/FileLoading/AGENTS.md`). A cancelled file can still finish downloading. A file that turned local therefore never proves alone that the app asked for it. S2 and S21 pair it with the app's own metadata counts.
 - **The launch costs downloads.** Each launch opens the whole folder for its grant. That starts a play and a scan before the quiesce.
 - **Only iCloud Drive evicts.** The runner evicts with `brctl`. Another File Provider folder runs only if every file is already dataless.

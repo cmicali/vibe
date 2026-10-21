@@ -4,7 +4,7 @@ Alternatives to the current design and the reasons to keep them out.
 
 ## Same-path duplicate downloads: independent admission checks
 
-`AudioFileMaterializationCoordinator` owns one path-keyed materialization claim. Playback and prefetch keep separate handle runs over that claim (`Vibe/Loading/AGENTS.md`).
+`AudioFileMaterializationCoordinator` owns one path-keyed materialization claim. Playback and prefetch keep separate handle runs over that claim (`vibe-libs/files/FileLoading/AGENTS.md`).
 
 An advisory check before starting a download leaves a race between the check and registration. Separate begin/end checks also miss a prefetch joining an existing metadata transfer. Admission and ownership must use the same claim table.
 
@@ -18,7 +18,7 @@ Revisit only if users ask for audiobooks or chaptered mixes. The shape would be 
 
 ## A wedged background handle open: widening the background lane
 
-Every transfer slot ends at stage-1 settlement. Live handle runs have a separate limit of six per coordinator (`Vibe/Loading/AGENTS.md`, J8 in `docs/file-loading-spec.md`).
+Every transfer slot ends at stage-1 settlement. Live handle runs have a separate limit of six per coordinator (`vibe-libs/files/FileLoading/AGENTS.md`, J8 in `docs/file-loading-spec.md`).
 
 - **Raising `maximumBackgroundMaterializations` to 2.** It doubles concurrent background provider transfers against the foreground-priority rule. It tolerates exactly one wedge. It leaves a transfer slot carried into a handle open.
 - **A watchdog that reclaims a wedged run on a deadline.** Reclaiming lets stranded workers grow without bound. A never-returning call stays one of the six until restart and holds no transfer slot, which is the bounded failure.

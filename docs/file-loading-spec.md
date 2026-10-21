@@ -4,7 +4,7 @@ What the file-load and metadata subsystem does, as observable behavior. It spans
 
 The spec does **not** constrain mechanism. Holds or preemption, one coordinator or two, which object owns a timer: all are free, as long as every numbered behavior survives. File references are pointers for verification.
 
-Where this spec and `Vibe/Loading/AGENTS.md` overlap, this spec is the authority for behavior and its policy numbers. `Vibe/Loading/AGENTS.md` is the authority for how the code works.
+Where this spec and `vibe-libs/files/FileLoading/AGENTS.md` overlap, this spec is the authority for behavior and its policy numbers. `vibe-libs/files/FileLoading/AGENTS.md` is the authority for how the code works.
 
 ---
 
@@ -116,7 +116,7 @@ Current production values, all reviewable.
 
 - **J4. The sweep never submits a dataless record while C1 is in force (DECIDED).** That holds even for the file playback is downloading, which C3 could reuse. The current-track request submits and joins instead. One rule beats two, and the current-track request covers the playing file (D6).
 - **J6. No parking layer above the art scheduler (DECIDED).** A request past E5's bound is dropped before it marks its row pending, and the next redraw re-requests it.
-- **J8. Transfer and open lifetimes are separate (DECIDED).** A transfer slot ends when its stage-1 materialization settles, never with the handle open. A stream keeps its slot until its download completes or fails. Handle runs are bounded apart, at six (B8). A stalled handle open cannot hold a transfer slot after materialization settles. The derivation, and what forces it to be redone, is `Vibe/Loading/AGENTS.md`'s (Admission has two lifetimes).
+- **J8. Transfer and open lifetimes are separate (DECIDED).** A transfer slot ends when its stage-1 materialization settles, never with the handle open. A stream keeps its slot until its download completes or fails. Handle runs are bounded apart, at six (B8). A stalled handle open cannot hold a transfer slot after materialization settles. The derivation, and what forces it to be redone, is `vibe-libs/files/FileLoading/AGENTS.md`'s (Admission has two lifetimes).
 - **J9. A running stage-1 materialization has no deadline (OPEN).** Once stage 1 is `Running`, pending admission expiry no longer reaches it. Local reads hold no transfer lane, so a stalled SMB, NFS or disk read strands only its worker. A dataless provider operation or a delayed classification refresh can still hold its lane indefinitely. Metadata and artwork callers have no deadline that guarantees cancellation. The fix needs explicit provider, caller-deadline and retry policy ([issue #96](https://github.com/cmicali/vibe/issues/96)).
 
 ## K. Non-goals

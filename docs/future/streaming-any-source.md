@@ -1,6 +1,6 @@
 # Future: streaming from any source
 
-**Status: Partly built.** `CloudFileAvailability` takes any writer, and a file on a network mount reads ahead through it. The waveform loader's read-ahead and the stall's pause on a dropped server are built too. Current behavior is in `Loading/AGENTS.md` (the availability, `VibeMountReadsAhead`), `Audio/AGENTS.md` (the read-ahead, buffering and the stall), `Audio/Waveform/AGENTS.md` and `Debug/AGENTS.md` (`set_slow_volume`). This plan keeps only what is not built.
+**Status: Partly built.** `CloudFileAvailability` takes any writer, and a file on a network mount reads ahead through it. The waveform loader's read-ahead and the stall's pause on a dropped server are built too. Current behavior is in vibe-libs' `files/FileLoading/AGENTS.md` (the availability, `VibeMountReadsAhead`), `Audio/AGENTS.md` (the read-ahead, buffering and the stall), `Audio/Waveform/AGENTS.md` and `Debug/AGENTS.md` (`set_slow_volume`). This plan keeps only what is not built.
 
 ## Not built
 
