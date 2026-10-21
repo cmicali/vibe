@@ -46,9 +46,9 @@ static NSArray<VibeColor *> *VibeBandColors(VibeColor *low, VibeColor *mid, Vibe
              VibeColorBlended(high, lowMid, shade ? tint * kBandAllThreeTint : tint)];
 }
 
-// The built-in palettes. Rekord Bin's is shaded, and a mac theme draws it
-// until it sets its own (AppTheme's unset band wells are these). Dengine's is
-// Engine DJ's deck, unshaded; its dark bands are the Dengine theme's, and its
+// The built-in palettes. Rekord Bin's is shaded. A mac theme draws it until it
+// sets its own, and the app's theme shows it in its unset band wells.
+// Dengine's is Engine DJ's deck, unshaded; its dark bands are the Dengine theme's, and its
 // light ones darken the mid and the high so they read on white.
 static NSArray<VibeColor *> *VibeBuiltInBandColors(BOOL dengine, BOOL isDark) {
     static NSArray<VibeColor *> *colors[2][2];
