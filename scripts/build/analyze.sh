@@ -74,7 +74,7 @@ analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild ar
     fi
 
     local findings
-    findings="$(grep -E '^/.*: (warning|error): .*\[[a-zA-Z]' "$log" | grep -v '/ThirdParty/' || true)"
+    findings="$(grep -E '^/.*: (warning|error): .*\[[a-zA-Z]' "$log" | grep -v -e '/ThirdParty/' -e '/third_party/' || true)"
     if [[ -n "$findings" ]]; then
         local count
         count="$(printf '%s\n' "$findings" | wc -l | tr -d ' ')"
