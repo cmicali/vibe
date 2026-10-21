@@ -47,6 +47,13 @@ typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
     VibeWaveformPaletteKindSpectrum,
 };
 
+@class WaveformTheme;
+
+// How a view resolves its theme: from the appearance it draws in and the
+// artwork color settled on it. The shell installs one that maps its store
+// (Common/WaveformTheme+Settings). A view with none resolves Mono.
+typedef WaveformTheme *_Nonnull (^WaveformThemeProvider)(BOOL isDark, VibeColor *_Nullable artworkColor);
+
 @interface WaveformTheme : NSObject
 
 // Each side's hue at its resting alpha.

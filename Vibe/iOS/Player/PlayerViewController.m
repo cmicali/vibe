@@ -145,8 +145,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
         if (path) {
             [self configurePage:cell atIndex:(NSUInteger)path.item];
         }
-        [cell.waveformView syncWaveformStyle];
-        [cell.waveformView syncWaveformTheme];
+        [self applyWaveformSettingsToCell:cell];
     }
     [self repaintTimesOnVisiblePages];
 }

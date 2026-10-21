@@ -18,7 +18,7 @@ The track pager and the chrome over it. It observes `PlaybackController` and own
 
 **TRAP: dequeue is not the last word** (`willDisplayCell:`). A prefetched page is configured off screen and misses deliveries, since `refreshPageAtIndex:` reaches only live cells. So `willDisplayCell:` configures the page again, re-applies zoom and style, and the slow-open shimmer. **A page that is not the current track rests at the start**: `willDisplayCell:` writes its waveform progress to 0 beside its resting times. Nothing else writes a page once the chrome leaves it.
 
-**The right time shows the duration. A tap flips it to minus-prefixed remaining**, held in `AppSettings.showRemainingTime`. Every render path goes through `VibeRightTimeText`, and the tap repaints every visible page. **A settings change arrives from outside the card**: `VibeDisplaySettingsDidChangeNotification` lands on `displaySettingsDidChange`, which reconfigures every visible page, syncs the waveform style and repaints the times.
+**The right time shows the duration. A tap flips it to minus-prefixed remaining**, held in `AppSettings.showRemainingTime`. Every render path goes through `VibeRightTimeText`, and the tap repaints every visible page. **A settings change arrives from outside the card**: `VibeDisplaySettingsDidChangeNotification` lands on `displaySettingsDidChange`, which reconfigures every visible page, pushes the waveform settings (`applyWaveformSettingsToCell:`, the scrubber reads no store) and repaints the times.
 
 **The time labels belong to a scrub while one runs.** `+Delivery` renders `didScrubToProgress:` as the landing time, and `updatePlaybackUI` bails on `isScrubbing`. The duration falls back to the track's own, so scrubbing a parked track reads correctly.
 

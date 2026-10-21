@@ -8,6 +8,7 @@
 
 #import "AppSettings.h"
 #import "AudioWaveform.h"
+#import "WaveformTheme+Settings.h"
 #import "WaveformScrubberViewInternal.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformZoomMath.h"
@@ -118,6 +119,13 @@ static const CGFloat kHeight = 120;
     settings.waveformStyle = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
     [settings setWaveformTheme:SETTINGS_VALUE_WAVEFORM_THEME_MONO forWidget:NO];
     _view = [[WaveformScrubberView alloc] initWithFrame:CGRectMake(0, 100, kWidth, kHeight)];
+    // The owner's provider: the settings under test, mapped as the card
+    // maps them.
+    _view.themeProvider = ^WaveformTheme *(BOOL isDark, UIColor *artworkColor) {
+        return [WaveformTheme themeForSettings:AppSettings.sharedInstance widget:NO isDark:isDark
+                                  artworkColor:artworkColor];
+    };
+    [_view syncWaveformStyle:settings.waveformStyle];
     // Pinned, so Mono's played side is white whatever the simulator shows.
     _view.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     _events = [[ScrubberEvents alloc] init];
@@ -252,8 +260,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     CGFloat width = self.scroll.contentSize.width;
     CALayer *host = [_view valueForKey:@"_rendererHost"];
     XCTAssertEqualWithAccuracy(host.bounds.size.width, width, 0.01);
-    AppSettings.sharedInstance.waveformStyle = @"detailed";
-    [_view syncWaveformStyle];
+    [_view syncWaveformStyle:@"detailed"];
     [self.window layoutIfNeeded];
     [_view layoutIfNeeded];
     XCTAssertEqualWithAccuracy(self.scroll.contentSize.width, width, 0.01);

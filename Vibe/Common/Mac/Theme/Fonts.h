@@ -3,8 +3,7 @@
 //  Vibe
 //
 
-#import <Foundation/Foundation.h>
-#import "AppTheme.h" // VibeFontSlot, and the theme the slots are pushed from
+#import <Cocoa/Cocoa.h>
 
 // The app's typography: text is Helvetica Neue; digit displays use
 // fontForNumbers: (monospaced digits) so changing values do not jitter.
@@ -15,21 +14,12 @@
 + (NSFont *)fontForNumbers:(CGFloat)size;
 + (NSFont *)fontForNumbers:(CGFloat)size bold:(BOOL)bold;
 
-// The themed slots. Fonts reads no setting. The theme is PUSHED here, and
-// until the first push the slots resolve the factory look. An empty or
-// uninstalled face falls back to font: (fontForNumbers: for info and
-// duration), so a slot never returns nil. A named info or duration face gains
+// The slots: a face-and-size table keyed by an integer the app chooses.
+// Fonts reads no setting. The app PUSHES each slot before its first read. An
+// empty or uninstalled face falls back to font: (fontForNumbers: for a
+// numeric slot), so a slot never returns nil. A named numeric face gains
 // monospaced digits.
-+ (void)applyThemeFonts:(AppTheme *)theme;
-
-+ (NSFont *)fontForSlot:(VibeFontSlot)slot bold:(BOOL)bold;
-+ (NSFont *)titleFont;
-+ (NSFont *)artistFont;
-+ (NSFont *)infoFontBold:(BOOL)bold;
-// The info readouts' kerning and alignment. No face: each field carries its
-// own infoFontBold:.
-+ (NSDictionary<NSAttributedStringKey, id> *)infoTextAttributesAligned:(NSTextAlignment)alignment;
-+ (NSFont *)playlistFont;
-+ (NSFont *)playlistDurationFont;
++ (void)setFace:(NSString *)face size:(CGFloat)size numeric:(BOOL)numeric forSlot:(NSInteger)slot;
++ (NSFont *)fontForSlot:(NSInteger)slot bold:(BOOL)bold;
 
 @end

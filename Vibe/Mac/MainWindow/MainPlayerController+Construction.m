@@ -37,6 +37,7 @@
 #import "UIUpdateTimer.h"
 #import "UIUpdateMath.h"
 #import "WaveformRendererRegistry.h"
+#import "WaveformTheme+Settings.h"
 #import "WaveformView.h"
 
 @implementation MainPlayerController (Construction)
@@ -211,10 +212,12 @@
     [self applyAppIcon];
 
     self.waveformView.delegate = self;
-    // The theme's style, never the loose waveformStyle key, which theme
-    // migration consumed on macOS. This creates the renderer, so
-    // prepareForWaveformLoad's fallback never runs.
-    self.waveformView.waveformStyle = AppSettings.sharedInstance.currentTheme.waveformStyle;
+    self.waveformView.themeProvider = ^WaveformTheme *(BOOL isDark, NSColor *artworkColor) {
+        return [WaveformTheme themeForAppTheme:AppSettings.sharedInstance.currentTheme isDark:isDark
+                                  artworkColor:artworkColor];
+    };
+    // Creates the renderer, so the first load finds one.
+    [self applyWaveformSettings];
 
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;

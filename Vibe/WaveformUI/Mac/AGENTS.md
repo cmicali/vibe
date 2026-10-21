@@ -35,14 +35,18 @@ While the cursor is over a loaded waveform, the waveform marks the column under 
 
 **Hover and click-to-seek are gated on having a waveform.** That is how the empty, loading and parked states opt out. Every presentation reset (`resetWaveformContentState`) also clears a press or drag in flight, so a mouse-up cannot seek after the track changed.
 
+## Pushed settings
+
+**The view reads no store.** `MainPlayerController.applyWaveformSettings` pushes everything it draws from: the theme's bar density, bar width and Centered, Normalize and gain, `dragSeeks`, and last the style. The style's set is the one draw, so the bars ease to a new level mapping under a slider drag. Launch and the WaveformStyle, WaveformLevels and WaveformDrag effects all run it. The theme is resolved through `themeProvider`, a block the shell installs once (`../AGENTS.md`). A view with none draws Mono.
+
 ## Drag behavior
 
-`AppSettings.waveformDragBehavior` decides what a drag that starts on the waveform does. The view reads it once per mouse-down, so a settings write cannot change a drag mid-flight.
+`dragSeeks` decides what a drag that starts on the waveform does. The shell pushes it from `AppSettings.waveformDragBehavior`. The view stashes it once per mouse-down, so a push cannot change a drag mid-flight.
 
 **TRAP: `mouseDownCanMoveWindow` is a constant NO.** AppKit caches the answer in the window's movable region when the view joins the window. An answer derived from the setting or the loaded state goes stale, and seek mode then scrubbed while the window moved. Moving the window is per gesture, through `performWindowDragWithEvent:`.
 
-- **`drag_window`** (the default): a stationary click seeks. A drag past the 4pt hysteresis (`kWaveformDragHysteresis`) disarms the press and hands the gesture to `performWindowDragWithEvent:`. `mouseUp:` also bails when the window origin or the cursor moved, for a release that still arrives after the handoff.
-- **`seek`**: the window stays put and the drag scrubs. Past the hysteresis the column under the cursor shows through `setHoverHighlightX:`, clamped to the bounds, while real progress keeps painting. The audio seeks once on release, to the clamped fraction. The release skips the containment test, since the drag may end outside the view.
+- **Off** (`drag_window`, the default): a stationary click seeks. A drag past the 4pt hysteresis (`kWaveformDragHysteresis`) disarms the press and hands the gesture to `performWindowDragWithEvent:`. `mouseUp:` also bails when the window origin or the cursor moved, for a release that still arrives after the handoff.
+- **On** (`seek`): the window stays put and the drag scrubs. Past the hysteresis the column under the cursor shows through `setHoverHighlightX:`, clamped to the bounds, while real progress keeps painting. The audio seeks once on release, to the clamped fraction. The release skips the containment test, since the drag may end outside the view.
 
 With no waveform, or outside the renderer's seek hit band, `mouseDown:` hands the event to `performWindowDragWithEvent:` at once in every mode. So the empty and loading states and the view's margins always drag the window.
 

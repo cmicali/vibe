@@ -11,7 +11,7 @@
 #import "MainPlayerController+Menus.h"
 #import "MainPlayerController+Transport.h"
 #import "MainWindow.h"
-#import "ShortcutRules.h"
+#import "MenuShortcutRules.h"
 
 // Each flips its effect at keyDown; keyUp decides: a tap latches the flip, a
 // hold reverts to the pre-press state.
@@ -205,7 +205,7 @@ static BOOL VibeIsPlaylistKey(unsigned short keyCode, NSEventModifierFlags modif
     // A reserved press passes on too: the arrows are the table's own
     // moveUp:/moveDown:.
     unichar typed = (mods & NSEventModifierFlagCommand) ? VibeLowercaseCharacter(event.characters) : 0;
-    NSString *command = VibeShortcutCommandForPress(keyCode, mods, typed,
+    NSString *command = VibeShortcutCommandForPress(VibeShortcutTable(), keyCode, mods, typed,
             VibeLowercaseCharacter(event.charactersIgnoringModifiers), AppSettings.sharedInstance.shortcutOverrides);
     if (!command) {
         return event;

@@ -95,4 +95,4 @@ The glyph and custom squares are memoized on the record, keyed by the stored fie
 
 ## Fonts
 
-**`Fonts`**: the app's typography. The five themed slots (`VibeFontSlot`, declared with the theme) resolve against the theme that `MainPlayerController.applyStoredFonts` **pushes** through `applyThemeFonts:`. Fonts reads no setting. Until the first push they resolve the factory look. An empty or uninstalled face falls back to the slot's built-in font, so a slot accessor never returns nil.
+**`Fonts`**: the app's typography, and a face-and-size table keyed by an integer slot. It knows no theme and reads no setting. **`Fonts+Theme`** is Vibe's half: the five slot accessors (`VibeFontSlot`, declared with the theme) and `applyThemeFonts:`, which `MainPlayerController.applyStoredFonts` **pushes** before any label exists and on every Fonts effect. Info and playlist duration are pushed as the numeric slots, so a named face gains monospaced digits. An empty or uninstalled face falls back to the slot's built-in font, so a slot accessor never returns nil.

@@ -128,6 +128,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
 
 - (void)waveformDragChanged:(id)sender {
     AppSettings.sharedInstance.waveformDragBehavior = _waveformDragPopUp.selectedItem.representedObject;
+    [self applyLiveEffects:VibeSettingsLiveEffectWaveformDrag];
 }
 
 - (void)artworkDragChanged:(id)sender {
