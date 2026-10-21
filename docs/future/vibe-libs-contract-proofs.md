@@ -1,0 +1,63 @@
+# vibe-libs: the seam contracts under Vibe's tests
+
+vibe-libs' plan asks, before Phase 3 starts, that the contracts of seams 13, 15, 17, and 22, and rule 4's version check, are each proven in Vibe under its existing tests. This page lists, for each line of each contract, the tests that pin it. They were found by reading the tests. A line with no test says so. That is a finding, not a failure.
+
+The contracts are quoted in short from the plan in `vibe-libs/docs/plan.md`.
+
+## Seam 13: the playable-item protocol
+
+| Contract | Tests that pin it |
+| --- | --- |
+| An item gives its file, its window, its source key, and its disk key. | `AudioTrackTests` `testTheSourceKeyIdentifiesTheWindow`. `NSURLHashTests` `testKeyIsSizeMtimeAndPathHash`, `testTrackMemoizesItsKey`, `testTrackDoesNotMemoizeAFailedStat`. |
+| The pieces that read a file take the protocol and hand back the same object. | Waveform: `AudioWaveformObserverTests` `testADecodeFeedsItsSinkEveryFrameAndDeliversTheResult`, `testACacheHitDecodesNothingAndHandsBackTheResult`. Player: `AudioPlayerRenderEdgesTests` `testATrackSplicesIntoItselfGaplessly`, `AudioPlayerRenderOutputTests` `testOutputRateChangeKeepsThePlayingAndPausedTrack`, `PlaybackRequestCoordinatorTests` `testRebindBeforeSlowDeliveryUsesTheLatestTrackAndIntent`. Metadata: `AudioTrackMetadataLoaderSharedFileTests` `testPriorityTakesItsFilesRecordAndItsRowTakesAFailureFirst`. |
+| Two entries for one file stay two entries. | `AudioWaveformObserverTests` `testARequestJoinsADecodeThatCarriesItsObservers`. `AudioPlayerRenderEdgesTests` `testAPickOfAnotherRowOfTheFileBeingOpenedRebindsTheOpen`. `AudioTrackMetadataLoaderSharedFileTests` `testSuccessfulParseJoinsDuplicateRowsAndPublishesIndependentCopies`. `MetadataParseCoordinatorTests` `testEqualButDistinctRowsWaitIndependently`. `PlaylistTests` `testStampingReachesEveryRowSoundingTheWindowAndNoOtherRowOfTheFile`. |
+| The CUE window math is one header that the readers share. | `CueWindowMathTests`, all six tests. |
+| Only the player, Metadata, and the waveform loader take the protocol, and any object may adopt it. | **No test.** Every test that reads an item hands it an `AudioTrack`. `PlaybackRequestCoordinatorTests` passes a bare object, but never reads it. The boundary is compile-time only, by Phase 2's `grep` for `AudioTrack.h`. |
+
+## Seam 15: the loader's handle
+
+| Contract | Tests that pin it |
+| --- | --- |
+| The opener is a block that the caller passes. | `AudioFileMaterializationCoordinatorHandleOpenTests` `testAWedgedPrefetchOpenDoesNotStarveBackgroundTransfers`, `testARebindWhileAnAbandonedHandleOpenReturnsGetsAFreshRun`. Both pass openers of their own. |
+| A served handle holds its stream, and the transfer ends when the play lets go. | `AudioPlayerRenderStreamTests` `testAStopOrASkipWhileParkedAtTheEdgeLetsTheStreamGo`. `AudioWaveformLoaderTests` `testAStreamingLoadFillsInAsTheDownloadArrivesAndCompletesWithIt`, which shows a waveform's handle holds nothing. `CloudFileMaterializerTests` `testAvailabilityCallsBackWhenItsLastReaderGoes`. |
+| Interrupting stays the opener's `interrupted` block. | `CloudFileMaterializerTests` `testAvailabilityInterruptEndsOnlyAWaitThatBlocks`, `testAWakeMakesABlockedWaitSeeAnInterrupt`. `AudioPlayerRenderStreamTests` `testTheOpenDeadlineStopsAStreamingOpenParkedAtTheEdge`. `AudioWaveformLoaderTests` `testCancellingAStreamingLoadParkedAtTheEdgeEndsItPromptly`. |
+| A download that installs another version bumps the generation on `NSURL (Hash)`. | `AudioFileHandleStreamingTests` `testATransferInstallingAnotherVersionRetiresTheMemoizedKeys`. |
+| A download that installs its placeholder's version leaves the memos alone. | **No test.** Nothing checks that the generation stays put. A spurious bump costs one stat per memo. |
+| The read-ahead's test hooks are FileLoading's own, and `AudioFileHandle (Debug)` forwards to them. | `AudioFileHandleReadAheadTests`, through `VibeReadAheadScript`, which installs the hooks through the forwarding category. |
+| FileLoading builds and tests alone in Debug. | **Not provable in Vibe.** It is Phase 3 step 4's done-when. |
+| The served handle is any object that adopts `ServedFileHandle`. | **No test.** Every opener in the tests returns an `AudioFileHandle`. |
+
+## Seam 17: the decode's observers
+
+| Contract | Tests that pin it |
+| --- | --- |
+| An observer has a stable identifier, which names its result in the archive. | `CodableAudioWaveformTests` `testEncodeThenDecodePreservesTheSummaryBandsAndResults`, `testResultsThatWillNotReadRejectTheEntry`. |
+| The loader asks each listed observer for a sink, given the rate and the window, and feeds it every mono block in order. | `AudioWaveformObserverTests` `testADecodeFeedsItsSinkEveryFrameAndDeliversTheResult`. |
+| Each sink returns one result, any property-list object, filed beside the summary. | `CodableAudioWaveformTests` `testEveryPropertyListClassRoundTrips`. A sink that returns something else asserts in Debug and is dropped in Release. **No test** covers that drop. |
+| A cache hit decodes nothing and hands back the filed results. | `AudioWaveformObserverTests` `testACacheHitDecodesNothingAndHandsBackTheResult`. |
+| An entry covers a request only if it holds a result for every observer listed. | `AudioWaveformObserverTests` `testAnEntryWithoutAResultMissesForARequestThatListsIt`. `AudioWaveformLoaderTests` `testCacheOnlyLookupMissesWithoutDecodingAndChecksAnalysisRequirements`, for the bands. |
+| A request joins a running decode only if that decode carries every observer it wants. | `AudioWaveformObserverTests` `testARequestJoinsADecodeThatCarriesItsObservers`, `testARequestThatWantsMoreDoesNotJoin`. |
+| A cancelled request detaches its decode, and its sinks still finish. | `AudioWaveformObserverTests` `testACancelledRequestsDecodeStillFinishesItsSinks`. `AudioWaveformLoaderTests` `testDetachedLoadFinishesWithoutProgressDeliveries`. |
+| A late completion reaches only a request that is still current, by source key and version. | By source key: `AudioWaveformObserverTests` `testALateCompletionReachesOnlyItsOwnTrack`, `PageWaveformCoordinatorTests` `testDeliveryForAnotherRowOfTheSameFileIsDropped`, `PlaylistTests` `testStampingReachesEveryRowSoundingTheWindowAndNoOtherRowOfTheFile`. By version: rule 4's rows below. |
+| A CUE window decodes only its frames, so its observers see only those. | `AudioWaveformObserverTests` `testACueWindowsSinkSeesOnlyItsFrames`. `AudioWaveformLoaderTests` `testFullLoadOfAWindowCoversOnlyTheWindow`. |
+| `perf.py --analyze` proves tempo and key identical. | A measurement, not a test. It is the `vibe-perf` skill's. |
+
+## Seam 22: Metadata's holder protocol
+
+| Contract | Tests that pin it |
+| --- | --- |
+| The loader installs a result only while the holder has none. | `AudioTrackTests` `testConcurrentMetadataInstallationPublishesOnlyTheWinner`. `AudioTrackMetadataLoaderTests` `testStageOneCacheHitInstallsAndPublishesWithoutMaterialization`. |
+| It delivers only while that result is still installed. | `AudioTrackTests` `testQueuedDeliveryDropsAfterMetadataReplacementBeforeMainRuns`, `testDeliveryKeepsReplacementOutUntilObserverReturns`. |
+| The check and the install stay atomic in the holder, so a replaced item never shows a stale result. | The same three `AudioTrackTests`. `AudioTrackMetadataLoaderSharedFileTests` `testFailedParsePublishesIndependentFallbacksToOwnerAndWaiter`. |
+| The holder is Metadata's own protocol, and the playable item stays free of metadata. | **No test.** Every test holds an `AudioTrack`. The split is compile-time only. |
+
+## Rule 4: the version check
+
+| Contract | Tests that pin it |
+| --- | --- |
+| Source identity does not change with the file's contents. Version identity does. | `AudioTrackTests` `testTheSourceKeyIdentifiesTheWindow`. `NSURLHashTests` `testRewritingTheFileMovesTheKey`, `testSameSizeRewriteStillMovesTheKeyViaMtime`. |
+| An item may memoize the disk key. A memo below the generation computes the key again. | `NSURLHashTests` `testAReplacedFileAnswersItsNewKeyOnceTheMemosAreRetired`. `AudioWaveformLoaderTests` `testAReKeyedTrackMissesTheOldVersionsEntry`. |
+| A waveform job compares the key it was submitted under with the item's current one, and drops a mismatch. | `AudioWaveformObserverTests` `testALateCompletionOfAReplacedVersionIsNotDelivered`, `testALateCompletionOfAnUnchangedFileIsDelivered`, `testACueWindowsLateCompletionIsCheckedUnderItsWindowedKey`. |
+| A metadata job compares the same way before it installs. | **No check and no test.** The parse files its result under the key read after the parse, and installs it whatever the key was at submission. |
+| A new version clears what Metadata's holder installed, so the next parse can install. | **No code and no test.** A row keeps its metadata until it is next parsed (`Audio/Metadata/AGENTS.md`). |
+| The source already sounding keeps the version it opened, and its transport settles by submission identity. | Submission identity: `PlaybackRequestCoordinatorTests` `testStaleWorkersCannotMutateOrConsumeANewerRequest`, `testSlowSameRowReplayRequestsACurrentLoadingDelivery`. The open version: **no test** plays a file through a re-key. |
