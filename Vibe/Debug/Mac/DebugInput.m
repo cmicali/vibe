@@ -9,8 +9,8 @@
 #import "PlaylistTableView.h"
 #import "PitchFaderView.h"
 #import "AppSettings+Mac.h"
-#import "MainMenuBuilder.h"
 #import "MenuShortcutRules.h"
+#import "ShortcutLayout.h"
 #import "MainPlayerController+Settings.h"
 
 #if DEBUG
@@ -226,7 +226,7 @@ NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> 
     NSString *loser = nil;
     switch ([controller assignShortcut:shortcut toCommand:identifier loser:&loser]) {
         case VibeShortcutAssignmentReserved:
-            return VibeErrorJSON(@"%@ is reserved", [MainMenuBuilder displayStringForShortcut:shortcut]);
+            return VibeErrorJSON(@"%@ is reserved", VibeShortcutDisplayString(shortcut));
         case VibeShortcutAssignmentUnusable:
             return VibeErrorJSON(@"%@ has no name in this layout", tokens[2]);
         case VibeShortcutAssignmentStored:
@@ -237,7 +237,7 @@ NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> 
     return VibeJSONString(@{
         @"ok": @YES,
         @"command": identifier,
-        @"shortcut": [MainMenuBuilder displayStringForShortcut:stored],
+        @"shortcut": VibeShortcutDisplayString(stored),
         @"lost_by": loser ?: [NSNull null],
     });
 }
