@@ -172,12 +172,15 @@ echo "$ios_paths" | grep -q '^Vibe/iOS' \
 # 4. Imports. A shared file NAMING a header the other target never compiles
 #    still builds, because the headermap maps every header by basename, and a
 #    constant- or static-inline-only header does not even fail to link. So the
-#    basename is the key.
+#    basename is the key. A vibe-libs piece's Mac/ and iOS/ halves count as
+#    that platform's tree, since the app targets compile them in.
 basenames_under() {   # basenames_under <Mac|iOS>
-    find Vibe -name '*.h' -path "*/$1/*" ! -path '*/ThirdParty/*' -exec basename {} \; | sort -u
+    find Vibe vibe-libs -name '*.h' -path "*/$1/*" ! -path '*/ThirdParty/*' ! -path '*/third_party/*' \
+        ! -path 'vibe-libs/build/*' -exec basename {} \; | sort -u
 }
 basenames_outside() {
-    find Vibe -name '*.h' ! -path "*/$1/*" ! -path '*/ThirdParty/*' -exec basename {} \; | sort -u
+    find Vibe vibe-libs -name '*.h' ! -path "*/$1/*" ! -path '*/ThirdParty/*' ! -path '*/third_party/*' \
+        ! -path 'vibe-libs/build/*' -exec basename {} \; | sort -u
 }
 
 for platform in Mac iOS; do
@@ -204,7 +207,7 @@ for platform in Mac iOS; do
             }' {})
     rm -f "$names_file"
     if [ -n "$hits" ]; then
-        fail "a source outside Vibe/**/$platform/ imports a header only that tree has, unguarded — wrap it in #if TARGET_OS_OSX or move the header:"
+        fail "a source outside Vibe/**/$platform/ imports a header only the $platform/ trees have, unguarded — wrap it in #if TARGET_OS_OSX or move the header:"
         echo "$hits" >&2
     fi
 done

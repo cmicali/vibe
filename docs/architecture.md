@@ -94,7 +94,7 @@ Makefile               every build, test, and check command
 
 ### Common
 
-`Vibe/Common/` is what everything else is written in terms of. It holds no feature. `AppSettings` is every stored preference, over `NSUserDefaults`. `AppStats` is every stored counter. The macOS-only settings are the `(Mac)` category in `Mac/AppSettings+Mac`. The theme store is `Mac/Theme/AppSettings+Themes`, and `Mac/Theme/AppTheme` is the theme record. `VibeStrings.h` declares every user-facing string as a `STR_*` macro. `PlayableExtensions` lists every audio extension the apps play. `DocumentTypes` reads back the document types the apps declare. `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. Read next: `Vibe/Common/AGENTS.md`. For themes, read `Common/Mac/AGENTS.md` and `Common/Mac/Theme/AGENTS.md`.
+`Vibe/Common/` is what everything else is written in terms of. It holds no feature. `AppSettings` is every stored preference, over `NSUserDefaults`. `AppStats` is every stored counter. The macOS-only settings are the `(Mac)` category in `Mac/AppSettings+Mac`. The theme store is `Mac/Theme/AppSettings+Themes`, and `Mac/Theme/AppTheme` is the theme record. `VibeStrings.h` declares every user-facing string as a `STR_*` macro. `PlayableExtensions` lists every audio extension the apps play. `DocumentTypes` reads back the document types the apps declare. Read next: `Vibe/Common/AGENTS.md`. For themes, read `Common/Mac/AGENTS.md` and `Common/Mac/Theme/AGENTS.md`.
 
 ### Audio
 
@@ -152,7 +152,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### vibe-libs
 
-`vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`, so nothing builds differently. **Today one piece Vibe uses lives there: `audio/DSP`, the pitch fader's varispeed.** `core/Common` holds the realtime-effects brackets the prefix header imports. More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in vibe-libs, then Vibe bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc first.
+`vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`, so nothing builds differently. **Today two pieces Vibe uses live there: `audio/DSP`, the pitch fader's varispeed, and `core/Graphics`, the image, color, and font helpers.** Graphics' `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `core/Common` holds the realtime-effects brackets the prefix header imports. More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in vibe-libs, then Vibe bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc first.
 
 ### Third-party code
 

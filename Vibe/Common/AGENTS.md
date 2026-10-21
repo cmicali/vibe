@@ -1,6 +1,6 @@
 # Common
 
-**What every other directory is written in terms of, and nothing else. If you can name the feature it belongs to, it belongs there instead.** The featureless helpers are `Vibe/Util/`. **Nothing in `Common/` may import from a feature directory.** The one class importing from `Util/` is `Mac/Theme/AppTheme`. It uses three featureless categories: `NSData.sha1Hex`, `NSAppearance.isDark` and `NSImage (Util)`'s symbol helpers. It lives under `Common/Mac/` because it is macOS-only. `Mac/AGENTS.md` owns the theme store, and `Mac/Theme/AGENTS.md` the record.
+**What every other directory is written in terms of, and nothing else. If you can name the feature it belongs to, it belongs there instead.** The featureless helpers are `Vibe/Util/`. **Nothing in `Common/` may import from a feature directory.** The one class importing from `Util/` is `Mac/Theme/AppTheme`, for the featureless `NSData.sha1Hex`. It also uses `NSAppearance.isDark` and `NSImage (Util)`'s symbol helpers, from vibe-libs' `core/Graphics`. It lives under `Common/Mac/` because it is macOS-only. `Mac/AGENTS.md` owns the theme store, and `Mac/Theme/AGENTS.md` the record.
 
 ## The settings store
 
@@ -40,9 +40,4 @@ Reads go straight to `NSUserDefaults`. Each is one CFPreferences lookup, cheap e
 
 ## Platform aliases and the two free-function headers
 
-`PlatformTypes.h` defines `VibeImage` and `VibeColor` (`NSImage`/`NSColor` on macOS, `UIImage`/`UIColor` elsewhere). A model header can then carry an image without importing AppKit or UIKit. **Do not add aliases for their own sake.**
-
-`PlatformImage.h` and `PlatformColor.h` are the two homes of free functions over a foreign class (root `AGENTS.md`, Vocabulary). The class involved differs per target, so there is no single one to hang a category on.
-- `VibeDecodedImageWithData(data, maxPixelSize)` is the bounded ImageIO decode that never materializes the full-size bitmap. It takes 10–100ms, so it belongs off the main thread.
-- `VibeDominantColorOfImage` is the weighted hue histogram behind the mac window tint and the `album_art` waveform theme. It samples a fixed 32×32 downsample, so its cost does not depend on image size. **It works in CoreGraphics terms rather than either platform's bitmap type.** `NSBitmapImageRep` and `UIImage`'s backing store agree on nothing. A `CGBitmapContext` we create has a layout the pixel loop can rely on, so one implementation serves both. `NSImage (Util)`'s `dominantColor` and `UIImage+DominantColor` forward to it.
-- `PlatformColor.h` carries the `#RRGGBB[AA]` persisted form of a stored color (opaque stays six digits) and the linear blend. It has `extern "C"` guards because the `.mm` renderers include it.
+The platform aliases `VibeImage` and `VibeColor`, the bounded image decode (`PlatformImage.h`), and the hex and blend colors (`PlatformColor.h`) live in vibe-libs' `core/Graphics`. Its `AGENTS.md` describes them. In Vibe, `VibeDominantColorOfImage` is behind the mac window tint and the `album_art` waveform theme.
