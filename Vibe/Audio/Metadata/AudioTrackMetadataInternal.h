@@ -28,6 +28,10 @@ FOUNDATION_EXPORT AudioTrackArtworkExtractor VibeTagLibArtExtractor(void);
 // redeclaration — the class extension owns the property.
 - (nullable AudioTrackArtwork *)artwork;
 
+// The loader stamps the version it read before it installs or copies the
+// metadata.
+- (void)setCacheKey:(nullable NSString *)cacheKey;
+
 @end
 
 NS_ASSUME_NONNULL_END

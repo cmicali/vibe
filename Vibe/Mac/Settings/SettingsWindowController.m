@@ -35,7 +35,6 @@ static SettingsShortcutsViewController *ShortcutsPane(MainPlayerController *play
                  return [MainMenuBuilder carriedShortcutForIdentifier:identifier
                                                             overrides:AppSettings.sharedInstance.shortcutOverrides];
              }
-                  displayString:^(VibeShortcut shortcut) { return [MainMenuBuilder displayStringForShortcut:shortcut]; }
                       overrides:^{ return AppSettings.sharedInstance.shortcutOverrides; }
                    setOverrides:^(NSDictionary<NSString *, NSNumber *> *overrides) {
                        [weakPlayer setShortcutOverrides:overrides];

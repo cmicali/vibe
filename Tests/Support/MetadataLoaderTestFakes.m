@@ -48,6 +48,7 @@ NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification =
     VibeLoaderTestMetadata *copy = [[[self class] allocWithZone:zone] init];
     copy.parsedOK = self.parsedOK;
     copy.marker = self.marker;
+    copy.cacheKey = self.cacheKey;
     return copy;
 }
 @end

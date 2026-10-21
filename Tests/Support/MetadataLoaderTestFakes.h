@@ -20,6 +20,8 @@ NS_ASSUME_NONNULL_BEGIN
 @interface VibeLoaderTestMetadata : NSObject <NSCopying>
 @property(nonatomic) BOOL parsedOK;
 @property(nonatomic, copy) NSString *marker;
+// The loader stamps the version it read.
+@property(atomic, copy, nullable) NSString *cacheKey;
 @end
 
 AudioTrackMetadata *VibeLoaderTestMetadataResult(BOOL parsedOK, NSString *marker);
