@@ -1,6 +1,6 @@
 # Future: vibe-libs, the shared toolbox
 
-**Status: planned 2026-10-17, revised 2026-10-18 after two reviews, and revised 2026-10-20 after a third: the shell pieces join on a second track, as cuts 24 to 29, and the one prefix is `Vibe`. Merged on 2026-10-20: the pilot (#314 moved the realtime-effects brackets, #315 took the varispeed from the submodule), the log macros (#319), and cuts 1, 3, and 4 (#316 to #318). Cuts 6 to 11 and 24 to 29 merged on 2026-10-20. On 2026-10-21, #350 moved `core/Graphics` and #351 landed seam 13.**
+**Status: planned 2026-10-17, revised 2026-10-18 after two reviews, and revised 2026-10-20 after a third: the shell pieces join on a second track, as cuts 24 to 29, and the one prefix is `Vibe`. Merged on 2026-10-20: the pilot (#314 moved the realtime-effects brackets, #315 took the varispeed from the submodule), the log macros (#319), and cuts 1, 3, and 4 (#316 to #318). Cuts 6 to 11 and 24 to 29 merged on 2026-10-20. On 2026-10-21, #350 moved `core/Graphics` and #351 landed seam 13. Also on 2026-10-21, #353 to #359 landed seams 14 to 18, the queue half of 19, 22, and 23, and moved the mac controls and the settings window.**
 
 Everything in Vibe that another app could use moves to [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries for macOS and iOS apps. Vibe and another app each take only the pieces they want. **vibe-libs' [docs/plan.md](https://github.com/cmicali/vibe-libs/blob/main/docs/plan.md) is the authority** for the pieces, their dependency map, the build shape, the order of the moves, the performance proof, and what the other app needs when. This doc covers only what changes in Vibe.
 
@@ -71,7 +71,7 @@ Each is mergeable alone and leaves every check passing. The vibe-libs plan names
 
 Cut 5, which retired `AudioTrack`'s two labels, is not planned. `AudioTrack` stays in Vibe.
 
-**The shell track** is cuts 24 to 29 and then four moves: the mac controls, `Fonts` with Graphics, the settings window, and the shortcuts. It runs beside Phase 2, since it touches none of the path's files. The theme record, its store, and the Themes pane stay here. The generic half of `DebugSettingsUI`, the walk from a row title to its controls, moves as the settings window's debug seam, and the theme verbs stay in the command tables. The order and the done-when are in vibe-libs' plan.
+**The shell track** is cuts 24 to 29 and then four moves: the mac controls, `Fonts` with Graphics, the settings window, and the shortcuts. It runs beside Phase 2, since it touches none of the path's files. The mac controls moved in #354. The settings window moved in #356. Cut 30, the Shortcuts pane's rows, comes before the shortcuts move. The theme record, its store, and the Themes pane stay here. The generic half of `DebugSettingsUI`, the walk from a row title to its controls, moves as the settings window's debug seam, and the theme verbs stay in the command tables. The order and the done-when are in vibe-libs' plan.
 
 ## The seams between pieces
 
@@ -80,16 +80,16 @@ The contracts are written in vibe-libs' plan. This is Vibe's side of each.
 | # | Seam | Today | Vibe's change |
 | --- | --- | --- | --- |
 | 13 | The playable-item protocol | Nine shared areas import the playlist row. | `AudioTrack` adopts the protocol and moves to `Vibe/Playlist/`. The CUE window math goes to AudioTypes. (#351) |
-| 14 | `AudioFileOpenRules.h` splits | It held the open's delivery states, path spelling and the mount read-ahead rules. Four areas imported it. | Done in #353. The delivery states sit beside the open token, the path spelling in `Util/FilePaths`, the tail window beside the placeholder store, and the mount rule and the span beside the read-ahead. Each importer takes only the part it uses. |
-| 15 | The loader's handle | Its opener was a block, but typed as `AudioFileHandle`. `NetworkReadAhead.m` imported `AudioFileHandle+Debug.h` for its test hooks. | Done in #353. The handle is `ServedFileHandle`, which holds a stream. Interrupting stays the opener's `interrupted` block. Each `openURL:` passes its opener, so the loader never names the handle's class. The hooks are declared in `NetworkReadAhead+Debug.h`, and `AudioFileHandle (Debug)` forwards to them. |
-| 16 | TagLib and artwork | The TagLib wrapper returns an artwork extractor and reads remote ranges through the materializer. | Tags returns art bytes and takes a byte-range reader. |
-| 17 | The waveform decode's analyzers | The loader builds the tempo and key analyzers itself. | The app attaches them as observers. The archive and its coverage rules do not change. |
-| 18 | CUE and M3U | The readers return `AudioTrack` rows. | They return records, and Vibe makes rows from them. |
-| 19 | The play queue, then Now Playing | Both hold `AudioTrack`. | The queue holds opaque entries. Vibe passes the URL and the source key as key blocks, and makes every replacement row with `replacementAtURL:`. Now Playing takes a snapshot when it moves. |
+| 14 | `AudioFileOpenRules.h` splits | Four areas imported its four parts together. | It split into four homes. The delivery states sit beside FileLoading's open token, in `AudioFileOpenDeliveryRules.h`. The path spelling is in `Util/FilePaths`, which goes to `core/Common`. The mount rule and the span sit beside FileLoading's read-ahead. The tail window sits beside RemoteFiles' placeholder store, in `TailWindowMath.h`. Each importer takes only the part it uses. (#353) |
+| 15 | The loader's handle | The loader named `AudioFileHandle`, in its opener's type and in the read-ahead's test hooks. | The handle is `ServedFileHandle`, which holds a stream. Interrupting stays the opener's `interrupted` block. Each `openURL:` passes its opener, so the loader never names the handle's class. The hooks are declared in `NetworkReadAhead+Debug.h`, and `AudioFileHandle (Debug)` forwards to them. (#353) |
+| 16 | TagLib and artwork | The TagLib wrapper returned an artwork extractor and read remote ranges through the materializer. | Tags returns art bytes and takes a byte-range reader. (#358) |
+| 17 | The waveform decode's analyzers | The loader built the tempo and key analyzers itself. | The app attaches them as observers. The archive moved to format 7. It files each result under its observer's identifier. (#355) |
+| 18 | CUE and M3U | The readers returned `AudioTrack` rows. | They return records, and Vibe makes rows from them. (#359) |
+| 19 | The play queue, then Now Playing | Both held `AudioTrack`. | The queue holds opaque entries. Vibe passes the URL and the source key as key blocks, and makes every replacement row with `replacementAtURL:`. Now Playing takes a snapshot when it moves. (queue half, #357) |
 | 20 | The link store | It mixes share-link rules with track naming and strings. | The rules and the client move. The store stays. `LinkClient` stops importing `LinkStore`. |
 | 21 | The shell pieces | The folder-grant panel, the pitch fader and the drawn controls read strings, fonts and `Formatters`. The Sparkle wiring reads the beta setting. | The app pushes each one in. |
-| 22 | Metadata's holder protocol | The loader installs results through `AudioTrack (Internal)`. | `AudioTrack` adopts Metadata's protocol with the methods it has. |
-| 23 | The walk's file handler | FolderWalk notes cover-art candidates itself, through `FolderArtRules.h`. | Metadata's folder art installs a handler, as FolderWalk's other handlers are installed at launch. |
+| 22 | Metadata's holder protocol | The loader installed results through `AudioTrack (Internal)`. | `AudioTrack` adopts Metadata's protocol with the methods it has. (#358) |
+| 23 | The walk's file handler | FolderWalk noted cover-art candidates itself, through `FolderArtRules.h`. | The app installs the handler at launch, beside FolderWalk's other handlers. It returns folder art's cover rank for each filename. (#359) |
 
 Vibe's folder open becomes a caller of the catalog scan's walk, after FolderScan moves. Its rows and its behavior do not change.
 
