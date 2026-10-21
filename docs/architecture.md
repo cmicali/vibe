@@ -18,7 +18,7 @@ Each app is a shell over the shared code. The shell owns the windows, the screen
 
 ```
 Vibe/
-  Common/              settings, strings, platform aliases, the playable formats
+  Common/              settings, strings, document types
     Mac/               the macOS-only settings
       Theme/           AppTheme, the theme record, and the theme store
   Audio/               the playback engine: player, voice bus, master bus, output unit, file handle
@@ -94,7 +94,7 @@ Makefile               every build, test, and check command
 
 ### Common
 
-`Vibe/Common/` is what everything else is written in terms of. It holds no feature. `AppSettings` is every stored preference, over `NSUserDefaults`. `AppStats` is every stored counter. The macOS-only settings are the `(Mac)` category in `Mac/AppSettings+Mac`. The theme store is `Mac/Theme/AppSettings+Themes`, and `Mac/Theme/AppTheme` is the theme record. `VibeStrings.h` declares every user-facing string as a `STR_*` macro. `PlayableExtensions` lists every audio extension the apps play. `DocumentTypes` reads back the document types the apps declare. Read next: `Vibe/Common/AGENTS.md`. For themes, read `Common/Mac/AGENTS.md` and `Common/Mac/Theme/AGENTS.md`.
+`Vibe/Common/` is what everything else is written in terms of. It holds no feature. `AppSettings` is every stored preference, over `NSUserDefaults`. `AppStats` is every stored counter. The macOS-only settings are the `(Mac)` category in `Mac/AppSettings+Mac`. The theme store is `Mac/Theme/AppSettings+Themes`, and `Mac/Theme/AppTheme` is the theme record. `VibeStrings.h` declares every user-facing string as a `STR_*` macro. `DocumentTypes` reads back the document types the apps declare. Read next: `Vibe/Common/AGENTS.md`. For themes, read `Common/Mac/AGENTS.md` and `Common/Mac/Theme/AGENTS.md`.
 
 ### Audio
 
@@ -152,7 +152,9 @@ Each feature beside the engine has its own directory and doc:
 
 ### vibe-libs
 
-`vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`. Nothing builds differently. **Vibe uses six pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/DSP` holds the pitch fader's varispeed. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. `ui/Shortcuts` holds the shortcut encoding, the keyboard layout, and the Keyboard Shortcuts pane. Every vendored library but Sparkle is a piece under `third_party/` too. Controls, SettingsWindow, and Shortcuts are macOS only. Only the mac app lists them.
+`vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`. Nothing builds differently.
+
+**Vibe uses seven pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/AudioTypes` holds the words the audio code shares: the playable-item protocol, the CUE window math, the musical key, the format names, and `PlayableExtensions`, every audio extension the apps play. `audio/DSP` holds the pitch fader's varispeed. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. `ui/Shortcuts` holds the shortcut encoding, the keyboard layout, and the Keyboard Shortcuts pane. Every vendored library but Sparkle is a piece under `third_party/` too. Controls, SettingsWindow, and Shortcuts are macOS only. Only the mac app lists them.
 
 More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in vibe-libs first. Vibe then bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc first.
 
@@ -290,7 +292,7 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | --- | --- | --- |
 | A setting, or add one | `Common/AGENTS.md` | `Common/AppSettings.h` or `Common/Mac/AppSettings+Mac.h` |
 | A user-facing string | [localization.md](localization.md), the `vibe-strings` skill | `Common/VibeStrings.h`, then `make strings` |
-| Which formats play | `Audio/AGENTS.md` (the decoders) | `Common/PlayableExtensions.m`, `Audio/AudioFileHandle.m` |
+| Which formats play | `Audio/AGENTS.md` (the decoders) | `vibe-libs/audio/AudioTypes/PlayableExtensions.m`, `Audio/AudioFileHandle.m` |
 | How a file is decoded | `Audio/AGENTS.md`, each decoder's doc in `vibe-libs/third_party/` | `Audio/AudioFileHandle.m`, `Audio/AudioFileHandle+MPEG.m`, `Audio/AudioFileHandle+Stream.m` |
 | Play, pause, seek, or crossfade | `Audio/AGENTS.md` | `Audio/AudioPlayer.m`, `Audio/FadeMath.h` |
 | Gapless playback and prefetch | `Audio/AGENTS.md` (Prefetch and gapless) | `Audio/AudioPlayer+Prefetch.m`, `Audio/AudioPrefetchRules.h` |

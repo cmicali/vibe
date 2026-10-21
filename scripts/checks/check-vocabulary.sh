@@ -29,7 +29,7 @@ fi
 
 # 3. A header-only static-inline file is a seam: *Rules.h returns a decision,
 # *Math.h a number. The allowlist is header-only files that are NOT seams.
-allowlist="AudioMasterBusInternal.h AudioPlayerInternal.h AudioTrackArtworkInternal.h AudioVoiceBusInternal.h MusicalKey.h PlaybackIntent.h VibePlayableItem.h VibeStrings.h WaveformAccessibility.h"
+allowlist="AudioMasterBusInternal.h AudioPlayerInternal.h AudioTrackArtworkInternal.h AudioVoiceBusInternal.h PlaybackIntent.h VibeStrings.h WaveformAccessibility.h"
 while IFS= read -r header; do
     grep -q 'static inline' "$header" || continue
     base="${header%.h}"

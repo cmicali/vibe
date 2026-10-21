@@ -6,7 +6,7 @@
 
 **`AudioTrack` is one row: a file whole, or a cue sheet's window of one.** It holds the row's installed metadata, its analyzed tempo and key, and the sheet's names. `bpm` and `key` are the one home of the rule that tags beat analysis. `displayTitle` and `displayArtist` are the one place a track is named (root `AGENTS.md`).
 
-**It adopts `VibePlayableItem` (`Audio/VibePlayableItem.h`), which is all the player and the caches read of it.** That is its URL, its window in CD frames, `sourceKey` and `cacheKey`. `sourceKey` is fixed at init, so a per-tick comparison allocates nothing. `cacheKey` is memoized and stamped with `NSURL.cacheKeyGeneration`, so a download that installs another version retires every memo at once. The window's arithmetic is `Audio/CueWindowMath.h`, which the CUE reader shares.
+**It adopts `VibePlayableItem` (vibe-libs' `audio/AudioTypes`), which is all the player and the caches read of it.** That is its URL, its window in CD frames, `sourceKey` and `cacheKey`. `sourceKey` is fixed at init, so a per-tick comparison allocates nothing. `cacheKey` is memoized and stamped with `NSURL.cacheKeyGeneration`, so a download that installs another version retires every memo at once. The window's arithmetic is `CueWindowMath.h`, in the same piece, which the CUE reader shares.
 
 **It also adopts `AudioTrackMetadataHolder` (`Audio/Metadata/`), which extends the playable item.** The metadata loader installs its results through it. That is the installed metadata, the install that happens only while the row has no answer from the same version, and the delivery that runs only while that answer is still installed. The check and the store share the row's monitor. **TRAP: the player's `id<VibePlayableItem>` needs an explicit cast to become an `AudioTrack *`.** clang converts it implicitly only when the playable item inherits every protocol the class adopts. It does not inherit the holder (`AudioTrack.h`).
 
@@ -69,7 +69,7 @@ Under Repeat All the next cycle is a fresh shuffle. With more than one row, its 
 
 **Every file's entries are made by `entriesForFile:`, the only place a walk reads an audio file's contents.** A FLAC of 100 MB or more, a whole album or mix, is opened for an embedded sheet (`PlaylistFile cueEntriesEmbeddedInFLACAtURL:`). A cloud placeholder is not, since the read would download it. Neither is one a sidecar sheet claimed. The size comes prefetched with the walk's other resource keys, so the gate costs a network volume no stat per file. The emptiness filter uses that size too. The walk drops an empty file itself (a link by its target's stat), and `expandAndFilterList:` stats only the entries no walk listed. `entriesInDirectory:sortedBy:`, the iOS listing, judges its files through the same function (`VibeListedFileIsEmpty`), dangling links included.
 
-The playable extension set is `Common/PlayableExtensions`. The walk's filter and `PlaylistFile`'s entry recovery both read it, so neither can grow a format the other lacks.
+The playable extension set is `PlayableExtensions`, in vibe-libs' `audio/AudioTypes`. The walk's filter and `PlaylistFile`'s entry recovery both read it, so neither can grow a format the other lacks.
 
 **TRAP: a playlist entry that is a remote placeholder counts as readable before `access(2)` is asked.** Its mode denies its owner, and `access(2)` reads that as a sandbox denial. Asked the other way round, an M3U naming a placeholder raises a grant panel (`expandPlaylistFile:`).
 

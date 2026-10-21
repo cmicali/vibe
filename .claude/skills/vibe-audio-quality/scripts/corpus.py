@@ -30,7 +30,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 HOME = ROOT / 'build/audio-quality'
 SUMMARY = ROOT / 'docs/audio-quality/corpora.json'
-PLAYABLE = set(re.findall(r'@"(\w+)"', re.search(r'ordered = @\[(.*?)\];', (ROOT / 'Vibe/Common/PlayableExtensions.m')
+PLAYABLE = set(re.findall(r'@"(\w+)"', re.search(r'ordered = @\[(.*?)\];', (ROOT / 'vibe-libs/audio/AudioTypes/PlayableExtensions.m')
                                                 .read_text(), re.S).group(1)))
 
 FLAC_COMMIT = 'aa7b0c6cf32994c106ae517a08134c28a96ff5b2'

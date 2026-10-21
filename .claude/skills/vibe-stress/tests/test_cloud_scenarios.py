@@ -1005,7 +1005,7 @@ class SettingsTeardownTests(unittest.TestCase):
 
 class PlayableSuffixTests(unittest.TestCase):
     def test_audio_suffixes_are_playable_extensions_in_order(self):
-        source = (Path(__file__).resolve().parents[4] / "Vibe/Common/PlayableExtensions.m").read_text()
+        source = (Path(__file__).resolve().parents[4] / "vibe-libs/audio/AudioTypes/PlayableExtensions.m").read_text()
         literal = re.search(r"ordered = @\[(.*?)\];", source, re.S).group(1)
         self.assertEqual(stress.AUDIO_SUFFIXES,
                          tuple("." + e for e in re.findall(r'@"([^"]+)"', literal)))

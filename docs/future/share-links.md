@@ -24,7 +24,7 @@ The workflow: paste a link into a form on vibeplayer.app. The link is a Dropbox 
 **Classification, in the function:**
 
 - **Dropbox.** A `dropbox.com` file link (`/scl/fi/`, `/s/`). Classify by host and take the name from the link's path, since Dropbox answers `application/binary` and names the file `unspecified`. Folder links are refused. A folder is [Dropbox shared links](dropbox-shared-links.md)' work.
-- **Direct.** An `https` URL whose `HEAD` answers an audio content type, or whose path ends in a playable extension (`Common/PlayableExtensions`).
+- **Direct.** An `https` URL whose `HEAD` answers an audio content type, or whose path ends in a playable extension (`PlayableExtensions`, in vibe-libs' `audio/AudioTypes`).
 - **iCloud Drive.** A `www.icloud.com/iclouddrive/<id>` file shared with anyone who has the link. Folder shares and invited-only shares are refused.
 - **SoundCloud.** A `soundcloud.com` track URL. The function reads the title and art from SoundCloud's oEmbed endpoint, which needs no key.
 
