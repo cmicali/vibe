@@ -239,7 +239,7 @@ BOOL VibeImageLowerBandIsDark(VibeImage *image, CGFloat fraction, BOOL backdropI
     }
     // Gamma-encoded sRGB taken as-is: the encoded midpoint is where either
     // button color starts to read.
-    size_t firstRow = (size_t)floor(side * (1 - clampRange(fraction, 0, 1)));
+    size_t firstRow = (size_t)floor(side * (1 - MIN(MAX(fraction, 0), 1)));
     double luminance = 0;
     NSInteger count = 0;
     for (size_t y = firstRow; y < side; y++) {

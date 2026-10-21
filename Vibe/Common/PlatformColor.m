@@ -91,10 +91,10 @@ NSString *VibeHexStringFromColor(VibeColor *color) {
         return nil;
     }
 #endif
-    unsigned int ri = (unsigned int)lround(clampRange(r, 0, 1) * 255);
-    unsigned int gi = (unsigned int)lround(clampRange(g, 0, 1) * 255);
-    unsigned int bi = (unsigned int)lround(clampRange(b, 0, 1) * 255);
-    unsigned int ai = (unsigned int)lround(clampRange(a, 0, 1) * 255);
+    unsigned int ri = (unsigned int)lround(MIN(MAX(r, 0), 1) * 255);
+    unsigned int gi = (unsigned int)lround(MIN(MAX(g, 0), 1) * 255);
+    unsigned int bi = (unsigned int)lround(MIN(MAX(b, 0), 1) * 255);
+    unsigned int ai = (unsigned int)lround(MIN(MAX(a, 0), 1) * 255);
     // Opaque stays six digits, so a stored six-digit value round-trips.
     if (ai >= 255) {
         return [NSString stringWithFormat:@"#%02X%02X%02X", ri, gi, bi];

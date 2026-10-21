@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
 
 @interface NSAppearance (DarkMode)
 
