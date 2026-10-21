@@ -144,7 +144,6 @@
     _windowEstimated = estimated;
     [self publishState:_state voice:voice file:file window:window startSeconds:0 baseFrames:baseFrames];
     self.currentTrack = startedTrack;
-    [startedTrack setDuration:self.duration];
     [self armSignalProbeOnQueue:reason];
     uint64_t owningSubmittedPlayIdentifier = _activeSubmittedPlayIdentifier;
     // A play or stop queued behind this rewrites currentTrack before the hop

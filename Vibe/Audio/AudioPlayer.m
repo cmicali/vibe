@@ -519,7 +519,6 @@ submittedPlayIdentifier:(uint64_t)submittedPlayIdentifier {
     }
     self.currentTrack = track;
     _activeSubmittedPlayIdentifier = request.submittedPlayIdentifier;
-    [track setDuration:self.duration];
     if ([self submittedPlayIsCurrent:request.submittedPlayIdentifier]) {
         [self playbackDidSucceedForPrefetchOnQueue];
     }
@@ -1025,7 +1024,6 @@ intendedSubmittedPlayIdentifier:(uint64_t)intendedSubmittedPlayIdentifier submit
     if (!settled) {
         return;
     }
-    [track setDuration:self.duration];
     [self deliverOnMainForSubmittedPlay:_activeSubmittedPlayIdentifier named:@"didSettleDuration" block:^{
         id<AudioPlayerDelegate> delegate = self.delegate;
         if ([delegate respondsToSelector:@selector(audioPlayer:didSettleDurationOfTrack:)]) {

@@ -6,7 +6,9 @@
 
 **`AudioTrack` is one row: a file whole, or a cue sheet's window of one.** It holds the row's installed metadata, its analyzed tempo and key, and the sheet's names. `bpm` and `key` are the one home of the rule that tags beat analysis. `displayTitle` and `displayArtist` are the one place a track is named (root `AGENTS.md`).
 
-**It adopts `VibePlayableItem` (`Audio/VibePlayableItem.h`), which is all the player and the caches read of it.** That is its URL, its window in CD frames, `sourceKey`, `cacheKey` and the settled duration. `sourceKey` is fixed at init, so a per-tick comparison allocates nothing. `cacheKey` is memoized and stamped with `NSURL.cacheKeyGeneration`, so a download that installs another version retires every memo at once. The window's arithmetic is `Audio/CueWindowMath.h`, which the CUE reader shares.
+**It adopts `VibePlayableItem` (`Audio/VibePlayableItem.h`), which is all the player and the caches read of it.** That is its URL, its window in CD frames, `sourceKey` and `cacheKey`. `sourceKey` is fixed at init, so a per-tick comparison allocates nothing. `cacheKey` is memoized and stamped with `NSURL.cacheKeyGeneration`, so a download that installs another version retires every memo at once. The window's arithmetic is `Audio/CueWindowMath.h`, which the CUE reader shares.
+
+**The player never writes the row, so each shell stores its settled length.** `duration` takes the player's at `didStartPlaying:`, at `didAutoAdvanceFromTrack:toTrack:` and at `didSettleDurationOfTrack:` (`adoptSettledDurationOfTrack:`, in each shell's `+PlayerEvents`). It is written only while the player still sounds that row, since the player's duration is the sounding track's. Until then a windowed row answers its window, and a whole file its metadata's length.
 
 ## The model
 

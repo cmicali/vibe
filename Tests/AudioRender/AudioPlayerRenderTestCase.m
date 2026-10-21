@@ -677,8 +677,7 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
 }
 - (void)audioPlayer:(AudioPlayer *)p didChangeLoadingPaused:(BOOL)paused forTrack:(AudioTrack *)t {}
 - (void)audioPlayer:(AudioPlayer *)p didSettleDurationOfTrack:(AudioTrack *)t {
-    [_events addObject:@{@"event": @"settled", @"duration": @(p.duration), @"trackDuration": @(t.duration),
-                         @"position": @(p.position)}];
+    [_events addObject:@{@"event": @"settled", @"duration": @(p.duration), @"position": @(p.position)}];
 }
 - (void)audioPlayer:(AudioPlayer *)player outputModesForDeviceUID:(NSString *)uid
   bitPerfectOutput:(BOOL *)bitPerfect exclusiveOutput:(BOOL *)exclusive {

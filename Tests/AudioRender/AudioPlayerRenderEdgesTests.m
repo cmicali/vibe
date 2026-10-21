@@ -412,7 +412,6 @@
     [_player play:row atPosition:0 startPaused:NO];
     [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
     XCTAssertEqualWithAccuracy(_player.duration, 1.0, 0);
-    XCTAssertEqualWithAccuracy(row.duration, 1.0, 0);
     NSData *window = [reference subdataWithRange:NSMakeRange(19200 * 8, 48000 * 8)];
     [self assertReference:window capture:[self renderSeconds:1.2] skip:[self startupSkip] tolerance:0];
     [self settleUntil:^BOOL { return [self count:@"finish"] == 1; }];

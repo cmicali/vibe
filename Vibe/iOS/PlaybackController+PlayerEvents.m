@@ -82,8 +82,18 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 // the lock screen's take the player's duration, which the tick, stopped while
 // paused or backgrounded, would not otherwise republish.
 - (void)audioPlayer:(AudioPlayer *)audioPlayer didSettleDurationOfTrack:(AudioTrack *)track {
+    [self adoptSettledDurationOfTrack:track];
     if ([_playlist isCurrentTrack:track]) {
         [self notifyDidTick];
+    }
+}
+
+// The row's length is the window the player settled. The player only reads
+// its items, so the shell stores it. Only while the track still sounds,
+// since the player's duration is the sounding track's.
+- (void)adoptSettledDurationOfTrack:(AudioTrack *)track {
+    if (_player.currentTrack == track) {
+        track.duration = _player.duration;
     }
 }
 
@@ -123,6 +133,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (![_playlist isCurrentTrack:track]) {
         return;
     }
+    [self adoptSettledDurationOfTrack:track];
     _errorText = nil;
     _trackStartPending = NO;
     // Includes the parked seek that OPENED this file, which gets no
@@ -228,6 +239,8 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
     if (![_playlist isCurrentTrack:finishedTrack]) {
         return;
     }
+    // First, before the move redraws anything.
+    [self adoptSettledDurationOfTrack:startedTrack];
     // A replace or a mode change raced the boundary: the playlist owns what
     // follows, so treat it as a plain track end and play the real successor.
     if (![_playlist advanceFromTrack:finishedTrack toTrack:startedTrack]) {

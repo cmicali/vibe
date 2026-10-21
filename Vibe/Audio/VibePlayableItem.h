@@ -10,8 +10,8 @@ NS_ASSUME_NONNULL_BEGIN
 // What the pieces that read a file take of an app's item: its file, its
 // window, and the two keys it is matched by. The player, the metadata loader
 // and the waveform cache keep the item they were given and hand that same
-// object back, so two items for one file stay two items. Nothing about tags,
-// tempo, key, names or art: those are the app's.
+// object back, so two items for one file stay two items. They only read it.
+// Nothing about tags, tempo, key, names or art: those are the app's.
 @protocol VibePlayableItem <NSObject>
 
 // The file. Opens, claims and metadata are per file.
@@ -33,10 +33,6 @@ NS_ASSUME_NONNULL_BEGIN
 // match on. nil when the file cannot be statted, and the caller then skips
 // caching. An item may memoize it, stamped with NSURL.cacheKeyGeneration.
 - (nullable NSString *)cacheKey;
-
-// The window's length in seconds, as the player settled it. Written on the
-// player queue at every settlement, promote and length settle.
-- (void)setDuration:(NSTimeInterval)duration;
 
 @end
 

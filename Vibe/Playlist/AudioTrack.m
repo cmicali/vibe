@@ -189,9 +189,9 @@
     return tagged >= 0 ? tagged : self.detectedKey;
 }
 
-// Written on the player queue (finishPlayOnQueueWithFile:), read on main.
-// Until then a windowed row answers its window, the last row the rest of its
-// file.
+// The player's settled length, written on main by each shell's
+// adoptSettledDurationOfTrack:. Until then a windowed row answers its window,
+// and the last row the rest of its file.
 - (NSTimeInterval)duration {
     NSTimeInterval duration;
     @synchronized (self) {
