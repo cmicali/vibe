@@ -1,22 +1,3 @@
-* Nouveau : Ouvrir l’URL lit un lien web, ou un lien de partage Dropbox, Google Drive ou iCloud Drive, et un lien copié se lit depuis l’onglet Fichiers
-* Nouveau : des widgets forme d’onde, grand format, écran verrouillé et illustration plein cadre, avec les boutons liste de lecture, lecture et suivant comme sur le Mac
-* Nouveau : le style de forme d’onde Spectre, avec la coloration Par section pour que chaque partie d’un morceau garde une seule couleur
-* Nouveau : les thèmes 3 bandes : Rekord Bin, Dengine et Couleurs personnalisées
-* Nouveau : zoomez sur la forme d’onde jusqu’aux échantillons
-* Nouveau : lecture d’Ogg Vorbis et des MP3 en format libre (free format)
-* Nouveau : l’illustration d’album des morceaux iCloud et Dropbox non téléchargés
-* Nouveau : un état « Mise en mémoire tampon… » quand un morceau attend un partage réseau lent ou un téléchargement
-* Nouveau : le morceau du thème vibe, chargé au lancement jusqu’à ce que vous lisiez ou ouvriez quelque chose
-* Modifié : les styles de forme d’onde sont renommés : Simple devient Barres, Cupertino simple devient Progression, et les quatre styles Détaillé n’en font plus qu’un, avec un réglage de type
-* Modifié : Morceau précédent sur le premier morceau le relance depuis le début
-* Modifié : la ligne de la tête de lecture est légèrement transparente
-* Modifié : le thème Cupertino n’assombrit plus que l’illustration derrière les boutons de lecture, avec un dégradé plus léger
-* Amélioré : la tête de lecture, les sauts et le thème du widget
-* Amélioré : l’onglet Fichiers regroupe les lieux sous Emplacements
-* Amélioré : dans Réglages, À la fin du morceau et Affichage du temps se choisissent sur place, et les palettes 3 bandes portent le nom de leurs couleurs
-* Amélioré : lecture depuis un partage réseau : une connexion coupée met en pause avec « Connexion perdue », un serveur lent ne bloque plus les changements de morceau, et les morceaux haute résolution sont lus sans accroc
-* Amélioré : les morceaux MP3, FLAC, WAV et AIFF s’ouvrent plus vite
-* Corrigé : la lecture sans blanc des MP3 mono et MPEG-2
-* Corrigé : les fichiers Opus dont l’en-tête fixe un volume étaient lus au mauvais niveau
-* Corrigé : un fichier CAF corrompu pouvait bloquer l’analyse des métadonnées
-* Corrigé : l’ouverture d’un ancien lien pouvait remplacer l’ouverture plus récente d’un fichier
+* Modifié : les fichiers MP3, FLAC, WAV, AIFF et Ogg Vorbis sont toujours lus avec les décodeurs de Vibe
+* Amélioré : la lecture des fichiers Ogg Vorbis qui contiennent aussi de la vidéo ou un flux Skeleton
+* Corrigé : les MP3 à 320 kbit/s s’ouvraient lentement

@@ -1,22 +1,3 @@
-* Nowość: Otwórz URL odtwarza link internetowy lub link udostępniania z Dropboxa, Google Drive albo iCloud Drive, a skopiowany link odtworzysz z karty Pliki
-* Nowość: widżety z kształtem fali, duży, na ekranie blokady i z okładką na całą powierzchnię, z przyciskami playlisty, odtwarzania i następnego utworu jak na Macu
-* Nowość: styl kształtu fali Spektrum z kolorowaniem Według sekcji, dzięki któremu każda część utworu zachowuje jeden kolor
-* Nowość: motywy 3 pasma: Rekord Bin, Dengine i Niestandardowe kolory
-* Nowość: powiększanie kształtu fali aż do pojedynczych próbek
-* Nowość: odtwarzanie Ogg Vorbis i plików MP3 typu free format
-* Nowość: okładki albumów dla utworów z iCloud i Dropboxa, które nie zostały pobrane
-* Nowość: stan Buforowanie…, gdy utwór czeka na wolny udział sieciowy lub pobieranie
-* Nowość: utwór motywu vibe, który wczytuje się przy uruchomieniu, dopóki czegoś nie odtworzysz lub nie otworzysz
-* Zmiana: style kształtu fali mają nowe nazwy: Prosty to teraz Słupki, Cupertino (prosty) to teraz Postęp, a cztery style Szczegółowy połączono w jeden z ustawieniem Typ
-* Zmiana: Poprzedni utwór na pierwszym utworze odtwarza go od początku
-* Zmiana: linia głowicy jest lekko przezroczysta
-* Zmiana: motyw Cupertino przyciemnia tylko okładkę za przyciskami odtwarzania i ma jaśniejszy gradient
-* Ulepszenie: głowica, przeskoki i motyw widżetu
-* Ulepszenie: karta Pliki grupuje miejsca w sekcji Miejsca
-* Ulepszenie: w Ustawieniach Po zakończeniu utworu i Wyświetlanie czasu wybiera się na miejscu, a palety 3 pasma mają nazwy od swoich kolorów
-* Ulepszenie: odtwarzanie z udziałów sieciowych: zerwane połączenie wstrzymuje odtwarzanie z komunikatem „Utracono połączenie”, wolny serwer nie blokuje już zmiany utworów, a utwory hi-res odtwarzają się płynnie
-* Ulepszenie: utwory MP3, FLAC, WAV i AIFF otwierają się szybciej
-* Poprawka: odtwarzanie bez przerw plików MP3 mono i MPEG-2
-* Poprawka: pliki Opus, których nagłówek ustawia głośność, grały na złym poziomie
-* Poprawka: uszkodzony plik CAF mógł zablokować skanowanie metadanych
-* Poprawka: otwarcie starszego linku mogło zastąpić nowsze otwarcie pliku
+* Zmiana: pliki MP3, FLAC, WAV, AIFF i Ogg Vorbis są zawsze odtwarzane własnymi dekoderami Vibe
+* Ulepszenie: odtwarzanie plików Ogg Vorbis, które zawierają też wideo lub strumień Skeleton
+* Poprawka: pliki MP3 320 kb/s otwierały się powoli

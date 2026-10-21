@@ -1,22 +1,3 @@
-* Novo: “Abrir URL” reproduz uma ligação web ou uma ligação de partilha do Dropbox, Google Drive ou iCloud Drive, e uma ligação copiada é reproduzida a partir do separador Ficheiros
-* Novo: widgets de forma de onda, grande, de ecrã bloqueado e de capa em ecrã inteiro, com os botões de lista de reprodução, reproduzir e seguinte do Mac
-* Novo: o estilo de forma de onda Espectro, com coloração “Por secção” para que cada parte de uma faixa mantenha uma cor
-* Novo: os temas 3 bandas: Rekord Bin, Dengine e cores personalizadas
-* Novo: amplie a forma de onda até às amostras
-* Novo: reprodução de Ogg Vorbis e de MP3 de formato livre
-* Novo: capas para faixas do iCloud e do Dropbox que não estão transferidas
-* Novo: um estado “A armazenar em buffer…” enquanto uma faixa espera por uma partilha de rede lenta ou por uma transferência
-* Novo: a faixa-tema vibe, que é carregada no arranque até reproduzir ou abrir algo
-* Alterado: os estilos de forma de onda mudaram de nome: Básico passa a Barras, Cupertino básico passa a Progresso e os quatro estilos Detalhado passam a ser um só, com uma definição de tipo
-* Alterado: “Faixa anterior” na primeira faixa reinicia-a
-* Alterado: a linha do cursor de reprodução é ligeiramente transparente
-* Alterado: o tema Cupertino escurece apenas a capa por trás dos botões de reprodução, com um gradiente mais suave
-* Melhorado: o cursor de reprodução, os saltos e o tema do widget
-* Melhorado: o separador Ficheiros agrupa os locais em Localizações
-* Melhorado: nas Definições, “No fim da faixa” e “Apresentação do tempo” escolhem-se no próprio ecrã, e as paletas 3 bandas têm o nome das suas cores
-* Melhorado: reprodução a partir de partilhas de rede: uma ligação perdida pausa com “Ligação perdida”, um servidor lento já não atrasa as mudanças de faixa e as faixas de alta resolução são reproduzidas sem falhas
-* Melhorado: as faixas MP3, FLAC, WAV e AIFF abrem mais depressa
-* Corrigido: reprodução sem pausas de MP3 mono e MPEG-2
-* Corrigido: ficheiros Opus cujo cabeçalho define um volume eram reproduzidos ao nível errado
-* Corrigido: um ficheiro CAF corrompido podia bloquear a análise de metadados
-* Corrigido: a abertura de uma ligação mais antiga podia substituir a abertura de um ficheiro mais recente
+* Alterado: os ficheiros MP3, FLAC, WAV, AIFF e Ogg Vorbis são sempre reproduzidos com os descodificadores do próprio Vibe
+* Melhorado: reprodução de ficheiros Ogg Vorbis que também contêm vídeo ou um fluxo Skeleton
+* Corrigido: os MP3 de 320 kbps abriam lentamente

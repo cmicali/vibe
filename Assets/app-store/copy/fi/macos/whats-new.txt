@@ -1,27 +1,7 @@
-* Uutta: Avaa sijainti… (⌘L) toistaa verkkolinkin tai jakolinkin Dropboxista, Google Drivesta tai iCloud Drivesta
-* Uutta: Spektri-aaltomuototyyli ja Osioittain-väritys, jolla kappaleen jokainen osa pysyy yhdenvärisenä
-* Uutta: teemat RGB, Dark Core, Kinda Blue ja Sectioned sekä Dark Coren sovelluskuvake, tekijänä JohnnyFireOne
-* Uutta: Siirrä roskakoriin (⌘⌫) poistaa valitun tai soivan kappaleen tiedoston, ja Kumoa palauttaa sen
-* Uutta: Lisää soittolistaan… (⇧⌘O), Näytä Finderissa (⇧⌘R) sekä Ikkuna-valikko, jossa ovat Pienennä, Ikkunan leveys, Aina päällimmäisenä ja Lukitse ikkunan sijainti
-* Uutta: Puskuroidaan… -tila, kun kappale odottaa hidasta verkkojakoa tai latausta
-* Uutta: teemavärit soivan ja valitun rivin tekstille ja soivan rivin taajuuskorjainpalkeille sekä oletuskansikuvat Läpinäkyvä, Ikkuna, Symboli ja Mukautettu väri
-* Uutta: napsauta pitch-paneelin otsikkoa, niin sen alue vaihtuu 8 %:n ja 16 %:n välillä
-* Uutta: vapaan bittinopeuden (free format) MP3-tiedostojen toisto
-* Uutta: vibe-teemakappale, joka latautuu käynnistettäessä, kunnes toistat tai avaat jotain
-* Muutettu: valikot noudattavat macOSin käytäntöjä, ja niissä ovat Muokkaa > Kopioi sekä alivalikot Toisto, Hyppää taaksepäin ja Hyppää eteenpäin, joista kaksi viimeistä näyttävät jokaisen hypyn pituuden tahteina tai sekunteina
-* Muutettu: aaltomuototyylit on nimetty uudelleen: Yksinkertainen on nyt Palkit, Cupertino (yksinkertainen) on nyt Edistyminen, ja neljä Yksityiskohtainen-tyyliä ovat nyt yksi tyyli, jolla on tyyppiasetus
-* Muutettu: Edellinen kappale -painike aloittaa ensimmäisen kappaleen alusta
-* Muutettu: äänenvoimakkuuden liukusäädin tulee näkyviin osoittimen lähelle, ja teema-asetus määrää, milloin se näkyy
-* Muutettu: toistopään viiva on hieman läpikuultava, ja soivan rivin taajuuskorjainpalkit ovat mustia vaaleassa ulkoasussa
-* Muutettu: Cupertino-teema tummentaa vain toistopainikkeiden takana olevan kansikuvan, ja liukuväri on vaaleampi
-* Parannettu: pitch-säädin kuulostaa paremmalta oman repitch-moottorin ja pehmeiden muutosten ansiosta
-* Parannettu: bittitarkka lähtö käyttää laitteen suurinta bittisyvyyttä, joten äänenvoimakkuuden muutokset ovat puhtaampia ja 16- ja 24-bittisten kappaleiden välinen toisto on saumatonta
-* Parannettu: toisto verkkojaoista: katkennut yhteys keskeyttää toiston ilmoituksella ”Yhteys katkesi”, hidas palvelin ei enää jumita kappaleenvaihtoja, ja hi-res-kappaleet soivat sujuvasti
-* Parannettu: MP3-, FLAC-, WAV- ja AIFF-kappaleet avautuvat nopeammin
-* Parannettu: Asetukset-ikkunassa on selkeämmät nimet, syyt pois käytöstä olevien rivien alla, vahvistus ennen oletusten palauttamista ja hyppypalkki teemaeditorissa
-* Korjattu: monofonisten ja MPEG-2 MP3 -tiedostojen saumaton toisto
-* Korjattu: Opus-tiedostot, joiden otsake asettaa äänenvoimakkuuden, soivat väärällä tasolla
-* Korjattu: Ogg Vorbis -kappaleista puuttuivat ensimmäiset 3 ms
-* Korjattu: vioittunut CAF-tiedosto saattoi jumittaa metatietojen skannauksen
-* Korjattu: aaltomuodon osoitinviiva katosi toistetun osan päällä
-* Korjattu: macOS 27:ssä teeman vaihto tyhjensi soittolistan valinnan, ja muistinkäyttö kasvoi jokaisella soittolistan avauksella ja teeman vaihdolla
+* Uutta: äänenvoimakkuutta voi muuttaa vierittämällä hiirellä tai ohjauslevyllä sekä ylä- ja alanuolinäppäimillä (kun käytössä)
+* Uutta: ”Kopioi” ja ”Sijoita” väreille ja fonteille teemaeditorin kontekstivalikossa
+* Uutta: kunkin teeman värimalli valikossa ”Näytä > Teema”
+* Muutettu: MP3-, FLAC-, WAV-, AIFF- ja Ogg Vorbis -tiedostot toistetaan aina Viben omilla dekoodereilla
+* Muutettu: äänenvoimakkuuden liukusäätimen ulkoasu- ja toiminta-asetukset siirtyivät teemoista kohtaan ”Asetukset > Ulkoasu”
+* Parannettu: Ogg Vorbis -tiedostojen toisto, kun ne sisältävät myös videota tai Skeleton-virran
+* Korjattu: 320 kbit/s MP3-tiedostot avautuivat hitaasti

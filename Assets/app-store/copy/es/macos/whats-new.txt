@@ -1,27 +1,7 @@
-* Novedad: Abrir ubicación… (⌘L) reproduce un enlace web o un enlace compartido de Dropbox, Google Drive o iCloud Drive
-* Novedad: el estilo de forma de onda Espectro, con el color Por secciones para que cada parte de una pista conserve un color
-* Novedad: los temas RGB, Dark Core, Kinda Blue y Sectioned, y el icono de app de Dark Core, aportados por JohnnyFireOne
-* Novedad: Trasladar a la Papelera (⌘⌫) elimina el archivo de la pista seleccionada o en reproducción, y se puede deshacer
-* Novedad: Añadir a la lista de reproducción… (⇧⌘O), Mostrar en el Finder (⇧⌘R) y un menú Ventana con Minimizar, Ancho de la ventana, Siempre visible y Bloquear la posición de la ventana
-* Novedad: el estado Almacenando en búfer… mientras una pista espera a una carpeta de red lenta o a una descarga
-* Novedad: colores de tema para el texto de las filas en reproducción y seleccionadas y para las barras del ecualizador de la fila en reproducción, y las portadas predeterminadas Transparente, Ventana, Símbolo y Color personalizado
-* Novedad: haz clic en la cabecera del panel de pitch para cambiar su rango entre el 8% y el 16%
-* Novedad: reproducción de MP3 de formato libre
-* Novedad: la pista vibe, la sintonía de la app, que se carga al iniciar hasta que reproduzcas o abras algo
-* Cambio: los menús siguen las convenciones de macOS, con Edición > Copiar, un submenú Repetir y los submenús Retroceder y Avanzar, que muestran cada distancia en compases o segundos
-* Cambio: los estilos de forma de onda cambian de nombre: Básico ahora es Barras, Cupertino básico ahora es Progreso, y los cuatro estilos Detallado son uno solo con un ajuste Tipo
-* Cambio: Pista anterior en la primera pista la reinicia
-* Cambio: el control deslizante de volumen aparece cerca del puntero, con un ajuste del tema para elegir cuándo se muestra
-* Cambio: la línea del cabezal es ligeramente transparente, y las barras del ecualizador de la fila en reproducción son negras en el modo claro
-* Cambio: el tema Cupertino solo oscurece la portada detrás de los botones de reproducción, con un degradado más suave
-* Mejora: el fader de pitch suena mejor, con un motor de repitch propio y cambios suaves
-* Mejora: la salida bit-perfect usa la mayor profundidad de bits del dispositivo, para cambios de volumen más limpios y reproducción sin pausas entre pistas de 16 y 24 bits
-* Mejora: reproducción desde carpetas de red: una conexión caída pausa con “Conexión perdida”, un servidor lento ya no atasca los cambios de pista y las pistas de alta resolución se reproducen con fluidez
-* Mejora: las pistas MP3, FLAC, WAV y AIFF se abren más rápido
-* Mejora: la ventana de Ajustes tiene nombres más claros, motivos bajo las filas desactivadas, una confirmación antes de restablecer los valores por omisión y una barra de saltos en el editor de temas
-* Corrección: la reproducción sin pausas de MP3 mono y MPEG-2
-* Corrección: los archivos Opus cuya cabecera fija un volumen se reproducían a un nivel incorrecto
-* Corrección: a las pistas Ogg Vorbis les faltaban sus primeros 3 ms
-* Corrección: un archivo CAF dañado podía bloquear el análisis de metadatos
-* Corrección: la línea que sigue al puntero sobre la forma de onda se perdía sobre la parte ya reproducida
-* Corrección: en macOS 27, los cambios de tema borraban la selección de la lista de reproducción, y la memoria crecía con cada apertura de lista y cada cambio de tema
+* Novedad: cambia el volumen desplazándote con el ratón o el trackpad, y con las flechas arriba y abajo (si está activado)
+* Novedad: “Copiar” y “Pegar” para colores y tipos de letra en el menú contextual del editor de temas
+* Novedad: la muestra de cada tema en el menú “Visualización > Tema”
+* Cambio: los archivos MP3, FLAC, WAV, AIFF y Ogg Vorbis siempre se reproducen con los decodificadores propios de Vibe
+* Cambio: los ajustes de aspecto y comportamiento del regulador de volumen pasan de los temas a “Ajustes > Aspecto”
+* Mejora: la reproducción de archivos Ogg Vorbis que también llevan vídeo o un flujo Skeleton
+* Corrección: los MP3 de 320 kbps tardaban en abrirse

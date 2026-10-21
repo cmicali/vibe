@@ -1,22 +1,3 @@
-* Nyt: Åbn URL afspiller et weblink eller et delingslink fra Dropbox, Google Drive eller iCloud Drive, og et kopieret link kan afspilles fra fanen Filer
-* Nyt: widgets med bølgeform, i stor størrelse, til låseskærmen og med omslag fra kant til kant, med Mac'ens knapper til spilleliste, afspil og næste
-* Nyt: bølgeformstilen Spektrum med farvningen Efter sektion, så hver del af et nummer beholder én farve
-* Nyt: 3-bånd-temaerne Rekord Bin, Dengine og Tilpassede farver
-* Nyt: zoom bølgeformen helt ned til de enkelte samples
-* Nyt: afspilning af Ogg Vorbis og MP3 i free format
-* Nyt: albumbilleder til iCloud- og Dropbox-numre, der ikke er hentet
-* Nyt: statussen Bufferer…, mens et nummer venter på en langsom netværksdeling eller en download
-* Nyt: temanummeret vibe, som indlæses ved start, indtil du afspiller eller åbner noget
-* Ændret: bølgeformstilene har fået nye navne: Enkel hedder nu Søjler, Cupertino (enkel) hedder nu Forløb, og de fire Detaljeret-stile er nu én med en Type-indstilling
-* Ændret: Forrige nummer på det første nummer starter det forfra
-* Ændret: afspilningshovedets linje er let gennemsigtig
-* Ændret: temaet Cupertino gør kun omslaget bag afspilningsknapperne mørkere, med en lysere gradient
-* Forbedret: widgettens afspilningshoved, spring og tema
-* Forbedret: fanen Filer samler steder under Lokaliteter
-* Forbedret: i Indstillinger vælges Ved nummerets slutning og Tidsvisning direkte på stedet, og 3-bånd-paletterne er opkaldt efter deres farver
-* Forbedret: afspilning fra netværksdelinger: en afbrudt forbindelse sætter på pause med “Forbindelsen blev afbrudt”, en langsom server forsinker ikke længere nummerskift, og hi-res-numre afspilles flydende
-* Forbedret: MP3-, FLAC-, WAV- og AIFF-numre åbner hurtigere
-* Rettet: afspilning uden pauser af mono- og MPEG-2-MP3-filer
-* Rettet: Opus-filer, hvis header angiver en lydstyrke, blev afspillet med forkert niveau
-* Rettet: en beskadiget CAF-fil kunne få metadatascanningen til at gå i stå
-* Rettet: en ældre åbning af et link kunne erstatte en nyere åbning af en fil
+* Ændret: MP3-, FLAC-, WAV-, AIFF- og Ogg Vorbis-filer afspilles altid med Vibes egne dekodere
+* Forbedret: afspilning af Ogg Vorbis-filer, der også indeholder video eller en Skeleton-strøm
+* Rettet: MP3-filer på 320 kbps åbnede langsomt

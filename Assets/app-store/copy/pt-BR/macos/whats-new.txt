@@ -1,27 +1,7 @@
-* Novo: Abrir Localização… (⌘L) toca um link da web ou um link de compartilhamento do Dropbox, Google Drive ou iCloud Drive
-* Novo: o estilo de forma de onda Espectro, com coloração Por seção para que cada parte da música mantenha uma só cor
-* Novo: os temas RGB, Dark Core, Kinda Blue e Sectioned, e o ícone de app do Dark Core, uma contribuição de JohnnyFireOne
-* Novo: Mover para o Lixo (⌘⌫) apaga o arquivo da música selecionada ou em reprodução, com Desfazer
-* Novo: Adicionar à Playlist… (⇧⌘O), Mostrar no Finder (⇧⌘R) e um menu Janela com Minimizar, Largura da Janela, Sempre Visível e Travar a Posição da Janela
-* Novo: o status Armazenando em buffer… enquanto uma música espera um compartilhamento de rede lento ou um download
-* Novo: cores de tema para o texto das linhas em reprodução e selecionada e para as barras do equalizador da linha em reprodução, e as capas padrão Transparente, Janela, Símbolo e Cor personalizada
-* Novo: clique no cabeçalho do painel de pitch para alternar o intervalo entre 8% e 16%
-* Novo: reprodução de MP3 free-format
-* Novo: a faixa do tema vibe, que carrega ao abrir o app até você tocar ou abrir algo
-* Alterado: os menus seguem as convenções do macOS, com Editar > Copiar, um submenu Repetir e submenus Retroceder e Avançar que mostram cada distância em compassos ou segundos
-* Alterado: os estilos de forma de onda foram renomeados: Básico agora é Barras, Cupertino básico agora é Progresso, e os quatro estilos Detalhado viraram um só, com um ajuste de Tipo
-* Alterado: Faixa Anterior na primeira música a reinicia
-* Alterado: o controle deslizante de volume aparece perto do cursor, com um ajuste de tema para quando ele aparece
-* Alterado: a linha do cabeçote fica levemente transparente, e as barras do equalizador da linha em reprodução ficam pretas no modo claro
-* Alterado: o tema Cupertino escurece apenas a capa atrás dos botões de reprodução, com um degradê mais claro
-* Melhorado: o controle de pitch soa melhor, com um mecanismo próprio de repitch e mudanças suaves
-* Melhorado: a saída bit-perfect usa a maior profundidade de bits do dispositivo, para mudanças de volume mais limpas e reprodução sem intervalos entre músicas de 16 e 24 bits
-* Melhorado: reprodução em compartilhamentos de rede: uma queda de conexão pausa com “Conexão perdida”, um servidor lento não trava mais as trocas de faixa, e músicas em alta resolução tocam de forma fluida
-* Melhorado: músicas MP3, FLAC, WAV e AIFF abrem mais rápido
-* Melhorado: a janela Ajustes tem nomes mais claros, motivos sob as linhas desativadas, uma confirmação antes de restaurar os padrões e uma barra de navegação no editor de temas
-* Corrigido: reprodução sem intervalos de MP3 mono e MPEG-2
-* Corrigido: arquivos Opus cujo cabeçalho define um volume tocavam no nível errado
-* Corrigido: músicas Ogg Vorbis perdiam os primeiros 3 ms
-* Corrigido: um arquivo CAF corrompido podia travar a análise de metadados
-* Corrigido: a linha do cursor na forma de onda sumia sobre a parte já tocada
-* Corrigido: no macOS 27, trocar de tema limpava a seleção da playlist, e a memória crescia a cada playlist aberta e a cada troca de tema
+* Novo: mude o volume rolando com o mouse ou o trackpad, e com as setas para cima e para baixo (quando ativado)
+* Novo: “Copiar” e “Colar” para cores e fontes no menu de contexto do editor de temas
+* Novo: a amostra de cada tema no menu “Visualizar > Tema”
+* Alterado: arquivos MP3, FLAC, WAV, AIFF e Ogg Vorbis sempre tocam com os decodificadores do próprio Vibe
+* Alterado: os ajustes de aparência e comportamento do controle de volume saíram dos temas e foram para “Ajustes > Aparência”
+* Melhorado: reprodução de arquivos Ogg Vorbis que também contêm vídeo ou um fluxo Skeleton
+* Corrigido: MP3s de 320 kbps abriam lentamente

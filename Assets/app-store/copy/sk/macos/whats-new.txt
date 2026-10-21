@@ -1,27 +1,7 @@
-* Nové: „Otvoriť adresu…“ (⌘L) prehrá webový odkaz alebo odkaz na zdieľanie z Dropboxu, Google Drive či iCloud Drive
-* Nové: štýl vlnového priebehu Spektrum s farbením „Podľa sekcií“, aby si každá časť skladby zachovala jednu farbu
-* Nové: témy RGB, Dark Core, Kinda Blue a Sectioned a ikona aplikácie Dark Core, ktoré prispel JohnnyFireOne
-* Nové: „Presunúť do koša“ (⌘⌫) vymaže súbor vybranej alebo práve hranej skladby, s možnosťou „Odvolať“
-* Nové: „Pridať do playlistu…“ (⇧⌘O), „Zobraziť vo Finderi“ (⇧⌘R) a ponuka Okno s položkami „Minimalizovať“, „Šírka okna“, „Vždy navrchu“ a „Zamknúť polohu okna“
-* Nové: stav „Načítavanie do medzipamäte…“, kým skladba čaká na pomalé sieťové zdieľanie alebo sťahovanie
-* Nové: farby témy pre text prehrávaného a vybraného riadku a pre stĺpce ekvalizéra prehrávaného riadku a predvolené obaly „Priehľadné“, „Okno“, „Symbol“ a „Vlastná farba“
-* Nové: kliknutím na hlavičku panela pitch prepnete jeho rozsah medzi 8 % a 16 %
-* Nové: prehrávanie MP3 vo voľnom formáte
-* Nové: tematická skladba vibe, ktorá sa načíta pri spustení, kým niečo neprehráte alebo neotvoríte
-* Zmena: ponuky dodržiavajú konvencie macOS, s Upraviť > Kopírovať, podponukou Opakovať a podponukami Skočiť dozadu a Skočiť dopredu, ktoré ukazujú každú vzdialenosť v taktoch alebo sekundách
-* Zmena: štýly vlnového priebehu sú premenované: Základný je teraz Stĺpce, Cupertino (základný) je teraz Priebeh a štyri štýly Detailný sú jeden s nastavením typu
-* Zmena: „Predchádzajúca skladba“ na prvej skladbe ju spustí od začiatku
-* Zmena: posúvač hlasitosti sa zobrazí pri kurzore a téma má nastavenie, kedy sa zobrazuje
-* Zmena: čiara prehrávacej hlavy je mierne priehľadná a stĺpce ekvalizéra prehrávaného riadku sú vo svetlom režime čierne
-* Zmena: téma Cupertino stmavuje iba obal za tlačidlami prehrávania, so svetlejším prechodom
-* Vylepšenie: fader pitchu znie lepšie vďaka vlastnému enginu na zmenu výšky tónu a plynulým zmenám
-* Vylepšenie: bitovo presný výstup používa najvyššiu bitovú hĺbku zariadenia pre čistejšie zmeny hlasitosti a prehrávanie bez medzier medzi 16- a 24-bitovými skladbami
-* Vylepšenie: prehrávanie zo sieťových zdieľaní: prerušené pripojenie pozastaví prehrávanie s hlásením „Pripojenie sa stratilo“, pomalý server už nebrzdí zmeny skladieb a skladby vo vysokom rozlíšení hrajú plynulo
-* Vylepšenie: skladby MP3, FLAC, WAV a AIFF sa otvárajú rýchlejšie
-* Vylepšenie: okno Nastavenia má jasnejšie názvy, dôvody pod vypnutými riadkami, potvrdenie pred obnovením predvolených hodnôt a navigačný panel v editore tém
-* Opravené: prehrávanie bez medzier pri mono MP3 a MP3 MPEG-2
-* Opravené: súbory Opus, ktorých hlavička nastavuje hlasitosť, sa prehrávali so zlou úrovňou
-* Opravené: skladby Ogg Vorbis prichádzali o prvé 3 ms
-* Opravené: poškodený súbor CAF mohol zastaviť skenovanie metadát
-* Opravené: čiara pod kurzorom na vlnovom priebehu sa strácala nad prehranou časťou
-* Opravené: v macOS 27 zmeny témy rušili výber v playliste a pamäť rástla pri každom otvorení playlistu a zmene témy
+* Nové: zmena hlasitosti posúvaním myšou alebo trackpadom a šípkami nahor a nadol (ak je to zapnuté)
+* Nové: „Kopírovať“ a „Vložiť“ pre farby a písma v kontextovej ponuke editora motívov
+* Nové: vzorka farieb každého motívu v ponuke „Zobraziť > Motív“
+* Zmena: súbory MP3, FLAC, WAV, AIFF a Ogg Vorbis sa vždy prehrávajú vlastnými dekodérmi aplikácie Vibe
+* Zmena: nastavenia vzhľadu a správania posuvníka hlasitosti sa presunuli z motívov do „Nastavenia > Vzhľad“
+* Vylepšenie: prehrávanie súborov Ogg Vorbis, ktoré obsahujú aj video alebo stream Skeleton
+* Opravené: súbory MP3 s 320 kb/s sa otvárali pomaly

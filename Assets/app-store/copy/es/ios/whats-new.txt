@@ -1,22 +1,3 @@
-* Novedad: Abrir URL reproduce un enlace web o un enlace compartido de Dropbox, Google Drive o iCloud Drive, y un enlace copiado se reproduce desde la pestaña Archivos
-* Novedad: widgets con forma de onda, grande, para la pantalla bloqueada y con la portada a sangre, con los botones de lista, reproducir y siguiente del Mac
-* Novedad: el estilo de forma de onda Espectro, con el color Por secciones para que cada parte de una pista conserve un color
-* Novedad: los temas de 3 bandas: Rekord Bin, Dengine y Colores personalizados
-* Novedad: amplía la forma de onda hasta llegar a las muestras
-* Novedad: reproducción de Ogg Vorbis y de MP3 de formato libre
-* Novedad: portadas para las pistas de iCloud y Dropbox que no se han descargado
-* Novedad: el estado Almacenando en búfer… mientras una pista espera a una carpeta de red lenta o a una descarga
-* Novedad: la pista vibe, la sintonía de la app, que se carga al iniciar hasta que reproduzcas o abras algo
-* Cambio: los estilos de forma de onda cambian de nombre: Básico ahora es Barras, Cupertino básico ahora es Progreso, y los cuatro estilos Detallado son uno solo con un ajuste Tipo
-* Cambio: Pista anterior en la primera pista la reinicia
-* Cambio: la línea del cabezal es ligeramente transparente
-* Cambio: el tema Cupertino solo oscurece la portada detrás de los botones de reproducción, con un degradado más suave
-* Mejora: el cabezal, los saltos y el tema del widget
-* Mejora: la pestaña Archivos agrupa los lugares en Ubicaciones
-* Mejora: en Ajustes, Al final de la pista y Visualización del tiempo se eligen en la misma pantalla, y las paletas de 3 bandas se llaman por sus colores
-* Mejora: reproducción desde carpetas de red: una conexión caída pausa con “Conexión perdida”, un servidor lento ya no atasca los cambios de pista y las pistas de alta resolución se reproducen con fluidez
-* Mejora: las pistas MP3, FLAC, WAV y AIFF se abren más rápido
-* Corrección: la reproducción sin pausas de MP3 mono y MPEG-2
-* Corrección: los archivos Opus cuya cabecera fija un volumen se reproducían a un nivel incorrecto
-* Corrección: un archivo CAF dañado podía bloquear el análisis de metadatos
-* Corrección: una apertura de enlace más antigua podía sustituir a una apertura de archivo más reciente
+* Cambio: los archivos MP3, FLAC, WAV, AIFF y Ogg Vorbis siempre se reproducen con los decodificadores propios de Vibe
+* Mejora: la reproducción de archivos Ogg Vorbis que también llevan vídeo o un flujo Skeleton
+* Corrección: los MP3 de 320 kbps tardaban en abrirse

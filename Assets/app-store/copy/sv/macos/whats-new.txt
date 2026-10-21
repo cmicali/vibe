@@ -1,27 +1,7 @@
-* Nytt: ”Öppna plats…” (⌘L) spelar upp en webblänk eller en delningslänk från Dropbox, Google Drive eller iCloud Drive
-* Nytt: vågformsstilen Spektrum, med färgläggningen ”Per sektion” så att varje del av ett spår behåller en färg
-* Nytt: temana RGB, Dark Core, Kinda Blue och Sectioned, och appsymbolen för Dark Core, bidrag från JohnnyFireOne
-* Nytt: ”Flytta till papperskorgen” (⌘⌫) raderar filen för det markerade eller spelande spåret, med ”Ångra”
-* Nytt: ”Lägg till i spellista…” (⇧⌘O), ”Visa i Finder” (⇧⌘R) och en Fönster-meny med ”Minimera”, ”Fönsterbredd”, ”Alltid överst” och ”Lås fönstrets position”
-* Nytt: statusen ”Buffrar…” medan ett spår väntar på en långsam nätverksdelning eller nedladdning
-* Nytt: temafärger för texten i den spelande och den markerade raden och för den spelande radens equalizerstaplar, samt standardomslagen ”Genomskinlig”, ”Fönster”, ”Symbol” och ”Anpassad färg”
-* Nytt: klicka på pitchpanelens rubrik för att växla dess omfång mellan 8 % och 16 %
-* Nytt: uppspelning av MP3 i fritt format
-* Nytt: temaspåret vibe, som läses in vid start tills du spelar upp eller öppnar något
-* Ändrat: menyerna följer macOS-konventionerna, med Redigera > Kopiera, en undermeny Upprepa och undermenyer för Hoppa bakåt och Hoppa framåt som visar varje avstånd i takter eller sekunder
-* Ändrat: vågformsstilarna har bytt namn: Enkel heter nu Staplar, Cupertino (enkel) heter nu Förlopp och de fyra Detaljerad-stilarna är nu en med en typinställning
-* Ändrat: ”Föregående spår” på det första spåret startar om det
-* Ändrat: volymreglaget visas nära pekaren, med en temainställning för när det visas
-* Ändrat: linjen för uppspelningshuvudet är lätt genomskinlig, och den spelande radens equalizerstaplar är svarta i ljust läge
-* Ändrat: temat Cupertino gör bara omslagsbilden bakom uppspelningsknapparna mörkare, med en ljusare toning
-* Förbättrat: pitchreglaget låter bättre, med en egen repitch-motor och mjuka ändringar
-* Förbättrat: bitperfekt utmatning använder enhetens största bitdjup, för renare volymändringar och obruten uppspelning mellan 16- och 24-bitarsspår
-* Förbättrat: uppspelning från nätverksdelningar: en bruten anslutning pausar med ”Anslutningen bröts”, en långsam server stoppar inte längre spårbyten och högupplösta spår spelas upp jämnt
-* Förbättrat: MP3-, FLAC-, WAV- och AIFF-spår öppnas snabbare
-* Förbättrat: fönstret Inställningar har tydligare namn, förklaringar under avaktiverade rader, en bekräftelse innan standardinställningarna återställs och ett hoppfält i temaredigeraren
-* Åtgärdat: obruten uppspelning av mono-MP3 och MPEG-2-MP3
-* Åtgärdat: Opus-filer vars filhuvud anger en volym spelades upp på fel nivå
-* Åtgärdat: Ogg Vorbis-spår tappade sina första 3 ms
-* Åtgärdat: en skadad CAF-fil kunde få metadataskanningen att hänga sig
-* Åtgärdat: vågformens hovringslinje försvann över den uppspelade delen
-* Åtgärdat: i macOS 27 rensade temabyten markeringen i spellistan, och minnet växte vid varje öppnad spellista och temabyte
+* Nytt: ändra volymen genom att rulla med mus eller styrplatta och med uppåt- och nedåtpilarna (när det är aktiverat)
+* Nytt: ”Kopiera” och ”Klistra in” för färger och typsnitt i temaredigerarens högerklicksmeny
+* Nytt: varje temas färgprov i menyn ”Visa > Tema”
+* Ändrat: MP3-, FLAC-, WAV-, AIFF- och Ogg Vorbis-filer spelas alltid upp med Vibes egna avkodare
+* Ändrat: inställningarna för volymreglagets utseende och beteende har flyttats från teman till ”Inställningar > Utseende”
+* Förbättrat: uppspelning av Ogg Vorbis-filer som också innehåller video eller en Skeleton-ström
+* Åtgärdat: MP3-filer på 320 kbit/s öppnades långsamt

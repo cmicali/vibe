@@ -1,22 +1,3 @@
-* Nové: Otevřít URL přehraje webový odkaz nebo odkaz ke sdílení z Dropboxu, Google Drive nebo iCloud Drive a zkopírovaný odkaz přehrajete z panelu Soubory
-* Nové: widgety s tvarem vlny, velký widget, widget na zamčenou obrazovku a widget s obalem přes celou plochu, s tlačítky playlistu, přehrávání a další skladby jako na Macu
-* Nové: styl tvaru vlny Spektrum s barvením Podle sekcí, aby si každá část skladby držela jednu barvu
-* Nové: motivy 3 pásma: Rekord Bin, Dengine a Vlastní barvy
-* Nové: přiblížení tvaru vlny až na jednotlivé vzorky
-* Nové: přehrávání Ogg Vorbis a MP3 ve formátu free-format
-* Nové: obaly alb pro skladby z iCloudu a Dropboxu, které nejsou stažené
-* Nové: stav Načítání do mezipaměti…, když skladba čeká na pomalé síťové úložiště nebo na stahování
-* Nové: ústřední skladba vibe, která se načte při spuštění, dokud nic nepřehrajete ani neotevřete
-* Změna: styly tvaru vlny se přejmenovaly: Základní je nyní Sloupce, Cupertino (základní) je nyní Průběh a čtyři styly Detailní jsou jeden styl s nastavením Typ
-* Změna: Předchozí skladba na první skladbě ji spustí znovu od začátku
-* Změna: čára přehrávací hlavy je mírně průhledná
-* Změna: motiv Cupertino ztmavuje jen obal za tlačítky přehrávání, se světlejším přechodem
-* Vylepšení: přehrávací hlava, přeskakování a motiv widgetu
-* Vylepšení: panel Soubory seskupuje místa pod Umístění
-* Vylepšení: v Nastavení se Na konci skladby a Zobrazení času vybírají přímo na místě a palety 3 pásma jsou pojmenované podle svých barev
-* Vylepšení: přehrávání ze síťových úložišť: přerušené připojení pozastaví přehrávání s hlášením „Připojení bylo ztraceno“, pomalý server už nezdržuje změny skladeb a skladby ve vysokém rozlišení hrají plynule
-* Vylepšení: skladby MP3, FLAC, WAV a AIFF se otevírají rychleji
-* Opraveno: přehrávání bez mezer u mono MP3 a MP3 ve formátu MPEG-2
-* Opraveno: soubory Opus, jejichž hlavička nastavuje hlasitost, hrály se špatnou úrovní
-* Opraveno: poškozený soubor CAF mohl zablokovat skenování metadat
-* Opraveno: starší otevření odkazu mohlo nahradit novější otevření souboru
+* Změna: soubory MP3, FLAC, WAV, AIFF a Ogg Vorbis se vždy přehrávají vlastními dekodéry aplikace Vibe
+* Vylepšení: přehrávání souborů Ogg Vorbis, které obsahují i video nebo stream Skeleton
+* Opraveno: soubory MP3 s 320 kb/s se otevíraly pomalu

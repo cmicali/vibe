@@ -1,27 +1,7 @@
-* Nové: Otevřít adresu… (⌘L) přehraje webový odkaz nebo odkaz ke sdílení z Dropboxu, Google Drive nebo iCloud Drive
-* Nové: styl tvaru vlny Spektrum s barvením Podle sekcí, aby si každá část skladby držela jednu barvu
-* Nové: motivy RGB, Dark Core, Kinda Blue a Sectioned a ikona aplikace Dark Core, které přispěl JohnnyFireOne
-* Nové: Přesunout do koše (⌘⌫) smaže soubor vybrané nebo přehrávané skladby, s možností Odvolat
-* Nové: Přidat do playlistu… (⇧⌘O), Zobrazit ve Finderu (⇧⌘R) a nabídka Okno s položkami Minimalizovat, Šířka okna, Vždy navrchu a Zamknout polohu okna
-* Nové: stav Načítání do mezipaměti…, když skladba čeká na pomalé síťové úložiště nebo na stahování
-* Nové: barvy motivu pro text přehrávaného a vybraných řádků a pro sloupce ekvalizéru přehrávaného řádku a výchozí obaly Průhledné, Okno, Symbol a Vlastní barva
-* Nové: kliknutím na záhlaví panelu pitche přepnete jeho rozsah mezi 8 % a 16 %
-* Nové: přehrávání MP3 ve formátu free-format
-* Nové: ústřední skladba vibe, která se načte při spuštění, dokud nic nepřehrajete ani neotevřete
-* Změna: nabídky se řídí zvyklostmi macOS, s položkou Úpravy > Kopírovat, podnabídkou Opakovat a podnabídkami Skočit zpět a Skočit vpřed, které ukazují každou vzdálenost v taktech nebo sekundách
-* Změna: styly tvaru vlny se přejmenovaly: Základní je nyní Sloupce, Cupertino (základní) je nyní Průběh a čtyři styly Detailní jsou jeden styl s nastavením Typ
-* Změna: Předchozí skladba na první skladbě ji spustí znovu od začátku
-* Změna: posuvník hlasitosti se zobrazí poblíž ukazatele, s nastavením motivu, kdy se má zobrazit
-* Změna: čára přehrávací hlavy je mírně průhledná a sloupce ekvalizéru přehrávaného řádku jsou ve světlém režimu černé
-* Změna: motiv Cupertino ztmavuje jen obal za tlačítky přehrávání, se světlejším přechodem
-* Vylepšení: fader pitche zní lépe díky vlastnímu enginu pro repitch a plynulým změnám
-* Vylepšení: bitově přesný výstup používá největší bitovou hloubku zařízení, takže změny hlasitosti jsou čistší a přehrávání bez mezer funguje i mezi 16bitovými a 24bitovými skladbami
-* Vylepšení: přehrávání ze síťových úložišť: přerušené připojení pozastaví přehrávání s hlášením „Připojení bylo ztraceno“, pomalý server už nezdržuje změny skladeb a skladby ve vysokém rozlišení hrají plynule
-* Vylepšení: skladby MP3, FLAC, WAV a AIFF se otevírají rychleji
-* Vylepšení: okno Nastavení má srozumitelnější názvy, důvody pod neaktivními řádky, potvrzení před obnovením výchozích hodnot a lištu pro rychlý přechod v editoru motivů
-* Opraveno: přehrávání bez mezer u mono MP3 a MP3 ve formátu MPEG-2
-* Opraveno: soubory Opus, jejichž hlavička nastavuje hlasitost, hrály se špatnou úrovní
-* Opraveno: skladbám Ogg Vorbis chyběly první 3 ms
-* Opraveno: poškozený soubor CAF mohl zablokovat skenování metadat
-* Opraveno: čára pod ukazatelem na tvaru vlny se nad přehranou částí ztrácela
-* Opraveno: v macOS 27 změny motivu rušily výběr v playlistu a paměť rostla při každém otevření playlistu a každé změně motivu
+* Nové: změna hlasitosti posouváním myší nebo trackpadem a šipkami nahoru a dolů (pokud je zapnuto)
+* Nové: „Kopírovat“ a „Vložit“ pro barvy a písma v kontextové nabídce editoru motivů
+* Nové: vzorek barev každého motivu v nabídce „Zobrazení > Motiv“
+* Změna: soubory MP3, FLAC, WAV, AIFF a Ogg Vorbis se vždy přehrávají vlastními dekodéry aplikace Vibe
+* Změna: nastavení vzhledu a chování posuvníku hlasitosti se přesunulo z motivů do „Nastavení > Vzhled“
+* Vylepšení: přehrávání souborů Ogg Vorbis, které obsahují i video nebo stream Skeleton
+* Opraveno: soubory MP3 s 320 kb/s se otevíraly pomalu

@@ -1,22 +1,3 @@
-* Novo: Otvori URL reproducira web-poveznicu ili poveznicu za dijeljenje s Dropboxa, Google Drivea ili iCloud Drivea, a kopirana poveznica reproducira se iz kartice Datoteke
-* Novo: widgeti s valnim oblikom, veliki, za zaključani zaslon i s omotom preko cijele površine, s tipkama za popis pjesama, reprodukciju i sljedeću pjesmu kao na Macu
-* Novo: stil valnog oblika Spektar s bojenjem Po odjeljcima, tako da svaki dio pjesme zadrži jednu boju
-* Novo: teme 3 pojasa: Rekord Bin, Dengine i Prilagođene boje
-* Novo: zumiranje valnog oblika sve do pojedinačnih uzoraka
-* Novo: reprodukcija formata Ogg Vorbis i MP3 datoteka slobodnog formata (free format)
-* Novo: omoti za pjesme s iClouda i Dropboxa koje nisu preuzete
-* Novo: status Međuspremanje… dok pjesma čeka sporo mrežno dijeljenje ili preuzimanje
-* Novo: pjesma teme vibe, koja se učitava pri pokretanju dok nešto ne reproducirate ili otvorite
-* Promijenjeno: stilovi valnog oblika preimenovani su: Osnovni je sada Stupci, Cupertino (osnovni) je sada Napredak, a četiri stila Detaljni spojena su u jedan s postavkom vrste
-* Promijenjeno: Prethodna pjesma na prvoj pjesmi pokreće je ispočetka
-* Promijenjeno: linija glave reprodukcije malo je prozirna
-* Promijenjeno: tema Cupertino zatamnjuje samo omot iza tipki za reprodukciju, uz svjetliji gradijent
-* Poboljšano: glava reprodukcije, preskakanje i tema widgeta
-* Poboljšano: kartica Datoteke grupira mjesta pod Lokacije
-* Poboljšano: u Postavkama se Na kraju pjesme i Prikaz vremena biraju na licu mjesta, a palete 3 pojasa nazvane su po svojim bojama
-* Poboljšano: reprodukcija s mrežnih dijeljenja: prekinuta veza pauzira uz „Veza je prekinuta”, spori poslužitelj više ne koči promjene pjesama, a hi-res pjesme reproduciraju se glatko
-* Poboljšano: MP3, FLAC, WAV i AIFF pjesme otvaraju se brže
-* Ispravljeno: reprodukcija bez praznina mono i MPEG-2 MP3 datoteka
-* Ispravljeno: Opus datoteke čije zaglavlje postavlja glasnoću reproducirale su se na pogrešnoj razini
-* Ispravljeno: oštećena CAF datoteka mogla je zaustaviti skeniranje metapodataka
-* Ispravljeno: starije otvaranje poveznice moglo je zamijeniti novije otvaranje datoteke
+* Promijenjeno: MP3, FLAC, WAV, AIFF i Ogg Vorbis datoteke uvijek se reproduciraju Vibeovim vlastitim dekoderima
+* Poboljšano: reprodukcija Ogg Vorbis datoteka koje sadrže i video ili Skeleton tok
+* Ispravljeno: MP3 datoteke od 320 kbps sporo su se otvarale
