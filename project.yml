@@ -787,6 +787,7 @@ targets:
       - path: Vibe/Mac/MainWindow/MainPlayerController+Playlist.m
       - path: Vibe/Mac/MainWindow/MainPlayerController+NowPlaying.m
       - path: Vibe/Mac/MainWindow/MainPlayerController+Settings.m
+      - path: Vibe/Mac/Menu/ShortcutLayout.m   # +Settings names a shortcut under the layout
       - path: Vibe/Mac/MainWindow/Transport/MainPlayerController+Transport.m
       - path: Vibe/Playlist/Mac/PlaylistController.m
       - path: Vibe/Playlist/Mac/PlaylistTableView.m

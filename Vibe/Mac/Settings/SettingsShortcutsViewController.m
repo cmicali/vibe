@@ -4,7 +4,7 @@
 //
 
 #import "SettingsShortcutsViewController.h"
-#import "ShortcutRules.h"
+#import "ShortcutLayout.h"
 
 static NSString *const kCommandColumn = @"command";
 static NSString *const kShortcutColumn = @"shortcut";
@@ -18,7 +18,6 @@ static const CGFloat kShortcutColumnWidth = 120;
 @implementation SettingsShortcutsViewController {
     NSArray<NSArray *> *(^_commandRows)(void);
     VibeShortcut (^_shortcutForCommand)(NSString *);
-    NSString *(^_displayString)(VibeShortcut);
     NSDictionary<NSString *, NSNumber *> *(^_overrides)(void);
     void (^_setOverrides)(NSDictionary<NSString *, NSNumber *> *);
     VibeShortcutAssignment (^_assign)(VibeShortcut, NSString *, NSString *_Nullable *_Nullable);
@@ -27,8 +26,7 @@ static const CGFloat kShortcutColumnWidth = 120;
     NSButton *_clearButton;
     NSButton *_resetAllButton;
     NSTextField *_captionLabel;
-    // A command's @[identifier, label, @(default)], or a group's title, per
-    // row.
+    // A command's @[identifier, label], or a group's title, per row.
     NSArray *_rows;
     NSDictionary<NSString *, NSString *> *_labels;
     BOOL _reloadingList;
@@ -46,7 +44,6 @@ static const CGFloat kShortcutColumnWidth = 120;
 - (instancetype)initWithEffectsSink:(void (^)(NSUInteger))sink
                         commandRows:(NSArray<NSArray *> *(^)(void))commandRows
                  shortcutForCommand:(VibeShortcut (^)(NSString *))shortcutForCommand
-                      displayString:(NSString *(^)(VibeShortcut))displayString
                           overrides:(NSDictionary<NSString *, NSNumber *> *(^)(void))overrides
                        setOverrides:(void (^)(NSDictionary<NSString *, NSNumber *> *))setOverrides
                              assign:(VibeShortcutAssignment (^)(VibeShortcut, NSString *,
@@ -55,7 +52,6 @@ static const CGFloat kShortcutColumnWidth = 120;
     if (self) {
         _commandRows = [commandRows copy];
         _shortcutForCommand = [shortcutForCommand copy];
-        _displayString = [displayString copy];
         _overrides = [overrides copy];
         _setOverrides = [setOverrides copy];
         _assign = [assign copy];
@@ -277,13 +273,13 @@ static const CGFloat kShortcutColumnWidth = 120;
     }];
     switch (assignment) {
         case VibeShortcutAssignmentReserved:
-            _status = [NSString stringWithFormat:self.reservedFormat, _displayString(shortcut)];
+            _status = [NSString stringWithFormat:self.reservedFormat, VibeShortcutDisplayString(shortcut)];
             break;
         case VibeShortcutAssignmentUnusable:
             _status = self.unusableCaption;
             break;
         case VibeShortcutAssignmentStored:
-            _status = loser ? [NSString stringWithFormat:self.reassignedFormat, _displayString(shortcut),
+            _status = loser ? [NSString stringWithFormat:self.reassignedFormat, VibeShortcutDisplayString(shortcut),
                                                          [self labelForCommand:identifier],
                                                          [self labelForCommand:loser]]
                             : nil;
@@ -351,7 +347,7 @@ static const CGFloat kShortcutColumnWidth = 120;
     // What the menu carries: a key an earlier command holds, or a reserved
     // one, shows as unassigned rather than twice.
     VibeShortcut shortcut = _shortcutForCommand(identifier);
-    cell.textField.stringValue = _displayString(shortcut);
+    cell.textField.stringValue = VibeShortcutDisplayString(shortcut);
     cell.textField.textColor = shortcut == kVibeShortcutNone ? NSColor.tertiaryLabelColor : NSColor.labelColor;
     return cell;
 }

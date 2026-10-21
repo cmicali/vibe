@@ -14,11 +14,11 @@ NS_ASSUME_NONNULL_BEGIN
 // are handed in.
 @interface SettingsShortcutsViewController : SettingsPaneViewController
 
-// commandRows answers the groups, @[title, @[@[identifier, label,
-// @(default)], …]] each. It is asked again on every refresh, since a label can
-// follow a setting. shortcutForCommand answers the shortcut a command's menu
-// item carries, None for none. displayString draws a shortcut, None included.
-// overrides reads the store, sparse over the defaults (ShortcutRules.h).
+// commandRows answers the groups, @[title, @[@[identifier, label], …]]
+// each. It is asked again on every refresh, since a label can follow a
+// setting. shortcutForCommand answers the shortcut a command's menu item
+// carries, None for none. The pane draws it (ShortcutLayout.h). overrides
+// reads the store, sparse over the defaults (ShortcutRules.h).
 // setOverrides replaces it whole. Reset All passes none, and undo passes the
 // set from before a write. assign records or clears (None) one command's
 // shortcut. It refuses or stores, and names in *loser the command that lost
@@ -26,7 +26,6 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithEffectsSink:(void (^)(NSUInteger effects))sink
                         commandRows:(NSArray<NSArray *> *(^)(void))commandRows
                  shortcutForCommand:(VibeShortcut (^)(NSString *identifier))shortcutForCommand
-                      displayString:(NSString *(^)(VibeShortcut shortcut))displayString
                           overrides:(NSDictionary<NSString *, NSNumber *> *(^)(void))overrides
                        setOverrides:(void (^)(NSDictionary<NSString *, NSNumber *> *overrides))setOverrides
                              assign:(VibeShortcutAssignment (^)(VibeShortcut shortcut, NSString *identifier,
