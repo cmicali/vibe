@@ -91,12 +91,6 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     VibeSettingsLiveEffectAll              = NSUIntegerMax,
 };
 
-typedef NS_ENUM(NSInteger, VibeShortcutAssignment) {
-    VibeShortcutAssignmentStored,
-    VibeShortcutAssignmentReserved,   // a fixed system shortcut, the arrows or Escape
-    VibeShortcutAssignmentUnusable,   // a key no layout names, so no menu could draw it
-};
-
 @interface MainPlayerController (Settings)
 
 // The one write path for shortcuts, the Keyboard Shortcuts pane's and the
@@ -105,8 +99,7 @@ typedef NS_ENUM(NSInteger, VibeShortcutAssignment) {
 // named in *loser.
 - (VibeShortcutAssignment)assignShortcut:(VibeShortcut)shortcut toCommand:(NSString *)identifier
                                    loser:(NSString *_Nullable *_Nullable)loser;
-- (void)resetShortcuts;
-// The whole override set at once, for undo; resetShortcuts is it with none.
+// The whole override set at once: undo's, and Reset All's with none.
 - (void)setShortcutOverrides:(NSDictionary<NSString *, NSNumber *> *)overrides;
 // The drop hint's half of the Shortcuts effect. Launch sets it with the menu,
 // and the key equivalents after the window is up.

@@ -70,10 +70,6 @@
     return VibeShortcutAssignmentStored;
 }
 
-- (void)resetShortcuts {
-    [self setShortcutOverrides:@{}];
-}
-
 - (void)setShortcutOverrides:(NSDictionary<NSString *, NSNumber *> *)overrides {
     AppSettings.sharedInstance.shortcutOverrides = overrides;
     [self applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];

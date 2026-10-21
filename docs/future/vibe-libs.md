@@ -47,7 +47,7 @@ Only five files in the moving code read `AppSettings`: one in folder art and fou
 
 ## The cuts, as pull requests on `main`
 
-Each is mergeable alone and leaves every check passing. The vibe-libs plan names the ones the first path needs. They are 1, 3, 4, 6 to 18, the queue half of 19, 22, and 23. The shell track needs 24 to 29.
+Each is mergeable alone and leaves every check passing. The vibe-libs plan names the ones the first path needs. They are 1, 3, 4, 6 to 18, the queue half of 19, 22, and 23. The shell track needs 24 to 30.
 
 | # | Cut | Today | The change | Status |
 | --- | --- | --- | --- | --- |
@@ -68,10 +68,11 @@ Each is mergeable alone and leaves every check passing. The vibe-libs plan names
 | 27 | Fonts' slots | `Fonts` imports `AppTheme` for `VibeFontSlot` and `applyThemeFonts:`. | `Fonts` keeps a face-and-size table keyed by an integer slot. The enum, the five slots, and the theme push move beside `AppTheme`. | #341 |
 | 28 | Shortcut encoding | `ShortcutRules.h` mixes the key-code-or-character encoding with Vibe's commands, their defaults, and the menu rules. | The encoding, the modifier mask, and the matching move. The command table stays. The Shortcuts pane takes rows of identifier, label, and default. | #343 |
 | 29 | Color-pair row | The theme editor builds dark and light wells bound to an `AppTheme` base, seeds them, and copies and pastes them as hex. | The row, the seeding, and copy and paste move into `SettingsFormViews`, bound to a read block and a write block. The editor calls it. | #345 |
+| 30 | Shortcuts pane pushed | `SettingsShortcutsViewController` reads `AppSettings`, `MainMenuBuilder`, the player's write path, and 15 strings. | The pane takes its rows, its strings pushed in, and blocks for the shortcut a command carries, its display, the override set, and the one assign. Vibe's settings window builds it. The assignment outcome moves to `ShortcutRules.h`. The encoding tests run over a table of their own, apart from the menu-rule tests. | |
 
 Cut 5, which retired `AudioTrack`'s two labels, is not planned. `AudioTrack` stays in Vibe.
 
-**The shell track** is cuts 24 to 29 and then four moves: the mac controls, `Fonts` with Graphics, the settings window, and the shortcuts. It runs beside Phase 2, since it touches none of the path's files. The theme record, its store, and the Themes pane stay here. The generic half of `DebugSettingsUI`, the walk from a row title to its controls, moves as the settings window's debug seam, and the theme verbs stay in the command tables. The order and the done-when are in vibe-libs' plan.
+**The shell track** is cuts 24 to 30 and then four moves: the mac controls, `Fonts` with Graphics, the settings window, and the shortcuts. Cut 30 leaves the Shortcuts pane and `ShortcutRules.h` naming nothing of Vibe's. The shortcuts move takes both. It runs beside Phase 2, since it touches none of the path's files. The theme record, its store, and the Themes pane stay here. The generic half of `DebugSettingsUI`, the walk from a row title to its controls, moves as the settings window's debug seam, and the theme verbs stay in the command tables. The order and the done-when are in vibe-libs' plan.
 
 ## The seams between pieces
 
