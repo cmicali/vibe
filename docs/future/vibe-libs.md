@@ -78,6 +78,8 @@ Cut 5, which retired `AudioTrack`'s two labels, is not planned. `AudioTrack` sta
 
 The contracts are written in vibe-libs' plan. This is Vibe's side of each.
 
+The tests that pin the contracts of seams 13, 15, 17, and 22, and rule 4's version check, are listed in `vibe-libs-contract-proofs.md`, with each line no test pins.
+
 | # | Seam | Today | Vibe's change |
 | --- | --- | --- | --- |
 | 13 | The playable-item protocol | Nine shared areas import the playlist row. | `AudioTrack` adopts the protocol and moves to `Vibe/Playlist/`. The CUE window math goes to AudioTypes. (#351) |

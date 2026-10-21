@@ -483,7 +483,8 @@ static const NSTimeInterval kWaveformClaimWaitSeconds = 20.0;
 // the stat must not block this serial queue. A hit or early-out completes on
 // this queue; a decode completes on its worker; admission failure runs on
 // main. A caller that removes pending work owns its settlement. nil means
-// failed or cancelled, and wasCached marks a disk hit. awaitPersist waits for
+// failed, cancelled, or decoded from another version than cacheKey names, and
+// wasCached marks a disk hit. awaitPersist waits for
 // the cache-write attempt before completion. Invalidation can suppress it.
 // The delegate path passes NO to deliver before that write.
 - (void)load:(id<VibePlayableItem>)track
@@ -521,8 +522,25 @@ awaitPersist:(BOOL)awaitPersist
     uint64_t generation = _cacheGeneration.load(std::memory_order_relaxed);
     AudioWorkToken *decodeToken = [_decodeScheduler submitWork:^{
         CodableAudioWaveform *waveform = [loader load:track.url.path];
-        if (!waveform || !loader.isComplete) {
-            completion(nil, NO); // cancelled, failed, or partial
+        // TRAP: the version is checked here, at completion, never at the
+        // decode's start. The key was taken before the open, and a download
+        // can install another version while this decode reads it. The re-key
+        // has retired the item's memo by now, so its key names the version
+        // the file holds. A stale result is neither filed nor delivered,
+        // since its bytes may be either version's. A current load decodes
+        // once more under the new key, through the claim's retry.
+        BOOL stale = waveform && loader.isComplete
+                && ![VibeKeyByAppendingCueWindow(track.cacheKey, track.cueStart, track.cueEnd) isEqualToString:cacheKey];
+        if (stale && !loader.isCancelled) {
+            LogInfo(@"Waveform of %@ finished on another version than its key's; decoding again",
+                    track.url.lastPathComponent);
+            [loader cancel];
+            if (claim) {
+                run_on_main_thread({ claim.retryTrack = claim.deliveryTrack; });
+            }
+        }
+        if (!waveform || !loader.isComplete || stale) {
+            completion(nil, NO); // cancelled, failed, partial, or stale
             if (settled) {
                 settled();
             }
