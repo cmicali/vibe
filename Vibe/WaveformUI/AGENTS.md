@@ -28,7 +28,7 @@ The root `AGENTS.md` guarantee says the theme beats the style's palette, each vi
 
 The control is `Controls/LoadingIndicator`, and its traps are in `Controls/AGENTS.md`. **Each view owns only when it shows and how wide.** The mac view hands it the whole width. The iOS scrubber hands it the span its content occupies (`iOS/AGENTS.md`).
 
-**The fill eases to each reported fraction and never runs past it.** The fraction is `CloudTransferRegistry`'s, which its monitor (`Loading/Transfer/`) samples about once a second. Snapping would stutter, and running ahead would hide a stall. Each ease takes half the previous gap, capped, then holds. `set_loading` on the mac's debug channel drives both modes without a download.
+**The fill eases to each reported fraction and never runs past it.** The fraction is `CloudTransferRegistry`'s, which its monitor (`vibe-libs/files/FileLoading/Transfer/`) samples about once a second. Snapping would stutter, and running ahead would hide a stall. Each ease takes half the previous gap, capped, then holds. `set_loading` on the mac's debug channel drives both modes without a download.
 
 ## Accessibility
 

@@ -39,4 +39,4 @@ Every file and directory in `docs/`, with what it holds. The rules for changing 
 
 ## Which doc is the authority
 
-`file-loading-spec.md` and `Vibe/Loading/AGENTS.md` cover some of the same ground. Where they overlap, the spec is the authority for behavior and for its policy numbers. `Vibe/Loading/AGENTS.md` is the authority for how the code works.
+`file-loading-spec.md` and `vibe-libs/files/FileLoading/AGENTS.md` cover some of the same ground. Where they overlap, the spec is the authority for behavior and for its policy numbers. `vibe-libs/files/FileLoading/AGENTS.md` is the authority for how the code works.

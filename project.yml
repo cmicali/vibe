@@ -150,8 +150,8 @@ targets:
     #
     # TRAP: VibeLibsVorbis before VibeLibsTaglib. Header search paths follow
     # this order, and taglib/ogg holds TagLib's own vorbis/vorbisfile.h.
-    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsGraphics, VibeLibsControls,
-                VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTaglib,
+    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsFileLoading, VibeLibsDiskCache, VibeLibsGraphics,
+                VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTaglib,
                 VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
@@ -459,8 +459,9 @@ targets:
     type: application
     platform: iOS
     # VibeLibsVorbis before VibeLibsTaglib: see the Vibe target.
-    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsGraphics, VibeLibsVorbis, VibeLibsTaglib,
-                VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsFileLoading, VibeLibsDiskCache, VibeLibsGraphics,
+                VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
+                VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -763,11 +764,9 @@ targets:
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
       - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
-      - path: Vibe/Audio/PINCache+VibeAudioCache.m
+      - path: vibe-libs/files/DiskCache/PINCache+VibeAudioCache.m
       - path: vibe-libs/core/Common/NSURL+FileIdentity.m   # AudioFileConverter+Sandbox's same-file test
       - path: Vibe/Debug/Oracles/AudioLoadTiming.m
-      - path: Vibe/Debug/Seams/AudioLoadingConfiguration+Debug.m
-      - path: Vibe/Debug/Simulators/VibeFakeCloud.m
       - path: Vibe/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Disposal.m
@@ -873,9 +872,9 @@ targets:
           - "$(inherited)"
           - "$(SRCROOT)/Vibe/Common"
           - "$(SRCROOT)/Vibe/NowPlaying"
-          - "$(SRCROOT)/Vibe/Loading"
-          - "$(SRCROOT)/Vibe/Loading/Claim"
-          - "$(SRCROOT)/Vibe/Loading/Transfer"
+          - "$(SRCROOT)/vibe-libs/files/FileLoading"
+          - "$(SRCROOT)/vibe-libs/files/FileLoading/Claim"
+          - "$(SRCROOT)/vibe-libs/files/FileLoading/Transfer"
           - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
@@ -989,27 +988,27 @@ targetTemplates:
         compilerFlags: *render-path-flags
       - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioError.m
-      - path: Vibe/Loading/Claim/AudioLoadingConfiguration.m
+      - path: vibe-libs/files/FileLoading/Claim/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
       - path: Vibe/Audio/AudioFileHandle+MPEG.m
       - path: Vibe/Audio/AudioFileHandle+Stream.m
-      - path: Vibe/Loading/Transfer/NetworkReadAhead.m
+      - path: vibe-libs/files/FileLoading/Transfer/NetworkReadAhead.m
       - path: Vibe/Debug/Seams/AudioFileHandle+Debug.m   # the read-ahead tests' mount rule and read hook
-      - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator.m
-      - path: Vibe/Loading/Claim/AudioFileMaterializationCoordinator+HandleOpen.m
-      - path: Vibe/Debug/Seams/AudioFileMaterializationCoordinator+Debug.m   # stage 2 counts its handle opens
-      - path: Vibe/Loading/Claim/AudioFileMaterializationTokens.m
+      - path: vibe-libs/files/FileLoading/Claim/AudioFileMaterializationCoordinator.m
+      - path: vibe-libs/files/FileLoading/Claim/AudioFileMaterializationCoordinator+HandleOpen.m
+      - path: vibe-libs/files/FileLoading/Claim/AudioFileMaterializationCoordinator+Debug.m   # stage 2 counts its handle opens
+      - path: vibe-libs/files/FileLoading/Claim/AudioFileMaterializationTokens.m
       - path: vibe-libs/core/Common/AudioWorkScheduler.m
       - path: Vibe/Audio/Levels/AudioLevelAnalyzer.m
       - path: Vibe/Audio/Levels/AudioLevelPublisher.m
       - path: Vibe/Audio/PlaybackRequestCoordinator.m
-      - path: Vibe/Loading/Transfer/CloudTransferRegistry.m
-      - path: Vibe/Loading/Transfer/CloudFileMaterializer.m
-      - path: Vibe/Debug/Seams/CloudFileMaterializer+Debug.m   # its materialize asks the fake first
-      - path: Vibe/Loading/Transfer/CloudFileAvailability.m
-      - path: Vibe/Loading/Transfer/DownloadProgressMonitor.m
-      - path: Vibe/Debug/Seams/DownloadProgressMonitor+Debug.m   # its start asks the fake first
-      - path: Vibe/Loading/Transfer/DownloadProgressSourceAdapters.m
+      - path: vibe-libs/files/FileLoading/Transfer/CloudTransferRegistry.m
+      - path: vibe-libs/files/FileLoading/Transfer/CloudFileMaterializer.m
+      - path: vibe-libs/files/FileLoading/Transfer/CloudFileMaterializer+Debug.m   # its materialize asks the fake first
+      - path: vibe-libs/files/FileLoading/Transfer/CloudFileAvailability.m
+      - path: vibe-libs/files/FileLoading/Transfer/DownloadProgressMonitor.m
+      - path: vibe-libs/files/FileLoading/Transfer/DownloadProgressMonitor+Debug.m   # its start asks the fake first
+      - path: vibe-libs/files/FileLoading/Transfer/DownloadProgressSourceAdapters.m
       - path: Vibe/Loading/Net/HTTPTransferClient.m
       - path: Vibe/Loading/Net/RemotePlaceholderStore.m
       - path: Vibe/Loading/Net/LinkStore.m
@@ -1022,8 +1021,8 @@ targetTemplates:
       - path: Vibe/Audio/Mac/Devices/CoreAudioUtil+Diagnostics.m
       - path: Vibe/Audio/AudioOutputUnit.m
       - path: vibe-libs/core/Common/FilePaths.m
-      - path: Vibe/Loading/PlaceholderFiles.m
-      - path: Vibe/Debug/Seams/PlaceholderFiles+Debug.m   # its dataless test asks the probe first
+      - path: vibe-libs/files/FileLoading/PlaceholderFiles.m
+      - path: vibe-libs/files/FileLoading/PlaceholderFiles+Debug.m   # its dataless test asks the probe first
       - path: Vibe/Playlist/FolderWalk.m
       - path: Vibe/Playlist/PlaylistEntry.m
       - path: Vibe/Playlist/PlaylistFile.m

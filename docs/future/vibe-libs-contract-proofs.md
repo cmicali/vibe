@@ -4,6 +4,8 @@ vibe-libs' plan asks, before Phase 3 starts, that the contracts of seams 13, 15,
 
 The contracts are quoted in short from the plan in `vibe-libs/docs/plan.md`.
 
+A test named as vibe-libs' moved there with its piece, and runs in vibe-libs' CI.
+
 ## Seam 13: the playable-item protocol
 
 | Contract | Tests that pin it |
@@ -18,14 +20,14 @@ The contracts are quoted in short from the plan in `vibe-libs/docs/plan.md`.
 
 | Contract | Tests that pin it |
 | --- | --- |
-| The opener is a block that the caller passes. | `AudioFileMaterializationCoordinatorHandleOpenTests` `testAWedgedPrefetchOpenDoesNotStarveBackgroundTransfers`, `testARebindWhileAnAbandonedHandleOpenReturnsGetsAFreshRun`. Both pass openers of their own. |
-| A served handle holds its stream, and the transfer ends when the play lets go. | `AudioPlayerRenderStreamTests` `testAStopOrASkipWhileParkedAtTheEdgeLetsTheStreamGo`. `AudioWaveformLoaderTests` `testAStreamingLoadFillsInAsTheDownloadArrivesAndCompletesWithIt`, which shows a waveform's handle holds nothing. `CloudFileMaterializerTests` `testAvailabilityCallsBackWhenItsLastReaderGoes`. |
-| Interrupting stays the opener's `interrupted` block. | `CloudFileMaterializerTests` `testAvailabilityInterruptEndsOnlyAWaitThatBlocks`, `testAWakeMakesABlockedWaitSeeAnInterrupt`. `AudioPlayerRenderStreamTests` `testTheOpenDeadlineStopsAStreamingOpenParkedAtTheEdge`. `AudioWaveformLoaderTests` `testCancellingAStreamingLoadParkedAtTheEdgeEndsItPromptly`. |
+| The opener is a block that the caller passes. | vibe-libs' `AudioFileMaterializationCoordinatorHandleOpenTests` `testAWedgedPrefetchOpenDoesNotStarveBackgroundTransfers`, `testARebindWhileAnAbandonedHandleOpenReturnsGetsAFreshRun`. Both pass openers of their own. |
+| A served handle holds its stream, and the transfer ends when the play lets go. | `AudioPlayerRenderStreamTests` `testAStopOrASkipWhileParkedAtTheEdgeLetsTheStreamGo`. `AudioWaveformLoaderTests` `testAStreamingLoadFillsInAsTheDownloadArrivesAndCompletesWithIt`, which shows a waveform's handle holds nothing. vibe-libs' `CloudFileMaterializerTests` `testAvailabilityCallsBackWhenItsLastReaderGoes`. |
+| Interrupting stays the opener's `interrupted` block. | vibe-libs' `CloudFileMaterializerTests` `testAvailabilityInterruptEndsOnlyAWaitThatBlocks`, `testAWakeMakesABlockedWaitSeeAnInterrupt`. `AudioPlayerRenderStreamTests` `testTheOpenDeadlineStopsAStreamingOpenParkedAtTheEdge`. `AudioWaveformLoaderTests` `testCancellingAStreamingLoadParkedAtTheEdgeEndsItPromptly`. |
 | A download that installs another version bumps the generation on `NSURL (Hash)`. | `AudioFileHandleStreamingTests` `testATransferInstallingAnotherVersionRetiresTheMemoizedKeys`. |
 | A download that installs its placeholder's version leaves the memos alone. | **No test.** Nothing checks that the generation stays put. A spurious bump costs one stat per memo. |
 | The read-ahead's test hooks are FileLoading's own, and `AudioFileHandle (Debug)` forwards to them. | `AudioFileHandleReadAheadTests`, through `VibeReadAheadScript`, which installs the hooks through the forwarding category. |
-| FileLoading builds and tests alone in Debug. | **Not provable in Vibe.** It is Phase 3 step 4's done-when. |
-| The served handle is any object that adopts `ServedFileHandle`. | **No test.** Every opener in the tests returns an `AudioFileHandle`. |
+| FileLoading builds and tests alone in Debug. | vibe-libs' `FileLoadingTests`, which build with the headermap off and no Decode header path. It was Phase 3 step 4's done-when. |
+| The served handle is any object that adopts `ServedFileHandle`. | vibe-libs' `AudioFileMaterializationCoordinatorHandleOpenTests`, whose openers return `VibeTestServedFile`, a handle with no decoder. vibe-libs' minimal consumer serves one of its own. |
 
 ## Seam 17: the decode's observers
 
