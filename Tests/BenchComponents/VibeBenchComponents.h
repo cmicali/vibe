@@ -38,6 +38,7 @@
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_WINDOW 1           // loader CUE windows
 #define VIBE_BENCH_COMPONENTS_SPECTRUM_SECTIONS 1         // VibeSpectrumSections answers By section's sections
 #define VIBE_BENCH_COMPONENTS_WAVEFORM_OBSERVERS 1        // the app attaches the analyzers as observers; flags before
+#define VIBE_BENCH_COMPONENTS_PLAYLIST_KEYS 1             // the playlist reads its entries through key blocks
 #endif
 
 #include <functional>

@@ -133,7 +133,9 @@
     // the next row.
     NSInteger successorRow = [self.playlistController getIndexForTrack:self.playlistController.trackEndSuccessor];
     __block AudioTrack *converted = nil;
-    rows = [self.playlistController replaceTracksMatchingTrack:track withURL:outputURL];
+    rows = [self.playlistController replaceTracksMatchingTrack:track usingBlock:^AudioTrack *(AudioTrack *outgoing) {
+        return [outgoing replacementAtURL:outputURL];
+    }];
     [rows enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
         AudioTrack *replacement = [self.playlistController trackAtIndex:row];
         if (!replacement) {

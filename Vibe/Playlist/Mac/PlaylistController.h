@@ -121,9 +121,11 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (NSInteger)getIndexForTrack:(nullable AudioTrack *)track;
 
-// The convert swap: every row still holding this file gets a fresh
-// AudioTrack. Playback is untouched; the shell restarts a replaced playing row.
-- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url;
+// The convert swap: every row still holding this file gets the fresh
+// AudioTrack `replacement` makes from it. Playback is untouched. The shell
+// restarts a replaced playing row.
+- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track
+                                usingBlock:(AudioTrack *(NS_NOESCAPE ^)(AudioTrack *outgoing))replacement;
 
 // The model mutation alone (Playlist.h): call it ONLY from the shell's removal
 // funnel. A user gesture goes through removeTracksRequestHandler.

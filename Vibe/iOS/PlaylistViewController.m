@@ -29,7 +29,7 @@ static NSString *const kTrackCellIdentifier = @"track";
 
 @implementation PlaylistViewController {
     PlaybackController *_playback;
-    Playlist           *_playlist;
+    Playlist<AudioTrack *> *_playlist;
     // Changes what the empty state says until the next open finds audio.
     BOOL               _lastPickWasEmpty;
     // Appearance covers tabs and pushes; the root's surface fact covers the

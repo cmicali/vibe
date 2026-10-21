@@ -26,7 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
 @interface PlaybackController () <PlaylistObserver,
         AudioSessionControllerDelegate, AudioTrackMetadataCacheDelegate> {
     AudioPlayer             *_player;
-    Playlist                *_playlist;
+    Playlist<AudioTrack *>  *_playlist;
     AudioTrackMetadataCache *_metadataCache;
     NowPlayingController    *_nowPlaying;
     AudioSessionController  *_audioSession;
