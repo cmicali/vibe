@@ -5,7 +5,6 @@
 
 #import "AudioFileMaterializationCoordinatorInternal.h"
 #import "AudioFileMaterializationTokens.h"
-#import "AudioFileHandle.h"
 
 #import "FilePaths.h"
 #import "AudioWorkScheduler.h"
@@ -109,16 +108,7 @@ static const NSUInteger kMaximumDatalessProbePendingCount = 16;
     return coordinator;
 }
 
-static VibeAudioFileOpener const kProductionFileOpener =
-        ^AudioFileHandle *(NSURL *url, BOOL (^interrupted)(void), NSError **error) {
-    return [[AudioFileHandle alloc] initForReading:url interleaved:NO interrupted:interrupted error:error];
-};
-
 - (instancetype)init {
-    return [self initWithFileOpener:kProductionFileOpener];
-}
-
-- (instancetype)initWithFileOpener:(VibeAudioFileOpener)fileOpener {
     AudioLoadingConfiguration *configuration = [AudioLoadingConfiguration productionConfiguration];
     return [self initWithConfiguration:configuration
                       operationFactory:^id<AudioFileMaterializationOperation>(
@@ -128,27 +118,14 @@ static VibeAudioFileOpener const kProductionFileOpener =
         return [PlaceholderFiles isDatalessFile:url];
     } clock:^NSTimeInterval{
         return NSProcessInfo.processInfo.systemUptime;
-    } fileOpener:fileOpener];
+    }];
 }
 
 - (instancetype)initWithConfiguration:(AudioLoadingConfiguration *)configuration
                       operationFactory:(VibeAudioFileMaterializationOperationFactory)operationFactory
                           datalessProbe:(VibeAudioFileMaterializationDatalessProbe)datalessProbe
                                   clock:(VibeAudioFileMaterializationClock)clock {
-    return [self initWithConfiguration:configuration
-                      operationFactory:operationFactory
-                          datalessProbe:datalessProbe
-                                  clock:clock
-                            fileOpener:kProductionFileOpener];
-}
-
-- (instancetype)initWithConfiguration:(AudioLoadingConfiguration *)configuration
-                      operationFactory:(VibeAudioFileMaterializationOperationFactory)operationFactory
-                          datalessProbe:(VibeAudioFileMaterializationDatalessProbe)datalessProbe
-                                  clock:(VibeAudioFileMaterializationClock)clock
-                            fileOpener:(VibeAudioFileOpener)fileOpener {
     NSParameterAssert(configuration);
-    NSParameterAssert(fileOpener);
     NSParameterAssert(operationFactory);
     NSParameterAssert(datalessProbe);
     NSParameterAssert(clock);
@@ -158,7 +135,6 @@ static VibeAudioFileOpener const kProductionFileOpener =
         _operationFactory = [operationFactory copy];
         _datalessProbe = [datalessProbe copy];
         _clock = [clock copy];
-        _fileOpener = [fileOpener copy];
         _claims = [NSMutableDictionary dictionary];
         _handleRuns = [NSMutableDictionary dictionary];
         _interactivePending = [NSMutableArray array];
@@ -282,21 +258,6 @@ static VibeMaterializationLane VibeLaneForRole(VibeAudioFileMaterializationRole 
         }
     }
     return NO;
-}
-
-- (VibeAudioFileOpener)fileOpener {
-    __block VibeAudioFileOpener opener;
-    [self performStateSynchronously:^{
-        opener = self->_fileOpener;
-    }];
-    return opener;
-}
-
-- (void)setFileOpener:(VibeAudioFileOpener)fileOpener {
-    NSParameterAssert(fileOpener);
-    [self performStateSynchronously:^{
-        self->_fileOpener = [fileOpener copy];
-    }];
 }
 
 - (uint64_t)datalessProbesInFlight {

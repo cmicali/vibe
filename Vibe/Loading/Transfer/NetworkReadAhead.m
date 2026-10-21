@@ -8,7 +8,7 @@
 #import "NetworkReadAheadRules.h"
 #import "CloudFileAvailability.h"
 #if DEBUG
-#import "AudioFileHandle+Debug.h"
+#import "NetworkReadAhead+Debug.h"
 #endif
 
 #include <fcntl.h>

@@ -194,7 +194,7 @@ The bus takes an end frame per voice and per successor: the row's cue end in fil
 
 ## Opening a file
 
-**Files open off-queue against an abandon deadline, so a cloud placeholder cannot wedge playback.** A slow open surfaces Loading instead. `AudioFileOpenTimeoutMath.h` (`Loading/Claim/`) owns the monotonic deadline: a 60 s no-progress baseline, extended (never shortened) to 60 s past each positive raw movement. `AudioLoadingConfiguration.openTimeouts` is snapshotted when the open starts, so a configuration change cannot move its deadline. The claim, admission and transfer machinery underneath is `Loading/AGENTS.md`'s.
+**Files open off-queue against an abandon deadline, so a cloud placeholder cannot wedge playback.** A slow open surfaces Loading instead. `AudioFileOpenTimeoutMath.h` (`Loading/Claim/`) owns the monotonic deadline: a 60 s no-progress baseline, extended (never shortened) to 60 s past each positive raw movement. `AudioLoadingConfiguration.openTimeouts` is snapshotted when the open starts, so a configuration change cannot move its deadline. The claim, admission and transfer machinery underneath is `Loading/AGENTS.md`'s. The play and the prefetch pass the coordinator `VibePlayerFileOpener`, which opens planar float32 with the run's `interrupted` block. The coordinator names no handle class (`ServedFileHandle.h`).
 
 The coordinator's accepted dataless verdict surfaces Loading for a provider file as soon as the probe settles. A probe still running falls back to the half-second delay, as do local files and the remote streaming backend. Both paths match the open identifier and notify once. The player never repeats the filesystem probe on its queue, where a stalled stat would also block stop and the deadline.
 

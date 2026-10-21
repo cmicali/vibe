@@ -1,6 +1,6 @@
 # Loading: from a path to a readable file
 
-Everything between a path and a usable `AudioFileHandle`, which the audio core owns. Both apps compile this directory.
+Everything between a path and a usable handle. The audio core owns the handle, `AudioFileHandle`. Both apps compile this directory.
 
 `Claim/` decides which open runs, and when. `Transfer/` moves the bytes and reports how far they have come. `PlaceholderFiles` stays at the root, because both groups and the metadata scan ask it.
 
@@ -9,6 +9,7 @@ Everything between a path and a usable `AudioFileHandle`, which the audio core o
 | `PlaceholderFiles` | which files are placeholders: the dataless test and the remote placeholder rule. |
 | `Claim/AudioFileMaterializationCoordinator` | the claim, stage 1, and the snapshot |
 | `Claim/AudioFileMaterializationCoordinator+HandleOpen.m` | stage 2: the handle runs and the six-run ceiling. Its public call, `openURL:…`, is declared in the header's `(HandleOpen)` category |
+| `Claim/ServedFileHandle.h` | what stage 2 needs of the handle it serves: `holdStream` and `interruptReads`. `AudioFileHandle` adopts it. The caller's opener makes the handle, so nothing here names its class |
 | `Claim/AudioFileMaterializationCoordinatorInternal.h` | the class extension both files share: the claim, waiter and handle-run records and every ivar. It also holds the test seams and stage 2's cross-file calls |
 | `Claim/AudioFileMaterializationTokens` | the request and open tokens. Each delivers its completion at most once, and its cancel detaches it from the coordinator |
 | `Claim/AudioWorkScheduler`, `Claim/AudioWorkAdmissionRules.h` | admission |
@@ -36,7 +37,7 @@ The player's side of an open is `Audio/AGENTS.md`'s: the deadline, progress iden
 
 ## One claim, two stages
 
-**A file's journey from dataless placeholder to handle is one path-keyed claim in two stages.** Stage 1 is the one operation that can make a standardized path local. Playback, Prefetch and the two metadata roles affect admission, never identity. Stage 2 is the purpose-keyed handle runs riding it. There is one current handle waiter per `(purpose, path)`. Playback and prefetch therefore keep independent handles and delivery while they share the path's transfer. Only a stage-1 Ready or readable claim dispatches a handle open. Yielded, AdmissionExhausted and Failed become terminal outer errors without opening a handle.
+**A file's journey from dataless placeholder to handle is one path-keyed claim in two stages.** Stage 1 is the one operation that can make a standardized path local. Playback, Prefetch and the two metadata roles affect admission, never identity. Stage 2 is the purpose-keyed handle runs riding it. There is one current handle waiter per `(purpose, path)`. Playback and prefetch therefore keep independent handles and delivery while they share the path's transfer. Only a stage-1 Ready or readable claim dispatches a handle open. Yielded, AdmissionExhausted and Failed become terminal outer errors without opening a handle. **The open is the caller's.** Each `openURL:` passes an opener, and a run calls the opener of its latest request. The player passes `VibePlayerFileOpener` (`Audio/AGENTS.md`).
 
 `VibeAudioFileOpenBeginDelivery` and `VibeAudioFileOpenDetachDelivery` (`AudioFileOpenDeliveryRules.h`) are the two sides of the race for the one Waiting transition. Whichever changes it first owns the outcome. `VibeStandardizedAudioOpenPath` (`Util/FilePaths.h`) is the one spelling every claim is keyed by. It uses `VibeComparablePath`, with no filesystem I/O. **TRAP: `URLByStandardizingPath` stats a path that starts with `/private` or holds `..`**, so it can stall the player or state queue before the bounded probe begins. Every path an iOS provider hands over starts with `/private`. Compare spelling alone.
 
@@ -150,7 +151,7 @@ Each writer finishes once. Complete readies every range on the disk. An error fa
 
 ## The network-mount read-ahead
 
-**`NetworkReadAhead` reads a file on a network mount ahead of its handle.** `AudioFileHandle` is its one caller. The handle's side is `Audio/AGENTS.md`'s: when an open reads ahead, and how its reads wait. The handle makes six calls: whether the file reads ahead, wait for room, start, size a play's read-ahead, close, and the handle is gone. `AudioFileHandle+Debug.h` is the seam (`Debug/AGENTS.md`). Its category forwards to this file's debug hooks.
+**`NetworkReadAhead` reads a file on a network mount ahead of its handle.** `AudioFileHandle` is its one caller. The handle's side is `Audio/AGENTS.md`'s: when an open reads ahead, and how its reads wait. The handle makes six calls: whether the file reads ahead, wait for room, start, size a play's read-ahead, close, and the handle is gone. `NetworkReadAhead+Debug.h` declares this file's debug hooks (`Debug/AGENTS.md`). `AudioFileHandle (Debug)` forwards to them, so the handle's tests drive them.
 
 **Whether a file reads ahead comes from the kernel's mount table.** `VibeNetworkReadAheadApplies` reads it with `getfsstat(MNT_NOWAIT)` and never stats the path, since a dead mount holds a stat for its timeout. `VibeMountReadsAhead` (`NetworkReadAheadRules.h`) takes the mount with the longest prefix of the path, comparing spellings only as `VibeAliasFreePath` writes them. A mount without `MNT_LOCAL` is a network one. An unreadable table, a symlinked path, or a path no mount holds takes the direct road.
 

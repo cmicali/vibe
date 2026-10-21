@@ -2,7 +2,7 @@
 //  AudioFileMaterializationCoordinator.h
 //  Vibe
 //
-//  One path-keyed claim from dataless placeholder to AudioFileHandle: stage 1
+//  One path-keyed claim from dataless placeholder to an open handle: stage 1
 //  makes the contents readable, stage 2 is the purpose-keyed handle opens riding
 //  it. A token owns delivery. Cancelling suppresses its completion. A dispatched
 //  OS call keeps its worker slot until it returns.
@@ -11,9 +11,7 @@
 #import <Foundation/Foundation.h>
 
 #import "AudioLoadingConfiguration.h"
-
-
-@class AudioFileHandle;
+#import "ServedFileHandle.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -77,7 +75,13 @@ typedef NS_ENUM(NSInteger, VibeAudioFileOpenPurpose) {
     VibeAudioFileOpenPurposePrefetch,
 };
 
-typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
+// Stage 2's one handle call, the caller's. interrupted answers YES once the
+// run is cancelled, and the open's waits for a file's bytes end on it.
+typedef id<ServedFileHandle> _Nullable (^VibeAudioFileOpener)(
+        NSURL *url, BOOL (^interrupted)(void),
+        NSError * _Nullable __autoreleasing * _Nullable error);
+
+typedef void (^VibeAudioFileOpenCompletion)(id<ServedFileHandle> _Nullable file,
                                              NSError * _Nullable error,
                                              NSTimeInterval elapsed);
 
@@ -147,8 +151,11 @@ typedef void (^VibeAudioFileOpenCompletion)(AudioFileHandle * _Nullable file,
 // The accepted probe's dataless verdict, at most once on completionQueue
 // while delivery is still waiting. Joining a classified claim also reports
 // it; the caller need not probe the filesystem to show loading promptly.
+//
+// A run's open calls the opener of its latest request.
 - (AudioFileOpenToken *)openURL:(NSURL *)url
                          purpose:(VibeAudioFileOpenPurpose)purpose
+                          opener:(VibeAudioFileOpener)opener
                  completionQueue:(dispatch_queue_t)completionQueue
                       onDataless:(nullable dispatch_block_t)onDataless
                       completion:(VibeAudioFileOpenCompletion)completion;

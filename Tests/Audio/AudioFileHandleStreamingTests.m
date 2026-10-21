@@ -1007,7 +1007,7 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
 
 - (AudioFileOpenToken *)open:(VibeGrowingFile *)file purpose:(VibeAudioFileOpenPurpose)purpose
                   completion:(void (^)(AudioFileHandle *handle, NSError *error))completion {
-    return [_coordinator openURL:file.url purpose:purpose
+    return [_coordinator openURL:file.url purpose:purpose opener:VibeTestFileOpener
                  completionQueue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0) onDataless:nil
                       completion:^(AudioFileHandle *handle, NSError *error, NSTimeInterval elapsed) {
         completion(handle, error);
@@ -1263,7 +1263,7 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
     _coordinator = [[AudioFileMaterializationCoordinator alloc] init];
     XCTestExpectation *silent = [self expectationWithDescription:@"no delivery"];
     silent.inverted = YES;
-    AudioFileOpenToken *token = [_coordinator openURL:url purpose:VibeAudioFileOpenPurposePlayback
+    AudioFileOpenToken *token = [_coordinator openURL:url purpose:VibeAudioFileOpenPurposePlayback opener:VibeTestFileOpener
                                       completionQueue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0) onDataless:nil
                                            completion:^(AudioFileHandle *handle, NSError *error, NSTimeInterval elapsed) {
         [silent fulfill];

@@ -76,6 +76,10 @@ static const uint64_t kDrainSteadyIntervalNanos = 100 * NSEC_PER_MSEC;
 // once. Remote streams keep this delay.
 static const NSTimeInterval kWaitIndicatorDelaySeconds = 0.5;
 
+// The play's and the prefetch's open, on the coordinator's worker
+// (AudioPlayer.m).
+FOUNDATION_EXPORT VibeAudioFileOpener const VibePlayerFileOpener;
+
 // The track's window in `file`'s frames (VibeCueWindow): the whole file for a
 // whole-file track, empty for a window the file does not reach. `estimated`,
 // when asked, says the window was taken from a length that is still an
