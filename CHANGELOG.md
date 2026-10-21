@@ -7,6 +7,7 @@
 * mac: Added Copy and Paste for colors and fonts in the theme editor's right-click menu
 * mac: Added each theme's swatch to the View > Theme menu
 * Fixed 320 kbps MP3s opening slowly
+* Fixed a memory leak when opening some damaged Ogg Vorbis files
 
 # v1.16
 

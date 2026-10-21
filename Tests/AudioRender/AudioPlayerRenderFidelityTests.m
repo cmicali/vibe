@@ -6,6 +6,7 @@
 #import "AudioFX.h"
 #import "OutputFormatRules.h"
 #import <Accelerate/Accelerate.h>
+#include <malloc/malloc.h>
 #include <ogg/ogg.h>
 
 // The oracle itself, the bit-perfect matrix, every container and codec, float limits and wide sources.
@@ -257,25 +258,51 @@ static NSInteger VibeBestLag(NSData *decoded, NSData *source, NSUInteger channel
     XCTAssertEqual(file.length, (AVAudioFramePosition)(one.length / (2 * sizeof(float))), @"a chain whose channels change");
     XCTAssertEqualObjects([self readToEnd:file], one, @"its first stream alone");
 }
+// A Skeleton stream's first page: a beginning of stream with its own serial
+// number, holding Skeleton's header packet.
+static NSData *VibeSkeletonPage(void) {
+    uint8_t page[27 + 1 + 64] = {'O', 'g', 'g', 'S', 0, 0x02};
+    memcpy(page + 14, "SKEL", 4);
+    page[26] = 1;
+    page[27] = 64;
+    memcpy(page + 28, "fishead", 8);
+    ogg_page skeleton = {.header = page, .header_len = 28, .body = page + 28, .body_len = 64};
+    ogg_page_checksum_set(&skeleton);
+    return [NSData dataWithBytes:page length:sizeof page];
+}
 // An Ogg file can start other streams beside its Vorbis one: a Skeleton, or
 // a video. libvorbis decodes the Vorbis stream and skips the rest, so the
 // file plays as the Vorbis stream alone.
 - (void)testOggVorbisBesideASkeletonStream {
     NSURL *lossy = [self optionalFixture:@"lossy.ogg"];
     NSData *alone = [self readToEnd:[self open:lossy decoder:@"libvorbis"]];
-    uint8_t page[27 + 1 + 64] = {'O', 'g', 'g', 'S', 0, 0x02}; // a beginning of stream
-    memcpy(page + 14, "SKEL", 4); // its own serial number
-    page[26] = 1;
-    page[27] = 64;
-    memcpy(page + 28, "fishead", 8); // Skeleton's header packet
-    ogg_page skeleton = {.header = page, .header_len = 28, .body = page + 28, .body_len = 64};
-    ogg_page_checksum_set(&skeleton);
-    NSMutableData *bytes = [NSMutableData dataWithBytes:page length:sizeof page];
+    NSMutableData *bytes = [VibeSkeletonPage() mutableCopy];
     [bytes appendData:[NSData dataWithContentsOfURL:lossy]];
     AudioFileHandle *file = [self open:[self writeBytes:bytes name:@"skeleton.ogg"] decoder:@"libvorbis"];
     NSData *decoded = [self readToEnd:file];
     XCTAssertEqualObjects(decoded, alone);
     [self assertSeeksOf:file match:decoded block:256 name:@"skeleton.ogg"];
+}
+// A chain of two Vorbis streams and then a Skeleton is refused. libvorbis's
+// open used to leak the headers it had read for the second stream, about
+// 29 KB a try. A hundred refusals must leave the heap where it was.
+- (void)testRefusedOggChainFreesItsHeaders {
+    NSURL *lossy = [self optionalFixture:@"lossy.ogg"], *paged = [self optionalFixture:@"paged.ogg"];
+    NSMutableData *bytes = [[NSData dataWithContentsOfURL:lossy] mutableCopy];
+    [bytes appendData:[NSData dataWithContentsOfURL:paged]];
+    [bytes appendData:VibeSkeletonPage()];
+    NSURL *url = [self writeBytes:bytes name:@"chain-then-skeleton.ogg"];
+    XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:NULL]); // warms CoreAudio's parser
+    malloc_statistics_t before, after;
+    malloc_zone_statistics(NULL, &before);
+    for (int i = 0; i < 100; i++) {
+        @autoreleasepool {
+            XCTAssertNil([[AudioFileHandle alloc] initForReading:url error:NULL]);
+        }
+    }
+    malloc_zone_statistics(NULL, &after);
+    long grew = (long)after.size_in_use - (long)before.size_in_use;
+    XCTAssertLessThan(grew, 512 * 1024, @"the heap grew %ld bytes over 100 refusals", grew);
 }
 - (void)testOpus { [self checkLossy:@"lossy.opus" tolerance:0]; }
 // The Opus file with its OpusHead output gain set to `q78` (dB × 256), and

@@ -156,7 +156,7 @@ Each feature beside the engine has its own directory and doc:
 
 ### Third-party code
 
-`Vibe/ThirdParty/` is vendored code: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis and libogg, and the prebuilt Sparkle framework. There is no package manager. The three dr_ libraries carry fixes of Vibe's own. Read `Vibe/ThirdParty/AGENTS.md` before changing them. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
+`Vibe/ThirdParty/` is vendored code: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis and libogg, and the prebuilt Sparkle framework. There is no package manager. The three dr_ libraries and libvorbis carry fixes of Vibe's own. Read `Vibe/ThirdParty/AGENTS.md` before changing them. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
 
 ### Tests, resources, and scripts
 
