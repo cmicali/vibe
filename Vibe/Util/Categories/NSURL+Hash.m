@@ -5,6 +5,7 @@
 
 #import "NSURL+Hash.h"
 #import "FilePaths.h"
+#import "VibeMacros.h"
 #include <CommonCrypto/CommonDigest.h>
 #include <sys/stat.h>
 #include <errno.h>

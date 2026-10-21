@@ -4,6 +4,7 @@
 //
 
 #import "StallWatch.h"
+#import "VibeMacros.h"
 #include <mach/mach_time.h>
 #import <stdatomic.h>
 

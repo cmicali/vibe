@@ -3,6 +3,7 @@
 //  Vibe
 //
 
+#import <Foundation/Foundation.h>
 #include <TargetConditionals.h>
 
 #if TARGET_OS_OSX

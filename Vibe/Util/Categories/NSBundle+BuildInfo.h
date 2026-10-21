@@ -17,7 +17,7 @@ void VibeLogBuildProvenance(void);
 @property (nonatomic, readonly) NSString *vibeVersionString;
 
 // "de29823d6317 (main, dirty)", from the VibeGitInfo.h that
-// scripts/build/generate-git-info.sh writes; "unknown" outside a git checkout.
+// generate-git-info.sh writes; "unknown" outside a git checkout or without it.
 @property (nonatomic, readonly) NSString *vibeGitString;
 
 // The executable's mtime, which codesign sets at the end of the build. A
