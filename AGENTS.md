@@ -4,7 +4,7 @@ Guidance for any coding agent working in this repository.
 
 Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++.
 
-Playback uses CoreAudio, AudioToolbox and AVFoundation plus five vendored libraries, and no other third-party audio code:
+Playback uses CoreAudio, AudioToolbox and AVFoundation plus five vendored libraries, and no other third-party audio code. Each is a piece under vibe-libs' `third_party/`:
 
 - **r8brain-free-src** resamples every file whose rate is not the output's.
 - **dr_mp3** decodes MP3, MP2 and MP1.
@@ -12,7 +12,7 @@ Playback uses CoreAudio, AudioToolbox and AVFoundation plus five vendored librar
 - **dr_wav** decodes WAV, W64, RF64 and AIFF.
 - **libvorbis**, with libogg's page reader, decodes Ogg Vorbis.
 
-The three dr_ libraries carry fixes of Vibe's own. `docs/audio-quality.md` has the measurements behind each choice.
+The three dr_ libraries carry fixes of Vibe's own. Each piece's `AGENTS.md` lists them. `docs/audio-quality.md` has the measurements behind each choice.
 
 The playable formats are listed once, in `Common/PlayableExtensions`. FLAC in Ogg is refused at the parser open, because CoreAudio truncates it (`AudioFileHandle.m`).
 
@@ -51,7 +51,7 @@ All of these run in CI (`.github/workflows/build.yml`). `make test-ios` runs onl
 | `make test-audio` | The real player and FX pipeline driven by the debug render pump, full PCM comparisons and signal-quality checks; no app or audio device. See `Tests/AGENTS.md`. |
 | `make test-ios` | The iOS shell's views and controllers (`Tests/iOSSim/`), hosted in the Debug app on a simulator. `IOS_TEST_DEVICE` names the simulator. See `Tests/AGENTS.md`. |
 | `make test-summary` | Markdown pass/fail table from the last `make test`, with the skip gate. `test-audio-summary` and `test-ios-summary` read the other two suites. |
-| `make analyze CONFIG=Release` | clang static analyzer over **both** app targets. Fails on any finding outside `ThirdParty/`. Findings depend on the configuration, and CI checks Release. |
+| `make analyze CONFIG=Release` | clang static analyzer over **both** app targets. Fails on any finding outside `ThirdParty/` and vibe-libs' `third_party/`. Findings depend on the configuration, and CI checks Release. |
 | `make check-layout` | The layout rule below. |
 | `make check-vocabulary` | The mechanical vocabulary rules below, and no doc line over 1500 characters. |
 | `make check-strings` | Fails when `Resources/Localizable.xcstrings` is stale against the source. |
@@ -116,7 +116,8 @@ Every directory directly under `Vibe/` except `Mac/`, `iOS/` and `ThirdParty/` i
 - **`Vibe/Util/`** — featureless helpers, with `Mac/` and `iOS/` halves. **`Vibe/Debug/`** — the debug channel, with `Mac/` and `iOS/` command tables.
 - **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, sandbox grants, stats, the debug info report), `MainWindow/` (`MainPlayerController`; layout and chrome are its `LAYOUT.md`; `Transport/` carries its own doc), `Menu/`, `Controls/` (the artwork view and the pitch controls; the other mac controls are vibe-libs' `ui/Controls`), `Settings/` (Vibe's panes and window subclass, over vibe-libs' `ui/SettingsWindow`; `Themes/` is the theme list and editor), `About/`, `Convert/` (the FLAC converter and its file round trip, with a doc).
 - **`Vibe/iOS/`** — the iPhone/iPad app shell: `PlaybackController` (the model), the tab shell, the Playlist tab and the mini player; `Files/` is the Files tab's browser and Recents, `Player/` the now-playing card, `Search/` Favorites and search, `Settings/` the settings screens, `Widget/` the widget's app side, each with a doc. The top-level `VibeWidget/` is the widget extension, with its own doc. The iOS halves of shared subsystems live under those subsystems, not here.
-- **`Vibe/ThirdParty/`** — vendored TagLib subset, PINCache/PINOperation, r8brain-free-src, dr_mp3, dr_flac, and dr_wav (the last three modified; its `AGENTS.md` lists how), libvorbis and libogg (unmodified), and the prebuilt Sparkle framework, the direct download's updater.
+- **`Vibe/ThirdParty/`** — the prebuilt Sparkle framework, the direct download's updater. It stays here until the Updates piece moves.
+- **`vibe-libs/third_party/`** — the vendored TagLib subset, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, and libogg. Each is a piece with its own template, flags, license, and `AGENTS.md`. The dr_ libraries and the PIN caches are modified, and each piece's doc lists how. Both app targets list the templates.
 
 ## Cross-directory guarantees
 
@@ -193,7 +194,7 @@ Playback diagnostics are in `Audio/AGENTS.md`, hardware observation in `Audio/Ma
 - **ObjC++ (.mm) only where C++ is needed**: the TagLib integration, the waveform data structures and the renderers. Keep C++ types out of headers that plain ObjC files import.
 - **Comments only when required, and terse.** A comment states what the code cannot show: a trap, an ordering or threading constraint, a contract, a non-obvious why. Never narrate the next line. Never log a change. "Renamed from", "added in" and how something was verified belong in commits. **Naming the bug a design prevents is welcome.** It is the most concrete form a why takes. Mark hard-won traps with `TRAP:`.
 - **A trap may be written twice, and the code comment is the authority.** The directory doc carries it so it is read while *planning*. The `TRAP:` beside the code is read while *changing* that line. **Changing a trap means changing both.** `grep -rn 'TRAP:' Vibe` reaches every copy.
-- **Third-party sources** in `ThirdParty/` are other authors' code. Do not restyle them.
+- **Third-party sources** in vibe-libs' `third_party/` and Vibe's `ThirdParty/` are other authors' code. Do not restyle them. A fix to one lands in vibe-libs first, as any piece's change does.
 - **No backwards compatibility for anything unreleased.** A settings key, stored identifier, or format introduced since the last release is renamed or deleted outright, with no migration and no legacy alias. For a shipped one, ask before writing a migration. `Common/AGENTS.md`'s stored-key trap is about shipped keys.
 - **The checkout is shared with other sessions.** `git status` and `git diff` mix authors. The branch can change underneath a session. `build/` can vanish to another session's `make clean`. So:
   - Report a change from an explicit list of the files it touched, never a bare `git diff --stat`.

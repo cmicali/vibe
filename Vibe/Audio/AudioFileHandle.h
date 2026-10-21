@@ -41,10 +41,10 @@
 //  handle's reads itself.
 //  It states the file's format and layout as the parser would. It answers
 //  the length, found from the last frames when STREAMINFO leaves it unknown. The vendored copy
-//  carries fixes of its own (ThirdParty/AGENTS.md).
+//  carries fixes of its own (vibe-libs/third_party/dr_flac/AGENTS.md).
 //
 //  A WAV, W64, RF64 or AIFF file is decoded by dr_wav the same way, when it
-//  holds a coding dr_wav decodes (ThirdParty/AGENTS.md lists them). The open
+//  holds a coding dr_wav decodes (vibe-libs/third_party/dr_wav/AGENTS.md lists them). The open
 //  tells these containers and FLAC by the file's first bytes. A coding
 //  dr_wav lacks, such as GSM, is CoreAudio's.
 //

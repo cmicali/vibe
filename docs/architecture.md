@@ -71,7 +71,7 @@ Vibe/
     Search/            Favorites and Search
     Settings/          the settings screens
     Widget/            the app's side of the Home Screen widget
-  ThirdParty/          vendored code: TagLib, PINCache, r8brain, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, Sparkle
+  ThirdParty/          the prebuilt Sparkle framework; every other vendored library is in vibe-libs/third_party/
 VibeWidget/            the widget extension, in Swift
 vibe-libs/             the shared toolbox, a git submodule; pieces compile into both apps
 Tests/                 unit tests, laid out like Vibe/
@@ -152,11 +152,11 @@ Each feature beside the engine has its own directory and doc:
 
 ### vibe-libs
 
-`vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`, so nothing builds differently. **Today four pieces Vibe uses live there: `audio/DSP`, the pitch fader's varispeed, `core/Graphics`, the image, color, and font helpers, `ui/Controls`, the mac's symbol button, drawn controls, image views, and link label, and `ui/SettingsWindow`, the mac's generic settings window and form views.** Controls and SettingsWindow are macOS only, so only the mac app lists them. Graphics' `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `core/Common` holds the realtime-effects brackets the prefix header imports, and the form-label colon rule both apps' settings use. More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in vibe-libs, then Vibe bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc first.
+`vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`, so nothing builds differently. **Today four pieces Vibe uses live there, besides the vendored libraries: `audio/DSP`, the pitch fader's varispeed, `core/Graphics`, the image, color, and font helpers, `ui/Controls`, the mac's symbol button, drawn controls, image views, and link label, and `ui/SettingsWindow`, the mac's generic settings window and form views.** Every vendored library but Sparkle is a piece under `third_party/` too. Controls and SettingsWindow are macOS only, so only the mac app lists them. Graphics' `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `core/Common` holds the realtime-effects brackets the prefix header imports, and the form-label colon rule both apps' settings use. More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in vibe-libs, then Vibe bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc first.
 
 ### Third-party code
 
-`Vibe/ThirdParty/` is vendored code: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis and libogg, and the prebuilt Sparkle framework. There is no package manager. The three dr_ libraries carry fixes of Vibe's own. Read `Vibe/ThirdParty/AGENTS.md` before changing them. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
+There is no package manager. Vendored code is vibe-libs' `third_party/`: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, and libogg, each a piece of its own. Its template carries its compiler flags, and both apps list it. The three dr_ libraries carry fixes of Vibe's own. Read the piece's `AGENTS.md` before changing one. `Vibe/ThirdParty/` holds only the prebuilt Sparkle framework, until the Updates piece moves. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
 
 ### Tests, resources, and scripts
 
@@ -289,7 +289,7 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | A setting, or add one | `Common/AGENTS.md` | `Common/AppSettings.h` or `Common/Mac/AppSettings+Mac.h` |
 | A user-facing string | [localization.md](localization.md), the `vibe-strings` skill | `Common/VibeStrings.h`, then `make strings` |
 | Which formats play | `Audio/AGENTS.md` (the decoders) | `Common/PlayableExtensions.m`, `Audio/AudioFileHandle.m` |
-| How a file is decoded | `Audio/AGENTS.md`, `ThirdParty/AGENTS.md` | `Audio/AudioFileHandle.m`, `Audio/AudioFileHandle+MPEG.m`, `Audio/AudioFileHandle+Stream.m` |
+| How a file is decoded | `Audio/AGENTS.md`, each decoder's doc in `vibe-libs/third_party/` | `Audio/AudioFileHandle.m`, `Audio/AudioFileHandle+MPEG.m`, `Audio/AudioFileHandle+Stream.m` |
 | Play, pause, seek, or crossfade | `Audio/AGENTS.md` | `Audio/AudioPlayer.m`, `Audio/FadeMath.h` |
 | Gapless playback and prefetch | `Audio/AGENTS.md` (Prefetch and gapless) | `Audio/AudioPlayer+Prefetch.m`, `Audio/AudioPrefetchRules.h` |
 | What plays next, repeat, or shuffle | `Playlist/AGENTS.md` | `Playlist/Playlist.m` |

@@ -1,6 +1,6 @@
 # Dev-tool dependencies — install with `brew bundle` (or `make setup`).
 # These are build/debug tooling only: the app itself has no package manager;
-# all third-party code it ships is vendored under Vibe/ThirdParty/.
+# all third-party code it ships is vendored in vibe-libs/third_party/ and Vibe/ThirdParty/.
 
 brew "xcodegen"
 

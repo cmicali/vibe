@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  The voice bus's sample-rate converter: r8brain-free-src
-//  (Vibe/ThirdParty/r8brain), linear phase, its 24-bit preset, a 1% transition
+//  (vibe-libs/third_party/r8brain), linear phase, its 24-bit preset, a 1% transition
 //  band. A fill pulls float32 input through a callback until it has the frames
 //  it was asked for or the callback answers none, which ends the fill with
 //  what it produced and leaves the filter primed. It is never told the

@@ -40,7 +40,7 @@ Risk: moderate. It can come out worse. One build and a corpus run per experiment
 A learned tempo model is another option if the multi-band experiment does not meet the accuracy goal. Compare candidates on the same files before choosing one.
 
 - **Measure inference.** Prototype a Core ML model and its spectrogram front end on a phone.
-- **The model is hard.** Training needs a corpus and a pipeline that do not exist here. Several published tempo models are research-only. `THIRD-PARTY-NOTICES.md` and `ThirdParty/AGENTS.md` apply to weights as much as to source.
+- **The model is hard.** Training needs a corpus and a pipeline that do not exist here. Several published tempo models are research-only. `THIRD-PARTY-NOTICES.md` and vibe-libs' rules for `third_party/` apply to weights as much as to source.
 - **The payoff is unmeasured.** Compare accuracy, runtime and model size with the multi-band result.
 
 **Do proposal 1 first.** It is cheap and reversible, and it targets the same failures. If it lands near 90%, the case for a model largely goes away.

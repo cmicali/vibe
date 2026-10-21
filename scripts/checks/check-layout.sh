@@ -79,13 +79,6 @@ targets="Vibe VibeiOS"
 # Every exclude a source entry may carry. Anything else — a feature-named
 # exclude — means the tree stopped being the membership rule.
 allowed_always='**/.DS_Store **/*.md Mac/** iOS/**'
-# The two PIN caches, r8brain's C entry points and FFT, dr_mp3's, dr_flac's
-# and dr_wav's implementation units, and libogg's and libvorbis's C files are
-# excluded only to be re-added with per-file compilerFlags, not membership
-# decisions; the .inc filter tables are #included by r8brain's headers, never
-# bundled. Sparkle is prebuilt, excluded only to be re-added as the macOS
-# target's framework.
-allowed_thirdparty='Sparkle/** **/*.xcprivacy **/*.txt **/LICENSE.MPL **/*.inc **/PINDiskCache.m **/PINMemoryCache.m **/r8bsrc.cpp **/pffft_double.c **/dr_mp3.c **/dr_flac.c **/dr_wav.c ogg/** vorbis/**'
 
 info_dir_for() {
     local t="$1" p
@@ -113,7 +106,6 @@ for t in $targets; do
         [ "$target" = "$t" ] || continue
         [ "$path" = "INFO" ] && continue
         allowed="$allowed_always"
-        case "$path" in *ThirdParty*) allowed="$allowed $allowed_thirdparty" ;; esac
         [ "$path" = "$shell_dir" ] && allowed="$allowed **/Info.plist"
         IFS=',' read -r -a items <<< "$excl"
         for e in "${items[@]:-}"; do
@@ -139,7 +131,6 @@ done <<< "$ios_paths"
 shared=$(comm -12 <(echo "$vibe_paths" | sort) <(echo "$ios_paths" | sort) | grep '^Vibe/[^/]*$' || true)
 while IFS= read -r p; do
     [ -z "$p" ] && continue
-    case "$p" in *ThirdParty*) continue ;; esac
     has_word 'iOS/**' "$(excludes_for Vibe "$p" | tr ',' ' ')" \
         || fail "Vibe: shared entry '$p' must exclude 'iOS/**'"
     has_word 'Mac/**' "$(excludes_for VibeiOS "$p" | tr ',' ' ')" \
