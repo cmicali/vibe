@@ -23,6 +23,44 @@
 
 static NSString *const kThemesPaneIdentifier = @"themes";
 
+// The Keyboard Shortcuts pane over the menu's commands and the player's one
+// write path for shortcuts.
+static SettingsShortcutsViewController *ShortcutsPane(MainPlayerController *playerController,
+                                                      void (^sink)(NSUInteger)) {
+    __weak MainPlayerController *weakPlayer = playerController;
+    SettingsShortcutsViewController *pane = [[SettingsShortcutsViewController alloc]
+            initWithEffectsSink:sink
+                    commandRows:^{ return MainMenuBuilder.shortcutCommandRows; }
+             shortcutForCommand:^(NSString *identifier) {
+                 return [MainMenuBuilder carriedShortcutForIdentifier:identifier
+                                                            overrides:AppSettings.sharedInstance.shortcutOverrides];
+             }
+                  displayString:^(VibeShortcut shortcut) { return [MainMenuBuilder displayStringForShortcut:shortcut]; }
+                      overrides:^{ return AppSettings.sharedInstance.shortcutOverrides; }
+                   setOverrides:^(NSDictionary<NSString *, NSNumber *> *overrides) {
+                       [weakPlayer setShortcutOverrides:overrides];
+                   }
+                         assign:^(VibeShortcut shortcut, NSString *identifier, NSString **loser) {
+                             return [weakPlayer assignShortcut:shortcut toCommand:identifier loser:loser];
+                         }];
+    pane.commandColumnTitle = STR_SETTINGS_SHORTCUTS_COLUMN_COMMAND;
+    pane.shortcutColumnTitle = STR_SETTINGS_SHORTCUTS_COLUMN_SHORTCUT;
+    pane.recordTitle = STR_SETTINGS_SHORTCUTS_RECORD;
+    pane.clearTitle = STR_BUTTON_CLEAR;
+    pane.resetAllTitle = STR_SETTINGS_SHORTCUTS_RESET_ALL;
+    pane.explainer = STR_SETTINGS_SHORTCUTS_EXPLAIN;
+    pane.layoutNote = STR_SETTINGS_SHORTCUTS_LAYOUT_NOTE;
+    pane.selectTip = STR_SETTINGS_SHORTCUTS_SELECT_TIP;
+    pane.noneTip = STR_SETTINGS_SHORTCUTS_NONE_TIP;
+    pane.defaultsTip = STR_SETTINGS_SHORTCUTS_DEFAULTS_TIP;
+    pane.undoActionName = STR_SETTINGS_SHORTCUTS_UNDO_ACTION;
+    pane.recordingFormat = STR_SETTINGS_SHORTCUTS_RECORDING;
+    pane.reservedFormat = STR_SETTINGS_SHORTCUTS_RESERVED;
+    pane.unusableCaption = STR_SETTINGS_SHORTCUTS_UNUSABLE;
+    pane.reassignedFormat = STR_SETTINGS_SHORTCUTS_REASSIGNED;
+    return pane;
+}
+
 @implementation SettingsWindowController {
     NSSegmentedControl *_appearanceToggle;
     NSSegmentedControl *_randomizeControl;
@@ -59,9 +97,7 @@ static NSString *const kThemesPaneIdentifier = @"themes";
                                     identifier:@"files" label:STR_SETTINGS_FILES symbolName:@"folder"],
         ],
         @[
-            [window paneItemWithViewController:[[SettingsShortcutsViewController alloc]
-                                                       initWithPlayerController:playerController effectsSink:sink
-                                                                    commandRows:^{ return MainMenuBuilder.shortcutCommandRows; }]
+            [window paneItemWithViewController:ShortcutsPane(playerController, sink)
                                     identifier:@"shortcuts" label:STR_SETTINGS_SHORTCUTS symbolName:@"keyboard"],
         ],
         @[

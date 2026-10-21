@@ -4,12 +4,7 @@
 //
 
 #import "SettingsShortcutsViewController.h"
-#import "AppSettings.h"
-#import "AppSettings+Mac.h"
-#import "MainMenuBuilder.h"
-#import "MainPlayerController+Settings.h"
 #import "ShortcutRules.h"
-#import "VibeStrings.h"
 
 static NSString *const kCommandColumn = @"command";
 static NSString *const kShortcutColumn = @"shortcut";
@@ -22,6 +17,11 @@ static const CGFloat kShortcutColumnWidth = 120;
 
 @implementation SettingsShortcutsViewController {
     NSArray<NSArray *> *(^_commandRows)(void);
+    VibeShortcut (^_shortcutForCommand)(NSString *);
+    NSString *(^_displayString)(VibeShortcut);
+    NSDictionary<NSString *, NSNumber *> *(^_overrides)(void);
+    void (^_setOverrides)(NSDictionary<NSString *, NSNumber *> *);
+    VibeShortcutAssignment (^_assign)(VibeShortcut, NSString *, NSString *_Nullable *_Nullable);
     NSTableView *_table;
     NSButton *_recordButton;
     NSButton *_clearButton;
@@ -43,13 +43,22 @@ static const CGFloat kShortcutColumnWidth = 120;
     NSUndoManager *_undoManager;
 }
 
-- (instancetype)initWithPlayerController:(MainPlayerController *)playerController
-                             effectsSink:(void (^)(NSUInteger))sink
-                             commandRows:(NSArray<NSArray *> *(^)(void))commandRows {
+- (instancetype)initWithEffectsSink:(void (^)(NSUInteger))sink
+                        commandRows:(NSArray<NSArray *> *(^)(void))commandRows
+                 shortcutForCommand:(VibeShortcut (^)(NSString *))shortcutForCommand
+                      displayString:(NSString *(^)(VibeShortcut))displayString
+                          overrides:(NSDictionary<NSString *, NSNumber *> *(^)(void))overrides
+                       setOverrides:(void (^)(NSDictionary<NSString *, NSNumber *> *))setOverrides
+                             assign:(VibeShortcutAssignment (^)(VibeShortcut, NSString *,
+                                                                NSString *_Nullable *_Nullable))assign {
     self = [super initWithEffectsSink:sink];
     if (self) {
-        _playerController = playerController;
         _commandRows = [commandRows copy];
+        _shortcutForCommand = [shortcutForCommand copy];
+        _displayString = [displayString copy];
+        _overrides = [overrides copy];
+        _setOverrides = [setOverrides copy];
+        _assign = [assign copy];
     }
     return self;
 }
@@ -58,9 +67,9 @@ static const CGFloat kShortcutColumnWidth = 120;
 
 - (void)loadView {
     _table = [SettingsRowView listTableWithColumnIdentifiers:@[kCommandColumn, kShortcutColumn] delegate:self];
-    [_table tableColumnWithIdentifier:kCommandColumn].title = STR_SETTINGS_SHORTCUTS_COLUMN_COMMAND;
+    [_table tableColumnWithIdentifier:kCommandColumn].title = self.commandColumnTitle;
     NSTableColumn *shortcutColumn = [_table tableColumnWithIdentifier:kShortcutColumn];
-    shortcutColumn.title = STR_SETTINGS_SHORTCUTS_COLUMN_SHORTCUT;
+    shortcutColumn.title = self.shortcutColumnTitle;
     shortcutColumn.width = shortcutColumn.minWidth = shortcutColumn.maxWidth = kShortcutColumnWidth;
     shortcutColumn.resizingMask = NSTableColumnNoResizing;
     _table.columnAutoresizingStyle = NSTableViewFirstColumnOnlyAutoresizingStyle;
@@ -69,17 +78,17 @@ static const CGFloat kShortcutColumnWidth = 120;
     _table.doubleAction = @selector(recordShortcut:);
     SettingsRowView *listRow = [SettingsRowView rowWithTableView:_table rowCount:kShortcutListRowCount];
 
-    _recordButton = [NSButton buttonWithTitle:STR_SETTINGS_SHORTCUTS_RECORD target:self action:@selector(recordShortcut:)];
-    _clearButton = [NSButton buttonWithTitle:STR_BUTTON_CLEAR target:self action:@selector(clearShortcut:)];
-    _resetAllButton = [NSButton buttonWithTitle:STR_SETTINGS_SHORTCUTS_RESET_ALL target:self action:@selector(resetAllShortcuts:)];
+    _recordButton = [NSButton buttonWithTitle:self.recordTitle target:self action:@selector(recordShortcut:)];
+    _clearButton = [NSButton buttonWithTitle:self.clearTitle target:self action:@selector(clearShortcut:)];
+    _resetAllButton = [NSButton buttonWithTitle:self.resetAllTitle target:self action:@selector(resetAllShortcuts:)];
     // Reset All acts on the whole list, so it stands apart from the row's two.
     NSStackView *buttons = [NSStackView stackViewWithViews:@[_recordButton, _clearButton]];
     [buttons addView:_resetAllButton inGravity:NSStackViewGravityTrailing];
     buttons.spacing = 8;
     SettingsRowView *buttonRow = [SettingsRowView rowWithContentView:buttons];
 
-    _captionLabel = [self wrappingLabelWithString:STR_SETTINGS_SHORTCUTS_EXPLAIN];
-    _captionLabel.toolTip = STR_SETTINGS_SHORTCUTS_LAYOUT_NOTE;
+    _captionLabel = [self wrappingLabelWithString:self.explainer];
+    _captionLabel.toolTip = self.layoutNote;
     _undoManager = [[NSUndoManager alloc] init];
 
     [self loadPaneWithSections:@[
@@ -158,19 +167,17 @@ static const CGFloat kShortcutColumnWidth = 120;
 - (void)refreshControls {
     NSString *identifier = [self selectedIdentifier];
     BOOL recording = _recordingIdentifier != nil;
-    NSDictionary *overrides = AppSettings.sharedInstance.shortcutOverrides;
-    BOOL hasShortcut = identifier
-            && [MainMenuBuilder carriedShortcutForIdentifier:identifier overrides:overrides] != kVibeShortcutNone;
+    NSUInteger overrideCount = _overrides().count;
+    BOOL hasShortcut = identifier && _shortcutForCommand(identifier) != kVibeShortcutNone;
     [SettingsRowView setControl:_recordButton enabled:identifier && !recording];
     [SettingsRowView setControl:_clearButton enabled:hasShortcut && !recording];
-    [SettingsRowView setControl:_resetAllButton enabled:!recording && overrides.count > 0];
-    _recordButton.toolTip = identifier ? nil : STR_SETTINGS_SHORTCUTS_SELECT_TIP;
-    _clearButton.toolTip = !identifier ? STR_SETTINGS_SHORTCUTS_SELECT_TIP
-            : hasShortcut ? nil : STR_SETTINGS_SHORTCUTS_NONE_TIP;
-    _resetAllButton.toolTip = overrides.count > 0 ? nil : STR_SETTINGS_SHORTCUTS_DEFAULTS_TIP;
+    [SettingsRowView setControl:_resetAllButton enabled:!recording && overrideCount > 0];
+    _recordButton.toolTip = identifier ? nil : self.selectTip;
+    _clearButton.toolTip = !identifier ? self.selectTip : hasShortcut ? nil : self.noneTip;
+    _resetAllButton.toolTip = overrideCount > 0 ? nil : self.defaultsTip;
     NSString *caption = recording
-            ? [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_RECORDING, [self labelForCommand:_recordingIdentifier]]
-            : _status ?: STR_SETTINGS_SHORTCUTS_EXPLAIN;
+            ? [NSString stringWithFormat:self.recordingFormat, [self labelForCommand:_recordingIdentifier]]
+            : _status ?: self.explainer;
     if (![_captionLabel.stringValue isEqualToString:caption]) {
         _captionLabel.stringValue = caption;
         [self paneContentDidChange]; // a longer caption can wrap to another line
@@ -186,17 +193,17 @@ static const CGFloat kShortcutColumnWidth = 120;
 // Every write runs through here: one undo entry restoring the whole override
 // set from before it, so a reassignment's loser comes back with the winner.
 - (void)undoablyWriteShortcuts:(void (^)(void))write {
-    NSDictionary *previous = AppSettings.sharedInstance.shortcutOverrides;
+    NSDictionary *previous = _overrides();
     write();
-    if (![previous isEqualToDictionary:AppSettings.sharedInstance.shortcutOverrides]) {
+    if (![previous isEqualToDictionary:_overrides()]) {
         [[_undoManager prepareWithInvocationTarget:self] restoreShortcutOverrides:previous];
-        [_undoManager setActionName:STR_SETTINGS_SHORTCUTS_UNDO_ACTION];
+        [_undoManager setActionName:self.undoActionName];
     }
 }
 
 - (void)restoreShortcutOverrides:(NSDictionary *)overrides {
     [self endRecording];
-    [self undoablyWriteShortcuts:^{ [self.playerController setShortcutOverrides:overrides]; }];
+    [self undoablyWriteShortcuts:^{ self->_setOverrides(overrides); }];
     _status = nil;
     [self refreshFromSettings];
 }
@@ -265,20 +272,18 @@ static const CGFloat kShortcutColumnWidth = 120;
     __block VibeShortcutAssignment assignment;
     [self undoablyWriteShortcuts:^{
         NSString *taken = nil;
-        assignment = [self.playerController assignShortcut:shortcut toCommand:identifier loser:&taken];
+        assignment = self->_assign(shortcut, identifier, &taken);
         loser = taken;
     }];
     switch (assignment) {
         case VibeShortcutAssignmentReserved:
-            _status = [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_RESERVED,
-                                                 [MainMenuBuilder displayStringForShortcut:shortcut]];
+            _status = [NSString stringWithFormat:self.reservedFormat, _displayString(shortcut)];
             break;
         case VibeShortcutAssignmentUnusable:
-            _status = STR_SETTINGS_SHORTCUTS_UNUSABLE;
+            _status = self.unusableCaption;
             break;
         case VibeShortcutAssignmentStored:
-            _status = loser ? [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_REASSIGNED,
-                                                         [MainMenuBuilder displayStringForShortcut:shortcut],
+            _status = loser ? [NSString stringWithFormat:self.reassignedFormat, _displayString(shortcut),
                                                          [self labelForCommand:identifier],
                                                          [self labelForCommand:loser]]
                             : nil;
@@ -303,7 +308,7 @@ static const CGFloat kShortcutColumnWidth = 120;
     NSString *identifier = [self selectedIdentifier];
     if (identifier) {
         [self undoablyWriteShortcuts:^{
-            [self.playerController assignShortcut:kVibeShortcutNone toCommand:identifier loser:NULL];
+            self->_assign(kVibeShortcutNone, identifier, NULL);
         }];
         _status = nil;
         [self refreshFromSettings];
@@ -311,7 +316,7 @@ static const CGFloat kShortcutColumnWidth = 120;
 }
 
 - (void)resetAllShortcuts:(id)sender {
-    [self undoablyWriteShortcuts:^{ [self.playerController resetShortcuts]; }];
+    [self undoablyWriteShortcuts:^{ self->_setOverrides(@{}); }];
     _status = nil;
     [self refreshFromSettings];
 }
@@ -345,9 +350,8 @@ static const CGFloat kShortcutColumnWidth = 120;
     }
     // What the menu carries: a key an earlier command holds, or a reserved
     // one, shows as unassigned rather than twice.
-    VibeShortcut shortcut = [MainMenuBuilder carriedShortcutForIdentifier:identifier
-                                                                overrides:AppSettings.sharedInstance.shortcutOverrides];
-    cell.textField.stringValue = [MainMenuBuilder displayStringForShortcut:shortcut];
+    VibeShortcut shortcut = _shortcutForCommand(identifier);
+    cell.textField.stringValue = _displayString(shortcut);
     cell.textField.textColor = shortcut == kVibeShortcutNone ? NSColor.tertiaryLabelColor : NSColor.labelColor;
     return cell;
 }
