@@ -10,6 +10,16 @@
 @class WaveformRenderer;
 @class CodableAudioWaveform;
 
+// A stable registry identifier, never a display name. Persisted by the
+// settings and the themes.
+#define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
+// TRAP: Wiggle's, centered or not. Persisted, so it keeps its name though
+// Centered is a setting now: renaming it orphans every saved Wiggle.
+#define SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE                @"wiggle_centered"
+// Wiggle MC's through 1.14, Wiggle with Centered off since: AppTheme's gate
+// and the iOS migration map it, and nothing else may read it.
+#define SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC      @"wiggle"
+
 NS_ASSUME_NONNULL_BEGIN
 
 @interface WaveformRendererRegistry : NSObject

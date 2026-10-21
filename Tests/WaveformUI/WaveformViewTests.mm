@@ -18,6 +18,7 @@
 #import "AppSettings+Mac.h"
 #import "AppTheme.h"
 #import "Formatters.h"
+#import "WaveformTheme.h"
 
 // The morph eases on a 60 Hz timer. The tests draw its settled state.
 @interface WaveformView (TestSettle)

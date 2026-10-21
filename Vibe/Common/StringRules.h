@@ -9,10 +9,10 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "AppSettings.h"
 #import "AudioError.h"
 #import "LinkStore.h"
 #import "VibeStrings.h"
+#import "WaveformRendererRegistry.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

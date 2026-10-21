@@ -10,6 +10,7 @@
 #import "AppSettings+Mac.h"
 #import "SettingsRules.h"
 #import "PlatformColor.h"
+#import "WaveformRendererRegistry.h"
 #import "NSView+DarkMode.h"
 #import "NSImage+Util.h"
 

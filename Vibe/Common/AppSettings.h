@@ -19,40 +19,6 @@
 // normalizes to one. Nullable ones are marked.
 NS_ASSUME_NONNULL_BEGIN
 
-// A stable WaveformRendererRegistry identifier, never a display name.
-#define SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT               @"oversampling_detailed_x4"
-// TRAP: Wiggle's, centered or not. Persisted, so it keeps its name though
-// Centered is a setting now: renaming it orphans every saved Wiggle.
-#define SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE                @"wiggle_centered"
-// Wiggle MC's through 1.14, Wiggle with Centered off since: AppTheme's gate
-// and the iOS migration map it, and nothing else may read it.
-#define SETTINGS_VALUE_WAVEFORM_STYLE_LEGACY_WIGGLE_MC      @"wiggle"
-#define SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT        SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE
-
-// Waveform color theme identifiers, resolved to colors only by WaveformTheme.
-#define SETTINGS_VALUE_WAVEFORM_THEME_MONO                  @"mono"
-#define SETTINGS_VALUE_WAVEFORM_THEME_ORANGE                @"orange"
-#define SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART             @"album_art"
-#define SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM                @"custom"
-
-// 3-Band's palettes on iOS, resolved to colors only by WaveformTheme. On macOS
-// the theme's band wells are the palette.
-#define SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN       @"rekord_bin"
-#define SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE          @"dengine"
-#define SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM           @"custom"
-
-// Spectrum's palettes, resolved to colors only by WaveformTheme. Custom draws
-// the band wells, which 3-Band's custom palette shares.
-#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB        @"rgb"
-#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE       @"blue"
-#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN      @"green"
-#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM     @"custom"
-
-// Spectrum's coloring. Sections, the default, gives each section of the
-// track one color. Precise colors each moment by its own mix.
-#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_PRECISE   @"precise"
-#define SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS  @"sections"
-
 // The crossfade slider in milliseconds: off is 10, the declick minimum, then
 // tenths of a second up to three. The getter snaps any other stored value to
 // the nearest step.
