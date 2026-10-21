@@ -242,24 +242,34 @@ static NSTabViewItem *PaneItem(NSViewController *pane, NSString *identifier,
     tabs.transitionOptions = NSViewControllerTransitionNone;
     tabs.tabView.tabViewType = NSNoTabsNoBorder;
 
+    // Every pane's effects sink: the player applies the stored state the bits
+    // name (MainPlayerController+Settings).
+    __weak MainPlayerController *weakPlayer = playerController;
+    void (^sink)(NSUInteger) = ^(NSUInteger effects) {
+        [weakPlayer applySettingsLiveEffects:(VibeSettingsLiveEffect)effects];
+    };
+
     // Grouped in the sidebar by SidebarGroupStarts.
-    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithPlayerController:playerController],
+    [tabs addTabViewItem:PaneItem([[SettingsGeneralViewController alloc] initWithEffectsSink:sink],
                                   @"general", STR_SETTINGS_GENERAL, @"gearshape")];
-    [tabs addTabViewItem:PaneItem([[SettingsThemesViewController alloc] initWithPlayerController:playerController],
+    [tabs addTabViewItem:PaneItem([[SettingsThemesViewController alloc] initWithEffectsSink:sink],
                                   @"themes", STR_SETTINGS_THEMES_SECTION, @"paintpalette")];
-    [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithPlayerController:playerController],
+    [tabs addTabViewItem:PaneItem([[SettingsAppearanceViewController alloc] initWithEffectsSink:sink],
                                   @"appearance", STR_MENU_VIEW_APPEARANCE, @"circle.lefthalf.filled")];
-    [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithPlayerController:playerController],
+    [tabs addTabViewItem:PaneItem([[SettingsPlaybackViewController alloc] initWithEffectsSink:sink],
                                   @"playback", STR_MENU_PLAYBACK, @"play.circle")];
-    [tabs addTabViewItem:PaneItem([[SettingsAudioOutputViewController alloc] initWithPlayerController:playerController],
+    [tabs addTabViewItem:PaneItem([[SettingsAudioOutputViewController alloc]
+                                          initWithPlayerController:playerController effectsSink:sink],
                                   @"audio", STR_SETTINGS_AUDIO_SECTION, @"speaker.wave.2")];
-    [tabs addTabViewItem:PaneItem([[SettingsFilesViewController alloc] initWithPlayerController:playerController],
+    [tabs addTabViewItem:PaneItem([[SettingsFilesViewController alloc] initWithEffectsSink:sink],
                                   @"files", STR_SETTINGS_FILES, @"folder")];
-    [tabs addTabViewItem:PaneItem([[SettingsShortcutsViewController alloc] initWithPlayerController:playerController],
+    [tabs addTabViewItem:PaneItem([[SettingsShortcutsViewController alloc]
+                                          initWithPlayerController:playerController effectsSink:sink],
                                   @"shortcuts", STR_SETTINGS_SHORTCUTS, @"keyboard")];
-    [tabs addTabViewItem:PaneItem([[SettingsAdvancedViewController alloc] initWithPlayerController:playerController],
+    [tabs addTabViewItem:PaneItem([[SettingsAdvancedViewController alloc]
+                                          initWithPlayerController:playerController effectsSink:sink],
                                   @"advanced", STR_SETTINGS_ADVANCED, @"gearshape.2")];
-    [tabs addTabViewItem:PaneItem([[SettingsAboutViewController alloc] initWithPlayerController:playerController],
+    [tabs addTabViewItem:PaneItem([[SettingsAboutViewController alloc] initWithEffectsSink:sink],
                                   @"about", STR_SETTINGS_ABOUT, @"info.circle")];
 
     [SettingsPaneViewController settleSharedSizeForPanes:tabs.childViewControllers];

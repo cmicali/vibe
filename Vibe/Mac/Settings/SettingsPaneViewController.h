@@ -11,9 +11,6 @@
 #import <Cocoa/Cocoa.h>
 #import "DrawnControls.h"
 #import "SettingsFormViews.h"
-#import "MainPlayerController+Settings.h" // VibeSettingsLiveEffect, coalesced below
-
-@class MainPlayerController;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -40,15 +37,15 @@ static const CGFloat kSettingsCardRevealInset = 12;
 
 @interface SettingsPaneViewController : NSViewController
 
-@property (weak, readonly, nullable) MainPlayerController *playerController;
-
 // The largest pane's natural size, shared by every pane.
 // TRAP: deliberately NOT preferredContentSize. macOS 26.5 turns a nonzero one
 // into priority-501 equalities on the pane's view, one above
 // NSLayoutPriorityWindowSizeStayPut, which pin the window's size.
 @property (readonly, nonatomic) NSSize sharedPaneSize;
 
-- (instancetype)initWithPlayerController:(MainPlayerController *)playerController;
+// The sink applies a set of the app's live effects, a bit set the pane base
+// never reads. Every pane's effect request runs through it (applyLiveEffects:).
+- (instancetype)initWithEffectsSink:(void (^)(NSUInteger effects))sink;
 
 // Entries are normally SettingsSectionViews; a plain view stacks full width,
 // outside any card (the About pane's identity block).
@@ -125,14 +122,17 @@ static const CGFloat kSettingsCardRevealInset = 12;
 // and the debug channel's settings_reveal share it.
 + (void)scrollCardToTop:(NSView *)card animated:(BOOL)animated;
 
+// A write that must change the running app stores its value, then requests
+// the exact effects here. The sink applies them synchronously.
+- (void)applyLiveEffects:(NSUInteger)effects;
 // A drag's live work at a steady cadence: each tick, having written its value,
 // ORs in the effects it needs, and they apply at most every 1/30 s, so a 120 Hz
 // drag re-renders a quarter as often and its last value always lands. The
 // effects read the store, so a later apply carries every tick before it.
-- (void)applyLiveEffectsDuringDrag:(VibeSettingsLiveEffect)effects;
+- (void)applyLiveEffectsDuringDrag:(NSUInteger)effects;
 // Runs after a coalesced apply, with what it applied; a pane redraws what
 // shows the effects (the Themes pane's waveform preview).
-- (void)didApplyDragEffects:(VibeSettingsLiveEffect)effects;
+- (void)didApplyDragEffects:(NSUInteger)effects;
 
 // Whether a file drag's pasteboard holds URLs that `options` admits. TRAP:
 // the pasteboard answers with a getattrlist per URL each time it is asked,

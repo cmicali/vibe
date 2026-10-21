@@ -181,7 +181,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     }
     if (forward) [AppSettings.sharedInstance redoThemeEdit];
     else [AppSettings.sharedInstance undoThemeEdit];
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self applyLiveEffects:VibeSettingsLiveEffectThemeApply];
     [self refreshFromSettings];
 }
 
@@ -242,7 +242,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     AppSettings.sharedInstance.windowAppearancePreviewStyle =
             dark ? SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_DARK
                  : SETTINGS_VALUE_WINDOW_APPEARANCE_SYSTEM_LIGHT;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+    [self applyLiveEffects:VibeSettingsLiveEffectWindowAppearance];
     // For callers other than the toggle (the debug channel).
     [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
@@ -253,7 +253,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     [self closeEditorPanels];
     if (AppSettings.sharedInstance.windowAppearancePreviewStyle) {
         AppSettings.sharedInstance.windowAppearancePreviewStyle = nil;
-        [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectWindowAppearance];
+        [self applyLiveEffects:VibeSettingsLiveEffectWindowAppearance];
     }
 }
 
@@ -322,7 +322,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     if (continuous) {
         [self applyLiveEffectsDuringDrag:effect];
     } else {
-        [self.playerController applySettingsLiveEffects:effect];
+        [self applyLiveEffects:effect];
         [self didApplyDragEffects:effect];
     }
     if (forked) {
@@ -332,7 +332,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
     [(SettingsWindowController *)self.view.window.windowController updateNavigation];
 }
 
-- (void)didApplyDragEffects:(VibeSettingsLiveEffect)effects {
+- (void)didApplyDragEffects:(NSUInteger)effects {
     if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformTheme
                    | VibeSettingsLiveEffectWaveformLevels)) {
         [self refreshWaveformPreviews];
@@ -549,7 +549,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
 
 - (void)activateThemeWithIdentifier:(NSString *)identifier {
     [AppSettings.sharedInstance applyThemeWithIdentifier:identifier];
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self applyLiveEffects:VibeSettingsLiveEffectThemeApply];
     [self refreshFromSettings];
 }
 
@@ -589,7 +589,7 @@ static NSString *const kThemeRowBuiltInHeader = @"//built-in";
                 : (index > 0 ? _themeIdentifiers[index - 1] : nil);
     }
     [AppSettings.sharedInstance removeUserThemeWithIdentifier:selected fallingBackTo:neighbor];
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectThemeApply];
+    [self applyLiveEffects:VibeSettingsLiveEffectThemeApply];
     [self refreshFromSettings];
 }
 

@@ -109,12 +109,12 @@ static NSString *const kOnEndPause = @"pause";
     AppSettings.sharedInstance.pauseAtTrackEnd = [_onEndPopUp.selectedItem.representedObject isEqual:kOnEndPause];
     // TRAP: without EndOfTrack, a mid-track switch to Pause leaves the armed
     // gapless successor, which advances anyway.
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectEndOfTrack];
+    [self applyLiveEffects:VibeSettingsLiveEffectEndOfTrack];
 }
 
 - (void)pitchRangeChanged:(NSSegmentedControl *)sender {
     AppSettings.sharedInstance.pitchRange = sender.selectedTag;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectPitchRange];
+    [self applyLiveEffects:VibeSettingsLiveEffectPitchRange];
 }
 
 - (void)skipStepsChanged:(id)sender {
@@ -140,17 +140,17 @@ static NSString *const kOnEndPause = @"pause";
 
 - (void)toggleEnableFX:(id)sender {
     AppSettings.sharedInstance.audioFXEnabled = (_enableFXSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectFXControls];
+    [self applyLiveEffects:VibeSettingsLiveEffectFXControls];
 }
 
 - (void)toggleDetectBPM:(id)sender {
     AppSettings.sharedInstance.analyzeBPM = (_detectBPMSwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackAnalysis];
+    [self applyLiveEffects:VibeSettingsLiveEffectTrackAnalysis];
 }
 
 - (void)toggleDetectKey:(id)sender {
     AppSettings.sharedInstance.analyzeKey = (_detectKeySwitch.state == NSControlStateValueOn);
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectTrackAnalysis];
+    [self applyLiveEffects:VibeSettingsLiveEffectTrackAnalysis];
 }
 
 @end
