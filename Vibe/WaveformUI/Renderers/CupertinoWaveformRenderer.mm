@@ -4,7 +4,6 @@
 //
 
 #import "CupertinoWaveformRenderer.h"
-#import "VibeStrings.h"
 #import "PlatformColor.h"
 
 #pragma mark - Cupertino
@@ -17,10 +16,6 @@ static const CGFloat kCupertinoBarWidth = 1;
 
 + (NSString *)styleIdentifier {
     return @"cupertino";
-}
-
-+ (NSString *)displayName {
-    return STR_WAVEFORM_STYLE_CUPERTINO;
 }
 
 - (CGFloat)barWidthForWidth:(CGFloat)width barCount:(NSUInteger)count {
@@ -85,10 +80,6 @@ static const CGFloat kSeekBandHeight = 28;
 
 + (NSString *)styleIdentifier {
     return @"cupertino_basic";
-}
-
-+ (NSString *)displayName {
-    return STR_WAVEFORM_STYLE_CUPERTINO_BASIC;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {

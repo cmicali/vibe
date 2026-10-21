@@ -5,11 +5,11 @@
 
 #import "WaveformScrubberViewInternal.h"
 #import "WaveformRendererRegistry.h"
+#import "WaveformTheme+Settings.h"
 #import "WaveformZoomMath.h"
 #import "UIView+DarkMode.h"
 #import "AppSettings.h"
-#import "Formatters.h"
-#import "VibeStrings.h"
+#import "WaveformAccessibility.h"
 
 // Names the element the XCUITest driver pinches (XCUITest has no
 // coordinate-based multi-touch); spelled the same in
@@ -509,8 +509,7 @@ static const CGFloat kPlayheadLineOvershoot = 8;
 #pragma mark - Accessibility
 
 // The mac view's contract. The element is the scrubber ITSELF, not its scroll
-// view. A fraction, not seconds: the view knows no duration.
-static const CGFloat kWaveformAccessibilityStep = 0.05;
+// view. The shell labels it.
 
 - (BOOL)isAccessibilityElement {
     return YES;
@@ -521,12 +520,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
                                    : UIAccessibilityTraitNone;
 }
 
-- (NSString *)accessibilityLabel {
-    return STR_A11Y_WAVEFORM;
-}
-
 - (NSString *)accessibilityValue {
-    return [Formatters.sharedInstance percentString:_progress];
+    return VibeWaveformAccessibilityValue(_progress);
 }
 
 - (void)accessibilityIncrement {

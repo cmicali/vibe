@@ -6,7 +6,6 @@
     self = [super init];
     if (self) {
         _key = -1;
-        _fileInfoLine = @"";
     }
     return self;
 }

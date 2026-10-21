@@ -17,6 +17,8 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AppTheme.h"
+#import "Formatters.h"
+#import "WaveformTheme.h"
 
 // The morph eases on a 60 Hz timer. The tests draw its settled state.
 @interface WaveformView (TestSettle)
@@ -269,6 +271,7 @@ static NSColor *Opaque(NSColor *color) {
 - (void)testAccessibilityStepsReportASeekOnlyWithAWaveform {
     XCTAssertFalse([_view accessibilityPerformIncrement]);
     [self showStyle:@"detailed" progress:0.5];
+    XCTAssertEqualObjects(_view.accessibilityValue, [Formatters.sharedInstance percentString:0.5]);
     XCTAssertTrue([_view accessibilityPerformIncrement]);
     XCTAssertTrue([_view accessibilityPerformDecrement]);
     XCTAssertEqualObjects(_delegate.seeks, (@[@0.55f, @0.45f]));

@@ -6,6 +6,7 @@
 #import "AppSettings.h"
 #import "AppSettingsInternal.h"
 #import "SettingsRules.h"
+#import "WaveformRendererRegistry.h"
 #import "PlatformColor.h"
 
 
@@ -78,7 +79,8 @@ static NSString *WaveformKey(NSString *key, BOOL widget) {
     [self registerMacDefaultsInto:appDefaults];
 #else
     appDefaults[SETTING_WAVEFORM_STYLE] = SETTINGS_VALUE_WAVEFORM_STYLE_DEFAULT;
-    appDefaults[SETTING_WIDGET_WAVEFORM_STYLE] = SETTINGS_VALUE_WIDGET_WAVEFORM_STYLE_DEFAULT;
+    // The widget's default is Wiggle, which reads at a strip's height.
+    appDefaults[SETTING_WIDGET_WAVEFORM_STYLE] = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
     for (int widget = 0; widget <= 1; widget++) {
         appDefaults[WaveformKey(SETTING_WAVEFORM_THEME, widget)] = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
         appDefaults[WaveformKey(SETTING_WAVEFORM_BAND_THEME, widget)] = SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;

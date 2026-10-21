@@ -6,11 +6,11 @@
 #import "WaveformViewInternal.h"
 #import "WaveformView+Loading.h"
 #import "WaveformRendererRegistry.h"
+#import "WaveformTheme+Settings.h"
 #import "NSView+DarkMode.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
-#import "Formatters.h"
-#import "VibeStrings.h"
+#import "WaveformAccessibility.h"
 
 // A press that travels further than this is a drag, not a click.
 static const CGFloat kWaveformDragHysteresis = 4;
@@ -453,9 +453,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
 
 #pragma mark - Accessibility
 
-// A slider over the track: the only pointer seek. A fraction, not seconds:
-// the view knows no duration.
-static const CGFloat kWaveformAccessibilityStep = 0.05;
+// A slider over the track: the only pointer seek. The shell labels it.
 
 - (BOOL)isAccessibilityElement {
     return YES;
@@ -465,13 +463,8 @@ static const CGFloat kWaveformAccessibilityStep = 0.05;
     return NSAccessibilitySliderRole;
 }
 
-- (NSString *)accessibilityLabel {
-    return STR_A11Y_WAVEFORM;
-}
-
-// VoiceOver reads an NSNumber verbatim: 0.5 is "zero point five".
 - (id)accessibilityValue {
-    return [Formatters.sharedInstance percentString:_progress];
+    return VibeWaveformAccessibilityValue(_progress);
 }
 
 - (BOOL)accessibilityPerformIncrement {

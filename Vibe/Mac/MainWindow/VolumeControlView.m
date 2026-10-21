@@ -8,6 +8,7 @@
 #import "DrawnControls.h"
 #import "NSTextField+Label.h"
 #import "WaveformTheme.h"
+#import "WaveformTheme+Settings.h"
 #import "Fonts.h"
 #import "Formatters.h"
 #import "AppSettings.h"

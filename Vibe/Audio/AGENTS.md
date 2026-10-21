@@ -254,7 +254,7 @@ The transport stays Playing. `isBuffering` is the flag (`dump_state`'s `player.b
 
 ## Error text
 
-**`VibeAudioError*` descriptions are for logs and are never localized.** The one line a screen shows is `VibeStatusForPlayError` (`AudioErrorRules.h`, tested), mapping `VibeAudioErrorCode` to a `STR_ERROR_*` string. It lives beside the enum because both screens render the same wording.
+**`VibeAudioError*` descriptions are for logs and are never localized.** The one line a screen shows is `VibeStatusForPlayError` (`Common/StringRules.h`, tested), mapping `VibeAudioErrorCode` to a `STR_ERROR_*` string. Both screens render the same wording. The engine reads no strings.
 
 ## Beta diagnostics
 

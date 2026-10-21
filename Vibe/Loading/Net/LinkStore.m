@@ -453,37 +453,6 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     return file;
 }
 
-#pragma mark - Messages
-
-+ (NSString *)messageForError:(NSError *)error brief:(BOOL)brief {
-    if (![error.domain isEqualToString:VibeLinkErrorDomain]) {
-        return brief ? STR_LINK_STATUS_UNREACHABLE : STR_LINK_ERROR_UNREACHABLE;
-    }
-    switch ((VibeLinkError)error.code) {
-        case VibeLinkErrorInvalid:      return brief ? STR_LINK_STATUS_INVALID : STR_LINK_ERROR_INVALID;
-        case VibeLinkErrorInsecure:     return brief ? STR_LINK_STATUS_INSECURE : STR_LINK_ERROR_INSECURE;
-        case VibeLinkErrorLocalNetwork: return brief ? STR_LINK_STATUS_LOCAL_NETWORK : STR_LINK_ERROR_LOCAL_NETWORK;
-        case VibeLinkErrorNotFound:     return brief ? STR_LINK_STATUS_NOT_FOUND : STR_LINK_ERROR_NOT_FOUND;
-        case VibeLinkErrorDenied:       return brief ? STR_LINK_STATUS_DENIED : STR_LINK_ERROR_DENIED;
-        case VibeLinkErrorNotAudio:     return brief ? STR_LINK_STATUS_NOT_AUDIO : STR_LINK_ERROR_NOT_AUDIO;
-        case VibeLinkErrorNoSize:       return brief ? STR_LINK_STATUS_NO_SIZE : STR_LINK_ERROR_NO_SIZE;
-        case VibeLinkErrorLiveStream:   return brief ? STR_LINK_STATUS_LIVE_STREAM : STR_LINK_ERROR_LIVE_STREAM;
-        case VibeLinkErrorServer:
-            return [NSString stringWithFormat:brief ? STR_LINK_STATUS_SERVER : STR_LINK_ERROR_SERVER,
-                                              (long)[error.userInfo[VibeHTTPErrorStatusCodeKey] integerValue]];
-        case VibeLinkErrorICloudPrivate:
-            return brief ? STR_LINK_STATUS_ICLOUD_PRIVATE : STR_LINK_ERROR_ICLOUD_PRIVATE;
-        case VibeLinkErrorICloudFolder: return brief ? STR_LINK_STATUS_ICLOUD_FOLDER : STR_LINK_ERROR_ICLOUD_FOLDER;
-        case VibeLinkErrorICloudUnreadable:
-            return brief ? STR_LINK_STATUS_ICLOUD_UNREADABLE : STR_LINK_ERROR_ICLOUD_UNREADABLE;
-        case VibeLinkErrorCancelled:    return nil;
-        case VibeLinkErrorNone:
-        case VibeLinkErrorUnreachable:
-            break;
-    }
-    return brief ? STR_LINK_STATUS_UNREACHABLE : STR_LINK_ERROR_UNREACHABLE;
-}
-
 #pragma mark - Pruning
 
 - (void)pruneKeepingTracks:(NSArray<AudioTrack *> *)tracks recentURLs:(NSArray<NSURL *> *)recents {

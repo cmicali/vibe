@@ -5,7 +5,6 @@
 
 #import "ThreeBandWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
-#import "VibeStrings.h"
 #import "WaveformZoomMath.h"
 
 #include <algorithm>
@@ -204,10 +203,6 @@ static id VibePinned(CALayer *layer, CGFloat scale) {
 
 + (NSString *)styleIdentifier {
     return @"three_band";
-}
-
-+ (NSString *)displayName {
-    return STR_WAVEFORM_STYLE_THREE_BAND;
 }
 
 - (instancetype)initWithLayer:(CALayer *)parentLayer bounds:(CGRect)bounds isDark:(BOOL)isDark {
@@ -615,10 +610,6 @@ static const double kPeakShapeReachSeconds = 0.06;
 
 + (NSString *)styleIdentifier {
     return @"spectrum";
-}
-
-+ (NSString *)displayName {
-    return STR_WAVEFORM_STYLE_SPECTRUM;
 }
 
 + (VibeWaveformPaletteKind)paletteKind {

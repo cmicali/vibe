@@ -4,13 +4,10 @@
 //
 
 #import "WaveformTheme.h"
-#import "AppSettings.h"
 #import "PlatformColor.h"
 
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
-#import "AppTheme.h"
-#import "WaveformRendererRegistry.h"
 #else
 #import <UIKit/UIKit.h>
 #endif
@@ -141,68 +138,6 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
                        artworkColor:nil customPlayed:nil customUnplayed:nil];
 }
 
-#if TARGET_OS_OSX
-+ (WaveformTheme *)themeForAppTheme:(AppTheme *)theme isDark:(BOOL)isDark
-                       artworkColor:(VibeColor *)artworkColor {
-    // The band styles hide the waveform color. Their played side is Mono's,
-    // because the hover and the volume bar read it.
-    VibeWaveformPaletteKind kind = [WaveformRendererRegistry paletteKindForIdentifier:theme.waveformStyle];
-    WaveformTheme *resolved = [self themeForIdentifier:kind != VibeWaveformPaletteKindTheme
-                                                       ? SETTINGS_VALUE_WAVEFORM_THEME_MONO : theme.waveformTheme
-                                                isDark:isDark
-                                          artworkColor:artworkColor
-                                          customPlayed:[theme colorForBase:kVibeThemeColorWaveformPlayed dark:isDark]
-                                        customUnplayed:[theme colorForBase:kVibeThemeColorWaveformUnplayed dark:isDark]];
-    resolved.flatFill = !theme.waveformGradient;
-    if (kind != VibeWaveformPaletteKindTheme) {
-        // The band wells: 3-Band's palette, and Spectrum's Custom.
-        NSArray<VibeColor *> *wells = @[[theme displayColorForBase:kVibeThemeColorWaveformLow dark:isDark],
-                                        [theme displayColorForBase:kVibeThemeColorWaveformMid dark:isDark],
-                                        [theme displayColorForBase:kVibeThemeColorWaveformHigh dark:isDark]];
-        if (kind == VibeWaveformPaletteKindBands) {
-            resolved.bandColors = VibeBandColors(wells[0], wells[1], wells[2], theme.waveformShadeOverlaps, isDark);
-        } else {
-            resolved.spectrumColors = [self spectrumColorsForIdentifier:theme.waveformSpectrumPalette isDark:isDark
-                                                            customBands:wells];
-            resolved.spectrumColorsBySection = [theme.waveformSpectrumColoring
-                    isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS];
-        }
-    }
-    if (theme.waveformPlayheadLine) {
-        resolved.playheadColor = [theme displayColorForBase:kVibeThemeColorWaveformPlayhead dark:isDark];
-    }
-    return resolved;
-}
-#endif
-
-#if !TARGET_OS_OSX
-+ (WaveformTheme *)themeForSettings:(AppSettings *)settings widget:(BOOL)widget isDark:(BOOL)isDark
-                       artworkColor:(VibeColor *)artworkColor {
-    WaveformTheme *resolved = [self themeForIdentifier:[settings waveformThemeForWidget:widget]
-                                                isDark:isDark
-                                          artworkColor:artworkColor
-                                          customPlayed:[settings waveformCustomPlayedColorForDark:isDark widget:widget]
-                                        customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark widget:widget]];
-    // The custom bands, which 3-Band's and Spectrum's Custom share, read only
-    // when either is chosen. An unset band draws Rekord Bin's, which is what
-    // its well shows.
-    NSString *bandTheme = [settings waveformBandThemeForWidget:widget];
-    NSString *spectrumPalette = [settings waveformSpectrumPaletteForWidget:widget];
-    NSMutableArray<VibeColor *> *custom = [NSMutableArray arrayWithCapacity:3];
-    if ([bandTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM] ||
-        [spectrumPalette isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM]) {
-        for (NSUInteger band = 0; band < 3; band++) {
-            [custom addObject:[settings waveformCustomBandColor:band forDark:isDark widget:widget] ?: resolved.bandColors[band]];
-        }
-    }
-    resolved.bandColors = [self bandColorsForIdentifier:bandTheme isDark:isDark customBands:custom];
-    resolved.spectrumColors = [self spectrumColorsForIdentifier:spectrumPalette isDark:isDark customBands:custom];
-    resolved.spectrumColorsBySection = [[settings waveformSpectrumColoringForWidget:widget]
-            isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS];
-    return resolved;
-}
-#endif
-
 + (NSArray<VibeColor *> *)spectrumColorsForIdentifier:(NSString *)identifier isDark:(BOOL)isDark
                                           customBands:(NSArray<VibeColor *> *)custom {
     if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM] && custom.count == 3) {
@@ -218,9 +153,13 @@ static CGFloat VibeLuminance(CGFloat r, CGFloat g, CGFloat b) {
         return VibeBuiltInBandColors(YES, isDark);
     }
     if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM] && custom.count == 3) {
-        return VibeBandColors(custom[0], custom[1], custom[2], YES, isDark);
+        return [self bandColorsForWells:custom shaded:YES isDark:isDark];
     }
     return VibeBuiltInBandColors(NO, isDark);
+}
+
++ (NSArray<VibeColor *> *)bandColorsForWells:(NSArray<VibeColor *> *)wells shaded:(BOOL)shaded isDark:(BOOL)isDark {
+    return VibeBandColors(wells[0], wells[1], wells[2], shaded, isDark);
 }
 
 + (WaveformTheme *)themeForIdentifier:(NSString *)identifier

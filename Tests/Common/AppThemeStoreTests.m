@@ -5,6 +5,7 @@
 //
 
 #import "AppThemeTestCase.h"
+#import "WaveformRendererRegistry.h"
 
 @interface AppThemeStoreTests : AppThemeTestCase
 @end

@@ -5,6 +5,8 @@
 
 #import <Foundation/Foundation.h>
 
+@class AudioTrackMetadata;
+
 // MAIN THREAD ONLY: NSDateComponentsFormatter (unlike NSDateFormatter) has no
 // documented thread-safety guarantee.
 @interface Formatters : NSObject
@@ -36,6 +38,10 @@
 // "128.0 BPM | 8A", either alone, or empty. A bpm of 0 or less is no tempo.
 // The key is always the LAST field: the mac colors it as the line's suffix.
 - (NSString *)tempoLineWithBPM:(double)bpm keyText:(NSString *)keyText;
+// The codec line both screens render: file type, bitrate (lossy only) and
+// sample rate, each only when present (a zero rate is stored as nil). Empty
+// with no fileType, so an unscanned track's nil metadata reads as empty.
+- (NSString *)fileInfoLineForMetadata:(AudioTrackMetadata *)metadata;
 
 // The pitch readout: "+3.2%", "−3.2%" (U+2212), "0.0%", per locale.
 - (NSString *)signedPercentString:(double)percent;

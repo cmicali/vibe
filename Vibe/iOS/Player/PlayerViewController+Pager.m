@@ -285,7 +285,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
                       artist:(showError ? errorText : (track.displayArtist ?: @""))
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
-                    fileInfo:(showsInfo ? track.metadata.fileInfoLine : nil)
+                    fileInfo:(showsInfo ? [Formatters.sharedInstance fileInfoLineForMetadata:track.metadata] : nil)
                    tempoInfo:(showsInfo ? [self tempoInfoLineForTrack:track] : nil)
                    buffering:(current && !showError && _playback.bufferingNoticeShown)
                          art:[self artworkForPageAtIndex:index]];

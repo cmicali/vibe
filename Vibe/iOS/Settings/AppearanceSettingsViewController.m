@@ -9,6 +9,7 @@
 #import "PlaybackController.h"
 #import "SettingsChoiceViewController.h"
 #import "SettingsRules.h"
+#import "StringRules.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformThemeSettingsViewController.h"
@@ -63,11 +64,7 @@ static NSString *const kValueCellIdentifier  = @"value";
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.title = STR_MENU_VIEW_APPEARANCE;
-    _waveformStyles = [[WaveformRendererRegistry styleIdentifiers]
-            sortedArrayUsingComparator:^NSComparisonResult(NSString *a, NSString *b) {
-        return [[WaveformRendererRegistry displayNameForIdentifier:a]
-                localizedStandardCompare:[WaveformRendererRegistry displayNameForIdentifier:b]];
-    }];
+    _waveformStyles = VibeWaveformStylesByDisplayName([WaveformRendererRegistry styleIdentifiers]);
 }
 
 // A picker writes without telling this screen.
@@ -92,7 +89,7 @@ static NSString *const kValueCellIdentifier  = @"value";
     if (widget && !AppSettings.sharedInstance.widgetWaveformStyle) {
         return STR_SETTINGS_WIDGET_WAVEFORM_MATCH;
     }
-    return [WaveformRendererRegistry displayNameForIdentifier:[self currentWaveformStyleForWidget:widget]];
+    return VibeWaveformStyleDisplayName([self currentWaveformStyleForWidget:widget]);
 }
 
 // Top to bottom. Under Match app the widget's group is Style alone, since
@@ -204,8 +201,7 @@ static NSString *const kValueCellIdentifier  = @"value";
     }
     else if (row == VibeWaveformRowType) {
         content.text = STR_SETTINGS_WAVEFORM_TYPE;
-        content.secondaryText = [WaveformRendererRegistry
-                typeDisplayNameForIdentifier:[self currentWaveformStyleForWidget:widget]];
+        content.secondaryText = VibeWaveformTypeDisplayName([self currentWaveformStyleForWidget:widget]);
     }
     else if (row == VibeWaveformRowColoring) {
         content.text = STR_SETTINGS_WAVEFORM_SPECTRUM_COLORING;
@@ -259,7 +255,7 @@ static NSString *const kValueCellIdentifier  = @"value";
 - (NSMutableArray<NSString *> *)waveformStyleNames {
     NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:_waveformStyles.count];
     for (NSString *identifier in _waveformStyles) {
-        [names addObject:[WaveformRendererRegistry displayNameForIdentifier:identifier]];
+        [names addObject:VibeWaveformStyleDisplayName(identifier)];
     }
     return names;
 }
@@ -312,7 +308,7 @@ static NSString *const kValueCellIdentifier  = @"value";
     NSArray<NSString *> *types = [WaveformRendererRegistry typeIdentifiersForIdentifier:current];
     NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:types.count];
     for (NSString *type in types) {
-        [names addObject:[WaveformRendererRegistry typeDisplayNameForIdentifier:type]];
+        [names addObject:VibeWaveformTypeDisplayName(type)];
     }
     return [[SettingsChoiceViewController alloc]
             initWithTitle:STR_SETTINGS_WAVEFORM_TYPE

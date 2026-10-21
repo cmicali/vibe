@@ -345,11 +345,6 @@ static const NSUInteger kMaxBlockBars = 1024;
     return NSStringFromClass(self);
 }
 
-+ (NSString *)displayName {
-    NSAssert(NO, @"%@ must override +displayName", NSStringFromClass(self));
-    return NSStringFromClass(self);
-}
-
 + (BOOL)readsBands {
     return [self paletteKind] != VibeWaveformPaletteKindTheme;
 }

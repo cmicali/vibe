@@ -5,7 +5,6 @@
 #import "LinkRules.h"
 #import "LinkStore.h"
 #import "PlayableExtensions.h"
-#import "VibeStrings.h"
 
 @interface LinkRulesTests : XCTestCase
 @end
@@ -845,76 +844,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqual(VibeLinkErrorOfMissingSize(nil), VibeLinkErrorNoSize);
 }
 
-#pragma mark - What the shells show
-
-static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
-    return [NSError errorWithDomain:VibeLinkErrorDomain code:code userInfo:info];
-}
-
-- (void)testEachFailureShowsItsOwnString {
-    NSDictionary<NSNumber *, NSArray<NSString *> *> *expected = @{
-        @(VibeLinkErrorInvalid): @[STR_LINK_ERROR_INVALID, STR_LINK_STATUS_INVALID],
-        @(VibeLinkErrorInsecure): @[STR_LINK_ERROR_INSECURE, STR_LINK_STATUS_INSECURE],
-        @(VibeLinkErrorUnreachable): @[STR_LINK_ERROR_UNREACHABLE, STR_LINK_STATUS_UNREACHABLE],
-        @(VibeLinkErrorLocalNetwork): @[STR_LINK_ERROR_LOCAL_NETWORK, STR_LINK_STATUS_LOCAL_NETWORK],
-        @(VibeLinkErrorNotFound): @[STR_LINK_ERROR_NOT_FOUND, STR_LINK_STATUS_NOT_FOUND],
-        @(VibeLinkErrorDenied): @[STR_LINK_ERROR_DENIED, STR_LINK_STATUS_DENIED],
-        @(VibeLinkErrorNotAudio): @[STR_LINK_ERROR_NOT_AUDIO, STR_LINK_STATUS_NOT_AUDIO],
-        @(VibeLinkErrorNoSize): @[STR_LINK_ERROR_NO_SIZE, STR_LINK_STATUS_NO_SIZE],
-        @(VibeLinkErrorLiveStream): @[STR_LINK_ERROR_LIVE_STREAM, STR_LINK_STATUS_LIVE_STREAM],
-        @(VibeLinkErrorICloudPrivate): @[STR_LINK_ERROR_ICLOUD_PRIVATE, STR_LINK_STATUS_ICLOUD_PRIVATE],
-        @(VibeLinkErrorICloudFolder): @[STR_LINK_ERROR_ICLOUD_FOLDER, STR_LINK_STATUS_ICLOUD_FOLDER],
-        @(VibeLinkErrorICloudUnreadable): @[STR_LINK_ERROR_ICLOUD_UNREADABLE, STR_LINK_STATUS_ICLOUD_UNREADABLE],
-    };
-    for (NSNumber *code in expected) {
-        NSError *error = LinkError(code.integerValue, nil);
-        XCTAssertEqualObjects([LinkStore messageForError:error brief:NO], expected[code][0], @"%@", code);
-        XCTAssertEqualObjects([LinkStore messageForError:error brief:YES], expected[code][1], @"%@", code);
-    }
-    for (NSUInteger brief = 0; brief < 2; brief++) {
-        NSMutableSet<NSString *> *distinct = [NSMutableSet set];
-        for (NSArray<NSString *> *pair in expected.allValues) {
-            [distinct addObject:pair[brief]];
-        }
-        [distinct addObject:brief ? STR_LINK_STATUS_SERVER : STR_LINK_ERROR_SERVER];
-        XCTAssertEqual(distinct.count, expected.count + 1, @"no two failures share a string");
-    }
-}
-
-- (void)testAServerFailureNamesItsStatus {
-    NSError *error = LinkError(VibeLinkErrorServer, @{VibeHTTPErrorStatusCodeKey: @503});
-    XCTAssertEqualObjects([LinkStore messageForError:error brief:NO],
-                          ([NSString stringWithFormat:STR_LINK_ERROR_SERVER, 503L]));
-    XCTAssertEqualObjects([LinkStore messageForError:error brief:YES],
-                          ([NSString stringWithFormat:STR_LINK_STATUS_SERVER, 503L]));
-    XCTAssertTrue([[LinkStore messageForError:error brief:NO] containsString:@"503"]);
-    XCTAssertTrue([[LinkStore messageForError:error brief:YES] containsString:@"503"]);
-    XCTAssertEqualObjects([LinkStore messageForError:LinkError(VibeLinkErrorServer, nil) brief:NO],
-                          ([NSString stringWithFormat:STR_LINK_ERROR_SERVER, 0L]));
-    XCTAssertEqualObjects([LinkStore messageForError:LinkError(VibeLinkErrorServer, nil) brief:YES],
-                          ([NSString stringWithFormat:STR_LINK_STATUS_SERVER, 0L]));
-}
-
-- (void)testAnythingElseReadsAsUnreachable {
-    NSArray *others = @[
-        [NSError errorWithDomain:NSPOSIXErrorDomain code:VibeLinkErrorDenied userInfo:nil],
-        [NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorTimedOut userInfo:nil],
-        LinkError(VibeLinkErrorNone, nil), LinkError(99, nil), LinkError(-1, nil), NSNull.null,
-    ];
-    for (id other in others) {
-        NSError *error = other == NSNull.null ? nil : other;
-        XCTAssertEqualObjects([LinkStore messageForError:error brief:NO], STR_LINK_ERROR_UNREACHABLE, @"%@", other);
-        XCTAssertEqualObjects([LinkStore messageForError:error brief:YES], STR_LINK_STATUS_UNREACHABLE, @"%@", other);
-    }
-}
-
-- (void)testACancelShowsNothing {
-    XCTAssertNil([LinkStore messageForError:LinkError(VibeLinkErrorCancelled, nil) brief:NO]);
-    XCTAssertNil([LinkStore messageForError:LinkError(VibeLinkErrorCancelled, nil) brief:YES]);
-    NSError *other = [NSError errorWithDomain:NSURLErrorDomain code:VibeLinkErrorCancelled userInfo:nil];
-    XCTAssertEqualObjects([LinkStore messageForError:other brief:NO], STR_LINK_ERROR_UNREACHABLE);
-    XCTAssertEqualObjects([LinkStore messageForError:other brief:YES], STR_LINK_STATUS_UNREACHABLE);
-}
+#pragma mark - What the shells open
 
 - (void)testABlankEntryOpensNothing {
     for (NSString *text in @[@"", @" ", @"\t", @"\n", @" \r\n\t ", @"\u00A0\u2003"]) {
