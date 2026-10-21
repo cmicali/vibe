@@ -14,7 +14,11 @@
 
 `Playlist.h` states each method's contract. This section holds the rules a caller is checked against.
 
-**A row's identity is the object.** Callers mint a fresh `AudioTrack` per row: a file whole, or a cue sheet's window of one. Recreating rows from URLs would throw away installed metadata and artwork and defeat every identity check. The convert swap mints a fresh object for the same reason (`Mac/MainWindow/Convert/AGENTS.md`).
+**A row's identity is the object.** The model holds opaque entries. It keeps each one, hands the same object back, and never copies or compares it by content. Its entry-to-row map is keyed by pointer, so two entries for one file stay two rows. Vibe's entries are `AudioTrack` rows. Callers mint a fresh `AudioTrack` per row: a file whole, or a cue sheet's window of one. Recreating rows from URLs would throw away installed metadata and artwork and defeat every identity check.
+
+**The model reads an entry only through the two key blocks it is made with** (`initWithURLKey:sourceKey:`). The URL key indexes the rows of each file. The source key matches a stamp to the rows sounding one window. Both shells pass `AudioTrack.url` and `AudioTrack.sourceKey`. A model made with plain `init` has no lookup by file. `Playlist.h` imports neither `AudioTrack.h` nor `VibePlayableItem.h`. Its entry type is a lightweight generic, so a shell that declares `Playlist<AudioTrack *>` gets typed rows back.
+
+**The model mints no rows.** A replacement takes the caller's fresh entry, and one already in the list is refused. `replaceTracksMatchingTrack:usingBlock:` asks the block for each row's replacement, since each row may be a different cue window. The convert swap makes each one with `AudioTrack replacementAtURL:` (`Mac/MainWindow/Convert/AGENTS.md`). The model keeps the indexes, both shuffle orders, and one event per replaced row.
 
 **The model keeps two indexes.** A track-to-row map keeps `getIndexForTrack:` O(1) for the metadata sweep. A URL-to-rows index serves `indexesOfTracksWithURL:`, `stampTracksSounding:usingBlock:` and the convert swap. The URL index holds row sets because one file can sit in several rows. A delivery stamps every row of that file and window, so a duplicate row is never stranded.
 

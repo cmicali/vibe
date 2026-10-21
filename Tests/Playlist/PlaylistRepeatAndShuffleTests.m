@@ -118,7 +118,7 @@ static Playlist *NumberedPlaylist(NSUInteger count) {
 }
 
 - (void)testRepeatOnEmptyAndSingleRowPlaylists {
-    Playlist *empty = [Playlist new];
+    Playlist *empty = NewPlaylist();
     for (NSNumber *mode in @[@(VibeRepeatModeOff), @(VibeRepeatModeAll), @(VibeRepeatModeOne)]) {
         empty.repeatMode = mode.integerValue;
         XCTAssertNil(empty.nextTrack);
@@ -303,7 +303,7 @@ static void AssertPermutation(Playlist *playlist, NSArray<AudioTrack *> *walk) {
 }
 
 - (void)testAnOpenWithShuffleOffLandsOnTheGivenRowOrTheFirst {
-    Playlist *playlist = [Playlist new];
+    Playlist *playlist = NewPlaylist();
     [playlist replaceAllWithTracks:Rows(@[URLNamed(@"a.mp3"), URLNamed(@"b.mp3")]) startingAtIndex:1];
     XCTAssertEqual(playlist.currentIndex, 1u);
     [playlist replaceAllWithTracks:Rows(@[URLNamed(@"a.mp3"), URLNamed(@"b.mp3")]) startingAtIndex:7];
@@ -393,7 +393,8 @@ static void AssertPermutation(Playlist *playlist, NSArray<AudioTrack *> *walk) {
     WalkNext(playlist, 2);
     AudioTrack *next = playlist.nextTrack;
     NSUInteger row = (NSUInteger)[playlist getIndexForTrack:next];
-    AudioTrack *incoming = [playlist replaceTrackAtIndex:row withURL:URLNamed(@"converted.flac")];
+    AudioTrack *incoming = [next replacementAtURL:URLNamed(@"converted.flac")];
+    XCTAssertTrue([playlist replaceTrackAtIndex:row withTrack:incoming]);
     XCTAssertEqual(playlist.nextTrack, incoming);
     NSArray<AudioTrack *> *rest = WalkNext(playlist, 100);
     XCTAssertEqual(rest.count, 5u);
@@ -413,11 +414,12 @@ static void AssertPermutation(Playlist *playlist, NSArray<AudioTrack *> *walk) {
         while ([playlist trackAtIndex:other] == armed || other == playlist.currentIndex) {
             other++;
         }
-        AudioTrack *converted = [playlist replaceTrackAtIndex:other withURL:URLNamed(@"other.flac")];
+        AudioTrack *converted = [AudioTrack withURL:URLNamed(@"other.flac")];
+        [playlist replaceTrackAtIndex:other withTrack:converted];
         XCTAssertEqual(playlist.trackEndSuccessor, armed, @"seed %llu", seed);
 
-        AudioTrack *incoming = [playlist replaceTrackAtIndex:(NSUInteger)[playlist getIndexForTrack:armed]
-                                                     withURL:URLNamed(@"armed.flac")];
+        AudioTrack *incoming = [armed replacementAtURL:URLNamed(@"armed.flac")];
+        [playlist replaceTrackAtIndex:(NSUInteger)[playlist getIndexForTrack:armed] withTrack:incoming];
         XCTAssertEqual(playlist.trackEndSuccessor, incoming, @"seed %llu", seed);
         XCTAssertTrue([playlist advanceFromTrack:playlist.currentTrack toTrack:incoming], @"seed %llu", seed);
         NSArray<AudioTrack *> *cycle = WalkNext(playlist, 6);

@@ -28,7 +28,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 @end
 
 @implementation PlaylistController {
-    Playlist *_model;
+    Playlist<AudioTrack *> *_model;
     __weak PlaylistTableView *_tableView;
     __weak NSClipView *_observedClipView;
     // The track the list last centered under shuffle, so a seek's refresh,
@@ -157,7 +157,11 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 - (instancetype)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
     self = [super init];
     if (self) {
-        _model = [Playlist new];
+        _model = [[Playlist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
+            return track.url;
+        } sourceKey:^NSString *(AudioTrack *track) {
+            return track.sourceKey;
+        }];
         _model.observer = self;
         self.audioPlayer = audioPlayer;
         [NSNotificationCenter.defaultCenter addObserver:self
@@ -858,8 +862,9 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     return [_model stampTracksSounding:track usingBlock:stamp];
 }
 
-- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track withURL:(NSURL *)url {
-    return [_model replaceTracksMatchingTrack:track withURL:url];
+- (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track
+                                usingBlock:(AudioTrack *(NS_NOESCAPE ^)(AudioTrack *outgoing))replacement {
+    return [_model replaceTracksMatchingTrack:track usingBlock:replacement];
 }
 
 - (NSArray<AudioTrack *> *)removeTracksAtIndexes:(NSIndexSet *)indexes {
