@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 318" width="720" height="318" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="Resizing the window, simple styles">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.s0{fill:#2a78d6;stroke:#2a78d6}.s1{fill:#eb6834;stroke:#eb6834}.s2{fill:#1baf7a;stroke:#1baf7a}.s3{fill:#eda100;stroke:#eda100}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.s0{fill:#3987e5;stroke:#3987e5}.s1{fill:#d95926;stroke:#d95926}.s2{fill:#199e70;stroke:#199e70}.s3{fill:#c98500;stroke:#c98500}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
+<rect class="bg" width="720" height="318" rx="10"/>
+<text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">Resizing the window, simple styles</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Milliseconds of CPU per frame. Lower is better. The numbers in the key are 1.17&#x27;s.</text>
+<rect class="s0" x="24" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">Bars</text>
+<text class="m" x="74.6" y="68.0" font-size="12" text-anchor="start" font-weight="600">1.81</text>
+<rect class="s1" x="120.72" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="140.7" y="68.0" font-size="12" text-anchor="start">Progress</text>
+<text class="m" x="194.2" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.13</text>
+<rect class="s2" x="240.35999999999999" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="260.4" y="68.0" font-size="12" text-anchor="start">Cupertino</text>
+<text class="m" x="317.1" y="68.0" font-size="12" text-anchor="start" font-weight="600">1.78</text>
+<rect class="s3" x="363.24" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="383.2" y="68.0" font-size="12" text-anchor="start">Wiggle</text>
+<text class="m" x="424.3" y="68.0" font-size="12" text-anchor="start" font-weight="600">6.51</text>
+<line class="a" x1="52.0" y1="274.0" x2="696.0" y2="274.0" stroke-width="1"/>
+<text class="q" x="44.0" y="278.0" font-size="11" text-anchor="end">0</text>
+<line class="g" x1="52.0" y1="229.0" x2="696.0" y2="229.0" stroke-width="1"/>
+<text class="q" x="44.0" y="233.0" font-size="11" text-anchor="end">2</text>
+<line class="g" x1="52.0" y1="184.0" x2="696.0" y2="184.0" stroke-width="1"/>
+<text class="q" x="44.0" y="188.0" font-size="11" text-anchor="end">4</text>
+<line class="g" x1="52.0" y1="139.0" x2="696.0" y2="139.0" stroke-width="1"/>
+<text class="q" x="44.0" y="143.0" font-size="11" text-anchor="end">6</text>
+<line class="g" x1="52.0" y1="94.0" x2="696.0" y2="94.0" stroke-width="1"/>
+<text class="q" x="44.0" y="98.0" font-size="11" text-anchor="end">8</text>
+<text class="m" x="84.2" y="292.0" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="148.6" y="292.0" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="213.0" y="292.0" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="277.4" y="292.0" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="341.8" y="292.0" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="406.2" y="292.0" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="470.6" y="292.0" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="535.0" y="292.0" font-size="11" text-anchor="middle">1.15</text>
+<text class="m" x="599.4" y="292.0" font-size="11" text-anchor="middle">1.16</text>
+<text class="t" x="663.8" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.17</text>
+<path class="ln s0" stroke-width="2" d="M341.8,231.7 L406.2,231.8 L470.6,231.7 L535.0,231.7 L599.4,233.3 L663.8,233.4"/>
+<circle class="s0 ring" cx="341.8" cy="231.7" r="3.5" stroke-width="2"><title>1.12, Bars: 1.88</title></circle>
+<circle class="s0 ring" cx="406.2" cy="231.8" r="3.5" stroke-width="2"><title>1.13, Bars: 1.88</title></circle>
+<circle class="s0 ring" cx="470.6" cy="231.7" r="3.5" stroke-width="2"><title>1.14, Bars: 1.88</title></circle>
+<circle class="s0 ring" cx="535.0" cy="231.7" r="3.5" stroke-width="2"><title>1.15, Bars: 1.88</title></circle>
+<circle class="s0 ring" cx="599.4" cy="233.3" r="3.5" stroke-width="2"><title>1.16, Bars: 1.81</title></circle>
+<circle class="s0 ring" cx="663.8" cy="233.4" r="3.5" stroke-width="2"><title>1.17, Bars: 1.81</title></circle>
+<path class="ln s1" stroke-width="2" d="M341.8,271.0 L406.2,270.8 L470.6,271.0 L535.0,270.8 L599.4,271.0 L663.8,271.0"/>
+<circle class="s1 ring" cx="341.8" cy="271.0" r="3.5" stroke-width="2"><title>1.12, Progress: 0.13</title></circle>
+<circle class="s1 ring" cx="406.2" cy="270.8" r="3.5" stroke-width="2"><title>1.13, Progress: 0.14</title></circle>
+<circle class="s1 ring" cx="470.6" cy="271.0" r="3.5" stroke-width="2"><title>1.14, Progress: 0.14</title></circle>
+<circle class="s1 ring" cx="535.0" cy="270.8" r="3.5" stroke-width="2"><title>1.15, Progress: 0.14</title></circle>
+<circle class="s1 ring" cx="599.4" cy="271.0" r="3.5" stroke-width="2"><title>1.16, Progress: 0.13</title></circle>
+<circle class="s1 ring" cx="663.8" cy="271.0" r="3.5" stroke-width="2"><title>1.17, Progress: 0.13</title></circle>
+<path class="ln s2" stroke-width="2" d="M341.8,231.9 L406.2,231.9 L470.6,231.9 L535.0,232.0 L599.4,233.7 L663.8,233.9"/>
+<circle class="s2 ring" cx="341.8" cy="231.9" r="3.5" stroke-width="2"><title>1.12, Cupertino: 1.87</title></circle>
+<circle class="s2 ring" cx="406.2" cy="231.9" r="3.5" stroke-width="2"><title>1.13, Cupertino: 1.87</title></circle>
+<circle class="s2 ring" cx="470.6" cy="231.9" r="3.5" stroke-width="2"><title>1.14, Cupertino: 1.87</title></circle>
+<circle class="s2 ring" cx="535.0" cy="232.0" r="3.5" stroke-width="2"><title>1.15, Cupertino: 1.87</title></circle>
+<circle class="s2 ring" cx="599.4" cy="233.7" r="3.5" stroke-width="2"><title>1.16, Cupertino: 1.79</title></circle>
+<circle class="s2 ring" cx="663.8" cy="233.9" r="3.5" stroke-width="2"><title>1.17, Cupertino: 1.78</title></circle>
+<path class="ln s3" stroke-width="2" d="M341.8,132.9 L406.2,132.8 L470.6,133.4 L535.0,138.6 L599.4,127.9 L663.8,127.5"/>
+<circle class="s3 ring" cx="341.8" cy="132.9" r="3.5" stroke-width="2"><title>1.12, Wiggle: 6.27</title></circle>
+<circle class="s3 ring" cx="406.2" cy="132.8" r="3.5" stroke-width="2"><title>1.13, Wiggle: 6.28</title></circle>
+<circle class="s3 ring" cx="470.6" cy="133.4" r="3.5" stroke-width="2"><title>1.14, Wiggle: 6.25</title></circle>
+<circle class="s3 ring" cx="535.0" cy="138.6" r="3.5" stroke-width="2"><title>1.15, Wiggle: 6.02</title></circle>
+<circle class="s3 ring" cx="599.4" cy="127.9" r="3.5" stroke-width="2"><title>1.16, Wiggle: 6.49</title></circle>
+<circle class="s3 ring" cx="663.8" cy="127.5" r="3.5" stroke-width="2"><title>1.17, Wiggle: 6.51</title></circle>
+</svg>

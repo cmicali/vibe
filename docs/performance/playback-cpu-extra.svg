@@ -2,19 +2,19 @@
 <style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.s0{fill:#2a78d6;stroke:#2a78d6}.s1{fill:#eb6834;stroke:#eb6834}.s2{fill:#1baf7a;stroke:#1baf7a}.s3{fill:#eda100;stroke:#eda100}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.s0{fill:#3987e5;stroke:#3987e5}.s1{fill:#d95926;stroke:#d95926}.s2{fill:#199e70;stroke:#199e70}.s3{fill:#c98500;stroke:#c98500}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
 <rect class="bg" width="720" height="338" rx="10"/>
 <text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">Playback CPU with effects, pitch and resampling</text>
-<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Percent of one core. Lower is better. The numbers in the key are 1.16&#x27;s.</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Percent of one core. Lower is better. The numbers in the key are 1.17&#x27;s.</text>
 <rect class="s3" x="24" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">FLAC 24/192</text>
-<text class="m" x="123.9" y="68.0" font-size="12" text-anchor="start" font-weight="600">1.6</text>
+<text class="m" x="123.9" y="68.0" font-size="12" text-anchor="start" font-weight="600">1.7</text>
 <rect class="s0" x="163.07999999999998" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="183.1" y="68.0" font-size="12" text-anchor="start">FLAC 24/192 with every effect on</text>
 <text class="m" x="372.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">6.4</text>
 <rect class="s1" x="411.5999999999999" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="431.6" y="68.0" font-size="12" text-anchor="start">FLAC 24/192 at +8% pitch</text>
-<text class="m" x="579.7" y="68.0" font-size="12" text-anchor="start" font-weight="600">7.3</text>
+<text class="m" x="579.7" y="68.0" font-size="12" text-anchor="start" font-weight="600">7.6</text>
 <rect class="s2" x="24" y="83.0" width="14" height="4" rx="2"/>
 <text class="t" x="44.0" y="88.0" font-size="12" text-anchor="start">FLAC 24/352.8, resampled</text>
-<text class="m" x="195.3" y="88.0" font-size="12" text-anchor="start" font-weight="600">2.4</text>
+<text class="m" x="195.3" y="88.0" font-size="12" text-anchor="start" font-weight="600">2.0</text>
 <line class="a" x1="52.0" y1="294.0" x2="696.0" y2="294.0" stroke-width="1"/>
 <text class="q" x="44.0" y="298.0" font-size="11" text-anchor="end">0.0</text>
 <line class="g" x1="52.0" y1="264.0" x2="696.0" y2="264.0" stroke-width="1"/>
@@ -29,53 +29,58 @@
 <text class="q" x="44.0" y="148.0" font-size="11" text-anchor="end">12.5</text>
 <line class="g" x1="52.0" y1="114.0" x2="696.0" y2="114.0" stroke-width="1"/>
 <text class="q" x="44.0" y="118.0" font-size="11" text-anchor="end">15.0</text>
-<text class="m" x="87.8" y="312.0" font-size="11" text-anchor="middle">1.8</text>
-<text class="m" x="159.3" y="312.0" font-size="11" text-anchor="middle">1.9</text>
-<text class="m" x="230.9" y="312.0" font-size="11" text-anchor="middle">1.10</text>
-<text class="m" x="302.4" y="312.0" font-size="11" text-anchor="middle">1.11</text>
-<text class="m" x="374.0" y="312.0" font-size="11" text-anchor="middle">1.12</text>
-<text class="m" x="445.6" y="312.0" font-size="11" text-anchor="middle">1.13</text>
-<text class="m" x="517.1" y="312.0" font-size="11" text-anchor="middle">1.14</text>
-<text class="m" x="588.7" y="312.0" font-size="11" text-anchor="middle">1.15</text>
-<text class="t" x="660.2" y="312.0" font-size="11" text-anchor="middle" font-weight="600">1.16</text>
-<path class="ln s3" stroke-width="2" d="M87.8,195.3 L159.3,196.2 L230.9,194.2 L302.4,195.5 L374.0,226.6 L445.6,225.2 L517.1,245.8 L588.7,269.7 L660.2,274.8"/>
-<circle class="s3 ring" cx="87.8" cy="195.3" r="3.5" stroke-width="2"><title>1.8, FLAC 24/192: 8.2</title></circle>
-<circle class="s3 ring" cx="159.3" cy="196.2" r="3.5" stroke-width="2"><title>1.9, FLAC 24/192: 8.2</title></circle>
-<circle class="s3 ring" cx="230.9" cy="194.2" r="3.5" stroke-width="2"><title>1.10, FLAC 24/192: 8.3</title></circle>
-<circle class="s3 ring" cx="302.4" cy="195.5" r="3.5" stroke-width="2"><title>1.11, FLAC 24/192: 8.2</title></circle>
-<circle class="s3 ring" cx="374.0" cy="226.6" r="3.5" stroke-width="2"><title>1.12, FLAC 24/192: 5.6</title></circle>
-<circle class="s3 ring" cx="445.6" cy="225.2" r="3.5" stroke-width="2"><title>1.13, FLAC 24/192: 5.7</title></circle>
-<circle class="s3 ring" cx="517.1" cy="245.8" r="3.5" stroke-width="2"><title>1.14, FLAC 24/192: 4.0</title></circle>
-<circle class="s3 ring" cx="588.7" cy="269.7" r="3.5" stroke-width="2"><title>1.15, FLAC 24/192: 2.0</title></circle>
-<circle class="s3 ring" cx="660.2" cy="274.8" r="3.5" stroke-width="2"><title>1.16, FLAC 24/192: 1.6</title></circle>
-<path class="ln s0" stroke-width="2" d="M87.8,151.0 L159.3,153.4 L230.9,153.0 L302.4,151.5 L374.0,185.2 L445.6,183.3 L517.1,182.3 L588.7,206.1 L660.2,217.5"/>
-<circle class="s0 ring" cx="87.8" cy="151.0" r="3.5" stroke-width="2"><title>1.8, FLAC 24/192 with every effect on: 11.9</title></circle>
-<circle class="s0 ring" cx="159.3" cy="153.4" r="3.5" stroke-width="2"><title>1.9, FLAC 24/192 with every effect on: 11.7</title></circle>
-<circle class="s0 ring" cx="230.9" cy="153.0" r="3.5" stroke-width="2"><title>1.10, FLAC 24/192 with every effect on: 11.8</title></circle>
-<circle class="s0 ring" cx="302.4" cy="151.5" r="3.5" stroke-width="2"><title>1.11, FLAC 24/192 with every effect on: 11.9</title></circle>
-<circle class="s0 ring" cx="374.0" cy="185.2" r="3.5" stroke-width="2"><title>1.12, FLAC 24/192 with every effect on: 9.1</title></circle>
-<circle class="s0 ring" cx="445.6" cy="183.3" r="3.5" stroke-width="2"><title>1.13, FLAC 24/192 with every effect on: 9.2</title></circle>
-<circle class="s0 ring" cx="517.1" cy="182.3" r="3.5" stroke-width="2"><title>1.14, FLAC 24/192 with every effect on: 9.3</title></circle>
-<circle class="s0 ring" cx="588.7" cy="206.1" r="3.5" stroke-width="2"><title>1.15, FLAC 24/192 with every effect on: 7.3</title></circle>
-<circle class="s0 ring" cx="660.2" cy="217.5" r="3.5" stroke-width="2"><title>1.16, FLAC 24/192 with every effect on: 6.4</title></circle>
-<path class="ln s1" stroke-width="2" d="M87.8,159.8 L159.3,160.1 L230.9,160.7 L302.4,159.9 L374.0,163.6 L445.6,162.6 L517.1,185.4 L588.7,210.5 L660.2,206.4"/>
-<circle class="s1 ring" cx="87.8" cy="159.8" r="3.5" stroke-width="2"><title>1.8, FLAC 24/192 at +8% pitch: 11.2</title></circle>
-<circle class="s1 ring" cx="159.3" cy="160.1" r="3.5" stroke-width="2"><title>1.9, FLAC 24/192 at +8% pitch: 11.2</title></circle>
-<circle class="s1 ring" cx="230.9" cy="160.7" r="3.5" stroke-width="2"><title>1.10, FLAC 24/192 at +8% pitch: 11.1</title></circle>
-<circle class="s1 ring" cx="302.4" cy="159.9" r="3.5" stroke-width="2"><title>1.11, FLAC 24/192 at +8% pitch: 11.2</title></circle>
-<circle class="s1 ring" cx="374.0" cy="163.6" r="3.5" stroke-width="2"><title>1.12, FLAC 24/192 at +8% pitch: 10.9</title></circle>
-<circle class="s1 ring" cx="445.6" cy="162.6" r="3.5" stroke-width="2"><title>1.13, FLAC 24/192 at +8% pitch: 11.0</title></circle>
-<circle class="s1 ring" cx="517.1" cy="185.4" r="3.5" stroke-width="2"><title>1.14, FLAC 24/192 at +8% pitch: 9.1</title></circle>
-<circle class="s1 ring" cx="588.7" cy="210.5" r="3.5" stroke-width="2"><title>1.15, FLAC 24/192 at +8% pitch: 7.0</title></circle>
-<circle class="s1 ring" cx="660.2" cy="206.4" r="3.5" stroke-width="2"><title>1.16, FLAC 24/192 at +8% pitch: 7.3</title></circle>
-<path class="ln s2" stroke-width="2" d="M87.8,148.1 L159.3,146.9 L230.9,145.2 L302.4,147.8 L374.0,207.2 L445.6,205.2 L517.1,221.4 L588.7,257.7 L660.2,265.5"/>
-<circle class="s2 ring" cx="87.8" cy="148.1" r="3.5" stroke-width="2"><title>1.8, FLAC 24/352.8, resampled: 12.2</title></circle>
-<circle class="s2 ring" cx="159.3" cy="146.9" r="3.5" stroke-width="2"><title>1.9, FLAC 24/352.8, resampled: 12.3</title></circle>
-<circle class="s2 ring" cx="230.9" cy="145.2" r="3.5" stroke-width="2"><title>1.10, FLAC 24/352.8, resampled: 12.4</title></circle>
-<circle class="s2 ring" cx="302.4" cy="147.8" r="3.5" stroke-width="2"><title>1.11, FLAC 24/352.8, resampled: 12.2</title></circle>
-<circle class="s2 ring" cx="374.0" cy="207.2" r="3.5" stroke-width="2"><title>1.12, FLAC 24/352.8, resampled: 7.2</title></circle>
-<circle class="s2 ring" cx="445.6" cy="205.2" r="3.5" stroke-width="2"><title>1.13, FLAC 24/352.8, resampled: 7.4</title></circle>
-<circle class="s2 ring" cx="517.1" cy="221.4" r="3.5" stroke-width="2"><title>1.14, FLAC 24/352.8, resampled: 6.1</title></circle>
-<circle class="s2 ring" cx="588.7" cy="257.7" r="3.5" stroke-width="2"><title>1.15, FLAC 24/352.8, resampled: 3.0</title></circle>
-<circle class="s2 ring" cx="660.2" cy="265.5" r="3.5" stroke-width="2"><title>1.16, FLAC 24/352.8, resampled: 2.4</title></circle>
+<text class="m" x="84.2" y="312.0" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="148.6" y="312.0" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="213.0" y="312.0" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="277.4" y="312.0" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="341.8" y="312.0" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="406.2" y="312.0" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="470.6" y="312.0" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="535.0" y="312.0" font-size="11" text-anchor="middle">1.15</text>
+<text class="m" x="599.4" y="312.0" font-size="11" text-anchor="middle">1.16</text>
+<text class="t" x="663.8" y="312.0" font-size="11" text-anchor="middle" font-weight="600">1.17</text>
+<path class="ln s3" stroke-width="2" d="M84.2,198.7 L148.6,199.8 L213.0,198.1 L277.4,199.3 L341.8,229.4 L406.2,229.0 L470.6,250.4 L535.0,274.1 L599.4,272.9 L663.8,273.7"/>
+<circle class="s3 ring" cx="84.2" cy="198.7" r="3.5" stroke-width="2"><title>1.8, FLAC 24/192: 7.9</title></circle>
+<circle class="s3 ring" cx="148.6" cy="199.8" r="3.5" stroke-width="2"><title>1.9, FLAC 24/192: 7.8</title></circle>
+<circle class="s3 ring" cx="213.0" cy="198.1" r="3.5" stroke-width="2"><title>1.10, FLAC 24/192: 8.0</title></circle>
+<circle class="s3 ring" cx="277.4" cy="199.3" r="3.5" stroke-width="2"><title>1.11, FLAC 24/192: 7.9</title></circle>
+<circle class="s3 ring" cx="341.8" cy="229.4" r="3.5" stroke-width="2"><title>1.12, FLAC 24/192: 5.4</title></circle>
+<circle class="s3 ring" cx="406.2" cy="229.0" r="3.5" stroke-width="2"><title>1.13, FLAC 24/192: 5.4</title></circle>
+<circle class="s3 ring" cx="470.6" cy="250.4" r="3.5" stroke-width="2"><title>1.14, FLAC 24/192: 3.6</title></circle>
+<circle class="s3 ring" cx="535.0" cy="274.1" r="3.5" stroke-width="2"><title>1.15, FLAC 24/192: 1.7</title></circle>
+<circle class="s3 ring" cx="599.4" cy="272.9" r="3.5" stroke-width="2"><title>1.16, FLAC 24/192: 1.8</title></circle>
+<circle class="s3 ring" cx="663.8" cy="273.7" r="3.5" stroke-width="2"><title>1.17, FLAC 24/192: 1.7</title></circle>
+<path class="ln s0" stroke-width="2" d="M84.2,159.7 L148.6,159.0 L213.0,159.5 L277.4,160.8 L341.8,190.4 L406.2,190.3 L470.6,195.6 L535.0,217.4 L599.4,216.6 L663.8,216.8"/>
+<circle class="s0 ring" cx="84.2" cy="159.7" r="3.5" stroke-width="2"><title>1.8, FLAC 24/192 with every effect on: 11.2</title></circle>
+<circle class="s0 ring" cx="148.6" cy="159.0" r="3.5" stroke-width="2"><title>1.9, FLAC 24/192 with every effect on: 11.2</title></circle>
+<circle class="s0 ring" cx="213.0" cy="159.5" r="3.5" stroke-width="2"><title>1.10, FLAC 24/192 with every effect on: 11.2</title></circle>
+<circle class="s0 ring" cx="277.4" cy="160.8" r="3.5" stroke-width="2"><title>1.11, FLAC 24/192 with every effect on: 11.1</title></circle>
+<circle class="s0 ring" cx="341.8" cy="190.4" r="3.5" stroke-width="2"><title>1.12, FLAC 24/192 with every effect on: 8.6</title></circle>
+<circle class="s0 ring" cx="406.2" cy="190.3" r="3.5" stroke-width="2"><title>1.13, FLAC 24/192 with every effect on: 8.6</title></circle>
+<circle class="s0 ring" cx="470.6" cy="195.6" r="3.5" stroke-width="2"><title>1.14, FLAC 24/192 with every effect on: 8.2</title></circle>
+<circle class="s0 ring" cx="535.0" cy="217.4" r="3.5" stroke-width="2"><title>1.15, FLAC 24/192 with every effect on: 6.4</title></circle>
+<circle class="s0 ring" cx="599.4" cy="216.6" r="3.5" stroke-width="2"><title>1.16, FLAC 24/192 with every effect on: 6.5</title></circle>
+<circle class="s0 ring" cx="663.8" cy="216.8" r="3.5" stroke-width="2"><title>1.17, FLAC 24/192 with every effect on: 6.4</title></circle>
+<path class="ln s1" stroke-width="2" d="M84.2,165.9 L148.6,164.8 L213.0,164.8 L277.4,165.0 L341.8,166.3 L406.2,165.9 L470.6,197.1 L535.0,221.0 L599.4,203.2 L663.8,203.1"/>
+<circle class="s1 ring" cx="84.2" cy="165.9" r="3.5" stroke-width="2"><title>1.8, FLAC 24/192 at +8% pitch: 10.7</title></circle>
+<circle class="s1 ring" cx="148.6" cy="164.8" r="3.5" stroke-width="2"><title>1.9, FLAC 24/192 at +8% pitch: 10.8</title></circle>
+<circle class="s1 ring" cx="213.0" cy="164.8" r="3.5" stroke-width="2"><title>1.10, FLAC 24/192 at +8% pitch: 10.8</title></circle>
+<circle class="s1 ring" cx="277.4" cy="165.0" r="3.5" stroke-width="2"><title>1.11, FLAC 24/192 at +8% pitch: 10.7</title></circle>
+<circle class="s1 ring" cx="341.8" cy="166.3" r="3.5" stroke-width="2"><title>1.12, FLAC 24/192 at +8% pitch: 10.6</title></circle>
+<circle class="s1 ring" cx="406.2" cy="165.9" r="3.5" stroke-width="2"><title>1.13, FLAC 24/192 at +8% pitch: 10.7</title></circle>
+<circle class="s1 ring" cx="470.6" cy="197.1" r="3.5" stroke-width="2"><title>1.14, FLAC 24/192 at +8% pitch: 8.1</title></circle>
+<circle class="s1 ring" cx="535.0" cy="221.0" r="3.5" stroke-width="2"><title>1.15, FLAC 24/192 at +8% pitch: 6.1</title></circle>
+<circle class="s1 ring" cx="599.4" cy="203.2" r="3.5" stroke-width="2"><title>1.16, FLAC 24/192 at +8% pitch: 7.6</title></circle>
+<circle class="s1 ring" cx="663.8" cy="203.1" r="3.5" stroke-width="2"><title>1.17, FLAC 24/192 at +8% pitch: 7.6</title></circle>
+<path class="ln s2" stroke-width="2" d="M84.2,151.8 L148.6,147.5 L213.0,149.3 L277.4,147.5 L341.8,207.1 L406.2,207.6 L470.6,232.5 L535.0,271.3 L599.4,270.6 L663.8,270.4"/>
+<circle class="s2 ring" cx="84.2" cy="151.8" r="3.5" stroke-width="2"><title>1.8, FLAC 24/352.8, resampled: 11.8</title></circle>
+<circle class="s2 ring" cx="148.6" cy="147.5" r="3.5" stroke-width="2"><title>1.9, FLAC 24/352.8, resampled: 12.2</title></circle>
+<circle class="s2 ring" cx="213.0" cy="149.3" r="3.5" stroke-width="2"><title>1.10, FLAC 24/352.8, resampled: 12.1</title></circle>
+<circle class="s2 ring" cx="277.4" cy="147.5" r="3.5" stroke-width="2"><title>1.11, FLAC 24/352.8, resampled: 12.2</title></circle>
+<circle class="s2 ring" cx="341.8" cy="207.1" r="3.5" stroke-width="2"><title>1.12, FLAC 24/352.8, resampled: 7.2</title></circle>
+<circle class="s2 ring" cx="406.2" cy="207.6" r="3.5" stroke-width="2"><title>1.13, FLAC 24/352.8, resampled: 7.2</title></circle>
+<circle class="s2 ring" cx="470.6" cy="232.5" r="3.5" stroke-width="2"><title>1.14, FLAC 24/352.8, resampled: 5.1</title></circle>
+<circle class="s2 ring" cx="535.0" cy="271.3" r="3.5" stroke-width="2"><title>1.15, FLAC 24/352.8, resampled: 1.9</title></circle>
+<circle class="s2 ring" cx="599.4" cy="270.6" r="3.5" stroke-width="2"><title>1.16, FLAC 24/352.8, resampled: 2.0</title></circle>
+<circle class="s2 ring" cx="663.8" cy="270.4" r="3.5" stroke-width="2"><title>1.17, FLAC 24/352.8, resampled: 2.0</title></circle>
 </svg>

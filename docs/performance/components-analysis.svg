@@ -2,19 +2,19 @@
 <style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.s0{fill:#2a78d6;stroke:#2a78d6}.s1{fill:#eb6834;stroke:#eb6834}.s2{fill:#1baf7a;stroke:#1baf7a}.s3{fill:#eda100;stroke:#eda100}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.s0{fill:#3987e5;stroke:#3987e5}.s1{fill:#d95926;stroke:#d95926}.s2{fill:#199e70;stroke:#199e70}.s3{fill:#c98500;stroke:#c98500}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
 <rect class="bg" width="720" height="318" rx="10"/>
 <text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">Tempo and key analysis, CPU per minute of audio</text>
-<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Milliseconds. Lower is better. The numbers in the key are 1.16&#x27;s.</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Milliseconds. Lower is better. The numbers in the key are 1.17&#x27;s.</text>
 <rect class="s0" x="24" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">Tempo, 44.1 kHz</text>
-<text class="m" x="140.7" y="68.0" font-size="12" text-anchor="start" font-weight="600">10.5</text>
+<text class="m" x="140.7" y="68.0" font-size="12" text-anchor="start" font-weight="600">10.4</text>
 <rect class="s1" x="186.83999999999997" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="206.8" y="68.0" font-size="12" text-anchor="start">Key, 44.1 kHz</text>
 <text class="m" x="287.5" y="68.0" font-size="12" text-anchor="start" font-weight="600">5.6</text>
 <rect class="s2" x="326.64" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="346.6" y="68.0" font-size="12" text-anchor="start">Tempo, 96 kHz</text>
-<text class="m" x="433.2" y="68.0" font-size="12" text-anchor="start" font-weight="600">15.8</text>
+<text class="m" x="433.2" y="68.0" font-size="12" text-anchor="start" font-weight="600">15.7</text>
 <rect class="s3" x="479.28" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="499.3" y="68.0" font-size="12" text-anchor="start">Key, 96 kHz</text>
-<text class="m" x="569.7" y="68.0" font-size="12" text-anchor="start" font-weight="600">11.9</text>
+<text class="m" x="569.7" y="68.0" font-size="12" text-anchor="start" font-weight="600">12.0</text>
 <line class="a" x1="52.0" y1="274.0" x2="696.0" y2="274.0" stroke-width="1"/>
 <text class="q" x="44.0" y="278.0" font-size="11" text-anchor="end">0</text>
 <line class="g" x1="52.0" y1="238.0" x2="696.0" y2="238.0" stroke-width="1"/>
@@ -27,53 +27,58 @@
 <text class="q" x="44.0" y="134.0" font-size="11" text-anchor="end">20</text>
 <line class="g" x1="52.0" y1="94.0" x2="696.0" y2="94.0" stroke-width="1"/>
 <text class="q" x="44.0" y="98.0" font-size="11" text-anchor="end">25</text>
-<text class="m" x="87.8" y="292.0" font-size="11" text-anchor="middle">1.8</text>
-<text class="m" x="159.3" y="292.0" font-size="11" text-anchor="middle">1.9</text>
-<text class="m" x="230.9" y="292.0" font-size="11" text-anchor="middle">1.10</text>
-<text class="m" x="302.4" y="292.0" font-size="11" text-anchor="middle">1.11</text>
-<text class="m" x="374.0" y="292.0" font-size="11" text-anchor="middle">1.12</text>
-<text class="m" x="445.6" y="292.0" font-size="11" text-anchor="middle">1.13</text>
-<text class="m" x="517.1" y="292.0" font-size="11" text-anchor="middle">1.14</text>
-<text class="m" x="588.7" y="292.0" font-size="11" text-anchor="middle">1.15</text>
-<text class="t" x="660.2" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.16</text>
-<path class="ln s0" stroke-width="2" d="M87.8,198.3 L159.3,197.3 L230.9,198.2 L302.4,198.1 L374.0,198.5 L445.6,198.7 L517.1,198.1 L588.7,198.7 L660.2,198.1"/>
-<circle class="s0 ring" cx="87.8" cy="198.3" r="3.5" stroke-width="2"><title>1.8, Tempo, 44.1 kHz: 10.5</title></circle>
-<circle class="s0 ring" cx="159.3" cy="197.3" r="3.5" stroke-width="2"><title>1.9, Tempo, 44.1 kHz: 10.6</title></circle>
-<circle class="s0 ring" cx="230.9" cy="198.2" r="3.5" stroke-width="2"><title>1.10, Tempo, 44.1 kHz: 10.5</title></circle>
-<circle class="s0 ring" cx="302.4" cy="198.1" r="3.5" stroke-width="2"><title>1.11, Tempo, 44.1 kHz: 10.5</title></circle>
-<circle class="s0 ring" cx="374.0" cy="198.5" r="3.5" stroke-width="2"><title>1.12, Tempo, 44.1 kHz: 10.5</title></circle>
-<circle class="s0 ring" cx="445.6" cy="198.7" r="3.5" stroke-width="2"><title>1.13, Tempo, 44.1 kHz: 10.5</title></circle>
-<circle class="s0 ring" cx="517.1" cy="198.1" r="3.5" stroke-width="2"><title>1.14, Tempo, 44.1 kHz: 10.5</title></circle>
-<circle class="s0 ring" cx="588.7" cy="198.7" r="3.5" stroke-width="2"><title>1.15, Tempo, 44.1 kHz: 10.5</title></circle>
-<circle class="s0 ring" cx="660.2" cy="198.1" r="3.5" stroke-width="2"><title>1.16, Tempo, 44.1 kHz: 10.5</title></circle>
-<path class="ln s1" stroke-width="2" d="M87.8,231.8 L159.3,231.7 L230.9,231.9 L302.4,231.8 L374.0,231.9 L445.6,231.9 L517.1,231.6 L588.7,233.2 L660.2,233.5"/>
-<circle class="s1 ring" cx="87.8" cy="231.8" r="3.5" stroke-width="2"><title>1.8, Key, 44.1 kHz: 5.9</title></circle>
-<circle class="s1 ring" cx="159.3" cy="231.7" r="3.5" stroke-width="2"><title>1.9, Key, 44.1 kHz: 5.9</title></circle>
-<circle class="s1 ring" cx="230.9" cy="231.9" r="3.5" stroke-width="2"><title>1.10, Key, 44.1 kHz: 5.8</title></circle>
-<circle class="s1 ring" cx="302.4" cy="231.8" r="3.5" stroke-width="2"><title>1.11, Key, 44.1 kHz: 5.9</title></circle>
-<circle class="s1 ring" cx="374.0" cy="231.9" r="3.5" stroke-width="2"><title>1.12, Key, 44.1 kHz: 5.8</title></circle>
-<circle class="s1 ring" cx="445.6" cy="231.9" r="3.5" stroke-width="2"><title>1.13, Key, 44.1 kHz: 5.8</title></circle>
-<circle class="s1 ring" cx="517.1" cy="231.6" r="3.5" stroke-width="2"><title>1.14, Key, 44.1 kHz: 5.9</title></circle>
-<circle class="s1 ring" cx="588.7" cy="233.2" r="3.5" stroke-width="2"><title>1.15, Key, 44.1 kHz: 5.7</title></circle>
-<circle class="s1 ring" cx="660.2" cy="233.5" r="3.5" stroke-width="2"><title>1.16, Key, 44.1 kHz: 5.6</title></circle>
-<path class="ln s2" stroke-width="2" d="M87.8,102.7 L159.3,102.9 L230.9,102.9 L302.4,104.5 L374.0,102.9 L445.6,104.8 L517.1,104.8 L588.7,161.0 L660.2,160.5"/>
-<circle class="s2 ring" cx="87.8" cy="102.7" r="3.5" stroke-width="2"><title>1.8, Tempo, 96 kHz: 23.8</title></circle>
-<circle class="s2 ring" cx="159.3" cy="102.9" r="3.5" stroke-width="2"><title>1.9, Tempo, 96 kHz: 23.8</title></circle>
-<circle class="s2 ring" cx="230.9" cy="102.9" r="3.5" stroke-width="2"><title>1.10, Tempo, 96 kHz: 23.8</title></circle>
-<circle class="s2 ring" cx="302.4" cy="104.5" r="3.5" stroke-width="2"><title>1.11, Tempo, 96 kHz: 23.5</title></circle>
-<circle class="s2 ring" cx="374.0" cy="102.9" r="3.5" stroke-width="2"><title>1.12, Tempo, 96 kHz: 23.8</title></circle>
-<circle class="s2 ring" cx="445.6" cy="104.8" r="3.5" stroke-width="2"><title>1.13, Tempo, 96 kHz: 23.5</title></circle>
-<circle class="s2 ring" cx="517.1" cy="104.8" r="3.5" stroke-width="2"><title>1.14, Tempo, 96 kHz: 23.5</title></circle>
-<circle class="s2 ring" cx="588.7" cy="161.0" r="3.5" stroke-width="2"><title>1.15, Tempo, 96 kHz: 15.7</title></circle>
-<circle class="s2 ring" cx="660.2" cy="160.5" r="3.5" stroke-width="2"><title>1.16, Tempo, 96 kHz: 15.8</title></circle>
-<path class="ln s3" stroke-width="2" d="M87.8,178.8 L159.3,178.7 L230.9,179.0 L302.4,178.6 L374.0,179.2 L445.6,178.9 L517.1,179.0 L588.7,188.1 L660.2,188.3"/>
-<circle class="s3 ring" cx="87.8" cy="178.8" r="3.5" stroke-width="2"><title>1.8, Key, 96 kHz: 13.2</title></circle>
-<circle class="s3 ring" cx="159.3" cy="178.7" r="3.5" stroke-width="2"><title>1.9, Key, 96 kHz: 13.2</title></circle>
-<circle class="s3 ring" cx="230.9" cy="179.0" r="3.5" stroke-width="2"><title>1.10, Key, 96 kHz: 13.2</title></circle>
-<circle class="s3 ring" cx="302.4" cy="178.6" r="3.5" stroke-width="2"><title>1.11, Key, 96 kHz: 13.2</title></circle>
-<circle class="s3 ring" cx="374.0" cy="179.2" r="3.5" stroke-width="2"><title>1.12, Key, 96 kHz: 13.2</title></circle>
-<circle class="s3 ring" cx="445.6" cy="178.9" r="3.5" stroke-width="2"><title>1.13, Key, 96 kHz: 13.2</title></circle>
-<circle class="s3 ring" cx="517.1" cy="179.0" r="3.5" stroke-width="2"><title>1.14, Key, 96 kHz: 13.2</title></circle>
-<circle class="s3 ring" cx="588.7" cy="188.1" r="3.5" stroke-width="2"><title>1.15, Key, 96 kHz: 11.9</title></circle>
-<circle class="s3 ring" cx="660.2" cy="188.3" r="3.5" stroke-width="2"><title>1.16, Key, 96 kHz: 11.9</title></circle>
+<text class="m" x="84.2" y="292.0" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="148.6" y="292.0" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="213.0" y="292.0" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="277.4" y="292.0" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="341.8" y="292.0" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="406.2" y="292.0" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="470.6" y="292.0" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="535.0" y="292.0" font-size="11" text-anchor="middle">1.15</text>
+<text class="m" x="599.4" y="292.0" font-size="11" text-anchor="middle">1.16</text>
+<text class="t" x="663.8" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.17</text>
+<path class="ln s0" stroke-width="2" d="M84.2,198.2 L148.6,198.5 L213.0,198.7 L277.4,198.2 L341.8,198.1 L406.2,197.6 L470.6,198.1 L535.0,198.5 L599.4,198.5 L663.8,198.8"/>
+<circle class="s0 ring" cx="84.2" cy="198.2" r="3.5" stroke-width="2"><title>1.8, Tempo, 44.1 kHz: 10.5</title></circle>
+<circle class="s0 ring" cx="148.6" cy="198.5" r="3.5" stroke-width="2"><title>1.9, Tempo, 44.1 kHz: 10.5</title></circle>
+<circle class="s0 ring" cx="213.0" cy="198.7" r="3.5" stroke-width="2"><title>1.10, Tempo, 44.1 kHz: 10.5</title></circle>
+<circle class="s0 ring" cx="277.4" cy="198.2" r="3.5" stroke-width="2"><title>1.11, Tempo, 44.1 kHz: 10.5</title></circle>
+<circle class="s0 ring" cx="341.8" cy="198.1" r="3.5" stroke-width="2"><title>1.12, Tempo, 44.1 kHz: 10.5</title></circle>
+<circle class="s0 ring" cx="406.2" cy="197.6" r="3.5" stroke-width="2"><title>1.13, Tempo, 44.1 kHz: 10.6</title></circle>
+<circle class="s0 ring" cx="470.6" cy="198.1" r="3.5" stroke-width="2"><title>1.14, Tempo, 44.1 kHz: 10.5</title></circle>
+<circle class="s0 ring" cx="535.0" cy="198.5" r="3.5" stroke-width="2"><title>1.15, Tempo, 44.1 kHz: 10.5</title></circle>
+<circle class="s0 ring" cx="599.4" cy="198.5" r="3.5" stroke-width="2"><title>1.16, Tempo, 44.1 kHz: 10.5</title></circle>
+<circle class="s0 ring" cx="663.8" cy="198.8" r="3.5" stroke-width="2"><title>1.17, Tempo, 44.1 kHz: 10.4</title></circle>
+<path class="ln s1" stroke-width="2" d="M84.2,231.8 L148.6,231.7 L213.0,231.8 L277.4,231.8 L341.8,231.8 L406.2,231.9 L470.6,231.6 L535.0,233.1 L599.4,233.3 L663.8,233.6"/>
+<circle class="s1 ring" cx="84.2" cy="231.8" r="3.5" stroke-width="2"><title>1.8, Key, 44.1 kHz: 5.9</title></circle>
+<circle class="s1 ring" cx="148.6" cy="231.7" r="3.5" stroke-width="2"><title>1.9, Key, 44.1 kHz: 5.9</title></circle>
+<circle class="s1 ring" cx="213.0" cy="231.8" r="3.5" stroke-width="2"><title>1.10, Key, 44.1 kHz: 5.9</title></circle>
+<circle class="s1 ring" cx="277.4" cy="231.8" r="3.5" stroke-width="2"><title>1.11, Key, 44.1 kHz: 5.9</title></circle>
+<circle class="s1 ring" cx="341.8" cy="231.8" r="3.5" stroke-width="2"><title>1.12, Key, 44.1 kHz: 5.9</title></circle>
+<circle class="s1 ring" cx="406.2" cy="231.9" r="3.5" stroke-width="2"><title>1.13, Key, 44.1 kHz: 5.9</title></circle>
+<circle class="s1 ring" cx="470.6" cy="231.6" r="3.5" stroke-width="2"><title>1.14, Key, 44.1 kHz: 5.9</title></circle>
+<circle class="s1 ring" cx="535.0" cy="233.1" r="3.5" stroke-width="2"><title>1.15, Key, 44.1 kHz: 5.7</title></circle>
+<circle class="s1 ring" cx="599.4" cy="233.3" r="3.5" stroke-width="2"><title>1.16, Key, 44.1 kHz: 5.7</title></circle>
+<circle class="s1 ring" cx="663.8" cy="233.6" r="3.5" stroke-width="2"><title>1.17, Key, 44.1 kHz: 5.6</title></circle>
+<path class="ln s2" stroke-width="2" d="M84.2,102.7 L148.6,104.9 L213.0,103.6 L277.4,104.3 L341.8,104.4 L406.2,104.4 L470.6,104.3 L535.0,160.9 L599.4,160.8 L663.8,160.9"/>
+<circle class="s2 ring" cx="84.2" cy="102.7" r="3.5" stroke-width="2"><title>1.8, Tempo, 96 kHz: 23.8</title></circle>
+<circle class="s2 ring" cx="148.6" cy="104.9" r="3.5" stroke-width="2"><title>1.9, Tempo, 96 kHz: 23.5</title></circle>
+<circle class="s2 ring" cx="213.0" cy="103.6" r="3.5" stroke-width="2"><title>1.10, Tempo, 96 kHz: 23.7</title></circle>
+<circle class="s2 ring" cx="277.4" cy="104.3" r="3.5" stroke-width="2"><title>1.11, Tempo, 96 kHz: 23.6</title></circle>
+<circle class="s2 ring" cx="341.8" cy="104.4" r="3.5" stroke-width="2"><title>1.12, Tempo, 96 kHz: 23.6</title></circle>
+<circle class="s2 ring" cx="406.2" cy="104.4" r="3.5" stroke-width="2"><title>1.13, Tempo, 96 kHz: 23.6</title></circle>
+<circle class="s2 ring" cx="470.6" cy="104.3" r="3.5" stroke-width="2"><title>1.14, Tempo, 96 kHz: 23.6</title></circle>
+<circle class="s2 ring" cx="535.0" cy="160.9" r="3.5" stroke-width="2"><title>1.15, Tempo, 96 kHz: 15.7</title></circle>
+<circle class="s2 ring" cx="599.4" cy="160.8" r="3.5" stroke-width="2"><title>1.16, Tempo, 96 kHz: 15.7</title></circle>
+<circle class="s2 ring" cx="663.8" cy="160.9" r="3.5" stroke-width="2"><title>1.17, Tempo, 96 kHz: 15.7</title></circle>
+<path class="ln s3" stroke-width="2" d="M84.2,178.7 L148.6,178.6 L213.0,179.0 L277.4,178.7 L341.8,179.0 L406.2,178.8 L470.6,178.3 L535.0,187.7 L599.4,187.9 L663.8,187.7"/>
+<circle class="s3 ring" cx="84.2" cy="178.7" r="3.5" stroke-width="2"><title>1.8, Key, 96 kHz: 13.2</title></circle>
+<circle class="s3 ring" cx="148.6" cy="178.6" r="3.5" stroke-width="2"><title>1.9, Key, 96 kHz: 13.3</title></circle>
+<circle class="s3 ring" cx="213.0" cy="179.0" r="3.5" stroke-width="2"><title>1.10, Key, 96 kHz: 13.2</title></circle>
+<circle class="s3 ring" cx="277.4" cy="178.7" r="3.5" stroke-width="2"><title>1.11, Key, 96 kHz: 13.2</title></circle>
+<circle class="s3 ring" cx="341.8" cy="179.0" r="3.5" stroke-width="2"><title>1.12, Key, 96 kHz: 13.2</title></circle>
+<circle class="s3 ring" cx="406.2" cy="178.8" r="3.5" stroke-width="2"><title>1.13, Key, 96 kHz: 13.2</title></circle>
+<circle class="s3 ring" cx="470.6" cy="178.3" r="3.5" stroke-width="2"><title>1.14, Key, 96 kHz: 13.3</title></circle>
+<circle class="s3 ring" cx="535.0" cy="187.7" r="3.5" stroke-width="2"><title>1.15, Key, 96 kHz: 12.0</title></circle>
+<circle class="s3 ring" cx="599.4" cy="187.9" r="3.5" stroke-width="2"><title>1.16, Key, 96 kHz: 12.0</title></circle>
+<circle class="s3 ring" cx="663.8" cy="187.7" r="3.5" stroke-width="2"><title>1.17, Key, 96 kHz: 12.0</title></circle>
 </svg>

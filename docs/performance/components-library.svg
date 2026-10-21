@@ -2,13 +2,13 @@
 <style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.s0{fill:#2a78d6;stroke:#2a78d6}.s1{fill:#eb6834;stroke:#eb6834}.s2{fill:#1baf7a;stroke:#1baf7a}.s3{fill:#eda100;stroke:#eda100}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.s0{fill:#3987e5;stroke:#3987e5}.s1{fill:#d95926;stroke:#d95926}.s2{fill:#199e70;stroke:#199e70}.s3{fill:#c98500;stroke:#c98500}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
 <rect class="bg" width="720" height="338" rx="10"/>
 <text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">Large libraries</text>
-<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Seconds. Lower is better. The numbers in the key are 1.16&#x27;s.</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Seconds. Lower is better. The numbers in the key are 1.17&#x27;s.</text>
 <rect class="s0" x="24" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">Metadata sweep, 5,000 files</text>
-<text class="m" x="201.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.78</text>
+<text class="m" x="201.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.81</text>
 <rect class="s1" x="247.55999999999995" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="267.6" y="68.0" font-size="12" text-anchor="start">M3U, 10,000 entries</text>
-<text class="m" x="382.6" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.34</text>
+<text class="m" x="382.6" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.33</text>
 <rect class="s2" x="428.75999999999993" y="63.0" width="14" height="4" rx="2"/>
 <text class="t" x="448.8" y="68.0" font-size="12" text-anchor="start">Folder, 10,000 files</text>
 <text class="m" x="559.8" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.20</text>
@@ -27,26 +27,31 @@
 <text class="q" x="44.0" y="154.0" font-size="11" text-anchor="end">4</text>
 <line class="g" x1="52.0" y1="114.0" x2="696.0" y2="114.0" stroke-width="1"/>
 <text class="q" x="44.0" y="118.0" font-size="11" text-anchor="end">5</text>
-<text class="m" x="87.8" y="312.0" font-size="11" text-anchor="middle">1.8</text>
-<text class="m" x="159.3" y="312.0" font-size="11" text-anchor="middle">1.9</text>
-<text class="m" x="230.9" y="312.0" font-size="11" text-anchor="middle">1.10</text>
-<text class="m" x="302.4" y="312.0" font-size="11" text-anchor="middle">1.11</text>
-<text class="m" x="374.0" y="312.0" font-size="11" text-anchor="middle">1.12</text>
-<text class="m" x="445.6" y="312.0" font-size="11" text-anchor="middle">1.13</text>
-<text class="m" x="517.1" y="312.0" font-size="11" text-anchor="middle">1.14</text>
-<text class="m" x="588.7" y="312.0" font-size="11" text-anchor="middle">1.15</text>
-<text class="t" x="660.2" y="312.0" font-size="11" text-anchor="middle" font-weight="600">1.16</text>
-<path class="ln s0" stroke-width="2" d="M517.1,131.2 L588.7,264.8 L660.2,265.7"/>
-<circle class="s0 ring" cx="517.1" cy="131.2" r="3.5" stroke-width="2"><title>1.14, Metadata sweep, 5,000 files: 4.52</title></circle>
-<circle class="s0 ring" cx="588.7" cy="264.8" r="3.5" stroke-width="2"><title>1.15, Metadata sweep, 5,000 files: 0.81</title></circle>
-<circle class="s0 ring" cx="660.2" cy="265.7" r="3.5" stroke-width="2"><title>1.16, Metadata sweep, 5,000 files: 0.78</title></circle>
-<path class="ln s1" stroke-width="2" d="M588.7,282.0 L660.2,281.7"/>
-<circle class="s1 ring" cx="588.7" cy="282.0" r="3.5" stroke-width="2"><title>1.15, M3U, 10,000 entries: 0.33</title></circle>
-<circle class="s1 ring" cx="660.2" cy="281.7" r="3.5" stroke-width="2"><title>1.16, M3U, 10,000 entries: 0.34</title></circle>
-<path class="ln s2" stroke-width="2" d="M588.7,286.8 L660.2,286.7"/>
-<circle class="s2 ring" cx="588.7" cy="286.8" r="3.5" stroke-width="2"><title>1.15, Folder, 10,000 files: 0.20</title></circle>
-<circle class="s2 ring" cx="660.2" cy="286.7" r="3.5" stroke-width="2"><title>1.16, Folder, 10,000 files: 0.20</title></circle>
-<path class="ln s3" stroke-width="2" d="M588.7,259.1 L660.2,276.9"/>
-<circle class="s3 ring" cx="588.7" cy="259.1" r="3.5" stroke-width="2"><title>1.15, 20 edits, 100,000 rows: 0.97</title></circle>
-<circle class="s3 ring" cx="660.2" cy="276.9" r="3.5" stroke-width="2"><title>1.16, 20 edits, 100,000 rows: 0.48</title></circle>
+<text class="m" x="84.2" y="312.0" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="148.6" y="312.0" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="213.0" y="312.0" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="277.4" y="312.0" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="341.8" y="312.0" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="406.2" y="312.0" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="470.6" y="312.0" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="535.0" y="312.0" font-size="11" text-anchor="middle">1.15</text>
+<text class="m" x="599.4" y="312.0" font-size="11" text-anchor="middle">1.16</text>
+<text class="t" x="663.8" y="312.0" font-size="11" text-anchor="middle" font-weight="600">1.17</text>
+<path class="ln s0" stroke-width="2" d="M470.6,130.2 L535.0,264.0 L599.4,264.5 L663.8,264.7"/>
+<circle class="s0 ring" cx="470.6" cy="130.2" r="3.5" stroke-width="2"><title>1.14, Metadata sweep, 5,000 files: 4.55</title></circle>
+<circle class="s0 ring" cx="535.0" cy="264.0" r="3.5" stroke-width="2"><title>1.15, Metadata sweep, 5,000 files: 0.83</title></circle>
+<circle class="s0 ring" cx="599.4" cy="264.5" r="3.5" stroke-width="2"><title>1.16, Metadata sweep, 5,000 files: 0.82</title></circle>
+<circle class="s0 ring" cx="663.8" cy="264.7" r="3.5" stroke-width="2"><title>1.17, Metadata sweep, 5,000 files: 0.81</title></circle>
+<path class="ln s1" stroke-width="2" d="M535.0,282.3 L599.4,282.1 L663.8,282.0"/>
+<circle class="s1 ring" cx="535.0" cy="282.3" r="3.5" stroke-width="2"><title>1.15, M3U, 10,000 entries: 0.33</title></circle>
+<circle class="s1 ring" cx="599.4" cy="282.1" r="3.5" stroke-width="2"><title>1.16, M3U, 10,000 entries: 0.33</title></circle>
+<circle class="s1 ring" cx="663.8" cy="282.0" r="3.5" stroke-width="2"><title>1.17, M3U, 10,000 entries: 0.33</title></circle>
+<path class="ln s2" stroke-width="2" d="M535.0,286.8 L599.4,286.7 L663.8,286.9"/>
+<circle class="s2 ring" cx="535.0" cy="286.8" r="3.5" stroke-width="2"><title>1.15, Folder, 10,000 files: 0.20</title></circle>
+<circle class="s2 ring" cx="599.4" cy="286.7" r="3.5" stroke-width="2"><title>1.16, Folder, 10,000 files: 0.20</title></circle>
+<circle class="s2 ring" cx="663.8" cy="286.9" r="3.5" stroke-width="2"><title>1.17, Folder, 10,000 files: 0.20</title></circle>
+<path class="ln s3" stroke-width="2" d="M535.0,258.9 L599.4,276.6 L663.8,276.8"/>
+<circle class="s3 ring" cx="535.0" cy="258.9" r="3.5" stroke-width="2"><title>1.15, 20 edits, 100,000 rows: 0.98</title></circle>
+<circle class="s3 ring" cx="599.4" cy="276.6" r="3.5" stroke-width="2"><title>1.16, 20 edits, 100,000 rows: 0.48</title></circle>
+<circle class="s3 ring" cx="663.8" cy="276.8" r="3.5" stroke-width="2"><title>1.17, 20 edits, 100,000 rows: 0.48</title></circle>
 </svg>

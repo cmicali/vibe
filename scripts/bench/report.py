@@ -68,9 +68,11 @@ SEEK_KEYS = ['seek_ms.mp3-v0', 'seek_ms.aac-256', 'seek_ms.flac-24-192']
 
 # Color follows the entity: a format keeps its slot in every chart. Any other
 # series takes the lowest slot its chart leaves free.
-SLOT = {'MP3 320k': 0, 'MP3 V0': 0, 'AAC 256k': 1, 'FLAC 16/44.1': 2, 'FLAC 24/192': 3, 'WAV 24/96': 4}
+SLOT = {'MP3 320k': 0, 'MP3 V0': 0, 'AAC 256k': 1, 'FLAC 16/44.1': 2, 'FLAC 24/192': 3, 'WAV 24/96': 4,
+        'Playing': 0, 'Paused': 1, 'Idle, nothing loaded': 2}
 UNITS = {'ms': 'Milliseconds', 's': 'Seconds', 'MB': 'Megabytes', '% of one core': 'Percent of one core',
-         'a second': 'Per second', 'ms per file': 'Milliseconds per file', 'µs per entry': 'Microseconds per entry'}
+         'a second': 'Per second', 'ms per file': 'Milliseconds per file', 'µs per entry': 'Microseconds per entry',
+         'ms per frame': 'Milliseconds of CPU per frame'}
 
 # (label, metric key, decimals): the release table.
 SUMMARY = [
@@ -189,7 +191,11 @@ def write(results):
             if any(value(e, key) is not None for e in centries for key, _ in keyed):
                 draw(name, title, unit, keyed, clabels, centries, decimals)
                 drawn.append(name)
-        sentence += f' The component benchmarks ran on {machine(list(components.values())[-1]["machine"])}.'
+        cmachine = list(components.values())[-1]['machine']
+        if cmachine == entries[-1]['machine']:
+            sentence = f'Both suites ran on {machine(cmachine)}.'
+        else:
+            sentence += f' The component benchmarks ran on {machine(cmachine)}.'
     block = '\n'.join([BEGIN, '', sentence + ' A version marked pre-release was measured before its release '
                        'was tagged.', '', '![Every release](performance/summary.svg)', '', END])
     text = PAGE.read_text()

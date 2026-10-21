@@ -77,7 +77,9 @@ static std::shared_ptr<AudioWaveform> VibeBenchComponentsUIWaveform(uint32_t see
 #endif
 #endif
     }
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_COMPLETE
     waveform->markComplete();
+#endif
     return waveform;
 }
 
@@ -146,7 +148,8 @@ static NSData *VibeBenchComponentsUISamples(WaveformRenderer *renderer, AudioWav
     return [renderer.class readsBands] ? VibeBenchComponentsUIBandPicture(renderer)
                                        : VibeBenchComponentsUIMaskCoverage(renderer);
 #else
-    return [renderer envelopeSamplesForWaveform:waveform];
+    // Detailed declared the envelope before the base class did (1.15).
+    return [(DetailedWaveformRenderer *)renderer envelopeSamplesForWaveform:waveform];
 #endif
 }
 
@@ -294,7 +297,8 @@ static void VibeBenchComponentsRegisterRenderers(void) {
                 }
 #endif
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE
-                if (op == "bake" && !state->renderer.supportsEnvelopeBake) return -1;
+                if (op == "bake" && (!state->renderer.supportsEnvelopeBake ||
+                                     ![state->renderer respondsToSelector:@selector(envelopeSamplesForWaveform:)])) return -1;
 #endif
                 [state->renderer updateWaveform:bounds progress:0 waveform:state->waveform.get()];
                 [state->renderer settleMorphImmediately];
@@ -307,8 +311,8 @@ static void VibeBenchComponentsRegisterRenderers(void) {
                     [state->parent renderInContext:context];
                     CGImageRef image;
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE
-                    if (op == "bake") image = [state->renderer newEnvelopeImageForSize:bounds.size scale:2
-                                                      samples:[state->renderer envelopeSamplesForWaveform:state->waveform.get()]];
+                    if (op == "bake") image = [(DetailedWaveformRenderer *)state->renderer newEnvelopeImageForSize:bounds.size scale:2
+                                                      samples:[(DetailedWaveformRenderer *)state->renderer envelopeSamplesForWaveform:state->waveform.get()]];
                     else
 #endif
                         image = CGBitmapContextCreateImage(context);
@@ -329,8 +333,9 @@ static void VibeBenchComponentsRegisterRenderers(void) {
                         CGFloat offset = 0;
                         if (op == "bake") {
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BAKE
-                            NSData *samples = [state->renderer envelopeSamplesForWaveform:state->waveform.get()];
-                            CGImageRef image = [state->renderer newEnvelopeImageForSize:state->parent.bounds.size
+                            DetailedWaveformRenderer *baker = (DetailedWaveformRenderer *)state->renderer;
+                            NSData *samples = [baker envelopeSamplesForWaveform:state->waveform.get()];
+                            CGImageRef image = [baker newEnvelopeImageForSize:state->parent.bounds.size
                                                                                scale:2 samples:samples];
                             VibeBenchComponentsRequire(image != NULL, "waveform envelope bake failed");
                             CGImageRelease(image);
