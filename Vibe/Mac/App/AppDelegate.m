@@ -435,13 +435,17 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     }
     // Bookmark while the open's sandbox grant is live.
     [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
-    // Read on main; the walk reads no setting itself.
+    // Read on main; the walk reads no setting itself. The rows are made on
+    // the expansion worker, off main.
     [FolderWalk expandAndFilterList:urls
                            sortedBy:AppSettings.sharedInstance.folderOpenSort
-                         completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
-        [OpenRequestCoordinator.sharedCoordinator finishRequest:token
-                                                           rows:rows
-                                                    folderCount:folderCount];
+                         completion:^(NSArray<PlaylistEntry *> *entries, NSUInteger folderCount) {
+        NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:entries];
+        run_on_main_thread({
+            [OpenRequestCoordinator.sharedCoordinator finishRequest:token
+                                                               rows:rows
+                                                        folderCount:folderCount];
+        });
     }];
 }
 

@@ -53,7 +53,7 @@
 
 - (NSArray<NSString *> *)listedNamesSortedBy:(VibeFolderOpenSort)sort {
     NSMutableArray<NSString *> *names = [NSMutableArray array];
-    for (AudioTrack *row in [FolderWalk rowsInDirectory:_dir sortedBy:sort]) {
+    for (AudioTrack *row in [AudioTrack rowsForEntries:[FolderWalk entriesInDirectory:_dir sortedBy:sort]]) {
         [names addObject:[row keyByAppendingWindowTo:row.url.lastPathComponent]];
     }
     return names;
@@ -165,7 +165,7 @@
 
 - (void)testMissingDirectoryReturnsEmpty {
     NSURL *gone = [_dir URLByAppendingPathComponent:@"missing" isDirectory:YES];
-    XCTAssertEqualObjects([FolderWalk rowsInDirectory:gone sortedBy:VibeFolderOpenSortName],
+    XCTAssertEqualObjects([FolderWalk entriesInDirectory:gone sortedBy:VibeFolderOpenSortName],
                           @[]);
 }
 
@@ -200,7 +200,7 @@
     XCTAssertEqualObjects([self listedNamesSortedBy:VibeFolderOpenSortName], (@[@"a.flac", @"b.mp3"]));
 
     NSMutableArray<NSString *> *entries = [NSMutableArray array];
-    for (AudioTrack *row in [FolderWalk rowsForFile:m3u]) {
+    for (AudioTrack *row in [AudioTrack rowsForEntries:[FolderWalk entriesForFile:m3u]]) {
         [entries addObject:row.url.lastPathComponent];
     }
     XCTAssertEqualObjects(entries, (@[@"b.mp3", @"a.flac"]));

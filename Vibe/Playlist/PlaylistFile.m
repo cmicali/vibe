@@ -6,7 +6,7 @@
 #import "PlaylistFile.h"
 #import "PlaylistFileInternal.h"
 
-#import "AudioTrack.h"
+#import "PlaylistEntry.h"
 #import "FilePaths.h"
 #import "PlayableExtensions.h"
 #import "CueWindowMath.h"
@@ -243,35 +243,35 @@ static NSCharacterSet *CueFieldAllowedCharacters(void) {
 // The #VIBE-CUE payload: "<track>,<start>,<end>,<title>,<performer>,<sheet
 // URL>", the window in CD frames. The URL is last, so its own commas need no
 // escape.
-static NSString *CuePayload(AudioTrack *track) {
-    NSString *title = [track.cueTitle ?: @"" stringByAddingPercentEncodingWithAllowedCharacters:CueFieldAllowedCharacters()];
-    NSString *performer = [track.cuePerformer ?: @"" stringByAddingPercentEncodingWithAllowedCharacters:CueFieldAllowedCharacters()];
-    return [NSString stringWithFormat:@"%ld,%lu,%lu,%@,%@,%@", (long)track.cueTrackNumber,
-            (unsigned long)track.cueStart, (unsigned long)track.cueEnd, title ?: @"", performer ?: @"",
-            track.cueSheetURL.absoluteString ?: @""];
+static NSString *CuePayload(PlaylistEntry *entry) {
+    NSString *title = [entry.cueTitle ?: @"" stringByAddingPercentEncodingWithAllowedCharacters:CueFieldAllowedCharacters()];
+    NSString *performer = [entry.cuePerformer ?: @"" stringByAddingPercentEncodingWithAllowedCharacters:CueFieldAllowedCharacters()];
+    return [NSString stringWithFormat:@"%ld,%lu,%lu,%@,%@,%@", (long)entry.cueTrackNumber,
+            (unsigned long)entry.cueStart, (unsigned long)entry.cueEnd, title ?: @"", performer ?: @"",
+            entry.cueSheetURL.absoluteString ?: @""];
 }
 
-// The entry's file as that row; a plain row without a payload, or with one
-// that does not parse into a playable window.
-static AudioTrack *RowForEntry(NSURL *url, NSString *_Nullable cue) {
+// The file as the entry its payload describes; a plain entry without a
+// payload, or with one that does not parse into a playable window.
+static PlaylistEntry *EntryForPayload(NSURL *url, NSString *_Nullable cue) {
     NSArray<NSString *> *fields = [cue componentsSeparatedByString:@","];
     if (fields.count < 6) {
-        return [AudioTrack withURL:url];
+        return [PlaylistEntry entryWithURL:url];
     }
     long long start = fields[1].longLongValue;
     long long end = fields[2].longLongValue;
     if (start < 0 || end < 0 || (end > 0 && end <= start)) {
-        return [AudioTrack withURL:url];
+        return [PlaylistEntry entryWithURL:url];
     }
     NSString *title = fields[3].stringByRemovingPercentEncoding;
     NSString *performer = fields[4].stringByRemovingPercentEncoding;
     NSString *sheet = [[fields subarrayWithRange:NSMakeRange(5, fields.count - 5)] componentsJoinedByString:@","];
     NSURL *sheetURL = sheet.length ? [NSURL URLWithString:sheet] : nil;
-    return [[AudioTrack alloc] initWithURL:url cueStart:(NSUInteger)start cueEnd:(NSUInteger)end
-                                     title:title.length ? title : nil
-                                 performer:performer.length ? performer : nil
-                                     sheet:sheetURL.isFileURL ? sheetURL : nil
-                               trackNumber:fields[0].integerValue];
+    return [[PlaylistEntry alloc] initWithURL:url cueStart:(NSUInteger)start cueEnd:(NSUInteger)end
+                                        title:title.length ? title : nil
+                                    performer:performer.length ? performer : nil
+                                        sheet:sheetURL.isFileURL ? sheetURL : nil
+                                  trackNumber:fields[0].integerValue];
 }
 
 #pragma mark - Resolution
@@ -372,9 +372,9 @@ NSURL *VibeResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManager,
     return path.precomposedStringWithCanonicalMapping.lowercaseString;
 }
 
-+ (NSArray<AudioTrack *> *)rowsForPlaylistAtURL:(NSURL *)url {
++ (NSArray<PlaylistEntry *> *)entriesForPlaylistAtURL:(NSURL *)url {
     if ([self isCueExtension:url.pathExtension.lowercaseString]) {
-        return [self cueRowsForSheetAtURL:url knownFiles:nil];
+        return [self cueEntriesForSheetAtURL:url knownFiles:nil];
     }
     NSString *text = VibeTextOfFile(url);
     if (!text) {
@@ -382,32 +382,32 @@ NSURL *VibeResolveEntry(NSString *entry, NSURL *dir, NSFileManager *fileManager,
     }
     NSURL *dir = url.URLByDeletingLastPathComponent;
     NSFileManager *fileManager = NSFileManager.defaultManager;
-    NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
+    NSMutableArray<PlaylistEntry *> *entries = [NSMutableArray array];
     NSMutableDictionary<NSString *, NSNumber *> *dirReachable = [NSMutableDictionary new];
     EnumerateM3U(text, ^(NSString *entry, NSString *cue) {
         NSURL *primary = nil;
         NSURL *resolved = VibeResolveEntry(entry, dir, fileManager, dirReachable, nil, &primary) ?: primary;
         if (resolved) {
-            [rows addObject:RowForEntry(resolved, cue)];
+            [entries addObject:EntryForPayload(resolved, cue)];
         }
     });
-    return rows;
+    return entries;
 }
 
-+ (NSArray<AudioTrack *> *)rowsInM3UData:(NSData *)data {
++ (NSArray<PlaylistEntry *> *)entriesInM3UData:(NSData *)data {
     NSString *text = [self textFromData:data];
-    NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
+    NSMutableArray<PlaylistEntry *> *entries = [NSMutableArray array];
     if (!text) {
-        return rows;
+        return entries;
     }
     EnumerateM3U(text, ^(NSString *entry, NSString *cue) {
         // isDirectory:NO, or fileURLWithPath: stats the path to decide.
         NSURL *url = [entry hasPrefix:@"/"] ? [NSURL fileURLWithPath:entry isDirectory:NO] : nil;
         if (url.path) {   // nil for a component no path can hold
-            [rows addObject:RowForEntry(url, cue)];
+            [entries addObject:EntryForPayload(url, cue)];
         }
     });
-    return rows;
+    return entries;
 }
 
 #pragma mark - M3U writing
@@ -429,54 +429,54 @@ static NSString *M3UPathLine(NSString *path, NSString *_Nullable prefix) {
 // A literal " - ", not STR_LABEL_TRACK_ARTIST_TITLE: an interchange file must
 // not change shape with the UI language. A newline becomes a space, or the
 // tail would read as an entry line.
-static NSString *M3UInfoName(AudioTrack *track) {
-    NSString *artist = track.displayArtist;
-    NSString *name = artist ? [NSString stringWithFormat:@"%@ - %@", artist, track.displayTitle]
-                            : track.displayTitle;
+static NSString *M3UInfoName(PlaylistEntry *entry) {
+    NSString *artist = entry.displayArtist;
+    NSString *title = entry.displayTitle ?: @"";
+    NSString *name = artist ? [NSString stringWithFormat:@"%@ - %@", artist, title] : title;
     return [[name componentsSeparatedByCharactersInSet:NSCharacterSet.newlineCharacterSet]
             componentsJoinedByString:@" "];
 }
 
-+ (NSString *)m3uTextForTracks:(NSArray<AudioTrack *> *)tracks relativeToDirectory:(NSURL *)directory {
++ (NSString *)m3uTextForEntries:(NSArray<PlaylistEntry *> *)entries relativeToDirectory:(NSURL *)directory {
     // The trailing slash keeps /Music/Album from claiming /Music/Album2/x.mp3.
     // Both sides use VibeComparablePath, which reads the spelling alone. Save
     // Playlist builds this text on main.
     NSString *dir = VibeComparablePath(directory.path);
     NSString *prefix = [dir hasSuffix:@"/"] ? dir : [dir stringByAppendingString:@"/"];
     NSMutableString *text = [NSMutableString stringWithString:@"#EXTM3U\n"];
-    for (AudioTrack *track in tracks) {
-        NSTimeInterval duration = track.duration;
-        [text appendFormat:@"#EXTINF:%lld,%@\n", duration > 0 ? llround(duration) : -1LL, M3UInfoName(track)];
-        // A cue row: VLC's window for players that honor it, then Vibe's own
-        // line, which restores the row exactly and reads nothing to do it.
-        if (track.isWindowed || track.cueSheetURL) {
-            if (track.cueStart > 0) {
-                [text appendFormat:@"#EXTVLCOPT:start-time=%.3f\n", (double)track.cueStart / kVibeCDFramesPerSecond];
+    for (PlaylistEntry *entry in entries) {
+        NSTimeInterval duration = entry.duration;
+        [text appendFormat:@"#EXTINF:%lld,%@\n", duration > 0 ? llround(duration) : -1LL, M3UInfoName(entry)];
+        // A cue entry: VLC's window for players that honor it, then Vibe's own
+        // line, which restores the entry exactly and reads nothing to do it.
+        if (entry.isWindowed || entry.cueSheetURL) {
+            if (entry.cueStart > 0) {
+                [text appendFormat:@"#EXTVLCOPT:start-time=%.3f\n", (double)entry.cueStart / kVibeCDFramesPerSecond];
             }
-            if (track.cueEnd > 0) {
-                [text appendFormat:@"#EXTVLCOPT:stop-time=%.3f\n", (double)track.cueEnd / kVibeCDFramesPerSecond];
+            if (entry.cueEnd > 0) {
+                [text appendFormat:@"#EXTVLCOPT:stop-time=%.3f\n", (double)entry.cueEnd / kVibeCDFramesPerSecond];
             }
-            [text appendFormat:@"%@%@\n", kVibeCueDirective, CuePayload(track)];
+            [text appendFormat:@"%@%@\n", kVibeCueDirective, CuePayload(entry)];
         }
-        [text appendFormat:@"%@\n", M3UPathLine(VibeComparablePath(track.url.path), prefix)];
+        [text appendFormat:@"%@\n", M3UPathLine(VibeComparablePath(entry.url.path), prefix)];
     }
     return text;
 }
 
-+ (BOOL)writeM3UForTracks:(NSArray<AudioTrack *> *)tracks relativeToDirectory:(NSURL *)directory
-                    toURL:(NSURL *)url error:(NSError **)error {
-    NSString *text = [self m3uTextForTracks:tracks relativeToDirectory:directory];
++ (BOOL)writeM3UForEntries:(NSArray<PlaylistEntry *> *)entries relativeToDirectory:(NSURL *)directory
+                     toURL:(NSURL *)url error:(NSError **)error {
+    NSString *text = [self m3uTextForEntries:entries relativeToDirectory:directory];
     // Lossy: an unpaired surrogate from a malformed tag costs one character,
     // not the save.
     NSData *data = [text dataUsingEncoding:NSUTF8StringEncoding allowLossyConversion:YES];
     return [data writeToURL:url options:NSDataWritingAtomic error:error];
 }
 
-+ (NSURL *)commonDirectoryForTracks:(NSArray<AudioTrack *> *)tracks {
++ (NSURL *)commonDirectoryForEntries:(NSArray<PlaylistEntry *> *)entries {
     NSArray<NSString *> *common = nil;
-    for (AudioTrack *track in tracks) {
+    for (PlaylistEntry *entry in entries) {
         NSArray<NSString *> *components =
-                VibeComparablePath(track.url.path).stringByDeletingLastPathComponent.pathComponents;
+                VibeComparablePath(entry.url.path).stringByDeletingLastPathComponent.pathComponents;
         if (!common) {
             common = components;
             continue;

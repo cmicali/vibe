@@ -8,7 +8,7 @@
 @implementation PlaylistFile (CueFileNames)
 + (NSArray<NSString *> *)fileNamesInCueText:(NSString *)text {
     NSMutableArray<NSString *> *names = [NSMutableArray new];
-    [self cueRowsInText:text sheetURL:nil resolvingFile:^NSURL *(NSString *name, BOOL sole) {
+    [self cueEntriesInText:text sheetURL:nil resolvingFile:^NSURL *(NSString *name, BOOL sole) {
         if (!name) {
             return nil;
         }

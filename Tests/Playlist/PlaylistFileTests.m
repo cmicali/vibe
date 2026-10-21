@@ -299,13 +299,13 @@
     XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:[PlaylistFile textFromData:data]], @[@"a.mp3"]);
 }
 
-#pragma mark - rowsForPlaylistAtURL:
+#pragma mark - entriesForPlaylistAtURL:
 
 - (void)testCueResolvesRelativeEntriesAgainstItsFolder {
     NSURL *dir = [self makeTempDirWithFiles:@[@"one.mp3", @"two.mp3"]
                                playlistName:@"album.cue"
                                        text:@"FILE \"one.mp3\" MP3\nFILE \"two.mp3\" MP3\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:[dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:[dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
     NSArray *names = [urls valueForKeyPath:@"lastPathComponent"];
     XCTAssertEqualObjects(names, (@[@"one.mp3", @"two.mp3"]));
     XCTAssertEqualObjects(urls.firstObject.URLByDeletingLastPathComponent.path, dir.path);
@@ -315,7 +315,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"one.mp3", @"two.mp3"]
                                playlistName:@"mix.m3u8"
                                        text:@"#EXTM3U\none.mp3\ntwo.mp3\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:[dir URLByAppendingPathComponent:@"mix.m3u8"]] valueForKey:@"url"];
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:[dir URLByAppendingPathComponent:@"mix.m3u8"]] valueForKey:@"url"];
     NSArray *names = [urls valueForKeyPath:@"lastPathComponent"];
     XCTAssertEqualObjects(names, (@[@"one.mp3", @"two.mp3"]));
     XCTAssertEqualObjects(urls.firstObject.URLByDeletingLastPathComponent.path, dir.path);
@@ -324,7 +324,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.wav"]
                                playlistName:@"album.cue"
                                        text:@"FILE \"C:\\Rips\\track.wav\" WAVE\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:[dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:[dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
     XCTAssertEqual(urls.count, 1u);
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.wav");
     XCTAssertTrue([NSFileManager.defaultManager isReadableFileAtPath:urls.firstObject.path]);
@@ -335,7 +335,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"track01.flac", @"track02.flac"]
                                playlistName:@"album.cue"
                                        text:@"FILE \"track01.wav\" WAVE\nFILE \"track02.wav\" WAVE\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:[dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:[dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
     NSArray *names = [urls valueForKeyPath:@"lastPathComponent"];
     XCTAssertEqualObjects(names, (@[@"track01.flac", @"track02.flac"]));
 }
@@ -345,7 +345,7 @@
     NSURL *sub = [dir URLByAppendingPathComponent:@"disc1"];
     [NSFileManager.defaultManager createDirectoryAtURL:sub withIntermediateDirectories:YES attributes:nil error:nil];
     [[NSData data] writeToURL:[sub URLByAppendingPathComponent:@"track.mp3"] atomically:YES];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:[dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:[dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
     XCTAssertEqual(urls.count, 1u);
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.mp3");
     XCTAssertEqualObjects(urls.firstObject.URLByDeletingLastPathComponent.lastPathComponent, @"disc1");
@@ -355,7 +355,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.wav", @"track.flac"]
                                playlistName:@"album.cue"
                                        text:@"FILE \"track.wav\" WAVE\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:[dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:[dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.wav");
 }
 
@@ -363,26 +363,26 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.aiff"]
                                playlistName:@"album.cue"
                                        text:@"FILE \"C:\\Rips\\track.wav\" WAVE\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:[dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:[dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
     XCTAssertEqual(urls.count, 1u);
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.aiff");
 }
 
 - (void)testMissingEntryStillYieldsPrimaryCandidate {
     NSURL *dir = [self makeTempDirWithFiles:@[] playlistName:@"mix.m3u" text:@"gone.mp3\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:[dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:[dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
     XCTAssertEqual(urls.count, 1u);
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"gone.mp3");
 }
 
 - (void)testUnreadablePlaylistReturnsEmpty {
     NSURL *missing = [NSURL fileURLWithPath:@"/nonexistent/album.cue"];
-    XCTAssertEqualObjects([[PlaylistFile rowsForPlaylistAtURL:missing] valueForKey:@"url"], @[]);
+    XCTAssertEqualObjects([[PlaylistFile entriesForPlaylistAtURL:missing] valueForKey:@"url"], @[]);
 }
 
 - (void)testAnEmptyPlaylistFileReturnsEmpty {
     NSURL *dir = [self makeTempDirWithFiles:@[@"a.mp3"] playlistName:@"mix.m3u" text:@""];
-    XCTAssertEqualObjects([[PlaylistFile rowsForPlaylistAtURL:
+    XCTAssertEqualObjects([[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"], @[]);
 }
 
@@ -390,7 +390,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"one.mp3"]
                                playlistName:@"ALBUM.CUE"
                                        text:@"FILE \"one.mp3\" MP3\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"ALBUM.CUE"]] valueForKey:@"url"];
     XCTAssertEqualObjects([urls valueForKeyPath:@"lastPathComponent"], @[@"one.mp3"]);
 }
@@ -400,7 +400,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"one.mp3"]
                                playlistName:@"list.m3u8"
                                        text:@"#EXTM3U\none.mp3\n"];
-    XCTAssertEqualObjects([[[PlaylistFile rowsForPlaylistAtURL:
+    XCTAssertEqualObjects([[[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"list.m3u8"]] valueForKey:@"url"] valueForKeyPath:@"lastPathComponent"],
                           @[@"one.mp3"]);
 }
@@ -412,7 +412,7 @@
     [[[NSString stringWithFormat:@"%@\n", absolute.path] dataUsingEncoding:NSUTF8StringEncoding]
             writeToURL:playlist atomically:YES];
 
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:playlist] valueForKey:@"url"];
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:playlist] valueForKey:@"url"];
     XCTAssertEqualObjects([urls.firstObject.path stringByStandardizingPath],
                           [absolute.path stringByStandardizingPath]);
 }
@@ -421,7 +421,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"b.mp3"]
                                playlistName:@"mix.m3u"
                                        text:@"gone.mp3\nb.mp3\ngone.mp3\nb.mp3\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
     // The caller decides what to do with each entry, so the result lines up one
     // for one with them, duplicates and missing files included.
@@ -435,7 +435,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[] playlistName:@"mix.m3u" text:@"disc1\n"];
     [NSFileManager.defaultManager createDirectoryAtURL:[dir URLByAppendingPathComponent:@"disc1"]
                            withIntermediateDirectories:YES attributes:nil error:nil];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
     XCTAssertEqualObjects([urls valueForKeyPath:@"lastPathComponent"], @[@"disc1"]);
 }
@@ -446,7 +446,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.flac"]
                                playlistName:@"album.cue"
                                        text:@"FILE \"disc2/track.wav\" WAVE\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.flac");
     XCTAssertEqualObjects(urls.firstObject.URLByDeletingLastPathComponent.path, dir.path);
@@ -460,7 +460,7 @@
     [NSFileManager.defaultManager createDirectoryAtURL:sub withIntermediateDirectories:YES attributes:nil error:nil];
     [[NSData data] writeToURL:[sub URLByAppendingPathComponent:@"track.flac"] atomically:YES];
 
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
     XCTAssertEqualObjects(urls.firstObject.URLByDeletingLastPathComponent.lastPathComponent, @"disc1");
 }
@@ -471,7 +471,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.mp3", @"track.aif"]
                                playlistName:@"album.cue"
                                        text:@"FILE \"track.wav\" WAVE\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.aif");
 }
@@ -480,7 +480,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.m4a"]
                                playlistName:@"album.cue"
                                        text:@"FILE \"track.wav\" WAVE\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"album.cue"]] valueForKey:@"url"];
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.m4a");
 }
@@ -490,7 +490,7 @@
         NSURL *dir = [self makeTempDirWithFiles:@[name]
                                    playlistName:@"mix.m3u"
                                            text:@"track.wav\n"];
-        NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+        NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
                 [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
         XCTAssertEqualObjects(urls.firstObject.lastPathComponent, name);
     }
@@ -500,7 +500,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.ape"]
                                playlistName:@"mix.m3u"
                                        text:@"track.wav\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"track.wav");
 }
@@ -510,7 +510,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.flac"]
                                playlistName:@"mix.m3u"
                                        text:@"track.flac\ntrack.flac\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
     XCTAssertEqualObjects([urls valueForKeyPath:@"lastPathComponent"],
                           (@[@"track.flac", @"track.flac"]));
@@ -520,7 +520,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"track.flac"]
                                playlistName:@"mix.m3u"
                                        text:@"track\n"];
-    XCTAssertEqualObjects([[[PlaylistFile rowsForPlaylistAtURL:
+    XCTAssertEqualObjects([[[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"] valueForKeyPath:@"lastPathComponent"],
                           @[@"track.flac"]);
 }
@@ -529,7 +529,7 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"one.mp3"]
                                playlistName:@"mix.m3u"
                                        text:@"./one.mp3\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
     XCTAssertEqualObjects(urls.firstObject.lastPathComponent, @"one.mp3");
     XCTAssertFalse([urls.firstObject.path containsString:@"/./"]);
@@ -543,7 +543,7 @@
     NSString *sheet = @"FILE \"one.mp3\" MP3\n  TRACK 01 AUDIO\nFILE \"two.mp3\" MP3\n";
     for (NSNumber *encoding in @[@(NSUTF16LittleEndianStringEncoding), @(NSUTF16BigEndianStringEncoding)]) {
         [[sheet dataUsingEncoding:encoding.unsignedIntegerValue] writeToURL:playlist atomically:YES];
-        XCTAssertEqualObjects([[[PlaylistFile rowsForPlaylistAtURL:playlist] valueForKey:@"url"]
+        XCTAssertEqualObjects([[[PlaylistFile entriesForPlaylistAtURL:playlist] valueForKey:@"url"]
                                       valueForKeyPath:@"lastPathComponent"],
                               (@[@"one.mp3", @"two.mp3"]), @"encoding %@", encoding);
     }
@@ -553,13 +553,23 @@
     NSURL *dir = [self makeTempDirWithFiles:@[@"Jóga 🎧.mp3"]
                                playlistName:@"mix.m3u"
                                        text:@"Jóga 🎧.mp3\n"];
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:
             [dir URLByAppendingPathComponent:@"mix.m3u"]] valueForKey:@"url"];
     XCTAssertEqual(urls.count, 1u);
     XCTAssertTrue([NSFileManager.defaultManager isReadableFileAtPath:urls.firstObject.path]);
 }
 
-#pragma mark - m3uTextForTracks:relativeToDirectory:
+#pragma mark - m3uTextForEntries:relativeToDirectory:
+
+// The writer and the common folder take entries, which the rows make, as the
+// app makes them.
+static NSString *M3UText(NSArray<AudioTrack *> *rows, NSURL *_Nullable directory) {
+    return [PlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:rows] relativeToDirectory:directory];
+}
+
+static NSURL *_Nullable CommonDirectory(NSArray<AudioTrack *> *rows) {
+    return [PlaylistFile commonDirectoryForEntries:[AudioTrack entriesForRows:rows]];
+}
 
 static AudioTrack *TrackAt(NSString *path) {
     return [AudioTrack withURL:[NSURL fileURLWithPath:path]];
@@ -581,60 +591,54 @@ static NSURL *Directory(NSString *path) {
 }
 
 - (void)testM3UTextForNoTracksIsAValidEmptyPlaylist {
-    XCTAssertEqualObjects([PlaylistFile m3uTextForTracks:@[] relativeToDirectory:nil], @"#EXTM3U\n");
+    XCTAssertEqualObjects(M3UText(@[], nil), @"#EXTM3U\n");
 }
 
 - (void)testM3UInfoLineCarriesArtistAndTitleAndRoundedSeconds {
     AudioTrack *track = TaggedTrackAt(@"/Music/A/x.mp3", @"Björk", @"Jóga", 305.4);
-    NSString *text = [PlaylistFile m3uTextForTracks:@[track] relativeToDirectory:nil];
+    NSString *text = M3UText(@[track], nil);
     XCTAssertEqualObjects(text, @"#EXTM3U\n#EXTINF:305,Björk - Jóga\n/Music/A/x.mp3\n");
 }
 
 - (void)testM3UInfoLineFallsBackToTheFilenameTitleAndUnknownDuration {
-    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/01_My_Track.mp3")]
-                                relativeToDirectory:nil];
+    NSString *text = M3UText(@[TrackAt(@"/Music/A/01_My_Track.mp3")], nil);
     XCTAssertEqualObjects(text, @"#EXTM3U\n#EXTINF:-1,01 My Track\n/Music/A/01_My_Track.mp3\n");
 }
 
 - (void)testM3UInfoLineDurationRounds {
     AudioTrack *track = TrackAt(@"/Music/A/x.mp3");
     [track setDuration:200.6];
-    XCTAssertTrue([[PlaylistFile m3uTextForTracks:@[track] relativeToDirectory:nil]
+    XCTAssertTrue([M3UText(@[track], nil)
             containsString:@"#EXTINF:201,x\n"]);
 }
 
 - (void)testM3UPathsUnderTheDirectoryAreRelativeIncludingSubfolders {
-    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/x.mp3"), TrackAt(@"/Music/A/disc2/y.mp3")]
-                                relativeToDirectory:Directory(@"/Music/A")];
+    NSString *text = M3UText(@[TrackAt(@"/Music/A/x.mp3"), TrackAt(@"/Music/A/disc2/y.mp3")], Directory(@"/Music/A"));
     XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], (@[@"x.mp3", @"disc2/y.mp3"]));
 }
 
 // The prefix test carries a trailing slash, or /Music/Album would claim
 // /Music/Album2's files and write them as "2/x.mp3".
 - (void)testM3UPathsOutsideTheDirectoryAreAbsolute {
-    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/Album2/x.mp3"), TrackAt(@"/Volumes/USB/y.mp3")]
-                                relativeToDirectory:Directory(@"/Music/Album")];
+    NSString *text = M3UText(@[TrackAt(@"/Music/Album2/x.mp3"), TrackAt(@"/Volumes/USB/y.mp3")], Directory(@"/Music/Album"));
     XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text],
                           (@[@"/Music/Album2/x.mp3", @"/Volumes/USB/y.mp3"]));
 }
 
 - (void)testM3URelativePrefixIsCaseSensitive {
-    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/a/x.mp3")]
-                                relativeToDirectory:Directory(@"/Music/A")];
+    NSString *text = M3UText(@[TrackAt(@"/Music/a/x.mp3")], Directory(@"/Music/A"));
     XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], @[@"/Music/a/x.mp3"]);
 }
 
 - (void)testM3UARelativeNameStartingWithHashIsNotWrittenAsAComment {
-    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/#1 hit.mp3")]
-                                relativeToDirectory:Directory(@"/Music/A")];
+    NSString *text = M3UText(@[TrackAt(@"/Music/A/#1 hit.mp3")], Directory(@"/Music/A"));
     XCTAssertTrue([text containsString:@"\nfile:///Music/A/%231%20hit.mp3\n"]);
     XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], @[@"/Music/A/#1 hit.mp3"]);
 }
 
 // The reader splits at every newline character, not just LF.
 - (void)testM3UANameWithANewlineIsWrittenAsAFileURL {
-    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/a\nb.mp3"), TrackAt(@"/Music/A/c d.mp3")]
-                                relativeToDirectory:Directory(@"/Music/A")];
+    NSString *text = M3UText(@[TrackAt(@"/Music/A/a\nb.mp3"), TrackAt(@"/Music/A/c d.mp3")], Directory(@"/Music/A"));
     XCTAssertTrue([text containsString:@"\nfile:///Music/A/a%0Ab.mp3\n"]);
     XCTAssertTrue([text containsString:@"\nfile:///Music/A/c%E2%80%A8d.mp3\n"]);
     XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], (@[@"/Music/A/a\nb.mp3", @"/Music/A/c d.mp3"]));
@@ -642,15 +646,14 @@ static NSURL *Directory(NSString *path) {
 
 // The reader trims each line.
 - (void)testM3UANameWithEdgeWhitespaceIsWrittenAsAFileURL {
-    NSString *text = [PlaylistFile m3uTextForTracks:@[TrackAt(@"/Music/A/ x.mp3"), TrackAt(@"/Music/A/y.mp3\t")]
-                                relativeToDirectory:Directory(@"/Music/A")];
+    NSString *text = M3UText(@[TrackAt(@"/Music/A/ x.mp3"), TrackAt(@"/Music/A/y.mp3\t")], Directory(@"/Music/A"));
     XCTAssertTrue([text containsString:@"\nfile:///Music/A/%20x.mp3\n"]);
     XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text], (@[@"/Music/A/ x.mp3", @"/Music/A/y.mp3\t"]));
 }
 
 - (void)testM3UANewlineInATitleCannotBreakTheInfoLine {
     AudioTrack *track = TaggedTrackAt(@"/Music/A/x.mp3", @"A", @"Line\nTwo", 10);
-    NSString *text = [PlaylistFile m3uTextForTracks:@[track] relativeToDirectory:nil];
+    NSString *text = M3UText(@[track], nil);
     XCTAssertTrue([text containsString:@"#EXTINF:10,A - Line Two\n"]);
     XCTAssertEqual([PlaylistFile m3uEntriesInText:text].count, 1u);
 }
@@ -658,7 +661,7 @@ static NSURL *Directory(NSString *path) {
 - (void)testM3UTextRoundTripsMixedEntriesInOrder {
     NSArray<AudioTrack *> *tracks = @[TrackAt(@"/Music/A/x.mp3"), TrackAt(@"/Volumes/USB/y.flac"),
                                       TrackAt(@"/Music/A/x.mp3"), TrackAt(@"/Music/A/sub/z.wav")];
-    NSString *text = [PlaylistFile m3uTextForTracks:tracks relativeToDirectory:Directory(@"/Music/A")];
+    NSString *text = M3UText(tracks, Directory(@"/Music/A"));
     XCTAssertEqualObjects([PlaylistFile m3uEntriesInText:text],
                           (@[@"x.mp3", @"/Volumes/USB/y.flac", @"x.mp3", @"sub/z.wav"]));
 }
@@ -675,15 +678,16 @@ static NSURL *Directory(NSString *path) {
                                       [AudioTrack withURL:[sub URLByAppendingPathComponent:@"two.mp3"]],
                                       [AudioTrack withURL:[dir URLByAppendingPathComponent:@"#three.mp3"]],
                                       [AudioTrack withURL:[far URLByAppendingPathComponent:@"far.mp3"]]];
-    NSString *text = [PlaylistFile m3uTextForTracks:tracks relativeToDirectory:dir];
+    NSString *text = M3UText(tracks, dir);
     XCTAssertTrue([text containsString:@"\none.mp3\n"]);
     XCTAssertTrue([text containsString:@"\nsub/two.mp3\n"]);
     XCTAssertTrue([text containsString:@"/%23three.mp3\n"]);
     XCTAssertTrue([text containsString:@"\n/"]);   // far.mp3, absolute
     NSURL *playlist = [dir URLByAppendingPathComponent:@"mix.m3u"];
-    XCTAssertTrue([PlaylistFile writeM3UForTracks:tracks relativeToDirectory:dir toURL:playlist error:NULL]);
+    XCTAssertTrue([PlaylistFile writeM3UForEntries:[AudioTrack entriesForRows:tracks] relativeToDirectory:dir
+                                             toURL:playlist error:NULL]);
 
-    NSArray<NSURL *> *urls = [[PlaylistFile rowsForPlaylistAtURL:playlist] valueForKey:@"url"];
+    NSArray<NSURL *> *urls = [[PlaylistFile entriesForPlaylistAtURL:playlist] valueForKey:@"url"];
     XCTAssertEqualObjects([urls valueForKeyPath:@"lastPathComponent"],
                           (@[@"one.mp3", @"two.mp3", @"#three.mp3", @"far.mp3"]));
     for (NSURL *url in urls) {
@@ -691,7 +695,7 @@ static NSURL *Directory(NSString *path) {
     }
 }
 
-#pragma mark - rowsInM3UData:
+#pragma mark - entriesInM3UData:
 
 // The session mirror's read: nothing is stat'd.
 - (void)testM3UDataWrittenAbsoluteReadsBackThroughRowsInM3UData {
@@ -701,23 +705,23 @@ static NSURL *Directory(NSString *path) {
     for (NSString *path in paths) {
         [tracks addObject:TrackAt(path)];
     }
-    NSData *data = [[PlaylistFile m3uTextForTracks:tracks relativeToDirectory:nil]
+    NSData *data = [M3UText(tracks, nil)
             dataUsingEncoding:NSUTF8StringEncoding];
     // Against the tracks' own paths: NSURL answers decomposed Unicode.
-    XCTAssertEqualObjects([[[PlaylistFile rowsInM3UData:data] valueForKey:@"url"] valueForKeyPath:@"path"],
+    XCTAssertEqualObjects([[[PlaylistFile entriesInM3UData:data] valueForKey:@"url"] valueForKeyPath:@"path"],
                           [tracks valueForKeyPath:@"url.path"]);
 }
 
 - (void)testRowsInM3UDataSkipsRelativeAndDirectiveLines {
     NSData *data = [@"#EXTM3U\n#EXTINF:1,x\nrelative.mp3\nfile:///Music/u.mp3\n/Music/a.mp3\n"
             dataUsingEncoding:NSUTF8StringEncoding];
-    XCTAssertEqualObjects([[[PlaylistFile rowsInM3UData:data] valueForKey:@"url"] valueForKeyPath:@"path"],
+    XCTAssertEqualObjects([[[PlaylistFile entriesInM3UData:data] valueForKey:@"url"] valueForKeyPath:@"path"],
                           (@[@"/Music/u.mp3", @"/Music/a.mp3"]));
 }
 
 - (void)testRowsInM3UDataOfNoDataIsEmpty {
-    XCTAssertEqualObjects([[PlaylistFile rowsInM3UData:nil] valueForKey:@"url"], @[]);
-    XCTAssertEqualObjects([[PlaylistFile rowsInM3UData:[NSData data]] valueForKey:@"url"], @[]);
+    XCTAssertEqualObjects([[PlaylistFile entriesInM3UData:nil] valueForKey:@"url"], @[]);
+    XCTAssertEqualObjects([[PlaylistFile entriesInM3UData:[NSData data]] valueForKey:@"url"], @[]);
 }
 
 #pragma mark - Cue rows in M3U
@@ -725,7 +729,7 @@ static NSURL *Directory(NSString *path) {
 // VLC's window for other players, then Vibe's own line, before the path.
 - (void)testACueRowIsWrittenWithItsWindowAndItsVibeLine {
     AudioTrack *row = CueRowAt(@"/Music/mix.flac", 4500, 9000, @"Two", @"DJ", @"/Music/mix.cue", 2);
-    NSString *text = [PlaylistFile m3uTextForTracks:@[row] relativeToDirectory:nil];
+    NSString *text = M3UText(@[row], nil);
     XCTAssertEqualObjects(text, @"#EXTM3U\n"
                                  "#EXTINF:60,DJ - Two\n"
                                  "#EXTVLCOPT:start-time=60.000\n"
@@ -735,12 +739,10 @@ static NSURL *Directory(NSString *path) {
 }
 
 - (void)testAnUnsetWindowSideIsNotWritten {
-    NSString *last = [PlaylistFile m3uTextForTracks:@[CueRowAt(@"/M/mix.flac", 4500, 0, @"B", nil, @"/M/mix.cue", 2)]
-                                relativeToDirectory:nil];
+    NSString *last = M3UText(@[CueRowAt(@"/M/mix.flac", 4500, 0, @"B", nil, @"/M/mix.cue", 2)], nil);
     XCTAssertTrue([last containsString:@"start-time=60.000"]);
     XCTAssertFalse([last containsString:@"stop-time"]);
-    NSString *first = [PlaylistFile m3uTextForTracks:@[CueRowAt(@"/M/mix.flac", 0, 4500, @"A", nil, @"/M/mix.cue", 1)]
-                                 relativeToDirectory:nil];
+    NSString *first = M3UText(@[CueRowAt(@"/M/mix.flac", 0, 4500, @"A", nil, @"/M/mix.cue", 1)], nil);
     XCTAssertFalse([first containsString:@"start-time"]);
     XCTAssertTrue([first containsString:@"stop-time=60.000"]);
 }
@@ -749,7 +751,7 @@ static NSURL *Directory(NSString *path) {
     NSData *data = [@"#VIBE-CUE:1,0,4500,A,,file:///M/mix.cue\n/M/mix.flac\n/M/b.flac\n"
                      "#VIBE-CUE:2,4500,0,B,,file:///M/mix.cue\nhttps://example.com/live\n/M/c.flac\n"
             dataUsingEncoding:NSUTF8StringEncoding];
-    NSArray<AudioTrack *> *rows = [PlaylistFile rowsInM3UData:data];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile entriesInM3UData:data]];
     XCTAssertEqual(rows.count, 3u);
     XCTAssertEqual(rows[0].cueEnd, 4500u);
     XCTAssertEqualObjects(rows[0].cueTitle, @"A");
@@ -762,7 +764,7 @@ static NSURL *Directory(NSString *path) {
 - (void)testAMalformedVibeCueLineReadsAsAPlainRow {
     for (NSString *line in @[@"#VIBE-CUE:1,9000,4500,A,,", @"#VIBE-CUE:1,2", @"#VIBE-CUE:1,-5,0,A,,", @"#VIBE-CUE:"]) {
         NSData *data = [[line stringByAppendingString:@"\n/M/mix.flac\n"] dataUsingEncoding:NSUTF8StringEncoding];
-        NSArray<AudioTrack *> *rows = [PlaylistFile rowsInM3UData:data];
+        NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile entriesInM3UData:data]];
         XCTAssertEqual(rows.count, 1u, @"%@", line);
         XCTAssertFalse(rows.firstObject.isWindowed, @"%@", line);
         XCTAssertNil(rows.firstObject.cueTitle, @"%@", line);
@@ -772,7 +774,7 @@ static NSURL *Directory(NSString *path) {
 - (void)testASavedPlaylistOpensWithItsCueRows {
     NSURL *dir = [self makeTempDirWithFiles:@[@"mix.flac"] playlistName:@"set.m3u"
                                        text:@"#EXTM3U\n#VIBE-CUE:2,4500,0,Two,DJ,file:///elsewhere/mix.cue\nmix.flac\n"];
-    NSArray<AudioTrack *> *rows = [PlaylistFile rowsForPlaylistAtURL:[dir URLByAppendingPathComponent:@"set.m3u"]];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile entriesForPlaylistAtURL:[dir URLByAppendingPathComponent:@"set.m3u"]]];
     XCTAssertEqual(rows.count, 1u);
     XCTAssertEqualObjects(rows.firstObject.url.lastPathComponent, @"mix.flac");
     XCTAssertEqual(rows.firstObject.cueStart, 4500u);
@@ -780,28 +782,28 @@ static NSURL *Directory(NSString *path) {
     XCTAssertEqualObjects(rows.firstObject.cueSheetURL.path, @"/elsewhere/mix.cue");
 }
 
-#pragma mark - commonDirectoryForTracks:
+#pragma mark - commonDirectoryForEntries:
 
 - (void)testCommonDirectoryOfOneTrackIsItsFolder {
-    XCTAssertEqualObjects([PlaylistFile commonDirectoryForTracks:@[TrackAt(@"/Music/A/x.mp3")]].path, @"/Music/A");
+    XCTAssertEqualObjects(CommonDirectory(@[TrackAt(@"/Music/A/x.mp3")]).path, @"/Music/A");
 }
 
 // Shortened at component boundaries, so /M/Album and /M/Album2 share /M, not
 // "/M/Album".
 - (void)testCommonDirectoryIsTheDeepestSharedFolder {
     NSArray *tracks = @[TrackAt(@"/M/A/x.mp3"), TrackAt(@"/M/A/s/y.mp3"), TrackAt(@"/M/B/z.mp3")];
-    XCTAssertEqualObjects([PlaylistFile commonDirectoryForTracks:tracks].path, @"/M");
+    XCTAssertEqualObjects(CommonDirectory(tracks).path, @"/M");
     NSArray *siblings = @[TrackAt(@"/M/Album/x.mp3"), TrackAt(@"/M/Album2/y.mp3")];
-    XCTAssertEqualObjects([PlaylistFile commonDirectoryForTracks:siblings].path, @"/M");
+    XCTAssertEqualObjects(CommonDirectory(siblings).path, @"/M");
 }
 
 - (void)testCommonDirectoryOfUnrelatedVolumesIsNil {
     NSArray *tracks = @[TrackAt(@"/Users/me/x.mp3"), TrackAt(@"/Volumes/USB/y.mp3")];
-    XCTAssertNil([PlaylistFile commonDirectoryForTracks:tracks]);
+    XCTAssertNil(CommonDirectory(tracks));
 }
 
 - (void)testCommonDirectoryOfNoTracksIsNil {
-    XCTAssertNil([PlaylistFile commonDirectoryForTracks:@[]]);
+    XCTAssertNil(CommonDirectory(@[]));
 }
 
 @end

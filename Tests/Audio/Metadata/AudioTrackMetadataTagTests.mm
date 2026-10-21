@@ -182,8 +182,8 @@ static const NSTimeInterval kMP3Duration = 38 * 1152 / 44100.0;
 // TagLib's save keeps the CUESHEET block, so the file still plays as rows.
 - (void)testFLACWithAnEmbeddedCueSheet {
     [self assertFixture:VibeTagFixtureFLACCueSheet fileType:VibeAudioFileFormatFLAC rate:44100 duration:0.5];
-    NSArray<AudioTrack *> *rows = [PlaylistFile cueRowsEmbeddedInFLACAtURL:
-            [_dir URLByAppendingPathComponent:@"cuesheet.flac"]];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:
+            [_dir URLByAppendingPathComponent:@"cuesheet.flac"]]];
     XCTAssertEqual(rows.count, 2u);
 }
 
