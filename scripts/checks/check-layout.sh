@@ -2,7 +2,8 @@
 # Enforces the layout rule stated in AGENTS.md: every directory directly under
 # Vibe/ except Mac/, iOS/ and ThirdParty/ is a shared subsystem listed in both
 # targets, and within any subsystem Mac/ and iOS/ are the only platform
-# markers.
+# markers. ThirdParty/ holds only Sparkle now. Every other vendored library is
+# a vibe-libs piece.
 #
 # Seven assertions. The first three read project.yml, which settles which
 # SOURCES compile; the fourth reads the imports, which settles which HEADERS may
