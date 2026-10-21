@@ -263,7 +263,7 @@ static CGFloat SettingsCaptionHeight(NSTextField *label, NSString *text, CGFloat
 
 - (BOOL)setCaption:(NSString *)caption detail:(NSString *)detail {
     return [self setCaption:detail.length
-            ? [NSString stringWithFormat:VibeNotLocalized(@"%@\n%@"), caption, detail] : caption];
+            ? [NSString stringWithFormat:@"%@\n%@", caption, detail] : caption];
 }
 
 // Measured, not assumed from the text: YES costs the caller a full Auto Layout

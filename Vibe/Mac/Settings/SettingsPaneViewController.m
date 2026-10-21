@@ -695,7 +695,7 @@ static const CFTimeInterval kSettingsDragInterval = 1.0 / 30;
                     usingBlock:^(NSNotification *note) {
                         // Queued past the item's action, which may have
                         // been File > Close.
-                        run_on_main_thread({
+                        dispatch_async(dispatch_get_main_queue(), ^{
                             if (weakSelf.view.window.isVisible) {
                                 [weakSelf refreshSettingsAndPaneSize];
                             }
