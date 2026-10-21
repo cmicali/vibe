@@ -18,7 +18,7 @@
 #import "AppSettings+Mac.h"
 #import "AppTheme.h"
 #import "Formatters.h"
-#import "WaveformTheme.h"
+#import "WaveformTheme+Settings.h"
 
 // The morph eases on a 60 Hz timer. The tests draw its settled state.
 @interface WaveformView (TestSettle)
@@ -79,10 +79,17 @@ static NSColor *Opaque(NSColor *color) {
     _savedTheme = _theme.dictionaryRepresentation;
     _theme.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
     _theme.waveformPlayheadLine = NO;
-    _theme.waveformCentered = YES;
     _theme.waveformGradient = NO;
     _view = [[WaveformView alloc] initWithFrame:NSMakeRect(0, 0, kWidth, kHeight)];
     _view.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+    // The shell's provider: the theme record under test, mapped as the app
+    // maps it.
+    _view.themeProvider = ^WaveformTheme *(BOOL isDark, NSColor *artworkColor) {
+        return [WaveformTheme themeForAppTheme:AppSettings.sharedInstance.currentTheme isDark:isDark
+                                  artworkColor:artworkColor];
+    };
+    _view.centered = YES;
+    _view.normalizesLevels = YES;
     _delegate = [RecordingWaveformDelegate new];
     _view.delegate = _delegate;
 }
@@ -93,6 +100,8 @@ static NSColor *Opaque(NSColor *color) {
 }
 
 - (void)showStyle:(NSString *)style progress:(CGFloat)progress {
+    // The record's style too: the mapping hides the waveform color under
+    // the band styles.
     _theme.waveformStyle = style;
     [_view setWaveformStyle:style];
     [_view prepareForWaveformLoad];
@@ -255,17 +264,39 @@ static NSColor *Opaque(NSColor *color) {
     NSWindow *window = VibeOffscreenWindow(NSMakeSize(kWidth, kHeight));
     [window.contentView addSubview:_view];
     [self showStyle:@"detailed" progress:0];
-    XCTAssertEqualObjects(AppSettings.sharedInstance.waveformDragBehavior, SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW);
-    NSPoint point = NSMakePoint(kWidth * 0.3, kHeight / 2);
-    for (NSEventType type : {NSEventTypeLeftMouseDown, NSEventTypeLeftMouseUp}) {
-        NSEvent *event = [NSEvent mouseEventWithType:type location:point modifierFlags:0 timestamp:0
-                                        windowNumber:window.windowNumber context:nil eventNumber:0
-                                          clickCount:1 pressure:1];
-        type == NSEventTypeLeftMouseDown ? [_view mouseDown:event] : [_view mouseUp:event];
-    }
+    XCTAssertFalse(_view.dragSeeks, @"a drag moves the window unless pushed otherwise");
+    [self mouse:NSEventTypeLeftMouseDown at:kWidth * 0.3 in:window];
+    [self mouse:NSEventTypeLeftMouseUp at:kWidth * 0.3 in:window];
     XCTAssertEqual(_delegate.seeks.count, 1u);
     XCTAssertEqualWithAccuracy(_delegate.seeks.firstObject.floatValue, 0.3, 1e-6);
     XCTAssertEqualWithAccuracy(_view.progress, 0, 1e-9, @"the position comes back through the owner");
+}
+
+// Pushed dragSeeks: the drag tracks the cursor and seeks once, on release,
+// to where it ended.
+- (void)testAPushedSeekingDragSeeksOnceOnRelease {
+    NSWindow *window = VibeOffscreenWindow(NSMakeSize(kWidth, kHeight));
+    [window.contentView addSubview:_view];
+    [self showStyle:@"detailed" progress:0];
+    _view.dragSeeks = YES;
+    [self mouse:NSEventTypeLeftMouseDown at:kWidth * 0.3 in:window];
+    [self mouse:NSEventTypeLeftMouseDragged at:kWidth * 0.5 in:window];
+    [self mouse:NSEventTypeLeftMouseDragged at:kWidth * 0.7 in:window];
+    XCTAssertEqual(_delegate.seeks.count, 0u, @"no seek with the button down");
+    [self mouse:NSEventTypeLeftMouseUp at:kWidth * 0.7 in:window];
+    XCTAssertEqual(_delegate.seeks.count, 1u);
+    XCTAssertEqualWithAccuracy(_delegate.seeks.firstObject.floatValue, 0.7, 1e-6);
+}
+
+- (void)mouse:(NSEventType)type at:(CGFloat)x in:(NSWindow *)window {
+    NSEvent *event = [NSEvent mouseEventWithType:type location:NSMakePoint(x, kHeight / 2) modifierFlags:0
+                                       timestamp:0 windowNumber:window.windowNumber context:nil
+                                     eventNumber:0 clickCount:1 pressure:1];
+    switch (type) {
+        case NSEventTypeLeftMouseDown: [_view mouseDown:event]; break;
+        case NSEventTypeLeftMouseDragged: [_view mouseDragged:event]; break;
+        default: [_view mouseUp:event]; break;
+    }
 }
 
 - (void)testAccessibilityStepsReportASeekOnlyWithAWaveform {

@@ -6,10 +6,7 @@
 #import "WaveformViewInternal.h"
 #import "WaveformView+Loading.h"
 #import "WaveformRendererRegistry.h"
-#import "WaveformTheme+Settings.h"
 #import "NSView+DarkMode.h"
-#import "AppSettings.h"
-#import "AppSettings+Mac.h"
 #import "WaveformAccessibility.h"
 
 // A press that travels further than this is a drag, not a click.
@@ -23,9 +20,9 @@ static const CGFloat kWaveformDragHysteresis = 4;
     double                      _convertSweepFraction;
     BOOL                        _didClickInside;
     NSTrackingArea*             _hoverTrackingArea;
-    // The gesture's state, valid while _didClickInside: the mode is stashed at
-    // mouse-down so a settings write cannot change it mid-drag.
-    NSString*                   _dragBehavior;
+    // The gesture's state, valid while _didClickInside: dragSeeks is stashed
+    // at mouse-down so a push cannot change it mid-drag.
+    BOOL                        _gestureSeeks;
     NSPoint                     _mouseDownPoint;
     NSPoint                     _windowOriginAtMouseDown;
     BOOL                        _isDragSeeking;
@@ -70,6 +67,10 @@ static const CGFloat kWaveformDragHysteresis = 4;
     _progress = 0;
     _progressTracker = 0;
     _didClickInside = NO;
+    // The renderer's own defaults, for a view nothing pushes.
+    _barDensity = 1;
+    _barWidthScale = 1;
+    _centered = YES;
 }
 
 - (void)setWaveformStyle:(NSString*)identifier {
@@ -79,40 +80,27 @@ static const CGFloat kWaveformDragHysteresis = 4;
         _currentWaveformRenderer = [WaveformRendererRegistry rendererForResolvedIdentifier:style
                 layer:_rendererHost bounds:self.bounds isDark:self.isDark];
         [self applyPictureColorSpace];
-        [self applyLevelSettings];
         [self applyResolvedTheme];
     }
-    _currentWaveformRenderer.barDensity = AppSettings.sharedInstance.currentTheme.waveformBarDensity;
-    _currentWaveformRenderer.barWidthScale = AppSettings.sharedInstance.currentTheme.waveformBarWidth;
-    _currentWaveformRenderer.centered = AppSettings.sharedInstance.currentTheme.waveformCentered;
+    _currentWaveformRenderer.barDensity = _barDensity;
+    _currentWaveformRenderer.barWidthScale = _barWidthScale;
+    _currentWaveformRenderer.centered = _centered;
+    _currentWaveformRenderer.normalizesLevels = _normalizesLevels;
+    _currentWaveformRenderer.gainDB = _gainDB;
     [self drawWaveform];
     [self updateRendererProgress];
 }
 
-- (void)applyLevelSettings {
-    AppSettings *settings = AppSettings.sharedInstance;
-    _currentWaveformRenderer.normalizesLevels = settings.waveformNormalize;
-    _currentWaveformRenderer.gainDB = (float)settings.waveformGainDB;
-}
-
-- (void)refreshWaveformLevels {
-    if (!_currentWaveformRenderer) {
-        return;
-    }
-    [self applyLevelSettings];
-    [self drawWaveform];
-}
-
-// The one resolution site on this view: settings + appearance +
-// artworkThemeColor into the renderer's palette.
+// The one resolution site on this view: the provider's answer for the
+// appearance and artworkThemeColor into the renderer's palette.
 - (void)applyResolvedTheme {
     if (!_currentWaveformRenderer) {
         return;
     }
     BOOL isDark = self.isDark;
-    WaveformTheme *theme = [WaveformTheme themeForAppTheme:AppSettings.sharedInstance.currentTheme
-                                                    isDark:isDark
-                                              artworkColor:self.artworkThemeColor];
+    WaveformTheme *theme = _themeProvider ? _themeProvider(isDark, self.artworkThemeColor)
+            : [WaveformTheme themeForIdentifier:SETTINGS_VALUE_WAVEFORM_THEME_MONO isDark:isDark
+                                   artworkColor:nil customPlayed:nil customUnplayed:nil];
     _currentWaveformRenderer.theme = theme;
     [_currentWaveformRenderer updateColors:isDark];
     [self.delegate waveformViewDidResolveTheme:self];
@@ -188,7 +176,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
         NSRect band = [_currentWaveformRenderer seekHitBandForBounds:self.bounds];
         if (mouseLoc.y >= NSMinY(band) && mouseLoc.y <= NSMaxY(band)) {
             _didClickInside = YES;
-            _dragBehavior = AppSettings.sharedInstance.waveformDragBehavior;
+            _gestureSeeks = _dragSeeks;
             _mouseDownPoint = mouseLoc;
             _windowOriginAtMouseDown = self.window.frame.origin;
             return;
@@ -198,8 +186,9 @@ static const CGFloat kWaveformDragHysteresis = 4;
     [self.window performWindowDragWithEvent:event];
 }
 
-// Past the hysteresis, seek mode tracks the cursor with the hover highlight
-// and seeks once on release; drag_window mode hands the gesture to the window.
+// Past the hysteresis a seeking drag tracks the cursor with the hover
+// highlight and seeks once on release; otherwise the gesture goes to the
+// window.
 - (void)mouseDragged:(NSEvent *)event {
     if (!_didClickInside) {
         return;
@@ -209,7 +198,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
         hypot(p.x - _mouseDownPoint.x, p.y - _mouseDownPoint.y) <= kWaveformDragHysteresis) {
         return;
     }
-    if (![_dragBehavior isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK]) {
+    if (!_gestureSeeks) {
         // Disarmed first: a mouseUp that still arrives must not seek.
         _didClickInside = NO;
         [self.window performWindowDragWithEvent:event];
@@ -242,7 +231,7 @@ static const CGFloat kWaveformDragHysteresis = 4;
         }
         return;
     }
-    if ([_dragBehavior isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_WINDOW]) {
+    if (!_gestureSeeks) {
         // A moved mouse never seeks. The window-origin check catches a drag
         // that moved the window with the cursor, where the local point barely
         // moves.
@@ -371,9 +360,6 @@ static const CGFloat kWaveformDragHysteresis = 4;
     [self hideLoadingIndicator];
     [self hideEmptyPlaceholder];
     [self resetWaveformContentState];
-    if (!_currentWaveformRenderer) {
-        [self setWaveformStyle:AppSettings.sharedInstance.currentTheme.waveformStyle];
-    }
     [self drawWaveform];
 }
 

@@ -62,6 +62,8 @@ typedef NS_OPTIONS(NSUInteger, VibeSettingsLiveEffect) {
     // Pushes effectiveVolume to the player, shows or hides the slider, and
     // dresses it from the theme: tint, labels, and the corner it takes.
     VibeSettingsLiveEffectVolume           = 1UL << 26,
+    // What a drag on the waveform does: the General pane's popup.
+    VibeSettingsLiveEffectWaveformDrag     = 1UL << 27,
     // The menu's key equivalents and the empty-state hints' Open shortcut,
     // under the current layout; also requested on an input source change.
     VibeSettingsLiveEffectShortcuts        = 1UL << 28,
@@ -113,6 +115,11 @@ typedef NS_ENUM(NSInteger, VibeShortcutAssignment) {
 // Pushes the theme's fonts into Fonts, which may not read a setting.
 // buildContentInWindow: runs it before any label exists.
 - (void)applyStoredFonts;
+
+// Pushes every waveform setting into the view, which reads none: the
+// theme's style and geometry, Normalize and gain, and the drag behavior.
+// Launch and the WaveformStyle, WaveformLevels and WaveformDrag effects.
+- (void)applyWaveformSettings;
 
 // Applies stored settings. Dependent effects can close the pitch panel and
 // save its resulting geometry.

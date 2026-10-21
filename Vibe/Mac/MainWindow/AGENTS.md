@@ -14,7 +14,7 @@ This directory holds the main window and its controller, `MainPlayerController`,
 - `+Delivery`: the metadata, waveform, tempo and key deliveries. Also the grant, folder-art and thumbnail notifications.
 - `+Window`: the content build, the resize, lock and occlusion rules, the window chrome and the waveform theme.
 - `+Menus`: menu validation and the View > Theme submenu.
-- `+Settings`: the live effects, the shortcut write path and the theme's fonts.
+- `+Settings`: the live effects, the shortcut write path, the theme's fonts and the waveform view's pushed settings (`applyWaveformSettings`).
 - `+NowPlaying`: the system's Now Playing info and remote commands.
 - `+Convert` (`Convert/`): Convert to FLAC's swap and its undo.
 

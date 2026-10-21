@@ -156,7 +156,8 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (void)setWindowPositionLocked:(BOOL)locked;
 
 
-// Normalized on read: an unknown value reads as drag_window.
+// Normalized on read: an unknown value reads as drag_window. A writer
+// requests VibeSettingsLiveEffectWaveformDrag.
 - (NSString *)waveformDragBehavior;
 - (void)setWaveformDragBehavior:(NSString *)behavior;
 
