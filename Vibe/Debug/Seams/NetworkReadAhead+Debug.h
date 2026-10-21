@@ -8,8 +8,6 @@
 //  header states each one's contract.
 //
 
-#if DEBUG
-
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -21,5 +19,3 @@ NSInteger VibeNetworkReadAheadDebugLive(void);
 NSInteger VibeNetworkReadAheadDebugOrphaned(void);
 
 NS_ASSUME_NONNULL_END
-
-#endif

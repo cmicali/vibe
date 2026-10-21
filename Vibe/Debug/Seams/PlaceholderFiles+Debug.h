@@ -10,8 +10,6 @@
 //  read. Implemented in PlaceholderFiles+Debug.m.
 //
 
-#if DEBUG
-
 #import "PlaceholderFiles.h"
 
 #include <stdatomic.h>
@@ -45,5 +43,3 @@ extern _Atomic(BOOL) VibeDatalessDiagEnabled;
 void VibeRecordDatalessStat(NSURL *url, BOOL dataless, uint32_t flags, BOOL statFailed);
 
 NS_ASSUME_NONNULL_END
-
-#endif

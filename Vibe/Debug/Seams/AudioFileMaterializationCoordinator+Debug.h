@@ -6,8 +6,6 @@
 //  categories are implemented in AudioFileMaterializationCoordinator+Debug.m.
 //
 
-#if DEBUG
-
 #import "AudioFileMaterializationCoordinator.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -40,5 +38,3 @@ VibeAudioFileOpener VibeDebugHangingOpener(VibeAudioFileOpener real);
 @end
 
 NS_ASSUME_NONNULL_END
-
-#endif

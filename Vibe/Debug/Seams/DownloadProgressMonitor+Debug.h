@@ -14,8 +14,6 @@
 //  while the fake transfer still has seconds to run.
 //
 
-#if DEBUG
-
 #import "DownloadProgressMonitor.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -35,5 +33,3 @@ typedef float (^VibeFakeDownloadProgress)(NSURL *url);
 @end
 
 NS_ASSUME_NONNULL_END
-
-#endif

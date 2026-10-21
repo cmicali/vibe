@@ -10,8 +10,6 @@
 //  installer. Implemented in CloudFileMaterializer+Debug.m.
 //
 
-#if DEBUG
-
 #import "CloudFileMaterializer.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -48,5 +46,3 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
-
-#endif
