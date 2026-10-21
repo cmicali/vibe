@@ -47,9 +47,6 @@ typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
     VibeWaveformPaletteKindSpectrum,
 };
 
-@class AppSettings;
-@class AppTheme;
-
 @interface WaveformTheme : NSObject
 
 // Each side's hue at its resting alpha.
@@ -104,26 +101,16 @@ typedef NS_ENUM(NSInteger, VibeWaveformPaletteKind) {
 + (NSArray<VibeColor *> *)bandColorsForIdentifier:(NSString *)identifier isDark:(BOOL)isDark
                                       customBands:(NSArray<VibeColor *> *)custom;
 
+// bandColors from three wells, low, mid and high: the seven fills by the one
+// rule. Shaded, they follow a CDJ. Unshaded, each band paints plainly over
+// the ones below, as Engine DJ does.
++ (NSArray<VibeColor *> *)bandColorsForWells:(NSArray<VibeColor *> *)wells shaded:(BOOL)shaded isDark:(BOOL)isDark;
+
 // Non-nil, the playhead is a line in this color over a waveform drawn wholly
 // as played; nil, the played/unplayed boundary is the playhead. Each view
 // draws the line and hands its renderer a progress of 1, so no renderer
 // reads this.
 @property (nonatomic, strong, nullable) VibeColor *playheadColor;
-
-#if TARGET_OS_OSX
-// Every mac surface that draws a waveform maps the theme record through here,
-// so a new waveform field is mapped once.
-+ (WaveformTheme *)themeForAppTheme:(AppTheme *)theme isDark:(BOOL)isDark
-                       artworkColor:(nullable VibeColor *)artworkColor;
-#endif
-
-#if !TARGET_OS_OSX
-// Every iOS surface that draws a waveform maps the loose settings through
-// here, as the mac maps its theme record. widget reads the widget's copies
-// (AppSettings.h).
-+ (WaveformTheme *)themeForSettings:(AppSettings *)settings widget:(BOOL)widget isDark:(BOOL)isDark
-                       artworkColor:(nullable VibeColor *)artworkColor;
-#endif
 
 // The renderers' default before a view resolves anything.
 + (WaveformTheme *)monochromeThemeIsDark:(BOOL)isDark;

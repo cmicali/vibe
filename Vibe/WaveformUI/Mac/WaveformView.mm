@@ -6,6 +6,7 @@
 #import "WaveformViewInternal.h"
 #import "WaveformView+Loading.h"
 #import "WaveformRendererRegistry.h"
+#import "WaveformTheme+Settings.h"
 #import "NSView+DarkMode.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
