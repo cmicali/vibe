@@ -150,10 +150,9 @@ targets:
     #
     # TRAP: VibeLibsVorbis before VibeLibsTaglib. Header search paths follow
     # this order, and taglib/ogg holds TagLib's own vorbis/vorbisfile.h.
-    templates: [VibeLibsDSP, VibeLibsFileLoading, VibeLibsDiskCache, VibeLibsGraphics,
-                VibeLibsControls, VibeLibsSettingsWindow,
-                VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
-                VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsFileLoading, VibeLibsDiskCache, VibeLibsGraphics,
+                VibeLibsControls, VibeLibsSettingsWindow, VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache,
+                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -460,9 +459,9 @@ targets:
     type: application
     platform: iOS
     # VibeLibsVorbis before VibeLibsTaglib: see the Vibe target.
-    templates: [VibeLibsDSP, VibeLibsFileLoading, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsVorbis,
-                VibeLibsTaglib, VibeLibsPINCache,
-                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsFileLoading, VibeLibsDiskCache, VibeLibsGraphics,
+                VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
+                VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -965,8 +964,10 @@ targetTemplates:
   # The production sources both test targets compile. A file only one
   # target compiles goes in that target's own list.
   hostless-test-sources:
-    # The vendored resampler and decoders, with the flags the apps build them with.
-    templates: [VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav, VibeLibsVorbis]
+    # AudioTypes, and the vendored resampler and decoders with the flags the
+    # apps build them with.
+    templates: [VibeLibsAudioTypes, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav,
+                VibeLibsVorbis]
     sources:
       - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # HTTPStub's sessionConfiguration
       - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
@@ -985,7 +986,6 @@ targetTemplates:
       - path: vibe-libs/audio/DSP/AudioVarispeed.m
         compilerFlags: *render-path-flags
       - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
-      - path: Vibe/Audio/AudioFileFormat.m
       - path: Vibe/Audio/AudioError.m
       - path: vibe-libs/files/FileLoading/Claim/AudioLoadingConfiguration.m
       - path: Vibe/Audio/AudioFileHandle.m
@@ -1026,7 +1026,6 @@ targetTemplates:
       - path: Vibe/Playlist/PlaylistEntry.m
       - path: Vibe/Playlist/PlaylistFile.m
       - path: Vibe/Playlist/PlaylistFile+CUE.m
-      - path: Vibe/Common/PlayableExtensions.m
       - path: Vibe/Util/Formatters.m
       - path: vibe-libs/core/Common/NSURL+Hash.m
       - path: vibe-libs/core/Common/NSURL+Emptiness.m

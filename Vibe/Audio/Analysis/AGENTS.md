@@ -39,7 +39,7 @@ The last two exist because profile correlation finds a *scale*, not a tonal cent
 
 Frames are normalized to one vote and **never log-compressed**. Compressing raw magnitudes squashes loud passages harder than quiet ones.
 
-The key type, Camelot and musical-name formatting and tag parsing live in `Audio/MusicalKey.h`. **TRAP: a `VibeMusicalKey` of 0 is C major** (root `AGENTS.md`). `AudioKeyAnalyzer keyInResults:`, `AudioTrackMetadata.key` and `AudioTrack.detectedKey` each answer `VibeMusicalKeyNone` explicitly.
+The key type, Camelot and musical-name formatting and tag parsing live in `MusicalKey.h`, in vibe-libs' `audio/AudioTypes`. **TRAP: a `VibeMusicalKey` of 0 is C major** (root `AGENTS.md`). `AudioKeyAnalyzer keyInResults:`, `AudioTrackMetadata.key` and `AudioTrack.detectedKey` each answer `VibeMusicalKeyNone` explicitly.
 
 ## Cost
 
