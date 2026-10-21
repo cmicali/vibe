@@ -12,12 +12,16 @@
 #import <XCTest/XCTest.h>
 
 #import "AudioTrack.h"
-#import "AudioTrackInternal.h"
 #import "AudioTrackMetadataInternal.h"
 #import "AudioTrackMetadataTagFixtures.h"
 #import "PlatformImage.h"
 #import "PlaylistFile.h"
 #import "TagLibAudioFile.h"
+#import "CloudFileMaterializer.h"
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 @interface AudioTrackMetadataTagTests : XCTestCase
 @end
@@ -372,6 +376,39 @@ static const NSTimeInterval kMP3Duration = 38 * 1152 / 44100.0;
     [artwork adoptArchivedThumbnailData:nil hasEmbeddedArt:YES];
     XCTAssertNil([artwork loadArtBlocking]);
     XCTAssertTrue(artwork.hasEmbeddedArt);
+}
+
+// A remote placeholder's tags and art come through its backend's read, by
+// range. Its own direct open fails.
+- (void)testARemotePlaceholderIsReadThroughItsBackend {
+    NSURL *source = [self write:VibeTagFixtureFLAC art:sArt];
+    NSData *bytes = [NSData dataWithContentsOfURL:source];
+    NSURL *root = [_dir URLByAppendingPathComponent:@"remote" isDirectory:YES];
+    XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:root withIntermediateDirectories:YES
+                                                          attributes:nil error:NULL]);
+    NSURL *placeholder = [root URLByAppendingPathComponent:source.lastPathComponent];
+    int fd = open(placeholder.fileSystemRepresentation, O_CREAT | O_WRONLY | O_TRUNC, 0600);
+    XCTAssertTrue(fd >= 0 && ftruncate(fd, (off_t)bytes.length) == 0 && fchmod(fd, 0) == 0);
+    close(fd);
+    __block NSUInteger reads = 0;
+    [CloudFileMaterializer setRemoteRoot:root fetch:^BOOL(NSURL *url, dispatch_block_t onReadable,
+                                                          void (^onCancel)(dispatch_block_t), NSError **error) {
+        return NO;
+    } read:^NSData *(NSURL *url, uint64_t offset, uint64_t length, NSError **error) {
+        reads++;
+        return offset + length <= bytes.length ? [bytes subdataWithRange:NSMakeRange(offset, length)] : nil;
+    } availability:nil];
+    AudioTrackMetadata *metadata = Parse(placeholder, NULL);
+    NSData *art = nil;
+    VibeEmbeddedArtExtractionResult extracted = Extract(placeholder, &art);
+    [CloudFileMaterializer setRemoteRoot:nil fetch:nil read:nil availability:nil];
+
+    XCTAssertTrue(metadata.parsedOK);
+    XCTAssertEqualObjects(metadata.title, kVibeTagTitle);
+    XCTAssertTrue(metadata.artwork.hasEmbeddedArt);
+    XCTAssertEqual(extracted, VibeEmbeddedArtExtractionFoundArt);
+    XCTAssertEqualObjects(art, sArt);
+    XCTAssertGreaterThanOrEqual(reads, 2u, @"one per parse at least");
 }
 
 #pragma mark - Detection

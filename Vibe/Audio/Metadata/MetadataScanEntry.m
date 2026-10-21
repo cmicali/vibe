@@ -7,7 +7,7 @@
 
 @implementation MetadataScanEntry
 
-- (instancetype)initWithTracks:(NSArray<id<VibePlayableItem>> *)tracks
+- (instancetype)initWithTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks
               standardizedPath:(NSString *)standardizedPath
                  playlistIndex:(NSUInteger)playlistIndex {
     self = [super init];
@@ -20,7 +20,7 @@
     return self;
 }
 
-- (BOOL)holdsTrack:(id<VibePlayableItem>)track {
+- (BOOL)holdsTrack:(id<AudioTrackMetadataHolder>)track {
     return [_tracks indexOfObjectIdenticalTo:track] != NSNotFound;
 }
 

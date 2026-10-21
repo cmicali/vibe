@@ -11,13 +11,12 @@
 #import <Foundation/Foundation.h>
 #import "AudioTrackMetadataCache.h"
 
-@class AudioTrack;
 @class AudioTrackMetadata;
 @class AudioLoadingConfiguration;
 @class AudioFileMaterializationCoordinator;
 
 typedef AudioTrackMetadata * _Nullable (^VibeAudioTrackMetadataCacheReader)(
-        AudioTrack * _Nonnull track);
+        id<AudioTrackMetadataHolder> _Nonnull track);
 typedef AudioTrackMetadata * _Nonnull (^VibeAudioTrackMetadataFileParser)(
         NSURL * _Nonnull url);
 
@@ -45,7 +44,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 
-- (void)load:(NSArray<AudioTrack *> *)tracks;
+- (void)load:(NSArray<id<AudioTrackMetadataHolder>> *)tracks;
 - (void)cancel;
 
 @end
@@ -60,12 +59,12 @@ NS_ASSUME_NONNULL_BEGIN
 // even under the foreground rule, parsed user-initiated. A repeat edge
 // reactivates one submission, so it can join a new same-path foreground claim
 // without waiting for the gate clock. Main thread.
-- (void)prioritizeTrack:(AudioTrack *)track;
+- (void)prioritizeTrack:(id<AudioTrackMetadataHolder>)track;
 
 // Takes one departed row out of its not-yet-picked record, dropping the record
 // once empty, and forgets the row, so a later prioritizeTrack: rebuilds it.
 // Picked work settles normally. Main thread.
-- (void)abandonQueuedTrack:(AudioTrack *)track;
+- (void)abandonQueuedTrack:(id<AudioTrackMetadataHolder>)track;
 
 // Ranks these URLs within the same locality and retry class, in order.
 - (void)setNeighborhoodURLs:(nullable NSArray<NSURL *> *)urls;
@@ -82,7 +81,7 @@ NS_ASSUME_NONNULL_BEGIN
 // installs and publishes as the sweep's does, and a miss ends there. No
 // record, no materialization and no parse, so the file is never read. Any
 // thread.
-- (void)loadFromCacheOnly:(NSArray<AudioTrack *> *)tracks;
+- (void)loadFromCacheOnly:(NSArray<id<AudioTrackMetadataHolder>> *)tracks;
 
 @end
 

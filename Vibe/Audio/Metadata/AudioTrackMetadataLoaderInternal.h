@@ -27,14 +27,14 @@ NS_ASSUME_NONNULL_BEGIN
     NSOperationQueue* _queue;
     // By identity, not inferred from track.metadata: a failed parse must stay
     // eligible for a later loader. Guarded by _materializationLock.
-    NSMutableSet<AudioTrack *>* _queuedTracks;
+    NSMutableSet<id<AudioTrackMetadataHolder>>* _queuedTracks;
     // Tracks whose record, materialization or parse can still settle a
     // priority mark; a priority edge for any other track mints a fresh
     // cache-check record. Guarded by _materializationLock.
-    NSMutableSet<AudioTrack *>* _tracksWithScanInFlight;
+    NSMutableSet<id<AudioTrackMetadataHolder>>* _tracksWithScanInFlight;
     // Every row of a parse's record, so a priority edge after Ready can
     // promote a queued utility parse. Guarded by _materializationLock.
-    NSMapTable<AudioTrack *, NSOperation *> *_parseOperationsByTrack;
+    NSMapTable<id<AudioTrackMetadataHolder>, NSOperation *> *_parseOperationsByTrack;
     // Every cache miss, app-owned until one pick is registered with the
     // coordinator.
     NSMutableArray<MetadataScanEntry *>* _pendingMaterializations;
@@ -100,19 +100,19 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)dispatchNextScanMaterialization;
 - (nullable MetadataPriorityMark *)priorityMarkForEntryLocked:(MetadataScanEntry *)entry;
 - (nullable MetadataPriorityMark *)leadEntryWithItsMarkedRowLocked:(MetadataScanEntry *)entry;
-- (BOOL)retirePriorityMarksTargetingTracksLocked:(NSArray<AudioTrack *> *)tracks;
-- (void)retirePriorityMarksSatisfiedByTracks:(NSArray<AudioTrack *> *)tracks;
+- (BOOL)retirePriorityMarksTargetingTracksLocked:(NSArray<id<AudioTrackMetadataHolder>> *)tracks;
+- (void)retirePriorityMarksSatisfiedByTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks;
 
 @end
 
 // AudioTrackMetadataLoader+Parse.m, for the loader's other files.
 @interface AudioTrackMetadataLoader (ParseInternal)
 
-- (BOOL)loadTrackFromDiskCache:(AudioTrack *)track;
+- (BOOL)loadTrackFromDiskCache:(id<AudioTrackMetadataHolder>)track;
 - (BOOL)scheduleParseForEntry:(MetadataScanEntry *)entry
                 userInitiated:(BOOL)userInitiatedParse;
-- (void)finishTracks:(NSArray<AudioTrack *> *)tracks;
-- (void)settleTracks:(NSArray<AudioTrack *> *)tracks withMetadata:(AudioTrackMetadata *)metadata;
+- (void)finishTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks;
+- (void)settleTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks withMetadata:(AudioTrackMetadata *)metadata;
 
 @end
 

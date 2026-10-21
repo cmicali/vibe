@@ -9,6 +9,8 @@
 #import "NSURL+FilenameTitle.h"
 #import "AudioTrackArtwork.h"
 #import "TagLibAudioFile.h"
+#import "CloudFileMaterializer.h"
+#import "PlaceholderFiles.h"
 #import "PlatformImage.h"
 #import "NSString+CPPStrings.h"
 #import "MusicalKey.h"
@@ -16,6 +18,7 @@
 #import <AudioToolbox/AudioToolbox.h>
 
 #include <exception>
+#include <sys/stat.h>
 #include <audioproperties.h>
 #include <tpropertymap.h>
 #include <flacfile.h>
@@ -38,6 +41,41 @@ NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification =
 // worker and read on main, an unlocked pair TSan reports.
 @property (strong, nullable) AudioTrackArtwork *artwork;
 @end
+
+// The reader for a remote placeholder, which the parse and the art read take
+// by range instead of materializing the song (AGENTS.md, The scan). nil reads
+// the file from disk. The root test comes before the stat, so a file under no
+// remote root pays none.
+static VibeTagByteRangeRead _Nullable VibeTagRangeReadForPath(NSString *path, uint64_t *length) {
+    struct stat st;
+    if (!VibePathIsUnderRemotePlaceholderRoot(path) || stat(path.UTF8String, &st) != 0
+            || !VibeFileModeIsRemotePlaceholder(st.st_mode)) {
+        return nil;
+    }
+    *length = (uint64_t)st.st_size;
+    return [CloudFileMaterializer remoteReadForURL:[NSURL fileURLWithPath:path isDirectory:NO]];
+}
+
+AudioTrackArtworkExtractor VibeTagLibArtExtractor(void) {
+    return ^VibeEmbeddedArtExtractionResult(NSString *path, NSData *__autoreleasing *artData) {
+        if (!path) {
+            return VibeEmbeddedArtExtractionReadFailed;
+        }
+        uint64_t length = 0;
+        VibeTagByteRangeRead read = VibeTagRangeReadForPath(path, &length);
+        NSData *art = nil;
+        if (!VibeTagLibReadEmbeddedArt(path, read, length, &art)) {
+            return VibeEmbeddedArtExtractionReadFailed;
+        }
+        if (!art) {
+            return VibeEmbeddedArtExtractionNoArt;
+        }
+        if (artData) {
+            *artData = art;
+        }
+        return VibeEmbeddedArtExtractionFoundArt;
+    };
+}
 
 // A tag's text without surrounding whitespace, or nil when that leaves none.
 static NSString * _Nullable trimmedTagText(id _Nullable value) {
@@ -283,7 +321,9 @@ static NSString * _Nullable trimmedTagText(id _Nullable value) {
     // A corrupt tag can make TagLib throw, and uncaught on a worker that is
     // std::terminate. A malformed file degrades to a failed parse instead.
     try {
-        TagLibAudioFile fileRef([url.path UTF8String]);
+        uint64_t length = 0;
+        VibeTagByteRangeRead read = VibeTagRangeReadForPath(url.path, &length);
+        TagLibAudioFile fileRef(url.path.UTF8String, true, read, length);
         if (fileRef.isNull()) {
             [self loadCoreAudioFactsFromURL:url];
             return;

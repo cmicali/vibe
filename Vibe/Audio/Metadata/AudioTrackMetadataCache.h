@@ -4,11 +4,11 @@
 //
 
 #import <Foundation/Foundation.h>
+#import "AudioTrackMetadataHolder.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 @protocol AudioTrackMetadataCacheDelegate;
-@class AudioTrack;
 
 @interface AudioTrackMetadataCache : NSObject
 
@@ -19,13 +19,13 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)initWithRootPath:(nullable NSString *)rootPath NS_DESIGNATED_INITIALIZER;
 - (instancetype)init;
 
-- (void)loadMetadata:(NSArray<AudioTrack *> *)tracks;
+- (void)loadMetadata:(NSArray<id<AudioTrackMetadataHolder>> *)tracks;
 
 // Rows whose audio is not on the device: the disk cache alone, so a hit
 // delivers as loadMetadata:'s do and a miss reads nothing and downloads
 // nothing. Apart from the scan, so loadMetadata: and cancelScan never drop
 // it. Main thread only.
-- (void)loadCachedMetadata:(NSArray<AudioTrack *> *)tracks;
+- (void)loadCachedMetadata:(NSArray<id<AudioTrackMetadataHolder>> *)tracks;
 
 // Cancels the scan and releases its loader, which holds every queued track.
 // File > Close. Main thread only.
@@ -36,17 +36,17 @@ NS_ASSUME_NONNULL_BEGIN
 // remote placeholder by range. A claim can join a same-path foreground open.
 // A no-op once parsed, so cheap on every start.
 // Main thread only.
-- (void)loadMetadataNow:(AudioTrack *)track;
+- (void)loadMetadataNow:(id<AudioTrackMetadataHolder>)track;
 
 // A removed row's queued scan work, so it spends no transfer; an undo
 // re-requests through loadMetadataNow:. In-flight work settles and the
 // receivers drop its delivery. Main thread only.
-- (void)abandonQueuedTrack:(AudioTrack *)track;
+- (void)abandonQueuedTrack:(id<AudioTrackMetadataHolder>)track;
 
 // Ranks the pending scan by these tracks, first first: the playlist's
 // neighborhoodTracks, which follow shuffle. Both shells call it from their
 // current-index funnel. Main thread only.
-- (void)setNeighborhoodTracks:(NSArray<AudioTrack *> *)tracks;
+- (void)setNeighborhoodTracks:(NSArray<id<AudioTrackMetadataHolder>> *)tracks;
 
 // The completion fires on the cache's internal queue. A parse in flight
 // cannot repopulate it, though its UI delivery still happens.
@@ -58,7 +58,7 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 @protocol AudioTrackMetadataCacheDelegate <NSObject>
-- (void)didLoadMetadata:(AudioTrack *)track;
+- (void)didLoadMetadata:(id<AudioTrackMetadataHolder>)track;
 @end
 
 NS_ASSUME_NONNULL_END

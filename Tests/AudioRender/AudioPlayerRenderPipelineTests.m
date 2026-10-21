@@ -443,7 +443,7 @@
             }
             NSInteger requestedDevice = _player.currentlyRequestedAudioDeviceId;
             NSTimeInterval position = _player.position;
-            AudioTrack *track = _player.currentTrack;
+            AudioTrack *track = (AudioTrack *)_player.currentTrack;
             NSUInteger deviceChanges = [self count:@"device"];
             __block BOOL completed = NO;
             __weak AudioPlayerRenderTests *weakSelf = self;

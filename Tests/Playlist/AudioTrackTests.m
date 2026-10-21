@@ -10,7 +10,6 @@
 #import "NowPlayingController.h"
 #import "ArtworkDisplayController.h"
 #import <MediaPlayer/MediaPlayer.h>
-#import "AudioTrackInternal.h"
 #import "AudioTrackMetadata.h"
 #import "FakeTrackMetadata.h"
 
