@@ -6,6 +6,7 @@
 #import "WaveformRenderer.h"
 #import "WaveformMorphEngine.h"
 #import "WaveformZoomMath.h"
+#import "HelperMacros.h"
 
 #include <algorithm>
 #include <climits>

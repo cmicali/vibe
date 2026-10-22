@@ -6,6 +6,14 @@
 #import "ThreeBandWaveformRenderer.h"
 #import "WaveformMorphEngine.h"
 #import "WaveformZoomMath.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
+
+#if TARGET_OS_OSX
+#import <AppKit/AppKit.h>
+#else
+#import <UIKit/UIKit.h>
+#endif
 
 #include <algorithm>
 #include <vector>

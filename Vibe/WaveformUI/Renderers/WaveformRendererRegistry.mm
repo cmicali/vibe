@@ -10,6 +10,13 @@
 #import "CupertinoWaveformRenderer.h"
 #import "OversamplingDetailedWaveformRenderer.h"
 #import "ThreeBandWaveformRenderer.h"
+#import "VibeMacros.h"
+
+#if TARGET_OS_OSX
+#import <AppKit/AppKit.h>
+#else
+#import <UIKit/UIKit.h>
+#endif
 
 static NSString *const kWiggleIdentifier = SETTINGS_VALUE_WAVEFORM_STYLE_WIGGLE;
 static NSString *const kCupertinoBasicIdentifier = @"cupertino_basic";

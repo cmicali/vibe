@@ -6,6 +6,12 @@
 #import "CupertinoWaveformRenderer.h"
 #import "PlatformColor.h"
 
+#if TARGET_OS_OSX
+#import <AppKit/AppKit.h>
+#else
+#import <UIKit/UIKit.h>
+#endif
+
 #pragma mark - Cupertino
 
 // A hairline on a 1x display, two device pixels on Retina, with the other

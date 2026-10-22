@@ -4,6 +4,8 @@
 //
 
 #import "WaveformMorphEngine.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 #include <cmath>
 
