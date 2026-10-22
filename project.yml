@@ -154,10 +154,10 @@ targets:
     # holds TagLib's own vorbis/vorbisfile.h.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
                 VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform,
-                VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists, VibeLibsFolderScan,
-                VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTags,
-                VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac,
-                VibeLibsDrWav]
+                VibeLibsWaveformLoading, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
+                VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis,
+                VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
+                VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -454,9 +454,9 @@ targets:
     # see the Vibe target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
                 VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform,
-                VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists, VibeLibsFolderScan,
-                VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
-                VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsWaveformLoading, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
+                VibeLibsFolderScan, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache,
+                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -741,13 +741,13 @@ targets:
           - "Playlist/AudioTrackTagTests.mm"  # VibeAudioTests': TagLib
           - "iOSSim/**"                       # VibeiOSTests' suite: UIKit, on a simulator
       - path: Vibe/Playlist/AudioAnalysisObservers.m
-      - path: Vibe/Audio/Waveform/AudioWaveformObserver.m
-      - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
-      - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
-      - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
+      - path: vibe-libs/waveform/WaveformLoading/AudioWaveformObserver.m
+      - path: vibe-libs/waveform/WaveformLoading/AudioWaveformLoader.mm
+      - path: vibe-libs/waveform/WaveformLoading/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
+      - path: vibe-libs/waveform/WaveformLoading/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
       - path: vibe-libs/files/DiskCache/PINCache+VibeAudioCache.m
       - path: vibe-libs/core/Common/NSURL+FileIdentity.m   # AudioFileConverter+Sandbox's same-file test
-      - path: Vibe/Debug/Oracles/AudioLoadTiming.m
+      - path: vibe-libs/waveform/WaveformLoading/AudioWaveformLoader+Debug.m   # the decode timings the loader records
       - path: Vibe/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Disposal.m
@@ -872,7 +872,7 @@ targets:
           # The tag fixtures, which the row's tag tests share with the parse's.
           - "$(SRCROOT)/vibe-libs/Tests/media/Metadata"
           - "$(SRCROOT)/vibe-libs/media/Tags"
-          - "$(SRCROOT)/Vibe/Audio/Waveform"
+          - "$(SRCROOT)/vibe-libs/waveform/WaveformLoading"
           - "$(SRCROOT)/vibe-libs/audio/FX"
           # Header-only activity/animation seams shared by both controls.
           - "$(SRCROOT)/Vibe/Controls"
