@@ -49,7 +49,7 @@ The encode must reach the source's declared frame count, and the finished FLAC m
 
 Placement gets one final positive validation before success reaches the controller. It runs off main on the disposal queue (`playableFileAtURL:`): one `AudioFileHandle` open that decodes at least one frame. If the placed FLAC becomes unavailable in that gap, the source and playlist stay untouched. The placed path is kept and logged in full. A save-panel placement may have replaced a user file, so provenance is not authority to delete what is there now.
 
-`progressHandler` reports the encode on main at about one-percent steps, with the converting track. It drives the waveform's sweep (`WaveformUI/Renderers/AGENTS.md`).
+`progressHandler` reports the encode on main at about one-percent steps, with the converting track. It drives the waveform's sweep (vibe-libs' `waveform/WaveformStyles/AGENTS.md`, The convert sweep).
 
 `AudioFileConverter+Disposal` holds the source's trash, undo and redo, and the trash, restore and verify primitives under them. It shares its ivars with the core through `AudioFileConverterInternal.h`.
 

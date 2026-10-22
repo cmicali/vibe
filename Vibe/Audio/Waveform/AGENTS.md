@@ -28,7 +28,7 @@ The decoder and optional analysis both contribute to the pass cost. The loader *
 
 ## The three bands are decoded only when asked for
 
-3-Band and Spectrum (`WaveformUI/Renderers/AGENTS.md`) are their only readers. So **a decode splits them only when its request asks** (`VibeWaveformAnalysis.bands`, from `WaveformRendererRegistry readsBandsForIdentifier:`). The split runs every sample through both crossovers. The summary's builder filters each bin's slice of the mono stream into low, mid and high (the core's `BandSplit`). **One split per decode, on the serial queue**, since its filters carry state across slices.
+3-Band and Spectrum (vibe-libs' `waveform/WaveformStyles/AGENTS.md`) are their only readers. So **a decode splits them only when its request asks** (`VibeWaveformAnalysis.bands`, from `WaveformRendererRegistry readsBandsForIdentifier:`). The split runs every sample through both crossovers. The summary's builder filters each bin's slice of the mono stream into low, mid and high (the core's `BandSplit`). **One split per decode, on the serial queue**, since its filters carry state across slices.
 
 ## The archive
 

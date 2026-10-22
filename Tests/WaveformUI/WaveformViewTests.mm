@@ -3,7 +3,7 @@
 //  VibeTests
 //
 //  The mac waveform view as drawn: its layer tree rendered into a bitmap with
-//  no window server. The renderers' own geometry is AudioWaveformTests'; this
+//  no window server. The renderers' own geometry is vibe-libs' AudioWaveformTests'; this
 //  covers what the view adds over them: the theme it resolves, the playhead
 //  line, the three states, and the seek it reports.
 //
