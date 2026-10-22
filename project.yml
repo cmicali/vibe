@@ -150,9 +150,9 @@ targets:
     #
     # TRAP: VibeLibsVorbis before VibeLibsTaglib. Header search paths follow
     # this order, and taglib/ogg holds TagLib's own vorbis/vorbisfile.h.
-    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsFileLoading, VibeLibsDiskCache, VibeLibsGraphics,
-                VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTaglib,
-                VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsFileLoading, VibeLibsDecode, VibeLibsDiskCache,
+                VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis,
+                VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -459,9 +459,9 @@ targets:
     type: application
     platform: iOS
     # VibeLibsVorbis before VibeLibsTaglib: see the Vibe target.
-    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsFileLoading, VibeLibsDiskCache, VibeLibsGraphics,
-                VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
-                VibeLibsDrFlac, VibeLibsDrWav]
+    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsFileLoading, VibeLibsDecode, VibeLibsDiskCache,
+                VibeLibsGraphics, VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
+                VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -875,6 +875,9 @@ targets:
           - "$(SRCROOT)/vibe-libs/files/FileLoading"
           - "$(SRCROOT)/vibe-libs/files/FileLoading/Claim"
           - "$(SRCROOT)/vibe-libs/files/FileLoading/Transfer"
+          - "$(SRCROOT)/vibe-libs/audio/Decode"
+          # The handle's test helpers, which the waveform and render tests share.
+          - "$(SRCROOT)/vibe-libs/Tests/Support"
           - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
@@ -926,7 +929,7 @@ targets:
       - path: Tests/AudioRender
       - path: Tests/Support/TestFilesystemGuard.m
       - path: Tests/Support/HTTPStub.m        # a link played over it (AudioPlayerRenderLinkTests)
-      - path: Tests/Support/VibeReadAheadScript.m
+      - path: vibe-libs/Tests/audio/Decode/AudioFileHandleFuzzTests.m   # over the generated fixtures
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m
       - path: Vibe/Audio/AudioPlayer+Pipeline.m
@@ -981,7 +984,7 @@ targetTemplates:
         compilerFlags: *render-path-flags
       - path: Vibe/Audio/AudioVoiceBus+Decoder.m
         compilerFlags: *render-path-flags
-      - path: Vibe/Audio/AudioResampler.mm
+      - path: vibe-libs/audio/DSP/AudioResampler.mm
       - path: Vibe/Audio/FX/AudioFX.m
         compilerFlags: *render-path-flags
       - path: vibe-libs/audio/DSP/AudioVarispeed.m
@@ -989,11 +992,12 @@ targetTemplates:
       - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
       - path: Vibe/Audio/AudioError.m
       - path: vibe-libs/files/FileLoading/Claim/AudioLoadingConfiguration.m
-      - path: Vibe/Audio/AudioFileHandle.m
-      - path: Vibe/Audio/AudioFileHandle+MPEG.m
-      - path: Vibe/Audio/AudioFileHandle+Stream.m
+      - path: vibe-libs/audio/Decode/AudioFileHandle.m
+      - path: vibe-libs/audio/Decode/AudioFileHandle+MPEG.m
+      - path: vibe-libs/audio/Decode/AudioFileHandle+Stream.m
       - path: vibe-libs/files/FileLoading/Transfer/NetworkReadAhead.m
-      - path: Vibe/Debug/Seams/AudioFileHandle+Debug.m   # the read-ahead tests' mount rule and read hook
+      - path: vibe-libs/audio/Decode/AudioFileHandle+Debug.m   # the read-ahead tests' mount rule and read hook
+      - path: vibe-libs/Tests/Support/VibeReadAheadScript.m   # the script of those tests' reads
       - path: vibe-libs/files/FileLoading/Claim/AudioFileMaterializationCoordinator.m
       - path: vibe-libs/files/FileLoading/Claim/AudioFileMaterializationCoordinator+HandleOpen.m
       - path: vibe-libs/files/FileLoading/Claim/AudioFileMaterializationCoordinator+Debug.m   # stage 2 counts its handle opens

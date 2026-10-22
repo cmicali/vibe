@@ -234,7 +234,8 @@ fi
 #    is not required (AudioPlayer+Debug.h also declares the voice bus's
 #    category, which VibeTests uses without the player).
 #    A vibe-libs piece keeps each seam beside its class, so a +Debug header
-#    there counts too. Its own tests and vendored code are left out.
+#    there counts too. Its vendored code is left out. Its tests are read for
+#    their imports, since a test target may compile one of its test files.
 #    Sources of a test target: its own entries plus its templates', with
 #    directory entries expanded.
 sources_for() {   # sources_for <target or template>
@@ -266,11 +267,11 @@ sources_for() {   # sources_for <target or template>
 # Every "<file>\t<imported basename>" edge, and every header's path by basename.
 libs_pieces=$(find vibe-libs -mindepth 1 -maxdepth 1 -type d \
                    ! -name Tests ! -name third_party ! -name docs ! -name scripts ! -name '.*' ! -name build)
-import_edges=$(grep -rHo '^[[:space:]]*#[[:space:]]*import[[:space:]]*"[^"]*"' Vibe Tests $libs_pieces \
+import_edges=$(grep -rHo '^[[:space:]]*#[[:space:]]*import[[:space:]]*"[^"]*"' Vibe Tests $libs_pieces vibe-libs/Tests \
                     --include='*.h' --include='*.m' --include='*.mm' \
                | grep -v '/ThirdParty/' \
                | awk '{ f = $0; sub(/:.*$/, "", f); h = $0; sub(/^[^"]*"/, "", h); sub(/".*$/, "", h); sub(/^.*\//, "", h); print f "\t" h }')
-header_paths=$(find Vibe Tests $libs_pieces -name '*.h' ! -path '*/ThirdParty/*' | awk -F/ '{ print $NF "\t" $0 }')
+header_paths=$(find Vibe Tests $libs_pieces vibe-libs/Tests -name '*.h' ! -path '*/ThirdParty/*' | awk -F/ '{ print $NF "\t" $0 }')
 seam_impls=$( { find Vibe/Debug -path '*/Seams/*' \( -name '*+Debug*.m' -o -name '*+Debug*.mm' \)
                 find $libs_pieces \( -name '*+Debug*.m' -o -name '*+Debug*.mm' \); } \
              | sed -E 's/.*\///; s/\.mm?$//')

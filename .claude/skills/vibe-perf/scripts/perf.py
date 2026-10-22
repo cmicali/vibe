@@ -85,7 +85,9 @@ def features(src):
     """VibeBenchComponentsFeatures.h for a checkout: what its sources have, as VibeBenchComponents.h
     lists the questions. Every grafted checkout gets one, whatever its age."""
     def find(name):
-        return next((src / 'Vibe').rglob(name), None)
+        # A piece that moved to vibe-libs answers from the submodule.
+        roots = [src / 'Vibe', src / 'vibe-libs']
+        return next((p for root in roots if root.is_dir() for p in root.rglob(name)), None)
     handle, loader, levels = find('AudioFileHandle.h'), find('AudioWaveformLoader.h'), find('AudioLevelAnalyzer.h')
     waveform, three_band = find('AudioWaveform.h'), find('ThreeBandWaveformRenderer.h')
     resampler = find('AudioResampler.h')
