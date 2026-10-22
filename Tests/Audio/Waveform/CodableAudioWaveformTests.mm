@@ -9,7 +9,6 @@
 //
 
 #import <XCTest/XCTest.h>
-#import "AudioAnalysisObservers.h"
 #import "AudioWaveform.h"
 
 #include <vector>
@@ -82,12 +81,13 @@ static CodableAudioWaveform *RoundTripResults(NSDictionary *results) {
     return RoundTrip(original);
 }
 
+// Two observers' identifiers, as an app's tempo and key might be named.
 static NSString *Tempo(void) {
-    return AudioBPMAnalyzer.waveformObserver.identifier;
+    return @"bpm";
 }
 
 static NSString *Key(void) {
-    return AudioKeyAnalyzer.waveformObserver.identifier;
+    return @"key";
 }
 
 // Format 6, as the analyzers' own fields wrote it: the tempo inline, the key
@@ -119,8 +119,7 @@ static NSData *Format6Archive(NSData *summary) {
     // Every bin alike, so every window's RMS is a bin's.
     XCTAssertEqualWithAccuracy(column.loudest, sqrtf(0.025f), 1e-3);
     XCTAssertEqualWithAccuracy(column.bandLoudest[0], 0.1f, 1e-3);
-    XCTAssertEqual([AudioBPMAnalyzer tempoInResults:decoded.results], 128);
-    XCTAssertEqual([AudioKeyAnalyzer keyInResults:decoded.results], 9);
+    XCTAssertEqualObjects(decoded.results, (@{Tempo(): @128.0f, Key(): @9}));
 }
 
 - (void)testAnEntryWithoutBandsDecodesWithoutThem {
@@ -191,40 +190,24 @@ static NSData *Format6Archive(NSData *summary) {
     XCTAssertNil(DecodeArchive(ArchiveWithParts(kCodableAudioWaveformVersion, summary, url)));
 }
 
-#pragma mark - BPM coercion (not rejection)
+#pragma mark - What a result holds
 
-- (void)testNonFiniteOrNegativeBPMIsCoercedToZero {
-    // A bad tempo is not a reason to throw away good waveform data: it
-    // degrades to "unknown", and still covers the tempo.
-    for (id bad in @[@((float)NAN), @((float)INFINITY), @-5.0f, @0.0f, @"128", @[@128]]) {
-        CodableAudioWaveform *decoded = RoundTripResults(@{Tempo(): bad});
-        XCTAssertNotNil(decoded, @"bpm %@ must not reject the entry", bad);
+// The entry checks only that a result is a property list. What a value means
+// is its observer's to read, so a bad tempo or key is filed as it came, and
+// never throws away good waveform data.
+- (void)testAnOddResultIsFiledAsItCame {
+    for (id odd in @[@((float)NAN), @((float)INFINITY), @-5.0f, @0.0f, @24, @-2, @3.5, @"8A", @[@128]]) {
+        CodableAudioWaveform *decoded = RoundTripResults(@{Tempo(): odd, Key(): odd});
+        XCTAssertNotNil(decoded, @"%@ must not reject the entry", odd);
         XCTAssertNotNil(decoded.results[Tempo()]);
-        XCTAssertEqual([AudioBPMAnalyzer tempoInResults:decoded.results], 0.0f);
+        XCTAssertNotNil(decoded.results[Key()]);
     }
 }
 
-#pragma mark - Musical key coercion (not rejection)
-
-- (void)testAbsentKeyDecodesAsNone {
-    // Not the 0 an integer decode fabricates, which is C major.
+- (void)testAnObserverNotRunHasNoResult {
     CodableAudioWaveform *decoded = RoundTripResults(@{Tempo(): @120.0f});
     XCTAssertNotNil(decoded);
     XCTAssertNil(decoded.results[Key()], @"not run, so it does not cover the key");
-    XCTAssertEqual([AudioKeyAnalyzer keyInResults:decoded.results], VibeMusicalKeyNone);
-    XCTAssertEqual([AudioKeyAnalyzer keyInResults:@{}], VibeMusicalKeyNone);
-}
-
-- (void)testOutOfRangeOrWrongClassKeyIsCoercedToNone {
-    // 0 is a valid key (C major), so the coercion must come from range and
-    // class checks, never from a nil-ish read.
-    for (id bad in @[@(24), @(-2), @(3.5), @"8A", @[@(3)]]) {
-        CodableAudioWaveform *decoded = RoundTripResults(@{Key(): bad});
-        XCTAssertNotNil(decoded, @"key %@ must not reject the entry", bad);
-        XCTAssertEqual([AudioKeyAnalyzer keyInResults:decoded.results], VibeMusicalKeyNone, @"key %@ must coerce to none", bad);
-    }
-    CodableAudioWaveform *cMajor = RoundTripResults(@{Key(): @(0)});
-    XCTAssertEqual([AudioKeyAnalyzer keyInResults:cMajor.results], 0, @"C major is preserved, not mistaken for absent");
 }
 
 @end
