@@ -151,9 +151,9 @@ targets:
     # TRAP: VibeLibsVorbis before VibeLibsTaglib. Header search paths follow
     # this order, and taglib/ogg holds TagLib's own vorbis/vorbisfile.h.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
-                VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsDiskCache, VibeLibsGraphics,
-                VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTaglib,
-                VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsDiskCache,
+                VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis,
+                VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -461,9 +461,9 @@ targets:
     platform: iOS
     # VibeLibsVorbis before VibeLibsTaglib: see the Vibe target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
-                VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsDiskCache, VibeLibsGraphics,
-                VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac,
-                VibeLibsDrWav]
+                VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsDiskCache,
+                VibeLibsGraphics, VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
+                VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -886,6 +886,8 @@ targets:
           - "$(SRCROOT)/Vibe/Util/Categories"
           - "$(SRCROOT)/Vibe/Util/Mac"
           - "$(SRCROOT)/Vibe/Audio"
+          - "$(SRCROOT)/vibe-libs/audio/Player"
+          - "$(SRCROOT)/vibe-libs/audio/Player/Mac"
           - "$(SRCROOT)/vibe-libs/audio/Meter"
           - "$(SRCROOT)/Vibe/Audio/Metadata"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
@@ -925,22 +927,23 @@ targets:
     # see the Vibe target.
     templates: [hostless-test-sources, VibeLibsTaglib]
     sources:
-      - path: Tests/AudioRender
+      - path: vibe-libs/Tests/audio/Player/Render   # the render suite, over the generated fixtures
+      - path: Tests/AudioRender               # the link topic and the corpus conformance test
       - path: Tests/Support/TestFilesystemGuard.m
       - path: Tests/Support/HTTPStub.m        # a link played over it (AudioPlayerRenderLinkTests)
-      - path: Tests/Support/VibeTestTrack.m   # the render suite's playable item
+      - path: vibe-libs/Tests/Support/VibeTestTrack.m   # the render suite's playable item
       - path: vibe-libs/Tests/audio/Decode/AudioFileHandleFuzzTests.m   # over the generated fixtures
-      - path: Vibe/Audio/AudioPlayer.m
-      - path: Vibe/Audio/AudioPlayer+State.m
-      - path: Vibe/Audio/AudioPlayer+Pipeline.m
-      - path: Vibe/Audio/AudioMasterBus.m
-      - path: Vibe/Audio/AudioPlayer+Prefetch.m
-      - path: Vibe/Audio/AudioPlayer+Diagnostics.m
-      - path: Vibe/Debug/Seams/AudioPlayer+Debug.m   # the render suites drive the player through it
+      - path: vibe-libs/audio/Player/AudioPlayer.m
+      - path: vibe-libs/audio/Player/AudioPlayer+State.m
+      - path: vibe-libs/audio/Player/AudioPlayer+Pipeline.m
+      - path: vibe-libs/audio/Player/AudioMasterBus.m
+      - path: vibe-libs/audio/Player/AudioPlayer+Prefetch.m
+      - path: vibe-libs/audio/Player/AudioPlayer+Diagnostics.m
+      - path: vibe-libs/audio/Player/AudioPlayer+Debug.m   # the render suites drive the player through it
       - path: vibe-libs/audio/Meter/AudioLevelPublisher+Debug.m   # debugEqualizerState reads its counters
       - path: vibe-libs/core/Common/StallWatch.m
-      - path: Vibe/Audio/Mac/Devices/AudioPlayer+Devices.m
-      - path: Vibe/Audio/Mac/Devices/AudioPlayer+BitPerfect.m
+      - path: vibe-libs/audio/Player/Mac/AudioPlayer+Devices.m
+      - path: vibe-libs/audio/Player/Mac/AudioPlayer+BitPerfect.m
       - path: vibe-libs/audio/Meter/AudioLevelMeter.m
       # The tag parse and its art, over the real TagLib. VibeTests links a
       # decoy instead (Tests/AGENTS.md).
@@ -978,19 +981,19 @@ targetTemplates:
       - path: Vibe/Playlist/AudioTrack.m
       - path: Vibe/Audio/Metadata/NSURL+FilenameTitle.m
       # Optimize the render path for long PCM comparisons without enabling fast math.
-      - path: Vibe/Audio/AudioVoiceBus.m
+      - path: vibe-libs/audio/Player/AudioVoiceBus.m
         compilerFlags: &render-path-flags ["-O2"]
-      - path: Vibe/Audio/AudioVoiceBusRender.m
+      - path: vibe-libs/audio/Player/AudioVoiceBusRender.m
         compilerFlags: *render-path-flags
-      - path: Vibe/Audio/AudioVoiceBus+Decoder.m
+      - path: vibe-libs/audio/Player/AudioVoiceBus+Decoder.m
         compilerFlags: *render-path-flags
       - path: vibe-libs/audio/DSP/AudioResampler.mm
       - path: vibe-libs/audio/FX/AudioFX.m
         compilerFlags: *render-path-flags
       - path: vibe-libs/audio/DSP/AudioVarispeed.m
         compilerFlags: *render-path-flags
-      - path: Vibe/Debug/Simulators/VibeManualRenderPump.m
-      - path: Vibe/Audio/AudioError.m
+      - path: vibe-libs/audio/Player/VibeManualRenderPump.m
+      - path: vibe-libs/audio/Player/AudioError.m
       - path: vibe-libs/files/FileLoading/Claim/AudioLoadingConfiguration.m
       - path: vibe-libs/audio/Decode/AudioFileHandle.m
       - path: vibe-libs/audio/Decode/AudioFileHandle+MPEG.m
@@ -1005,7 +1008,7 @@ targetTemplates:
       - path: vibe-libs/core/Common/AudioWorkScheduler.m
       - path: vibe-libs/audio/Meter/AudioLevelAnalyzer.m
       - path: vibe-libs/audio/Meter/AudioLevelPublisher.m
-      - path: Vibe/Audio/PlaybackRequestCoordinator.m
+      - path: vibe-libs/audio/Player/PlaybackRequestCoordinator.m
       - path: vibe-libs/files/FileLoading/Transfer/CloudTransferRegistry.m
       - path: vibe-libs/files/FileLoading/Transfer/CloudFileMaterializer.m
       - path: vibe-libs/files/FileLoading/Transfer/CloudFileMaterializer+Debug.m   # its materialize asks the fake first
@@ -1023,7 +1026,7 @@ targetTemplates:
       - path: vibe-libs/audio/OutputDevices/Mac/CoreAudioUtil.m
       - path: vibe-libs/audio/OutputDevices/Mac/CoreAudioUtil+BitPerfect.m
       - path: vibe-libs/audio/OutputDevices/Mac/CoreAudioUtil+Diagnostics.m
-      - path: Vibe/Audio/AudioOutputUnit.m
+      - path: vibe-libs/audio/Player/AudioOutputUnit.m
       - path: vibe-libs/core/Common/FilePaths.m
       - path: vibe-libs/files/FileLoading/PlaceholderFiles.m
       - path: vibe-libs/files/FileLoading/PlaceholderFiles+Debug.m   # its dataless test asks the probe first

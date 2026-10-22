@@ -10,8 +10,8 @@
 
 #import <AppKit/AppKit.h>
 
+#import "AudioPlayer+BitPerfect.h"
 #import "MainPlayerControllerInternal.h"
-#import "OutputFormatRules.h"
 
 @class AudioTrack;
 
