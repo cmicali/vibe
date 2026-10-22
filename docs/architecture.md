@@ -98,7 +98,7 @@ Makefile               every build, test, and check command
 
 ### Audio
 
-`Vibe/Audio/` is the playback engine. There is no `AVAudioEngine`. Vibe decodes, mixes, and renders the audio itself. One output unit pulls the result. `AudioPlayer` is the transport: play, pause, seek, stop, and the delegate callbacks. Its categories own the rest. `+Pipeline` is the render pipeline's player-queue side. `+Prefetch` is the next file, opened early. `+State` is the getters, and `+Diagnostics` the reports. `AudioVoiceBus` decodes and mixes the voices. `AudioMasterBus` is the render function. `AudioOutputUnit` is the output unit. `AudioFileHandle` opens and reads one file. The engine takes any object that adopts `VibePlayableItem`: a file, its window, and the keys it is matched by. Read next: `Vibe/Audio/AGENTS.md`. Its section "The model in one page" is the place to start.
+`Vibe/Audio/` is the playback engine. There is no `AVAudioEngine`. Vibe decodes, mixes, and renders the audio itself. One output unit pulls the result. `AudioPlayer` is the transport: play, pause, seek, stop, and the delegate callbacks. Its categories own the rest. `+Pipeline` is the render pipeline's player-queue side. `+Prefetch` is the next file, opened early. `+State` is the getters, and `+Diagnostics` the reports. `AudioVoiceBus` decodes and mixes the voices. `AudioMasterBus` is the render function. `AudioOutputUnit` is the output unit. `AudioFileHandle`, from vibe-libs' `audio/Decode`, opens and reads one file. The engine takes any object that adopts `VibePlayableItem`: a file, its window, and the keys it is matched by. Read next: `Vibe/Audio/AGENTS.md`. Its section "The model in one page" is the place to start.
 
 Each feature beside the engine has its own directory and doc:
 
@@ -154,7 +154,9 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 `vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`. Nothing builds differently.
 
-**Vibe uses nine pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/AudioTypes` holds the words the audio code shares: the playable-item protocol, the CUE window math, the musical key, the format names, and `PlayableExtensions`, every audio extension the apps play. `audio/DSP` holds the pitch fader's varispeed. `files/FileLoading` holds the file-open path, from a path to a readable file, with its debug seams and the fake cloud. `files/DiskCache` holds the bounded disk cache that the metadata and waveform caches build on. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. `ui/Shortcuts` holds the shortcut encoding, the keyboard layout, and the Keyboard Shortcuts pane. Every vendored library but Sparkle is a piece under `third_party/` too. Controls, SettingsWindow, and Shortcuts are macOS only. Only the mac app lists them.
+**Vibe uses ten pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/AudioTypes` holds the words the audio code shares: the playable-item protocol, the CUE window math, the musical key, the format names, and `PlayableExtensions`, every audio extension the apps play. `audio/DSP` holds the pitch fader's varispeed and the resampler. `audio/Decode` holds the audio file handle, which hosts the decoders.
+
+`files/FileLoading` holds the file-open path, from a path to a readable file, with its debug seams and the fake cloud. `files/DiskCache` holds the bounded disk cache that the metadata and waveform caches build on. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. `ui/Shortcuts` holds the shortcut encoding, the keyboard layout, and the Keyboard Shortcuts pane. Every vendored library but Sparkle is a piece under `third_party/` too. Controls, SettingsWindow, and Shortcuts are macOS only. Only the mac app lists them.
 
 More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md`). `make project` checks the submodule out in a fresh clone or worktree. A change to a piece is made in vibe-libs first. Vibe then bumps the submodule. Read `vibe-libs/AGENTS.md` and the piece's own doc first.
 
@@ -220,7 +222,7 @@ Read `vibe-libs/files/FileLoading/AGENTS.md` ("One claim, two stages" and "The t
 
 ### 4. AudioFileHandle
 
-`AudioFileHandle` (`Audio/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV, W64, RF64 and AIFF to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). MPEG goes to dr_mp3, and the handle frames it itself (`AudioFileHandle+MPEG.m`). Each answers the file's facts itself. Any other file opens CoreAudio's parser for its facts (`openParserWithError:`), and Apple's decoders play it. AAC, ALAC and Opus are such files. A file those decoders refuse reaches the parser too. Playback refuses it there unless it holds a coding none of them decodes, such as GSM in a WAV.
+`AudioFileHandle` (`vibe-libs/audio/Decode/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV, W64, RF64 and AIFF to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). MPEG goes to dr_mp3, and the handle frames it itself (`AudioFileHandle+MPEG.m`). Each answers the file's facts itself. Any other file opens CoreAudio's parser for its facts (`openParserWithError:`), and Apple's decoders play it. AAC, ALAC and Opus are such files. A file those decoders refuse reaches the parser too. Playback refuses it there unless it holds a coding none of them decodes, such as GSM in a WAV.
 
 A handle reads its bytes in one of three ways:
 
@@ -230,7 +232,7 @@ A handle reads its bytes in one of three ways:
 
 The availability waits can be interrupted (`interruptReads`). Network read-ahead isolates a stalled OS read from the decoder. The OS read itself may remain blocked.
 
-Read `Vibe/Audio/AGENTS.md` ("The decoders", "Reading a file still downloading", and "Reading ahead on a network mount").
+Read `vibe-libs/audio/Decode/AGENTS.md` ("The decoders", "Reading a file still downloading", and "Reading ahead on a network mount").
 
 ### 5. Settlement
 
@@ -241,7 +243,7 @@ Read `Vibe/Audio/AGENTS.md` ("The decoders", "Reading a file still downloading",
 A voice is one file being rendered. `AudioVoiceBus` has eight slots. Each slot holds a ring buffer of at least one second. The work is split across three files and three kinds of thread.
 
 - **The queue side** (`AudioVoiceBus.m`) runs on the player queue. It starts and kills voices, sets their gain ramps, and hands the next file to a voice for a gapless change. The player's drain (`drainVoiceBusOnQueue`, in `AudioPlayer+Pipeline.m`) collects each voice's events: it went live, it crossed into the next file, or it ended.
-- **The decoder side** (`AudioVoiceBus+Decoder.m`) runs on a pool of eight serial decode queues. It reads the file through its handle and fills the voice's ring in turns of 4096 frames. It converts every file to the bus format: float32 with up to two channels at the output's rate. A channel difference is mixed down first. A rate difference goes through `VibeResampler` (`AudioResampler.mm`). It runs r8brain-free-src.
+- **The decoder side** (`AudioVoiceBus+Decoder.m`) runs on a pool of eight serial decode queues. It reads the file through its handle and fills the voice's ring in turns of 4096 frames. It converts every file to the bus format: float32 with up to two channels at the output's rate. A channel difference is mixed down first. A rate difference goes through `VibeResampler` (`vibe-libs/audio/DSP/AudioResampler.mm`). It runs r8brain-free-src.
 - **The audio thread** (`AudioVoiceBusRender.m`) runs `VibeVoiceBusRender`. It mixes every live voice into the output buffers at its per-frame gain. It is plain C under `CA_REALTIME_API`. A lock, an allocation, or an Objective-C message there is a build error.
 
 Crossfades, the declick, pauses, and seeks are all gain ramps on voices. A seek starts a new voice at the target and fades the old one out beside it.
@@ -292,13 +294,13 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | --- | --- | --- |
 | A setting, or add one | `Common/AGENTS.md` | `Common/AppSettings.h` or `Common/Mac/AppSettings+Mac.h` |
 | A user-facing string | [localization.md](localization.md), the `vibe-strings` skill | `Common/VibeStrings.h`, then `make strings` |
-| Which formats play | `Audio/AGENTS.md` (the decoders) | `vibe-libs/audio/AudioTypes/PlayableExtensions.m`, `Audio/AudioFileHandle.m` |
-| How a file is decoded | `Audio/AGENTS.md`, each decoder's doc in `vibe-libs/third_party/` | `Audio/AudioFileHandle.m`, `Audio/AudioFileHandle+MPEG.m`, `Audio/AudioFileHandle+Stream.m` |
+| Which formats play | `vibe-libs/audio/Decode/AGENTS.md` (the decoders) | `vibe-libs/audio/AudioTypes/PlayableExtensions.m`, `vibe-libs/audio/Decode/AudioFileHandle.m` |
+| How a file is decoded | `vibe-libs/audio/Decode/AGENTS.md`, each decoder's doc in `vibe-libs/third_party/` | `vibe-libs/audio/Decode/AudioFileHandle.m`, `AudioFileHandle+MPEG.m`, `AudioFileHandle+Stream.m` |
 | Play, pause, seek, or crossfade | `Audio/AGENTS.md` | `Audio/AudioPlayer.m`, `Audio/FadeMath.h` |
 | Gapless playback and prefetch | `Audio/AGENTS.md` (Prefetch and gapless) | `Audio/AudioPlayer+Prefetch.m`, `Audio/AudioPrefetchRules.h` |
 | What plays next, repeat, or shuffle | `Playlist/AGENTS.md` | `Playlist/Playlist.m` |
 | Mixing and real-time code | `Audio/AGENTS.md` (The voice bus, Threading) | `Audio/AudioVoiceBusRender.m`, `Audio/AudioMasterBus.m` |
-| Sample-rate conversion | [audio-quality.md](audio-quality.md) | `Audio/AudioResampler.mm` |
+| Sample-rate conversion | [audio-quality.md](audio-quality.md), `vibe-libs/audio/DSP/AGENTS.md` | `vibe-libs/audio/DSP/AudioResampler.mm` |
 | Decoder conformance against public test files | the `vibe-audio-quality` skill, [audio-quality.md](audio-quality.md) | `Tests/AudioRender/AudioQualityCorpusTests.m` |
 | DJ effects or pitch | `Audio/FX/AGENTS.md`, `vibe-libs/audio/DSP/AGENTS.md` | `Audio/FX/AudioFX.m`, `vibe-libs/audio/DSP/AudioVarispeed.m` |
 | Output devices or bit-perfect output | `Audio/Mac/Devices/AGENTS.md` | `Audio/Mac/Devices/AudioPlayer+Devices.m`, `AudioPlayer+BitPerfect.m` |
