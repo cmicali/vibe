@@ -1,6 +1,6 @@
 # Waveform rendering
 
-The *rendering* half of the waveform system. The data, its decoding and caching, is `Audio/Waveform/`, and tempo and key are vibe-libs' `audio/Analysis`. This level holds what both views resolve before they draw. **`Renderers/` (the strategies, the morph engine, the level mapping), `Mac/` (the `NSView`) and `iOS/` (the scrubber) each have their own `AGENTS.md`.**
+The *rendering* half of the waveform system. The data is vibe-libs' `waveform/Waveform`, its decoding and caching are `waveform/WaveformLoading`, and tempo and key are `audio/Analysis`. This level holds what both views resolve before they draw. **`Renderers/` (the strategies, the morph engine, the level mapping), `Mac/` (the `NSView`) and `iOS/` (the scrubber) each have their own `AGENTS.md`.**
 
 The shared files compile into both targets. They use platform color APIs behind target guards. The platform views live under `Mac/` and `iOS/`. `WaveformZoomMath.h` is the iOS scrubber's zoom floor. It is shared only because it is plain arithmetic (`iOS/AGENTS.md`).
 
