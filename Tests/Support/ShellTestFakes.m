@@ -8,7 +8,7 @@
 #import "AudioPlayer+BitPerfect.h"
 #import "AudioTrack.h"
 #import "MainMenuBuilder.h"
-#import "PlaylistTestSupport.h"
+#import "PlaylistRowTestSupport.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"

@@ -11,7 +11,7 @@
 
 #import "ShellTestFakes.h"
 #import "DrawnViewTestSupport.h"
-#import "PlaylistTestSupport.h"
+#import "PlaylistRowTestSupport.h"
 #import "AppSettings.h"
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Playlist.h"

@@ -4,8 +4,8 @@
 //
 //  The cache entry: the summary's archive under its version, and the
 //  observers' results that ride along, each a property-list object under its
-//  identifier. The summary's own bytes are tested in
-//  WaveformCore/WaveformSummaryTests.
+//  identifier. The summary's own bytes are tested in vibe-libs'
+//  WaveformSummaryTests.
 //
 
 #import <XCTest/XCTest.h>

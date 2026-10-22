@@ -27,8 +27,8 @@ configs:
   AppStore: release
 
 # Shared between the app targets so a second platform cannot drift from the
-# first on where WaveformCore's and the generated git-info headers live.
-# The vendored libraries' paths come from their vibe-libs templates.
+# first on where the generated git-info header lives. Every vibe-libs
+# piece's paths come from its template.
 settingGroups:
   # Keep the app and widget versions together. Release scripts read the built app.
   # A stable release also sets VIBE_BETA_DEBUG to 0 (vibe-release).
@@ -40,7 +40,6 @@ settingGroups:
     HEADER_SEARCH_PATHS: &vibe-header-search-paths
       - "$(inherited)"
       - "$(SRCROOT)/build/generated"      # VibeGitInfo.h, written by the pre-build script
-      - "$(SRCROOT)/Packages/WaveformCore/Sources/WaveformCore/include"
 
 # ---- PROJECT-LEVEL settings (== PBXProject build configs) ----
 settings:
@@ -154,10 +153,10 @@ targets:
     # search paths follow this order, and taglib/ogg holds TagLib's own
     # vorbis/vorbisfile.h.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
-                VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsDiskCache,
-                VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis,
-                VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac,
-                VibeLibsDrWav]
+                VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform,
+                VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists, VibeLibsControls,
+                VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTags, VibeLibsTaglib,
+                VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -170,18 +169,6 @@ targets:
       # not that half exists yet. See the root AGENTS.md and make check-layout.
       - path: Vibe/Audio
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      # The reusable waveform core, a package of its own for other apps
-      # (Packages/WaveformCore/AGENTS.md), compiled straight in here.
-      # Its summary and band split are the decode's per-sample work, and its
-      # raster every picture's: optimized in every configuration, as the
-      # decoders are, so a Debug build loads and draws as a shipped one does.
-      # -O3, because -Os vectorizes none of its loops. Measured, it cut a
-      # cache read's CPU by a third and 3-Band's load frames by a quarter,
-      # for 16 KB of code. Every picture stayed byte for byte the same.
-      - path: Packages/WaveformCore/Sources
-        excludes: ["**/.DS_Store", "**/*.md"]
-        compilerFlags: &waveform-core-flags
-          - "-O3"
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Loading
@@ -388,7 +375,7 @@ targets:
       base:
         # TRAP: in base, not in a settings group. A vibe-libs template's header
         # paths join a target's base setting but replace a group's, which
-        # silently drops WaveformCore's and the generated header's.
+        # silently drops the generated header's.
         HEADER_SEARCH_PATHS: *vibe-header-search-paths
         PRODUCT_NAME: "$(TARGET_NAME)"
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.Vibe
@@ -446,7 +433,6 @@ targets:
         codeSign: true
       - sdk: AVFAudio.framework             # AVAudioFormat/PCMBuffer/ChannelLayout; MediaPlayer loads AVFoundation regardless
       - sdk: Accelerate.framework
-      - sdk: libcompression.tbd           # WaveformCore's archive (LZFSE)
       - sdk: ApplicationServices.framework
       - sdk: AudioToolbox.framework
       - sdk: Carbon.framework               # TIS/UCKeyTranslate: shortcut labels under the current keyboard layout
@@ -466,9 +452,10 @@ targets:
     # VibeLibsVorbis before VibeLibsTags and VibeLibsTaglib: see the Vibe
     # target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
-                VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsDiskCache,
-                VibeLibsGraphics, VibeLibsVorbis, VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache,
-                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform,
+                VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists, VibeLibsVorbis,
+                VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac,
+                VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -479,10 +466,6 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Audio
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
-      # Optimized in every configuration; see the macOS target.
-      - path: Packages/WaveformCore/Sources
-        excludes: ["**/.DS_Store", "**/*.md"]
-        compilerFlags: *waveform-core-flags
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Loading
@@ -609,7 +592,6 @@ targets:
       - sdk: AVFoundation.framework
       - sdk: AVKit.framework                # AVRoutePickerView (OutputRouteView)
       - sdk: Accelerate.framework
-      - sdk: libcompression.tbd           # WaveformCore's archive (LZFSE)
       - sdk: AudioToolbox.framework
       - sdk: AuthenticationServices.framework  # the Dropbox sign-in sheet
       - sdk: ImageIO.framework
@@ -741,7 +723,7 @@ targets:
   VibeTests:
     type: bundle.unit-test
     platform: macOS
-    templates: [hostless-test-sources, VibeLibsPINCache, VibeLibsAnalysis]
+    templates: [hostless-test-sources, VibeLibsPINCache, VibeLibsAnalysis, VibeLibsWaveform]
     sources:
       # The bundled built-in themes, so the suite's loader reads the SAME
       # files the app ships and testBundledThemesAreValid gates a theme PR.
@@ -761,11 +743,6 @@ targets:
       - path: Vibe/Playlist/AudioAnalysisObservers.m
       - path: Vibe/Audio/Waveform/AudioWaveformObserver.m
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
-      - path: Packages/WaveformCore/Sources
-        excludes: ["**/.DS_Store", "**/*.md"]
-        compilerFlags: *waveform-core-flags
-      - path: Packages/WaveformCore/Tests   # the package's own, which swift test runs too
-        excludes: ["**/.DS_Store", "**/*.md"]
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
       - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
@@ -814,7 +791,7 @@ targets:
       - path: Vibe/Util/Mac/NSDraggingImageComponent+Util.m
       - path: Vibe/Util/Mac/NSTextField+Label.m
       - path: vibe-libs/core/Common/VibeWeakProxy.m
-      - path: Vibe/Playlist/Playlist.m
+      - path: vibe-libs/media/PlayQueue/Playlist.m
       - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Playlist/Mac/PlaylistFile+Session.m
       - path: vibe-libs/core/Common/UIUpdateTimer.m
@@ -887,6 +864,8 @@ targets:
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/Vibe/Playlist"
+          - "$(SRCROOT)/vibe-libs/media/PlayQueue"
+          - "$(SRCROOT)/vibe-libs/media/Playlists"
           - "$(SRCROOT)/Vibe/Util"
           - "$(SRCROOT)/Vibe/Util/Categories"
           - "$(SRCROOT)/Vibe/Util/Mac"
@@ -897,7 +876,6 @@ targets:
           - "$(SRCROOT)/Vibe/Audio/Metadata"
           - "$(SRCROOT)/vibe-libs/media/Tags"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
-          - "$(SRCROOT)/Packages/WaveformCore/Sources/WaveformCore/include"
           - "$(SRCROOT)/vibe-libs/audio/FX"
           # Header-only activity/animation seams shared by both controls.
           - "$(SRCROOT)/Vibe/Controls"
@@ -919,7 +897,6 @@ targets:
     dependencies:
       - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
-      - sdk: libcompression.tbd           # WaveformCore's archive (LZFSE)
       - sdk: AppKit.framework                # AudioTrack album art (NSImage)
       - sdk: AVFoundation.framework          # AudioWaveformLoader reads (and its tests write) files
       - sdk: AuthenticationServices.framework  # DropboxClient's sign-in, compiled in, never presented
@@ -962,9 +939,8 @@ targets:
       base:
         <<: *hostless-test-settings
         PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeAudioTests
-        # WaveformCore's and the generated headers. The hostless list above
-        # replaces the app group's HEADER_SEARCH_PATHS, so they ride on the
-        # system key.
+        # The generated header. The hostless list above replaces the app
+        # group's HEADER_SEARCH_PATHS, so it rides on the system key.
         SYSTEM_HEADER_SEARCH_PATHS: *vibe-header-search-paths
     dependencies:
       - sdk: AppKit.framework
@@ -1037,9 +1013,9 @@ targetTemplates:
       - path: vibe-libs/files/FileLoading/PlaceholderFiles.m
       - path: vibe-libs/files/FileLoading/PlaceholderFiles+Debug.m   # its dataless test asks the probe first
       - path: Vibe/Playlist/FolderWalk.m
-      - path: Vibe/Playlist/PlaylistEntry.m
-      - path: Vibe/Playlist/PlaylistFile.m
-      - path: Vibe/Playlist/PlaylistFile+CUE.m
+      - path: vibe-libs/media/Playlists/PlaylistEntry.m
+      - path: vibe-libs/media/Playlists/PlaylistFile.m
+      - path: vibe-libs/media/Playlists/PlaylistFile+CUE.m
       - path: Vibe/Util/Formatters.m
       - path: vibe-libs/core/Common/NSURL+Hash.m
       - path: vibe-libs/core/Common/NSURL+Emptiness.m

@@ -85,8 +85,9 @@ def features(src):
     """VibeBenchComponentsFeatures.h for a checkout: what its sources have, as VibeBenchComponents.h
     lists the questions. Every grafted checkout gets one, whatever its age."""
     # A moved header answers from vibe-libs, or its benchmark loses the feature.
+    # An older ref keeps the waveform engine in Packages/WaveformCore.
     def find(name):
-        roots = [src / 'Vibe', src / 'vibe-libs']
+        roots = [src / 'Vibe', src / 'Packages', src / 'vibe-libs']
         return next((path for root in roots if root.is_dir() for path in root.rglob(name)), None)
     handle, loader, levels = find('AudioFileHandle.h'), find('AudioWaveformLoader.h'), find('AudioLevelAnalyzer.h')
     waveform, three_band = find('AudioWaveform.h'), find('ThreeBandWaveformRenderer.h')
@@ -94,8 +95,7 @@ def features(src):
     registry = find('WaveformRendererRegistry.h')
     playlist = find('Playlist.h')
     renderer = find('WaveformRenderer.h') or find('AudioWaveformRenderer.h')
-    summary = next((src / 'Packages').rglob('WaveformSummary.hpp'), None) if (src / 'Packages').is_dir() else None
-    raster = next((src / 'Packages').rglob('WaveformRaster.hpp'), None) if (src / 'Packages').is_dir() else None
+    summary, raster = find('WaveformSummary.hpp'), find('WaveformRaster.hpp')
     metadata = list((src / 'Vibe').rglob('AudioTrackMetadata*.h'))
     flags = {
         'VIBE_BENCH_COMPONENTS_FILE_HANDLE': handle is not None,

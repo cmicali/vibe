@@ -29,7 +29,7 @@ Vibe/
   Loading/             the app's own transfers: HTTP, links, and Dropbox
     Net/               the app's own HTTP: transfers, placeholders, and Open URL's links
     iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
-  Playlist/            the playlist model, the folder walk, and CUE and M3U files
+  Playlist/            the playlist row and the folder walk
     Mac/               the playlist table and the last-playlist store (macOS)
   NowPlaying/          the system's Now Playing info and remote commands
   Controls/            controls both apps draw the same way: equalizer bars, loading indicator
@@ -81,8 +81,6 @@ project.yml            the XcodeGen spec for every target
 Makefile               every build, test, and check command
 ```
 
-`Packages/WaveformCore/` sits beside `Vibe/`. It is the waveform engine, kept free of app types for reuse: the summary, its reads, the zoom steps and the raster. Both apps and the tests compile its sources.
-
 ## The subsystems
 
 ### Common
@@ -96,7 +94,7 @@ The playback engine is vibe-libs' `audio/Player`, and `Vibe/Audio/` hosts it. Th
 The DJ effects, the meter, and the fades are vibe-libs' (below). `vibe-libs/audio/Player/AGENTS.md` says how the player hosts the effects, the pitch fader's stage, and the meter. Each other feature beside the engine has its own directory and doc:
 
 - **`Metadata/`**: `AudioTrackMetadataCache` is the facade over tags, their disk cache, and the playlist scan. `AudioTrackMetadataLoader` is the scan behind it. Tags are read through TagLib by vibe-libs' `TagLibAudioFile`, in `media/Tags`. `Artwork/` holds `AudioTrackArtwork` and `EmbeddedThumbnailCache`. `Artwork/FolderArt/FolderArtResolver` finds a cover beside the files, on macOS. Docs: `Audio/Metadata/AGENTS.md` and `Audio/Metadata/Artwork/FolderArt/AGENTS.md`.
-- **`Waveform/`**: `AudioWaveformLoader` decodes a file into an `AudioWaveform`, and feeds each mono block to the observers its request lists. `AudioWaveformCache` owns the loaders and stores the results on disk through PINCache. The data is `Packages/WaveformCore`'s summary. Docs: `Audio/Waveform/AGENTS.md` and `Packages/WaveformCore/AGENTS.md`.
+- **`Waveform/`**: `AudioWaveformLoader` decodes a file into an `AudioWaveform`, and feeds each mono block to the observers its request lists. `AudioWaveformCache` owns the loaders and stores the results on disk through PINCache. The data is the summary of vibe-libs' `waveform/Waveform`. Docs: `Audio/Waveform/AGENTS.md` and `vibe-libs/waveform/Waveform/AGENTS.md`.
 
 ### Loading
 
@@ -104,7 +102,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### Playlist
 
-`Vibe/Playlist/` is the playlist model and how its rows are made. `AudioTrack` is one row: a whole file, or a CUE sheet's window of one. It adopts `AudioTrackMetadataHolder`, which extends `VibePlayableItem`. So the engine can play it, and the metadata loader can install its tags. `Playlist` holds the rows, the current row, and the shuffle order. `trackEndSuccessor` is its one answer to what plays after a track ends. `FolderWalk` turns what the user opened into entries. It walks folders, follows links to folders, and expands playlist files. It runs on background workers and reads no setting. `PlaylistFile` reads M3U files and CUE sheets, including a sheet embedded in a FLAC, and writes M3U files. A CUE sheet becomes one entry per track, each a window of its file. An entry is a `PlaylistEntry` record, and `AudioTrack rowsForEntries:` makes the rows from them. `Mac/` is the macOS table (`PlaylistController`, `PlaylistTableView`) and the last-playlist store (`PlaylistFile+Session`). The iOS list is `Vibe/iOS/PlaylistViewController`. Read next: `Vibe/Playlist/AGENTS.md`, then `Playlist/Mac/AGENTS.md`.
+`Vibe/Playlist/` is the playlist model and how its rows are made. `AudioTrack` is one row: a whole file, or a CUE sheet's window of one. It adopts `AudioTrackMetadataHolder`, which extends `VibePlayableItem`. So the engine can play it, and the metadata loader can install its tags. `Playlist`, vibe-libs' `media/PlayQueue`, holds the rows, the current row, and the shuffle order. `trackEndSuccessor` is its one answer to what plays after a track ends. `FolderWalk` turns what the user opened into entries. It walks folders, follows links to folders, and expands playlist files. It runs on background workers and reads no setting. `PlaylistFile`, vibe-libs' `media/Playlists`, reads M3U files and CUE sheets, including a sheet embedded in a FLAC, and writes M3U files. A CUE sheet becomes one entry per track, each a window of its file. An entry is a `PlaylistEntry` record, and `AudioTrack rowsForEntries:` makes the rows from them. `Mac/` is the macOS table (`PlaylistController`, `PlaylistTableView`) and the last-playlist store (`PlaylistFile+Session`). The iOS list is `Vibe/iOS/PlaylistViewController`. Read next: `Vibe/Playlist/AGENTS.md`, then `Playlist/Mac/AGENTS.md`.
 
 ### NowPlaying
 
@@ -142,9 +140,9 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 `vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`. Nothing builds differently.
 
-**Vibe uses sixteen pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/AudioTypes` holds the words the audio code shares: the playable-item protocol, the CUE window math, the musical key, the format names, and `PlayableExtensions`, every audio extension the apps play. `audio/DSP` holds the pitch fader's varispeed, the fades, and the resampler. `audio/Analysis` holds tempo and key detection (below). `audio/Decode` holds the audio file handle, which hosts the decoders. `media/Tags` holds `TagLibAudioFile`, the TagLib wrapper the metadata parse reads through. `audio/OutputDevices` holds the mac's output devices and HAL reads, and the iOS audio session and its route rules. `audio/FX` holds `AudioFX`, the DJ effects on the master bus: a low-kill filter, a reverb, and two tempo-synced delays. `audio/Meter` holds `AudioLevelMeter`, which reads the final output inside the render and feeds the equalizer bars. `audio/Player` holds the playback engine, its mac device and bit-perfect half, its iOS route recovery, and the manual render pump.
+**Vibe uses nineteen pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/AudioTypes` holds the words the audio code shares: the playable-item protocol, the CUE window math, the musical key, the format names, and `PlayableExtensions`, every audio extension the apps play. `audio/DSP` holds the pitch fader's varispeed, the fades, and the resampler. `audio/Analysis` holds tempo and key detection (below). `audio/Decode` holds the audio file handle, which hosts the decoders. `media/Tags` holds `TagLibAudioFile`, the TagLib wrapper the metadata parse reads through. `media/PlayQueue` holds the playlist model, and `media/Playlists` the CUE and M3U readers and the M3U writer. `audio/OutputDevices` holds the mac's output devices and HAL reads, and the iOS audio session and its route rules. `audio/FX` holds `AudioFX`, the DJ effects on the master bus: a low-kill filter, a reverb, and two tempo-synced delays. `audio/Meter` holds `AudioLevelMeter`, which reads the final output inside the render and feeds the equalizer bars.
 
-`files/FileLoading` holds the file-open path, from a path to a readable file, with its debug seams and the fake cloud. `files/DiskCache` holds the bounded disk cache that the metadata and waveform caches build on. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. `ui/Shortcuts` holds the shortcut encoding, the keyboard layout, and the Keyboard Shortcuts pane. Every vendored library but Sparkle is a piece under `third_party/` too. Controls, SettingsWindow, and Shortcuts are macOS only. Only the mac app lists them.
+`waveform/Waveform` holds the waveform engine: the summary, its reads, the zoom steps, the raster, and the archive. Its sources are C++. `audio/Player` holds the playback engine, its mac device and bit-perfect half, its iOS route recovery, and the manual render pump. `files/FileLoading` holds the file-open path, from a path to a readable file, with its debug seams and the fake cloud. `files/DiskCache` holds the bounded disk cache that the metadata and waveform caches build on. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. `ui/Shortcuts` holds the shortcut encoding, the keyboard layout, and the Keyboard Shortcuts pane. Every vendored library but Sparkle is a piece under `third_party/` too. Controls, SettingsWindow, and Shortcuts are macOS only. Only the mac app lists them.
 
 **The tempo and key analyzers ride the waveform's decode pass as observers**, so neither reads the file a second time. They are `AudioBPMAnalyzer` and `AudioKeyAnalyzer`, in `audio/Analysis`. The app's `Playlist/AudioAnalysisObservers.h` joins them to the decode, and each shell attaches them. Key detection runs on macOS only. Doc: `Playlist/AGENTS.md`.
 
@@ -288,7 +286,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio
 | How a file is decoded | `vibe-libs/audio/Decode/AGENTS.md`, each decoder's doc in `vibe-libs/third_party/` | `vibe-libs/audio/Decode/AudioFileHandle.m`, `AudioFileHandle+MPEG.m`, `AudioFileHandle+Stream.m` |
 | Play, pause, seek, or crossfade | `vibe-libs/audio/Player/AGENTS.md` | `vibe-libs/audio/Player/AudioPlayer.m`, `vibe-libs/audio/DSP/FadeMath.h` |
 | Gapless playback and prefetch | `vibe-libs/audio/Player/AGENTS.md` (Prefetch and gapless) | `vibe-libs/audio/Player/AudioPlayer+Prefetch.m`, `AudioPrefetchRules.h` |
-| What plays next, repeat, or shuffle | `Playlist/AGENTS.md` | `Playlist/Playlist.m` |
+| What plays next, repeat, or shuffle | `vibe-libs/media/PlayQueue/AGENTS.md`, `Playlist/AGENTS.md` | `vibe-libs/media/PlayQueue/Playlist.m` |
 | Mixing and real-time code | `vibe-libs/audio/Player/AGENTS.md` (The voice bus, Threading) | `vibe-libs/audio/Player/AudioVoiceBusRender.m`, `AudioMasterBus.m` |
 | Sample-rate conversion | [audio-quality.md](audio-quality.md), `vibe-libs/audio/DSP/AGENTS.md` | `vibe-libs/audio/DSP/AudioResampler.mm` |
 | Decoder conformance against public test files | the `vibe-audio-quality` skill, [audio-quality.md](audio-quality.md) | `Tests/AudioRender/AudioQualityCorpusTests.m` |
@@ -304,11 +302,11 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio
 | Artwork and row thumbnails | `Audio/Metadata/AGENTS.md` | `Audio/Metadata/Artwork/AudioTrackArtwork.m` |
 | Cover images beside the files | `Audio/Metadata/Artwork/FolderArt/AGENTS.md` | `Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m` |
 | Tempo or key detection | `vibe-libs/audio/Analysis/AGENTS.md`, `Playlist/AGENTS.md` (Tempo and key) | `vibe-libs/audio/Analysis/AudioBPMAnalyzer.mm`, `vibe-libs/audio/Analysis/AudioKeyAnalyzer.mm`, `Playlist/AudioAnalysisObservers.m` |
-| Waveform data or its cache | `Audio/Waveform/AGENTS.md`, `Packages/WaveformCore/AGENTS.md` | `Audio/Waveform/AudioWaveformLoader.mm` |
+| Waveform data or its cache | `Audio/Waveform/AGENTS.md`, `vibe-libs/waveform/Waveform/AGENTS.md` | `Audio/Waveform/AudioWaveformLoader.mm` |
 | How a waveform looks, or a new style | `WaveformUI/AGENTS.md`, `WaveformUI/Renderers/AGENTS.md` | `WaveformUI/Renderers/WaveformRendererRegistry.mm` |
 | The equalizer bars | `Controls/AGENTS.md`, `vibe-libs/audio/Meter/AGENTS.md` | `Controls/EqualizerIndicatorView.m` |
 | How files open on macOS | `Mac/App/AGENTS.md` | `Mac/App/AppDelegate.m` |
-| The folder walk, its sort order, CUE or M3U | `Playlist/AGENTS.md` | `Playlist/FolderWalk.m`, `Playlist/PlaylistFile.m`, `Playlist/PlaylistFile+CUE.m` |
+| The folder walk, its sort order, CUE or M3U | `Playlist/AGENTS.md`, `vibe-libs/media/Playlists/AGENTS.md` | `Playlist/FolderWalk.m`, `vibe-libs/media/Playlists/PlaylistFile.m`, `vibe-libs/media/Playlists/PlaylistFile+CUE.m` |
 | The macOS player window | `Mac/MainWindow/AGENTS.md`, `Mac/MainWindow/LAYOUT.md` | `Mac/MainWindow/MainPlayerController.m` |
 | Keyboard shortcuts and skips | `Mac/MainWindow/Transport/AGENTS.md` | `Mac/MainWindow/Transport/TransportKeyMonitor.m` |
 | The macOS playlist table | `Playlist/Mac/AGENTS.md` | `Playlist/Mac/PlaylistController.m` |

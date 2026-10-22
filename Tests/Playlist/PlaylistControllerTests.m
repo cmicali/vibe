@@ -11,7 +11,7 @@
 
 #import "PlaylistController.h"
 #import "PlaylistTableView.h"
-#import "PlaylistTestSupport.h"
+#import "PlaylistRowTestSupport.h"
 #import "ShellTestFakes.h"
 
 @interface VibeTestDraggingInfo : NSObject

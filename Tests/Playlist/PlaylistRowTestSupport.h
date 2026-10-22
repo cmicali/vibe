@@ -1,8 +1,15 @@
+//
+//  PlaylistRowTestSupport.h
+//  VibeTests
+//
+//  The shells' tests' rows: AudioTrack rows named by file, and the row sets
+//  they compare. The queue's own tests use PlaylistTestSupport.h, over rows of
+//  their own.
+//
 
 #import <Foundation/Foundation.h>
 
 #import "AudioTrack.h"
-#import "Playlist.h"
 
 // "1" or "0,2".
 static inline NSString *RowsString(NSIndexSet *indexes) {
@@ -13,31 +20,18 @@ static inline NSString *RowsString(NSIndexSet *indexes) {
     return [parts componentsJoinedByString:@","];
 }
 
-@interface RecordingObserver : NSObject <PlaylistObserver>
-@property (nonatomic, strong) NSMutableArray<NSString *> *events;
-@property (nonatomic) NSUInteger lastReplacementGeneration;
-@end
-
 static inline NSURL *URLNamed(NSString *filename) {
     NSString *path = [@"/private/tmp/vibe-tests/" stringByAppendingString:filename];
     return [NSURL fileURLWithPath:path];
 }
 
-static inline NSArray<AudioTrack *> *Rows(NSArray<NSURL *> *urls) {
-    NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:urls.count];
-    for (NSURL *url in urls) {
-        [rows addObject:[AudioTrack withURL:url]];
-    }
-    return rows;
-}
-
 // "a b c" as three rows, a.mp3, b.mp3 and c.mp3.
 static inline NSArray<AudioTrack *> *TracksNamed(NSString *names) {
-    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
     for (NSString *name in [names componentsSeparatedByString:@" "]) {
-        [urls addObject:URLNamed([name stringByAppendingString:@".mp3"])];
+        [rows addObject:[AudioTrack withURL:URLNamed([name stringByAppendingString:@".mp3"])]];
     }
-    return Rows(urls);
+    return rows;
 }
 
 // The rows' file stems, space-separated: "a b c".
@@ -69,30 +63,4 @@ static inline AudioTrack *CueRowOf(NSString *filename, NSUInteger start, NSUInte
     return [[AudioTrack alloc] initWithURL:URLNamed(filename) cueStart:start cueEnd:end
                                      title:@"Row" performer:nil sheet:URLNamed(@"album.cue")
                                trackNumber:1];
-}
-
-// Keyed as both shells key theirs, so it has lookup by file.
-static inline Playlist<AudioTrack *> *NewPlaylist(void) {
-    return [[Playlist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
-        return track.url;
-    } sourceKey:^NSString *(AudioTrack *track) {
-        return track.sourceKey;
-    }];
-}
-
-// The convert swap's replacement block.
-static inline AudioTrack *(^ReplacementAt(NSURL *url))(AudioTrack *) {
-    return ^AudioTrack *(AudioTrack *outgoing) {
-        return [outgoing replacementAtURL:url];
-    };
-}
-
-static inline Playlist<AudioTrack *> *PlaylistWithFiles(NSArray<NSString *> *filenames) {
-    NSMutableArray<NSURL *> *urls = [NSMutableArray array];
-    for (NSString *name in filenames) {
-        [urls addObject:URLNamed(name)];
-    }
-    Playlist<AudioTrack *> *playlist = NewPlaylist();
-    [playlist replaceAllWithTracks:Rows(urls) startingAtIndex:NSNotFound];
-    return playlist;
 }
