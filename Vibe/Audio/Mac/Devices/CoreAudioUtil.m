@@ -4,6 +4,7 @@
 //
 
 #import "CoreAudioUtilInternal.h"
+#import "VibeMacros.h"
 #import <CoreAudio/CoreAudio.h>
 #include <stdatomic.h>
 

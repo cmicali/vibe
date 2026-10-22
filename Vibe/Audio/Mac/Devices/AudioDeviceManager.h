@@ -6,6 +6,7 @@
 #import <Foundation/Foundation.h>
 #import <CoreAudio/CoreAudio.h>
 #import "AudioDevice.h"
+#import "HelperMacros.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

@@ -6,6 +6,7 @@
 #import "AudioDeviceEventLog.h"
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
+#import "VibeMacros.h"
 
 #if VIBE_VERBOSE_LOGGING
 // Every property whose change the device event log records, registered only

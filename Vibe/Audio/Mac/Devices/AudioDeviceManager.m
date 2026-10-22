@@ -7,6 +7,7 @@
 #import "AudioDevice.h"
 #import "AudioDeviceEventLog.h"
 #import "CoreAudioUtil.h"
+#import "VibeMacros.h"
 #import <os/lock.h>
 
 static const AudioObjectPropertyAddress kDefaultOutputDeviceAddress = {

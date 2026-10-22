@@ -5,6 +5,7 @@
 
 #import "AudioSessionController.h"
 #import "AudioSessionRecoveryRules.h"
+#import "VibeMacros.h"
 #import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
 

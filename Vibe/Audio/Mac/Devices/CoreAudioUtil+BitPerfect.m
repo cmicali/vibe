@@ -7,6 +7,7 @@
 
 #import "CoreAudioUtilInternal.h"
 #import "OutputFormatRules.h"
+#import "VibeMacros.h"
 #import <AudioToolbox/AudioToolbox.h> // kAudioHardwareServiceDeviceProperty_VirtualMainVolume
 #import <unistd.h>
 #include <math.h>
