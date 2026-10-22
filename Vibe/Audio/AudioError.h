@@ -11,7 +11,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-extern NSString *const kVibeAudioErrorDomain;
+// The domain every play-path error carries. The app pushes its own once, at
+// launch, before the first play. Read before then, it asserts in a debug
+// build and answers @"VibeAudioErrorDomain".
+void VibeAudioErrorSetDomain(NSString *domain);
+NSString *VibeAudioErrorDomain(void);
 // userInfo key carrying the failing track's URL on play-path errors. Error
 // deliveries can race a track change, so receivers must match it against the
 // current track before treating the error as the current track's.

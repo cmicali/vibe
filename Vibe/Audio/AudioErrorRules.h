@@ -13,7 +13,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 static inline BOOL VibePlayErrorIsBenign(NSError *error) {
-    return [error.domain isEqualToString:kVibeAudioErrorDomain]
+    return [error.domain isEqualToString:VibeAudioErrorDomain()]
             && error.code == VibeAudioErrorNotPlaying;
 }
 

@@ -97,6 +97,8 @@ static void VibeAfterLaunch(dispatch_block_t block) {
 #pragma mark - Launch
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    // Before the player exists, so every play-path error carries the app's domain.
+    VibeAudioErrorSetDomain(NSBundle.mainBundle.bundleIdentifier);
     // Before the restore, which may name a link. From here a link's
     // placeholder is dataless, and opening it streams it.
     [LinkStore.shared installAsRemoteBackend];

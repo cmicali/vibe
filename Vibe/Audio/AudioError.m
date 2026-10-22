@@ -8,8 +8,19 @@
 
 #import "AudioError.h"
 
-NSString *const kVibeAudioErrorDomain = @"com.commonwealthrecordings.Vibe";
 NSString *const kVibeAudioErrorTrackURLKey = @"VibeAudioErrorTrackURL";
+
+static NSString *sDomain;
+
+void VibeAudioErrorSetDomain(NSString *domain) {
+    sDomain = [domain copy];
+}
+
+NSString *VibeAudioErrorDomain(void) {
+    NSString *domain = sDomain;
+    NSCAssert(domain, @"VibeAudioErrorSetDomain was not called before the first play-path error");
+    return domain ?: @"VibeAudioErrorDomain";
+}
 
 // Descriptions are for logs, never localized; the UI's line is
 // VibeStatusForPlayError (Common/StringRules.h).
@@ -22,7 +33,7 @@ NSError *VibeAudioError(VibeAudioErrorCode code, NSString *description, NSError 
         }
     }
     info[NSLocalizedDescriptionKey] = description;
-    return [NSError errorWithDomain:kVibeAudioErrorDomain code:code userInfo:info];
+    return [NSError errorWithDomain:VibeAudioErrorDomain() code:code userInfo:info];
 }
 
 // Stamps the failing track's URL (kVibeAudioErrorTrackURLKey).

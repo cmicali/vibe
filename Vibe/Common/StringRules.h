@@ -25,10 +25,10 @@ NS_ASSUME_NONNULL_BEGIN
 // a refused start arrives wrapped in the caller's "could not resume".
 static inline NSString *VibeStatusForPlayError(NSError *error) {
     NSError *underlying = error.userInfo[NSUnderlyingErrorKey];
-    if ([underlying.domain isEqualToString:kVibeAudioErrorDomain]) {
+    if ([underlying.domain isEqualToString:VibeAudioErrorDomain()]) {
         return VibeStatusForPlayError(underlying);
     }
-    if ([error.domain isEqualToString:kVibeAudioErrorDomain]) {
+    if ([error.domain isEqualToString:VibeAudioErrorDomain()]) {
         switch ((VibeAudioErrorCode)error.code) {
             case VibeAudioErrorFileOpenTimedOut:   return STR_ERROR_LOAD_TIMEOUT;
             case VibeAudioErrorFileOpenFailed:     return STR_ERROR_OPEN_FAILED;
