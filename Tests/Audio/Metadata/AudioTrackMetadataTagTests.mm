@@ -4,7 +4,8 @@
 //
 //  The real tag parse over the real TagLib: each format's tags and facts, the
 //  tempo and key that beat analysis, embedded art through the bounded decode,
-//  and TagLibAudioFile's detection. Every file is written here
+//  and the parse of a file whose extension misleads. vibe-libs' media/Tags
+//  tests the detection itself. Every file is written here
 //  (AudioTrackMetadataTagFixtures.h), except Ogg's audio, which the render
 //  suite's generator makes with ffmpeg; those tests skip without it.
 //
@@ -16,7 +17,6 @@
 #import "AudioTrackMetadataTagFixtures.h"
 #import "PlatformImage.h"
 #import "PlaylistFile.h"
-#import "TagLibAudioFile.h"
 #import "CloudFileMaterializer.h"
 
 #include <fcntl.h>
@@ -413,11 +413,6 @@ static const NSTimeInterval kMP3Duration = 38 * 1152 / 44100.0;
 
 #pragma mark - Detection
 
-static VibeAudioFileFormat Detected(NSURL *url) {
-    TagLibAudioFile file(url.fileSystemRepresentation);
-    return file.isNull() ? nil : fileTypeForTagLibFile(file.file());
-}
-
 - (NSURL *)rename:(NSURL *)url to:(NSString *)name {
     NSURL *renamed = [_dir URLByAppendingPathComponent:name];
     XCTAssertTrue([NSFileManager.defaultManager moveItemAtURL:url toURL:renamed error:NULL]);
@@ -441,7 +436,6 @@ static VibeAudioFileFormat Detected(NSURL *url) {
     };
     for (NSString *name in cases) {
         NSURL *url = [self rename:[self write:(VibeTagFixture)sources[name].integerValue art:sArt] to:name];
-        XCTAssertEqualObjects(Detected(url), cases[name], @"%@", name);
         AudioTrackMetadata *metadata = Parse(url, NULL);
         XCTAssertEqualObjects(metadata.fileType, cases[name], @"%@", name);
         XCTAssertEqualObjects(metadata.title, kVibeTagTitle, @"%@", name);
@@ -458,7 +452,6 @@ static VibeAudioFileFormat Detected(NSURL *url) {
         NSString *name = [VibeTagFixtureName((VibeTagFixture)fixture.integerValue)
                 stringByReplacingOccurrencesOfString:@"." withString:@"-"];
         NSURL *url = [self rename:[self write:(VibeTagFixture)fixture.integerValue art:sArt] to:name];
-        XCTAssertEqualObjects(Detected(url), cases[fixture], @"%@", name);
         XCTAssertEqualObjects(Parse(url, NULL).title, kVibeTagTitle, @"%@", name);
     }
 }
@@ -472,7 +465,6 @@ static VibeAudioFileFormat Detected(NSURL *url) {
     for (NSString *name in @[@"prefixed.flac", @"prefixed"]) {
         NSURL *url = [_dir URLByAppendingPathComponent:name];
         XCTAssertTrue([bytes writeToURL:url atomically:YES]);
-        XCTAssertEqualObjects(Detected(url), VibeAudioFileFormatFLAC, @"%@", name);
         AudioTrackMetadata *metadata = Parse(url, NULL);
         XCTAssertEqualObjects(metadata.title, kVibeTagTitle, @"%@", name);
         XCTAssertEqual(metadata.key, VibeMusicalKeyMake(9, YES), @"%@", name);
@@ -491,7 +483,6 @@ static VibeAudioFileFormat Detected(NSURL *url) {
     for (NSString *name in @[@"ogg.flac", @"ogg.oga", @"ogg"]) {
         NSURL *url = [_dir URLByAppendingPathComponent:name];
         XCTAssertTrue([bytes writeToURL:url atomically:YES]);
-        XCTAssertNil(Detected(url), @"%@", name);
         AudioTrackMetadata *metadata = Parse(url, NULL);
         XCTAssertFalse(metadata.parsedOK, @"%@", name);
         XCTAssertEqualObjects(metadata.title, name.stringByDeletingPathExtension, @"%@", name);

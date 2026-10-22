@@ -146,14 +146,18 @@ targets:
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources. Controls,
     # SettingsWindow, and Shortcuts are macOS only, so VibeiOS never lists
-    # them. The vendored libraries carry their own flags.
+    # them. The vendored libraries carry their own flags. The metadata parse
+    # reads TagLib's own types, and the FLAC converter writes tags through
+    # TagLib, so both apps list TagLib's template beside Tags'.
     #
-    # TRAP: VibeLibsVorbis before VibeLibsTaglib. Header search paths follow
-    # this order, and taglib/ogg holds TagLib's own vorbis/vorbisfile.h.
+    # TRAP: VibeLibsVorbis before VibeLibsTags and VibeLibsTaglib. Header
+    # search paths follow this order, and taglib/ogg holds TagLib's own
+    # vorbis/vorbisfile.h.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
                 VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsDiskCache,
                 VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis,
-                VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac,
+                VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -459,11 +463,12 @@ targets:
   VibeiOS:
     type: application
     platform: iOS
-    # VibeLibsVorbis before VibeLibsTaglib: see the Vibe target.
+    # VibeLibsVorbis before VibeLibsTags and VibeLibsTaglib: see the Vibe
+    # target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
                 VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsDiskCache,
-                VibeLibsGraphics, VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
-                VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsGraphics, VibeLibsVorbis, VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache,
+                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -890,6 +895,7 @@ targets:
           - "$(SRCROOT)/vibe-libs/audio/Player/Mac"
           - "$(SRCROOT)/vibe-libs/audio/Meter"
           - "$(SRCROOT)/Vibe/Audio/Metadata"
+          - "$(SRCROOT)/vibe-libs/media/Tags"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
           - "$(SRCROOT)/Packages/WaveformCore/Sources/WaveformCore/include"
           - "$(SRCROOT)/vibe-libs/audio/FX"
@@ -950,7 +956,7 @@ targets:
       - path: Tests/Audio/Metadata/AudioTrackMetadataTagTests.mm
       - path: Tests/Audio/Metadata/AudioTrackMetadataFuzzTests.mm
       - path: Vibe/Audio/Metadata/AudioTrackMetadata.mm
-      - path: Vibe/Audio/Metadata/TagLibAudioFile.mm
+      - path: vibe-libs/media/Tags/TagLibAudioFile.mm
       - path: Vibe/Util/Categories/NSString+CPPStrings.mm
     settings:
       base:
