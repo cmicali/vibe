@@ -6,7 +6,23 @@
 #import "AudioFX.h"
 #import "OutputFormatRules.h"
 #import <Accelerate/Accelerate.h>
-#include <ogg/ogg.h>
+
+// An Ogg page's CRC made good, written here rather than by libogg, so the
+// reader is not its own oracle: CRC-32 over the whole page, polynomial
+// 0x04c11db7, no reflection, with its own four bytes zero, stored little-endian.
+static void VibeSetOggPageChecksum(uint8_t *page, size_t length) {
+    memset(page + 22, 0, 4);
+    uint32_t crc = 0;
+    for (size_t i = 0; i < length; i++) {
+        crc ^= (uint32_t)page[i] << 24;
+        for (int bit = 0; bit < 8; bit++) {
+            crc = crc & 0x80000000u ? (crc << 1) ^ 0x04c11db7u : crc << 1;
+        }
+    }
+    for (int i = 0; i < 4; i++) {
+        page[22 + i] = (uint8_t)(crc >> (8 * i));
+    }
+}
 
 // The oracle itself, the bit-perfect matrix, every container and codec, float limits and wide sources.
 @interface AudioPlayerRenderFidelityTests : AudioPlayerRenderTests
@@ -268,8 +284,7 @@ static NSInteger VibeBestLag(NSData *decoded, NSData *source, NSUInteger channel
     page[26] = 1;
     page[27] = 64;
     memcpy(page + 28, "fishead", 8); // Skeleton's header packet
-    ogg_page skeleton = {.header = page, .header_len = 28, .body = page + 28, .body_len = 64};
-    ogg_page_checksum_set(&skeleton);
+    VibeSetOggPageChecksum(page, sizeof page);
     NSMutableData *bytes = [NSMutableData dataWithBytes:page length:sizeof page];
     [bytes appendData:[NSData dataWithContentsOfURL:lossy]];
     AudioFileHandle *file = [self open:[self writeBytes:bytes name:@"skeleton.ogg"] decoder:@"libvorbis"];
@@ -288,8 +303,7 @@ static NSData *VibeOpusWithOutputGain(NSData *opus, int16_t q78) {
     if (patched.length < length || memcmp(page + packet, "OpusHead", 8) != 0) return nil;
     page[packet + 16] = (uint8_t)q78;
     page[packet + 17] = (uint8_t)((uint16_t)q78 >> 8);
-    ogg_page first = {.header = page, .header_len = (long)packet, .body = page + packet, .body_len = (long)(length - packet)};
-    ogg_page_checksum_set(&first);
+    VibeSetOggPageChecksum(page, length);
     return patched;
 }
 // RFC 7845's output gain, which Apple's decoder ignores. The handle applies
