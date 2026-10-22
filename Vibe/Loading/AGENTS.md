@@ -1,6 +1,6 @@
 # Loading: the app's own transfers
 
-**The file-open path lives in vibe-libs' `files/FileLoading`.** That is the claim and its two stages, the handle-run ceiling, the transfer registry, the progress monitor, the materializer, the availability, the network-mount read-ahead, and the placeholder checks. Its debug seams and the fake cloud moved with it. Its doc, `vibe-libs/files/FileLoading/AGENTS.md`, is the authority for how that code works. Both app targets list its template. A change to it lands in vibe-libs first, then in Vibe's pin. The audio core owns the handle it serves, `AudioFileHandle`.
+**The file-open path lives in vibe-libs' `files/FileLoading`.** That is the claim and its two stages, the handle-run ceiling, the transfer registry, the progress monitor, the materializer, the availability, the network-mount read-ahead, and the placeholder checks. Its debug seams and the fake cloud moved with it. Its doc, `vibe-libs/files/FileLoading/AGENTS.md`, is the authority for how that code works. Both app targets list its template. A change to it lands in vibe-libs first, then in Vibe's pin. The handle it serves, `AudioFileHandle`, is vibe-libs' `audio/Decode`.
 
 **What stays here is what only Vibe needs.** Both apps compile this directory.
 
