@@ -21,16 +21,14 @@ Vibe/
   Common/              settings, strings, document types
     Mac/               the macOS-only settings
       Theme/           AppTheme, the theme record, and the theme store
-  Audio/               the playback engine: player, voice bus, master bus, output unit, file handle
+  Audio/               the playback engine: player, voice bus, master bus, output unit
     Metadata/          tags, the metadata cache, and the playlist scan
       Artwork/         embedded art and the shared row thumbnails
         FolderArt/     the cover image beside the files, for a file with no art (macOS)
     Waveform/          waveform data: the decode, the summary, and the disk cache
-    Mac/Devices/       CoreAudio output devices and bit-perfect output (macOS)
-    iOS/               the audio session and output recovery (iOS)
+    Mac/Devices/       the player's device binding and bit-perfect output (macOS)
+    iOS/               the player's output recovery (iOS)
   Loading/             the app's own transfers: HTTP, links, and Dropbox
-    Claim/             which open runs, and when: the claim, admission, the handle ceiling
-    Transfer/          the bytes: downloads, progress, streaming, the network read-ahead
     Net/               the app's own HTTP: transfers, placeholders, and Open URL's links
     iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
   Playlist/            the playlist model, the folder walk, and CUE and M3U files
@@ -48,7 +46,7 @@ Vibe/
     Channel/           the transport: command and reply files
     Verbs/             the commands both apps answer
     Oracles/           consistency checks and load timing
-    Simulators/        stand-ins: a fake cloud, a fake HTTP host, the manual render pump
+    Simulators/        stand-ins: a fake HTTP host and the manual render pump
     Seams/             debug-only categories over shared classes
     Mac/ and iOS/      each app's command table, its own verbs, and its seams
   Mac/                 the macOS app shell
@@ -57,7 +55,7 @@ Vibe/
       Transport/       keys, skips, and FX toggles
       Convert/         the playlist side of Convert to FLAC
     Menu/              the menu bar
-    Controls/          AppKit controls: buttons, the pitch fader, artwork views
+    Controls/          the artwork view and the pitch controls
     Settings/          the Settings window
       Themes/          the theme list and editor
     About/             the About window
@@ -130,7 +128,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### Debug
 
-`Vibe/Debug/` is the debug command channel. It lets a script drive and inspect a running Debug build of either app. On macOS the command is `Vibe --debug-cmd <command>`. For the simulator it is the `vibe-debug` skill's `debug-ios.sh`. Nearly every file is wrapped in `#if DEBUG`. A Release build compiles them to empty objects. `Channel/` is the transport. `Verbs/` holds the commands both apps answer. `Oracles/` holds the consistency checks. `Simulators/` holds stand-ins for a cloud provider and an HTTP host, and the manual render pump the audio tests use in place of a device. `Seams/` holds the `+Debug` categories that open a shipping class to the channel and the tests. Read next: the `vibe-debug` skill to use the channel, and `Vibe/Debug/AGENTS.md` to change it.
+`Vibe/Debug/` is the debug command channel. It lets a script drive and inspect a running Debug build of either app. On macOS the command is `Vibe --debug-cmd <command>`. For the simulator it is the `vibe-debug` skill's `debug-ios.sh`. Nearly every file is wrapped in `#if DEBUG`. A Release build compiles them to empty objects. `Channel/` is the transport. `Verbs/` holds the commands both apps answer. `Oracles/` holds the consistency checks. `Simulators/` holds a stand-in for an HTTP host, and the manual render pump the audio tests use in place of a device. vibe-libs' `files/FileLoading` holds the stand-in for a cloud provider. `Seams/` holds the `+Debug` categories that open a shipping class to the channel and the tests. Read next: the `vibe-debug` skill to use the channel, and `Vibe/Debug/AGENTS.md` to change it.
 
 ### The macOS shell
 
