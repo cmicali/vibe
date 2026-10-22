@@ -13,6 +13,7 @@
 #import "AudioTrackMetadata.h"
 #import "FakeTrackMetadata.h"
 #import "NSURL+Hash.h"
+#import "PlaylistFile.h"
 
 @interface AudioTrackTests : XCTestCase
 @end
@@ -384,6 +385,56 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
     XCTAssertEqualObjects(incoming.cueSheetURL, TrackNamed(@"mix.cue").url);
     XCTAssertEqual(incoming.cueTrackNumber, 3);
     XCTAssertEqualObjects(incoming.url, TrackNamed(@"mix.wav").url);
+}
+
+#pragma mark - Entries
+
+// The writer names what the row's entry carries: the tags' names and length.
+- (void)testAnEntryCarriesTheRowsTaggedNamesAndLength {
+    AudioTrack *track = [AudioTrack withURL:[NSURL fileURLWithPath:@"/Music/A/x.mp3"]];
+    FakeTrackMetadata *tags = [FakeTrackMetadata new];
+    tags.artist = @"Björk";
+    tags.title = @"Jóga";
+    tags.duration = 305.4;
+    tags.parsedOK = YES;
+    Attach(track, tags);
+    NSString *text = [PlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:@[track]] relativeToDirectory:nil];
+    XCTAssertEqualObjects(text, @"#EXTM3U\n#EXTINF:305,Björk - Jóga\n/Music/A/x.mp3\n");
+}
+
+- (void)testAnUntaggedRowsEntryCarriesTheFilenameTitleAndNoLength {
+    AudioTrack *track = [AudioTrack withURL:[NSURL fileURLWithPath:@"/Music/A/01_My_Track.mp3"]];
+    NSString *text = [PlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:@[track]] relativeToDirectory:nil];
+    XCTAssertEqualObjects(text, @"#EXTM3U\n#EXTINF:-1,01 My Track\n/Music/A/01_My_Track.mp3\n");
+}
+
+// A cue row's entry carries its window, the sheet's names, and the window's
+// length.
+- (void)testACueRowsEntryCarriesItsWindowAndItsNames {
+    AudioTrack *row = [[AudioTrack alloc] initWithURL:[NSURL fileURLWithPath:@"/Music/mix.flac"] cueStart:4500
+                                               cueEnd:9000 title:@"Two" performer:@"DJ"
+                                                sheet:[NSURL fileURLWithPath:@"/Music/mix.cue"] trackNumber:2];
+    NSString *text = [PlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:@[row]] relativeToDirectory:nil];
+    XCTAssertEqualObjects(text, @"#EXTM3U\n"
+                                 "#EXTINF:60,DJ - Two\n"
+                                 "#EXTVLCOPT:start-time=60.000\n"
+                                 "#EXTVLCOPT:stop-time=120.000\n"
+                                 "#VIBE-CUE:2,4500,9000,Two,DJ,file:///Music/mix.cue\n"
+                                 "/Music/mix.flac\n");
+}
+
+- (void)testRowsMadeFromEntriesKeepEachWindowAndName {
+    NSData *data = [@"#VIBE-CUE:1,0,4500,A,,file:///M/mix.cue\n/M/mix.flac\n/M/b.flac\n"
+            dataUsingEncoding:NSUTF8StringEncoding];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile entriesInM3UData:data]];
+    XCTAssertEqual(rows.count, 2u);
+    XCTAssertEqual(rows[0].cueEnd, 4500u);
+    XCTAssertEqualObjects(rows[0].cueTitle, @"A");
+    XCTAssertEqualObjects(rows[0].cueSheetURL.path, @"/M/mix.cue");
+    XCTAssertEqual(rows[0].cueTrackNumber, 1);
+    XCTAssertFalse(rows[1].isWindowed);
+    XCTAssertNil(rows[1].cueTitle);
+    XCTAssertEqualObjects(rows[1].url.path, @"/M/b.flac");
 }
 
 #pragma mark - Disk key memoization

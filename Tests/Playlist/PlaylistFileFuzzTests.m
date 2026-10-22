@@ -10,9 +10,10 @@
 
 #import <XCTest/XCTest.h>
 
-#import "AudioFixtures.h"
-#import "AudioTrack.h"
+#import "FLACFixtures.h"
+#import "PlaylistEntry.h"
 #import "PlaylistFileTestCase.h"
+#import "VibeFuzzRandom.h"
 
 static BOOL FuzzChance(VibeFuzzRandom *random, NSUInteger oneIn) {
     return VibeFuzzBelow(random, oneIn) == 0;
@@ -493,11 +494,11 @@ static NSData *FuzzCorruptData(VibeFuzzRandom *random) {
             }
             XCTAssertTrue([data writeToURL:url atomically:YES], @"seed %llu", seed);
 
-            NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:url]];
+            NSArray<PlaylistEntry *> *rows = [PlaylistFile cueEntriesEmbeddedInFLACAtURL:url];
 
             XCTAssertNotEqual(rows.count, 1u, @"seed %llu", seed);
             NSUInteger next = 0;
-            for (AudioTrack *row in rows) {
+            for (PlaylistEntry *row in rows) {
                 XCTAssertEqualObjects(row.url, url, @"seed %llu", seed);
                 XCTAssertEqual(row.cueStart, next, @"seed %llu", seed);
                 XCTAssertTrue(row.cueEnd == 0 || row.cueEnd > row.cueStart, @"seed %llu", seed);
