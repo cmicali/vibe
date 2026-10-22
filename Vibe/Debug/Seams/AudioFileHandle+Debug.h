@@ -9,8 +9,6 @@
 //  handle's file closes on.
 //
 
-#if DEBUG
-
 #import "AudioFileHandle.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -49,5 +47,3 @@ NS_ASSUME_NONNULL_BEGIN
 dispatch_queue_t VibeHandleDebugCloseQueue(void);
 
 NS_ASSUME_NONNULL_END
-
-#endif
