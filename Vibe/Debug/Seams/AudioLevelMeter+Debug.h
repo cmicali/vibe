@@ -7,8 +7,6 @@
 //  private struct.
 //
 
-#if DEBUG
-
 #import "AudioLevelMeter.h"
 
 @interface AudioLevelMeter (Debug)
@@ -20,5 +18,3 @@
 - (NSUInteger)debugRendersHeld;
 
 @end
-
-#endif

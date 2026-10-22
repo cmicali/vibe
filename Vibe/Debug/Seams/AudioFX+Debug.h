@@ -7,8 +7,6 @@
 //  AudioFX.m, beside the chain's private struct.
 //
 
-#if DEBUG
-
 #import "AudioFX.h"
 
 @interface AudioFX (Debug)
@@ -20,5 +18,3 @@
 - (BOOL)debugUninitializeUnitAtIndex:(NSUInteger)index;
 
 @end
-
-#endif
