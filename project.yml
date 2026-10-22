@@ -742,7 +742,6 @@ targets:
           - "iOSSim/**"                       # VibeiOSTests' suite: UIKit, on a simulator
       - path: Vibe/Playlist/AudioAnalysisObservers.m
       - path: Vibe/Audio/Waveform/AudioWaveformObserver.m
-      - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
       - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
@@ -916,6 +915,16 @@ targets:
       - path: Tests/Support/HTTPStub.m        # a link played over it (AudioPlayerRenderLinkTests)
       - path: vibe-libs/Tests/Support/VibeTestTrack.m   # the render suite's playable item
       - path: vibe-libs/Tests/audio/Decode/AudioFileHandleFuzzTests.m   # over the generated fixtures
+      # Optimize the render path for long PCM comparisons without enabling fast math.
+      - path: vibe-libs/audio/Player/AudioVoiceBus.m
+        compilerFlags: &render-path-flags ["-O2"]
+      - path: vibe-libs/audio/Player/AudioVoiceBusRender.m
+        compilerFlags: *render-path-flags
+      - path: vibe-libs/audio/Player/AudioVoiceBus+Decoder.m
+        compilerFlags: *render-path-flags
+      - path: vibe-libs/audio/Player/VibeManualRenderPump.m
+      - path: vibe-libs/audio/Player/PlaybackRequestCoordinator.m
+      - path: vibe-libs/audio/Player/AudioOutputUnit.m
       - path: vibe-libs/audio/Player/AudioPlayer.m
       - path: vibe-libs/audio/Player/AudioPlayer+State.m
       - path: vibe-libs/audio/Player/AudioPlayer+Pipeline.m
@@ -962,20 +971,13 @@ targetTemplates:
       - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
       - path: Vibe/Playlist/AudioTrack.m
       - path: Vibe/Audio/Metadata/NSURL+FilenameTitle.m
-      # Optimize the render path for long PCM comparisons without enabling fast math.
-      - path: vibe-libs/audio/Player/AudioVoiceBus.m
-        compilerFlags: &render-path-flags ["-O2"]
-      - path: vibe-libs/audio/Player/AudioVoiceBusRender.m
-        compilerFlags: *render-path-flags
-      - path: vibe-libs/audio/Player/AudioVoiceBus+Decoder.m
-        compilerFlags: *render-path-flags
+      # The render path's -O2, anchored in VibeAudioTests' list, which YAML reads first.
       - path: vibe-libs/audio/DSP/AudioResampler.mm
       - path: vibe-libs/audio/FX/AudioFX.m
         compilerFlags: *render-path-flags
       - path: vibe-libs/audio/DSP/AudioVarispeed.m
         compilerFlags: *render-path-flags
-      - path: vibe-libs/audio/Player/VibeManualRenderPump.m
-      - path: vibe-libs/audio/Player/AudioError.m
+      - path: vibe-libs/audio/Player/AudioError.m   # VibeTests' error rules and its filesystem guard push the domain
       - path: vibe-libs/files/FileLoading/Claim/AudioLoadingConfiguration.m
       - path: vibe-libs/audio/Decode/AudioFileHandle.m
       - path: vibe-libs/audio/Decode/AudioFileHandle+MPEG.m
@@ -990,7 +992,6 @@ targetTemplates:
       - path: vibe-libs/core/Common/AudioWorkScheduler.m
       - path: vibe-libs/audio/Meter/AudioLevelAnalyzer.m
       - path: vibe-libs/audio/Meter/AudioLevelPublisher.m
-      - path: vibe-libs/audio/Player/PlaybackRequestCoordinator.m
       - path: vibe-libs/files/FileLoading/Transfer/CloudTransferRegistry.m
       - path: vibe-libs/files/FileLoading/Transfer/CloudFileMaterializer.m
       - path: vibe-libs/files/FileLoading/Transfer/CloudFileMaterializer+Debug.m   # its materialize asks the fake first
@@ -1008,7 +1009,6 @@ targetTemplates:
       - path: vibe-libs/audio/OutputDevices/Mac/CoreAudioUtil.m
       - path: vibe-libs/audio/OutputDevices/Mac/CoreAudioUtil+BitPerfect.m
       - path: vibe-libs/audio/OutputDevices/Mac/CoreAudioUtil+Diagnostics.m
-      - path: vibe-libs/audio/Player/AudioOutputUnit.m
       - path: vibe-libs/core/Common/FilePaths.m
       - path: vibe-libs/files/FileLoading/PlaceholderFiles.m
       - path: vibe-libs/files/FileLoading/PlaceholderFiles+Debug.m   # its dataless test asks the probe first
