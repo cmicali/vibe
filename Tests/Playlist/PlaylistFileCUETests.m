@@ -566,7 +566,7 @@ static NSArray<NSString *> *CueRowSummaries(NSString *text) {
         for (PlaylistEntry *row in CueRows(text)) {
             NSString *file = row.url.path;
             XCTAssertTrue(row.cueEnd == 0 || row.cueEnd > row.cueStart, @"round %lu", (unsigned long)round);
-            if (lastStart[file]) {
+            if (lastStart[file] != nil) {
                 XCTAssertGreaterThan(row.cueStart, lastStart[file].unsignedIntegerValue, @"round %lu",
                                      (unsigned long)round);
             }
