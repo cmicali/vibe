@@ -4,7 +4,7 @@
 
 **`Util/` may not call anything stateful**: a singleton, a setting, a grant or a panel. Stateless code is fair game wherever it lives.
 
-**The featureless helpers another app could use are in vibe-libs' `core/Common`**, and its `AGENTS.md` describes them. They are the path spelling (`FilePaths`), the disk key (`NSURL+Hash`, with `NSData (Hash)`'s `sha1Hex`), file emptiness and identity, the stall sampler (`StallWatch`), the work lanes (`AudioWorkScheduler`), the update timer and its math, the weak proxy, the helper macros, the integer token parser, the colon rule (`NSString+FormLabel`), and build provenance (`NSBundle+BuildInfo` and `generate-git-info.sh`). `HelperMacros.h` and `VibeMacros.h` reach every translation unit through the `.pch`, so anything added to either is paid for everywhere. What stays here is Vibe's: `Formatters`, `NSString+CPPStrings` until TagLib's wrapper moves, and the two platform halves.
+**The featureless helpers another app could use are in vibe-libs' `core/Common`**, and its `AGENTS.md` describes them. They are the path spelling (`FilePaths`), the disk key (`NSURL+Hash`, with `NSData (Hash)`'s `sha1Hex`), file emptiness and identity, the stall sampler (`StallWatch`), the work lanes (`AudioWorkScheduler`), the update timer and its math, the weak proxy, the helper macros, the integer token parser, the colon rule (`NSString+FormLabel`), and build provenance (`NSBundle+BuildInfo` and `generate-git-info.sh`). `HelperMacros.h` and `VibeMacros.h` reach every translation unit through the `.pch`, so anything added to either is paid for everywhere. What stays here is Vibe's: `Formatters` and the two platform halves.
 
 ## Formatters joins every info line
 

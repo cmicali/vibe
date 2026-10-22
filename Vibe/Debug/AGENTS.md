@@ -10,7 +10,7 @@ Each shared subdirectory matches a section below.
 - **`Verbs/`** holds the verbs both platforms answer, one file per topic, and the protocol they are written against.
 - **`Oracles/`** holds the oracles.
 - **`Simulators/`** holds the simulators.
-- **`Seams/`** holds the `+Debug` categories over shared classes. The next section says why they live here. **A seam imports nothing from `Channel/` or `Verbs/`.** It belongs to the class it opens, and moves with that class to vibe-libs, which has no channel. The file loader's seams and the fake cloud already have (vibe-libs' `files/FileLoading/AGENTS.md`). So have the FX fault seam, the meter's two seams, and the file handle's (vibe-libs' `audio/FX/AGENTS.md`, `audio/Meter/AGENTS.md`, and `audio/Decode/AGENTS.md`). A parser a seam and the channel share lives in vibe-libs' `core/Common`, as `IntegerTokenRules.h` does.
+- **`Seams/`** holds the `+Debug` categories over shared classes. The next section says why they live here. **A seam imports nothing from `Channel/` or `Verbs/`.** It belongs to the class it opens, and moves with that class to vibe-libs, which has no channel. The file loader's seams and the fake cloud already have (vibe-libs' `files/FileLoading/AGENTS.md`). So have the FX fault seam, the meter's two seams, the file handle's, and the metadata cache's and loader's (vibe-libs' `audio/FX/AGENTS.md`, `audio/Meter/AGENTS.md`, `audio/Decode/AGENTS.md`, and `media/Metadata/AGENTS.md`). A parser a seam and the channel share lives in vibe-libs' `core/Common`, as `IntegerTokenRules.h` does.
 
 `Mac/` and `iOS/` hold each platform's table and verbs. Each has its own `Seams/` for the `+Debug` categories over that shell's classes.
 

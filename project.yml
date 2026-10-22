@@ -145,17 +145,18 @@ targets:
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources. Controls,
     # SettingsWindow, and Shortcuts are macOS only, so VibeiOS never lists
-    # them. The vendored libraries carry their own flags. The metadata parse
+    # them. The vendored libraries carry their own flags. Metadata's parse
     # reads TagLib's own types, and the FLAC converter writes tags through
-    # TagLib, so both apps list TagLib's template beside Tags'.
+    # TagLib, so both apps list TagLib's template beside Tags' and Metadata's.
     #
-    # TRAP: VibeLibsVorbis before VibeLibsTags and VibeLibsTaglib. Header
-    # search paths follow this order, and taglib/ogg holds TagLib's own
-    # vorbis/vorbisfile.h.
+    # TRAP: VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, and
+    # VibeLibsTaglib. Header search paths follow this order, and taglib/ogg
+    # holds TagLib's own vorbis/vorbisfile.h.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
                 VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform,
                 VibeLibsWaveformLoading, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
                 VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTags,
+                VibeLibsMetadata,
                 VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
@@ -449,12 +450,13 @@ targets:
   VibeiOS:
     type: application
     platform: iOS
-    # VibeLibsVorbis before VibeLibsTags and VibeLibsTaglib: see the Vibe
-    # target.
+    # VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, and VibeLibsTaglib:
+    # see the Vibe target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
                 VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform,
                 VibeLibsWaveformLoading, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
-                VibeLibsVorbis, VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
+                VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
+                VibeLibsDrMp3,
                 VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
@@ -737,8 +739,7 @@ targets:
           - "iOSDriver/**"                    # VibeiOSDriver's XCUI sources: iOS-only API
           - "BenchComponents/**"              # the component benchmarks, perf.py's tool
           - "AudioRender/**"                  # VibeAudioTests' suite
-          - "Audio/Metadata/AudioTrackMetadataTagTests.mm"    # VibeAudioTests': TagLib
-          - "Audio/Metadata/AudioTrackMetadataFuzzTests.mm"   # same
+          - "Playlist/AudioTrackTagTests.mm"  # VibeAudioTests': TagLib
           - "iOSSim/**"                       # VibeiOSTests' suite: UIKit, on a simulator
       - path: Vibe/Playlist/AudioAnalysisObservers.m
       - path: vibe-libs/waveform/WaveformLoading/AudioWaveformObserver.m
@@ -751,12 +752,6 @@ targets:
       - path: Vibe/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Disposal.m
-      - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader.m
-      - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Materialization.m
-      - path: Vibe/Audio/Metadata/AudioTrackMetadataLoader+Parse.m
-      - path: Vibe/Debug/Seams/AudioTrackMetadataLoader+Debug.m   # the lane state the tests read
-      - path: Vibe/Audio/Metadata/MetadataScanEntry.m
-      - path: Vibe/Audio/Metadata/MetadataParseCoordinator.m
       - path: Vibe/NowPlaying/NowPlayingController.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: vibe-libs/ui/Controls/Mac/CrossfadingImageView.m
@@ -866,13 +861,16 @@ targets:
           - "$(SRCROOT)/vibe-libs/media/PlayQueue"
           - "$(SRCROOT)/vibe-libs/media/Playlists"
           - "$(SRCROOT)/Vibe/Util"
-          - "$(SRCROOT)/Vibe/Util/Categories"
           - "$(SRCROOT)/Vibe/Util/Mac"
           - "$(SRCROOT)/Vibe/Audio"
           - "$(SRCROOT)/vibe-libs/audio/Player"
           - "$(SRCROOT)/vibe-libs/audio/Player/Mac"
           - "$(SRCROOT)/vibe-libs/audio/Meter"
-          - "$(SRCROOT)/Vibe/Audio/Metadata"
+          - "$(SRCROOT)/vibe-libs/media/Metadata"
+          - "$(SRCROOT)/vibe-libs/media/Metadata/Artwork"
+          - "$(SRCROOT)/vibe-libs/media/Metadata/Artwork/FolderArt"
+          # The tag fixtures, which the row's tag tests share with the parse's.
+          - "$(SRCROOT)/vibe-libs/Tests/media/Metadata"
           - "$(SRCROOT)/vibe-libs/media/Tags"
           - "$(SRCROOT)/vibe-libs/waveform/WaveformLoading"
           - "$(SRCROOT)/vibe-libs/audio/FX"
@@ -937,13 +935,15 @@ targets:
       - path: vibe-libs/audio/Player/Mac/AudioPlayer+Devices.m
       - path: vibe-libs/audio/Player/Mac/AudioPlayer+BitPerfect.m
       - path: vibe-libs/audio/Meter/AudioLevelMeter.m
-      # The tag parse and its art, over the real TagLib. VibeTests links a
-      # decoy instead (Tests/AGENTS.md).
-      - path: Tests/Audio/Metadata/AudioTrackMetadataTagTests.mm
-      - path: Tests/Audio/Metadata/AudioTrackMetadataFuzzTests.mm
-      - path: Vibe/Audio/Metadata/AudioTrackMetadata.mm
+      # The tag parse and its art, over the real TagLib. VibeTests compiles
+      # neither (Tests/AGENTS.md). The parse's tests are vibe-libs',
+      # compiled here over the generated fixtures, so Ogg's cases run.
+      - path: vibe-libs/Tests/media/Metadata/AudioTrackMetadataTagTests.mm
+      - path: vibe-libs/Tests/media/Metadata/AudioTrackMetadataFuzzTests.mm
+      - path: Tests/Playlist/AudioTrackTagTests.mm   # the row over the real parse
+      - path: vibe-libs/media/Metadata/AudioTrackMetadata.mm
       - path: vibe-libs/media/Tags/TagLibAudioFile.mm
-      - path: Vibe/Util/Categories/NSString+CPPStrings.mm
+      - path: vibe-libs/media/Metadata/NSString+CPPStrings.mm
     settings:
       base:
         <<: *hostless-test-settings
@@ -970,7 +970,7 @@ targetTemplates:
       - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # HTTPStub's sessionConfiguration
       - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
       - path: Vibe/Playlist/AudioTrack.m
-      - path: Vibe/Audio/Metadata/NSURL+FilenameTitle.m
+      - path: vibe-libs/media/Metadata/NSURL+FilenameTitle.m
       # The render path's -O2, anchored in VibeAudioTests' list, which YAML reads first.
       - path: vibe-libs/audio/DSP/AudioResampler.mm
       - path: vibe-libs/audio/FX/AudioFX.m
@@ -1022,13 +1022,13 @@ targetTemplates:
       - path: vibe-libs/core/Common/VibeWorkTally.m
       # The artwork, settings and theme files the tag parse (VibeAudioTests) and
       # the shell (VibeTests) both reach.
-      - path: Vibe/Audio/Metadata/Artwork/ArtworkLoadRegistry.m
-      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork+Loading.m
-      - path: Vibe/Audio/Metadata/Artwork/AudioTrackArtwork.m
-      - path: Vibe/Audio/Metadata/Artwork/EmbeddedThumbnailCache.m
-      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtEntry.m
-      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtFileIO.m
-      - path: Vibe/Audio/Metadata/Artwork/FolderArt/FolderArtResolver.m
+      - path: vibe-libs/media/Metadata/Artwork/ArtworkLoadRegistry.m
+      - path: vibe-libs/media/Metadata/Artwork/AudioTrackArtwork+Loading.m
+      - path: vibe-libs/media/Metadata/Artwork/AudioTrackArtwork.m
+      - path: vibe-libs/media/Metadata/Artwork/EmbeddedThumbnailCache.m
+      - path: vibe-libs/media/Metadata/Artwork/FolderArt/FolderArtEntry.m
+      - path: vibe-libs/media/Metadata/Artwork/FolderArt/FolderArtFileIO.m
+      - path: vibe-libs/media/Metadata/Artwork/FolderArt/FolderArtResolver.m
       - path: Vibe/Common/AppSettings.m
       - path: Vibe/Common/Mac/AppSettings+Mac.m
       - path: Vibe/Common/Mac/Theme/AppSettings+Themes.m

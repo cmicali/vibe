@@ -4,7 +4,7 @@ Vibe's audio features beside the engine, and how Vibe hosts the engine. **The en
 
 The file handle it reads through, with the decoders it hosts, is vibe-libs' `audio/Decode`. The resampler, the varispeed, and the fades are `audio/DSP`. The words it shares with the rest of the audio code are `audio/AudioTypes`: `VibePlayableItem`, the item the player reads, `CueWindowMath.h`, `MusicalKey.h`, and `AudioFileFormat`. The file-open path beneath it is `files/FileLoading`. The output devices and the iOS audio session it plays through are `audio/OutputDevices`. The DJ FX and the meter are `audio/FX` and `audio/Meter`. Tempo and key detection is `audio/Analysis`. Each has its own `AGENTS.md`.
 
-Every feature beside the engine has its own `AGENTS.md`: `Metadata/` and `Metadata/Artwork/FolderArt/`. The waveform's data is vibe-libs' `waveform/Waveform` and `waveform/WaveformLoading`, and how Vibe uses them is below. Rendering is `Vibe/WaveformUI/`. Convert to FLAC is the mac shell's (`Vibe/Mac/Convert/AGENTS.md`). `PINCache+VibeAudioCache`, the disk-cache policy the metadata and waveform caches share, is vibe-libs' `files/DiskCache`.
+**The metadata pipeline is vibe-libs' `media/Metadata`**: the tag record and its CoreAudio fallback, the cache and its scan, embedded art and the row thumbnails, and folder art. Its `AGENTS.md` is the authority for them, and Metadata and artwork, below, is what Vibe does with them. The waveform's data is vibe-libs' `waveform/Waveform` and `waveform/WaveformLoading`, and how Vibe uses them is below. Rendering is `Vibe/WaveformUI/`. Convert to FLAC is the mac shell's (`Vibe/Mac/Convert/AGENTS.md`). `PINCache+VibeAudioCache`, the disk-cache policy the metadata and waveform caches share, is vibe-libs' `files/DiskCache`.
 
 ## How Vibe hosts the player
 
@@ -47,6 +47,20 @@ Every feature beside the engine has its own `AGENTS.md`: `Metadata/` and `Metada
 
 **The debug verbs drive the piece's two seams.** `file_cache`, `dump_waveform`, and `file_clear_cache` make a row for the file and pass it to the cache's seam. `set_waveform_decode_seconds` sets the decode pace. `dump_timing` and `clear_timing` read the loader's seam (`Debug/AGENTS.md`).
 
+## Metadata and artwork
+
+**Vibe's row, `AudioTrack`, is the metadata's holder** (`Playlist/AGENTS.md`). It adopts `AudioTrackMetadataHolder` and memoizes its cache key. Tags beat analysis on the row alone (root `AGENTS.md`).
+
+**Each shell owns one `AudioTrackMetadataCache`**, rooted in the user's Caches directory (`init`): the mac's `MainPlayerController` (`+Construction`) and the iOS `PlaybackController`. The iOS Files tab keeps one more for its browser's art (`FilesRootViewController`). It sends only rows whose audio is not on the device to `loadCachedMetadata:` (`FolderViewController+Art.m`).
+
+**The shells drive the scan, and the scan reads no setting.** The sweep waits until the picked track's open settles (`scheduleDeferredMetadataLoad`, root `AGENTS.md`). Every track start sends `loadMetadataNow:`. The one current-index funnel sends `setNeighborhoodTracks:` the playlist's `neighborhoodTracks`: the next two and the previous in play order. The removal funnel sends `abandonQueuedTrack:` for each removed row. File > Close and a playlist replacement send `cancelScan`. Each list redraws its visible rows on `AudioTrackMetadataThumbnailDidLoadNotification`.
+
+**Folder art is the mac's.** `AppDelegate` installs the resolver's two providers at launch, from `AppSettings.useFolderArt` and `FolderAccessManager`'s grants. Beside them it installs the folder walk's handlers: the rank of each walked file, `VibeFolderArtCandidateRank` from `FolderArtRules.h`, and the listed and bulk-opened folders the resolver takes. A grant change sends `invalidateDirectoriesSettledWithoutGrant` (`MainPlayerController+Delivery.m`). The header coalesces `FolderArtDidResolveNotification` (`Mac/MainWindow/AGENTS.md`).
+
+**TRAP: the resolver caches the setting.** Every writer of `useFolderArt` must request `VibeSettingsLiveEffectFolderArt`, whose mapping calls `folderArtSettingDidChange`. A direct defaults write is not observed (`Mac/Settings/AGENTS.md`, `Common/AGENTS.md`).
+
+The debug channel's oracles and verbs read the cache's and the loader's seams, which sit beside their classes in vibe-libs (`Debug/AGENTS.md`).
+
 ## Live output levels
 
 **The demand is the indicators', not play intent.** Each shell counts indicators declaring themselves consumers through `equalizerLevelsWanted:`. It enables levels only while the player's `outputAudioActive` and material visibility also hold (root `AGENTS.md`). The platform halves are `../iOS/AGENTS.md` and `../Playlist/Mac/AGENTS.md`. The meter and the player's side of it are vibe-libs' (`audio/Meter/AGENTS.md`, `audio/Player/AGENTS.md`).
@@ -66,3 +80,5 @@ The player's beta lines (`Timeline:`, `Phase:`, `Callback:`, `Buffering:`, `Reco
 ## Tests
 
 The player's tests are vibe-libs' `Tests/audio/Player`, and they run there. **The render suite is vibe-libs' `Tests/audio/Player/Render`**, which `VibeAudioTests` compiles from the submodule over the generated fixtures (`make test-audio`, `Tests/AGENTS.md`). Two test files stay here. `AudioPlayerRenderLinkTests` plays a link through Vibe's own `LinkStore`. `AudioQualityCorpusTests` runs only from the `vibe-audio-quality` skill. `Tests/Audio/AudioErrorRulesTests.m` covers `AudioErrorRules.h`. The waveform loader's and the observers' tests are vibe-libs' `Tests/waveform/WaveformLoading`. `Tests/Playlist/AudioAnalysisObserversTests.m` covers how Vibe reads its tempo and key from the results.
+
+The metadata pipeline's tests are vibe-libs' `Tests/media/Metadata`, and they run there. `VibeAudioTests` also compiles its tag and fuzz tests from the submodule over the generated fixtures, so their Ogg cases run (`Tests/AGENTS.md`). Two test files stay here. `Tests/Playlist/AudioTrackTagTests.mm` checks the row over the real parse. `Tests/Playlist/FolderArtWalkTests.m` checks the walk's handoff to the resolver, as `AppDelegate` wires it.
