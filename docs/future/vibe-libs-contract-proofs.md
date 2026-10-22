@@ -33,9 +33,9 @@ A test named as vibe-libs' moved there with its piece, and runs in vibe-libs' CI
 
 | Contract | Tests that pin it |
 | --- | --- |
-| An observer has a stable identifier, which names its result in the archive. | `CodableAudioWaveformTests` `testEncodeThenDecodePreservesTheSummaryBandsAndResults`, `testResultsThatWillNotReadRejectTheEntry`. |
+| An observer has a stable identifier, which names its result in the archive. | vibe-libs' `CodableAudioWaveformTests` `testEncodeThenDecodePreservesTheSummaryBandsAndResults`, `testResultsThatWillNotReadRejectTheEntry`. |
 | The loader asks each listed observer for a sink, given the rate and the window, and feeds it every mono block in order. | `AudioWaveformObserverTests` `testADecodeFeedsItsSinkEveryFrameAndDeliversTheResult`. |
-| Each sink returns one result, any property-list object, filed beside the summary. | `CodableAudioWaveformTests` `testEveryPropertyListClassRoundTrips`. A sink that returns something else asserts in Debug and is dropped in Release. **No test** covers that drop. |
+| Each sink returns one result, any property-list object, filed beside the summary. | vibe-libs' `CodableAudioWaveformTests` `testEveryPropertyListClassRoundTrips`. A sink that returns something else asserts in Debug and is dropped in Release. **No test** covers that drop. |
 | A cache hit decodes nothing and hands back the filed results. | `AudioWaveformObserverTests` `testACacheHitDecodesNothingAndHandsBackTheResult`. |
 | An entry covers a request only if it holds a result for every observer listed. | `AudioWaveformObserverTests` `testAnEntryWithoutAResultMissesForARequestThatListsIt`. `AudioWaveformLoaderTests` `testCacheOnlyLookupMissesWithoutDecodingAndChecksAnalysisRequirements`, for the bands. |
 | A request joins a running decode only if that decode carries every observer it wants. | `AudioWaveformObserverTests` `testARequestJoinsADecodeThatCarriesItsObservers`, `testARequestThatWantsMoreDoesNotJoin`. |

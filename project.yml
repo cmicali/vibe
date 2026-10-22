@@ -741,7 +741,6 @@ targets:
           - "iOSSim/**"                       # VibeiOSTests' suite: UIKit, on a simulator
       - path: Vibe/Playlist/AudioAnalysisObservers.m
       - path: Vibe/Audio/Waveform/AudioWaveformObserver.m
-      - path: Vibe/Audio/Waveform/AudioWaveform.mm
       - path: Vibe/Audio/Waveform/AudioWaveformLoader.mm
       - path: Vibe/Audio/Waveform/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
       - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
