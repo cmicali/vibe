@@ -4,7 +4,7 @@
 //
 //  The real tag parse over the real TagLib: each format's tags and facts, the
 //  tempo and key that beat analysis, embedded art through the bounded decode,
-//  and the parse of a file whose extension misleads. TagLibAudioFileTests.mm
+//  and the parse of a file whose extension misleads. vibe-libs' media/Tags
 //  tests the detection itself. Every file is written here
 //  (AudioTrackMetadataTagFixtures.h), except Ogg's audio, which the render
 //  suite's generator makes with ffmpeg; those tests skip without it.
