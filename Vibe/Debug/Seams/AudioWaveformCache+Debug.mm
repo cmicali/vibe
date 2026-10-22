@@ -10,9 +10,10 @@
 #import "AudioWaveformCacheInternal.h"
 #import "AudioWaveform.h"
 #import "PINCache.h"
-#import "AudioTrack.h"
 #import "AudioWaveformLoader.h"
 #import "AudioWorkScheduler.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 #include <atomic>
 
@@ -32,16 +33,14 @@ static std::atomic<double> sDebugDecodeSeconds{0};
 
 #pragma mark - Debug: per-file cache control
 
-// The lookup-or-decode path for one file, apart from the UI's load. The
+// The lookup-or-decode path for one track, apart from the UI's load. The
 // completion runs on main with nil on failure.
-- (void)waveformForURL:(NSURL *)url completion:(void (^)(CodableAudioWaveform *, BOOL wasCached))completion {
-    AudioTrack *track = [AudioTrack withURL:url];
+- (void)waveformForTrack:(id<VibePlayableItem>)track completion:(void (^)(CodableAudioWaveform *, BOOL wasCached))completion {
+    NSURL *url = track.url;
     // A private loader, never assigned to _currentLoader. The UI's in-flight
     // load is not cancelled, and no delegate progress or delivery fires; this
-    // path reports through the completion instead. The typed nil delegate
-    // local dodges -Wnonnull.
-    id<AudioWaveformLoaderDelegate> noDelegate = nil;
-    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] initWithDelegate:noDelegate];
+    // path reports through the completion instead, so it has no delegate.
+    AudioWaveformLoader *loader = [[AudioWaveformLoader alloc] init];
     loader.analysis = self.analysisProvider ? self.analysisProvider() : (VibeWaveformAnalysis){};
     // The key is computed off the loader queue; see loadWaveformForTrack:.
     [_lookupScheduler submitWork:^{
@@ -65,16 +64,17 @@ static std::atomic<double> sDebugDecodeSeconds{0};
     }];
 }
 
-- (void)cacheWaveformForURL:(NSURL *)url
-                 completion:(void (^)(BOOL, BOOL, NSDictionary<NSString *, id> *))completion {
-    [self waveformForURL:url completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
+- (void)cacheWaveformForTrack:(id<VibePlayableItem>)track
+                   completion:(void (^)(BOOL, BOOL, NSDictionary<NSString *, id> *))completion {
+    [self waveformForTrack:track completion:^(CodableAudioWaveform *waveform, BOOL wasCached) {
         if (completion) completion(waveform != nil, wasCached, waveform.results ?: @{});
     }];
 }
 
-- (void)dumpWaveformForURL:(NSURL *)url columns:(NSUInteger)columns
-                completion:(void (^)(NSDictionary *))completion {
-    [self waveformForURL:url completion:^(CodableAudioWaveform *codable, BOOL wasCached) {
+- (void)dumpWaveformForTrack:(id<VibePlayableItem>)track columns:(NSUInteger)columns
+                  completion:(void (^)(NSDictionary *))completion {
+    NSURL *url = track.url;
+    [self waveformForTrack:track completion:^(CodableAudioWaveform *codable, BOOL wasCached) {
         AudioWaveform *waveform = codable.waveform;
         if (!waveform) {
             completion(nil);
@@ -112,8 +112,8 @@ static std::atomic<double> sDebugDecodeSeconds{0};
     }];
 }
 
-- (void)clearCachedWaveformForURL:(NSURL *)url completion:(void (^)(BOOL))completion {
-    AudioTrack *track = [AudioTrack withURL:url];
+- (void)clearCachedWaveformForTrack:(id<VibePlayableItem>)track completion:(void (^)(BOOL))completion {
+    NSURL *url = track.url;
     // The key is computed off the loader queue; see loadWaveformForTrack:.
     [_lookupScheduler submitWork:^{
         NSString *cacheKey = track.cacheKey;

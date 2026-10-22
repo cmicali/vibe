@@ -11,9 +11,11 @@
 
 #import "AudioWaveformLoaderInternal.h"
 #import "AudioWaveform.h"
-#import "AudioLoadTiming.h"
+#import "AudioWaveformLoader+Debug.h"
 #import "CloudFileMaterializer.h"
 #import "CueWindowMath.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 #if DEBUG
 #import "AudioWaveformCache+Debug.h"
 #endif
@@ -22,7 +24,17 @@
 #include <array>
 #include <atomic>
 #include <memory>
+#include <time.h>
 #include <vector>
+
+// 0 in Release, so every accumulation folds away and call sites need no #if.
+static inline uint64_t VibeLoadClockNow(void) {
+#if DEBUG
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+#else
+    return 0;
+#endif
+}
 
 @implementation AudioWaveformLoader {
     // What cancel interrupts, under @synchronized (self): the file the open
@@ -122,7 +134,7 @@
 - (CodableAudioWaveform *)decode:(NSString *)filename {
 
     // Phase timings for this pass. The clock reads compile to constants in
-    // Release, where nothing consumes them; see AudioLoadTiming.h.
+    // Release, where nothing consumes them; see AudioWaveformLoader+Debug.h.
     VibeLoadPhaseNanos nanos = {};
     uint64_t loadStart = VibeLoadClockNow();
 

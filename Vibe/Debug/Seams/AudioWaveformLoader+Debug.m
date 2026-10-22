@@ -1,9 +1,9 @@
 //
-//  AudioLoadTiming.m
+//  AudioWaveformLoader+Debug.m
 //  Vibe
 //
 
-#import "AudioLoadTiming.h"
+#import "AudioWaveformLoader+Debug.h"
 
 #if DEBUG
 

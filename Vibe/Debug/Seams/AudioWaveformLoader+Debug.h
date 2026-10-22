@@ -1,16 +1,17 @@
 //
-//  AudioLoadTiming.h
+//  AudioWaveformLoader+Debug.h
 //  Vibe
 //
 //  Phase timings for one waveform decode pass, so each observer's cost is
 //  measured in-process rather than inferred from the app's total CPU.
-//  The decode has no reply path, so each pass records here and dump_timing and
-//  the file_cache reply read it after the fact. Plain C accumulators, so the
-//  ObjC++ loader and the plain-ObjC channel share the header.
+//  The decode has no reply path, so each pass records here, and a debug
+//  build's channel reads the passes after the fact. Declaration-only, which
+//  keeps the shipping headers free of #if DEBUG. AudioLoadTiming is
+//  implemented in AudioWaveformLoader+Debug.m, in Debug builds only. The
+//  loader records under #if DEBUG, and its clock reads 0 in Release.
 //
 
 #import <Foundation/Foundation.h>
-#import <time.h>
 
 // Nanoseconds per phase of one decode pass. The loader pipelines the read
 // against everything downstream, so the phases can sum past total: each is
@@ -20,17 +21,6 @@ typedef struct {
     uint64_t chunk;      // the shared mono downmix plus min/max chunk merging
     uint64_t total;      // the whole pass, the phases above, the observers and progress delivery
 } VibeLoadPhaseNanos;
-
-// 0 in Release, so every accumulation folds away and call sites need no #if.
-static inline uint64_t VibeLoadClockNow(void) {
-#if DEBUG
-    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-#else
-    return 0;
-#endif
-}
-
-#if DEBUG
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -56,5 +46,3 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
-
-#endif

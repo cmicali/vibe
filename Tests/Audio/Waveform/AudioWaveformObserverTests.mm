@@ -12,16 +12,37 @@
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
 
-#import "AudioFixtures.h"
-#import "AudioLoadTiming.h"
-#import "AudioTrack.h"
+#import "AudioFileFixtures.h"
+#import "AudioWaveformLoader+Debug.h"
 #import "AudioWaveform.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformObserver.h"
 #import "NSURL+Hash.h"
-#import "TestFilesystemGuard.h"
+#import "VibeTestNegativeWindow.h"
+#import "VibeTestTrack.h"
 
 #include <cmath>
+
+// Spins the run loop until the condition holds, up to the hang guard.
+static BOOL WaveformSpinUntil(BOOL (^condition)(void)) {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:VIBE_TEST_HANG_TIMEOUT];
+    while (!condition()) {
+        if (deadline.timeIntervalSinceNow < 0) {
+            return NO;
+        }
+        [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode
+                               beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+    }
+    return YES;
+}
+
+// Spins the run loop for a window in which nothing more may arrive.
+static void WaveformSpinFor(NSTimeInterval seconds) {
+    NSDate *until = [NSDate dateWithTimeIntervalSinceNow:seconds];
+    do {
+        [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode beforeDate:until];
+    } while (until.timeIntervalSinceNow > 0);
+}
 
 // One decode's record: its rate and window, the frames it was fed, their
 // loudest sample, and how often it finished.
@@ -173,7 +194,7 @@
 
 - (void)setUp {
     [super setUp];
-    _tempDirectory = [NSURL fileURLWithPath:[VibeTestProcessRoot() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]];
+    _tempDirectory = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]];
     [NSFileManager.defaultManager createDirectoryAtURL:_tempDirectory withIntermediateDirectories:YES
                                             attributes:nil error:nil];
     _frames = [[WaveformRecordingObserver alloc] initWithIdentifier:@"test.frames"];
@@ -220,12 +241,12 @@
 }
 
 - (BOOL)eventually:(BOOL (^)(void))condition {
-    return VibeSpinUntil(condition);
+    return WaveformSpinUntil(condition);
 }
 
 // Whether the entry is on disk, read through the lane that never decodes.
 // Its own result deliveries are not recorded.
-- (BOOL)eventuallyCached:(AudioTrack *)track {
+- (BOOL)eventuallyCached:(VibeTestTrack *)track {
     __block BOOL cached = NO;
     _cache.delegate = nil;
     BOOL found = [self eventually:^BOOL {
@@ -234,7 +255,7 @@
             cached = waveform != nil;
             answered = YES;
         }];
-        VibeSpinUntil(^BOOL { return answered; });
+        WaveformSpinUntil(^BOOL { return answered; });
         return cached;
     }];
     _cache.delegate = _recorder;
@@ -248,7 +269,7 @@
 // the track.
 - (void)testADecodeFeedsItsSinkEveryFrameAndDeliversTheResult {
     NSURL *url = [self writeWAVNamed:@"decode.wav" seconds:2.0];
-    AudioTrack *track = [AudioTrack withURL:url];
+    VibeTestTrack *track = [VibeTestTrack withURL:url];
     [_cache loadWaveformForTrack:track];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 1; }]);
 
@@ -270,12 +291,12 @@
 // filed result comes back with the summary.
 - (void)testACacheHitDecodesNothingAndHandsBackTheResult {
     NSURL *url = [self writeWAVNamed:@"hit.wav" seconds:2.0];
-    [_cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    [_cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 1; }]);
-    XCTAssertTrue([self eventuallyCached:[AudioTrack withURL:url]]);
+    XCTAssertTrue([self eventuallyCached:[VibeTestTrack withURL:url]]);
 
     [AudioLoadTiming reset];
-    AudioTrack *again = [AudioTrack withURL:url];
+    VibeTestTrack *again = [VibeTestTrack withURL:url];
     [_cache loadWaveformForTrack:again];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 2; }]);
     XCTAssertEqual(_frames.sinks.count, 1u, @"a hit makes no sink");
@@ -293,19 +314,19 @@
 - (void)testAnEntryWithoutAResultMissesForARequestThatListsIt {
     NSURL *url = [self writeWAVNamed:@"missing.wav" seconds:2.0];
     _analysis = (VibeWaveformAnalysis){};
-    [_cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    [_cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.completedTracks.count == 1; }]);
     XCTAssertEqual(_recorder.results.count, 0u, @"decoded without it, so it holds no result");
-    XCTAssertTrue([self eventuallyCached:[AudioTrack withURL:url]]);
+    XCTAssertTrue([self eventuallyCached:[VibeTestTrack withURL:url]]);
 
     _analysis = (VibeWaveformAnalysis){.observers = @[_frames.observer]};
-    [_cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    [_cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 1; }]);
     XCTAssertEqual(_frames.sinks.count, 1u, @"the missing result is a miss, decoded again");
-    XCTAssertTrue([self eventuallyCached:[AudioTrack withURL:url]]);
+    XCTAssertTrue([self eventuallyCached:[VibeTestTrack withURL:url]]);
 
     _analysis = (VibeWaveformAnalysis){};
-    [_cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    [_cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 2; }]);
     XCTAssertEqual(_frames.sinks.count, 1u, @"a request without it takes the new entry");
     XCTAssertEqualObjects(_recorder.results.lastObject, @{@"test.frames": @88200});
@@ -318,11 +339,11 @@
 - (void)testARequestJoinsADecodeThatCarriesItsObservers {
     NSURL *url = [self writeWAVNamed:@"joined.wav" seconds:2.0];
     [_frames holdNextDecode];
-    [_cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    [_cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
     XCTAssertTrue([_frames awaitHeld]);
 
     _analysis = (VibeWaveformAnalysis){};
-    AudioTrack *joiner = [AudioTrack withURL:url];
+    VibeTestTrack *joiner = [VibeTestTrack withURL:url];
     [_cache loadWaveformForTrack:joiner];
     [_frames resume];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.completedTracks.count == 1; }]);
@@ -340,11 +361,11 @@
     NSURL *url = [self writeWAVNamed:@"more.wav" seconds:5.0];
     WaveformRecordingObserver *more = [[WaveformRecordingObserver alloc] initWithIdentifier:@"test.more"];
     [_frames holdNextDecode];
-    [_cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    [_cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
     XCTAssertTrue([_frames awaitHeld]);
 
     _analysis = (VibeWaveformAnalysis){.observers = @[_frames.observer, more.observer]};
-    AudioTrack *wanting = [AudioTrack withURL:url];
+    VibeTestTrack *wanting = [VibeTestTrack withURL:url];
     [_cache loadWaveformForTrack:wanting];
     [_frames resume];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.completedTracks.count == 1; }]);
@@ -364,7 +385,7 @@
 // its waveform does not, and the next request is a hit.
 - (void)testACancelledRequestsDecodeStillFinishesItsSinks {
     NSURL *url = [self writeWAVNamed:@"cancelled.wav" seconds:2.0];
-    AudioTrack *track = [AudioTrack withURL:url];
+    VibeTestTrack *track = [VibeTestTrack withURL:url];
     [_frames holdNextDecode];
     [_cache loadWaveformForTrack:track];
     XCTAssertTrue([_frames awaitHeld]);
@@ -375,9 +396,9 @@
     XCTAssertEqual(_frames.sinks.firstObject.finishes, 1u);
     XCTAssertEqual(_recorder.resultTracks.firstObject, track);
     XCTAssertEqual(_recorder.completedTracks.count, 0u, @"the cancelled request's waveform is not delivered");
-    XCTAssertTrue([self eventuallyCached:[AudioTrack withURL:url]]);
+    XCTAssertTrue([self eventuallyCached:[VibeTestTrack withURL:url]]);
 
-    [_cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    [_cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.completedTracks.count == 1; }]);
     XCTAssertEqual(_frames.sinks.count, 1u, @"the filed entry is whole, so a hit");
     XCTAssertEqualObjects(_recorder.results.lastObject, @{@"test.frames": @88200});
@@ -391,8 +412,8 @@
 - (void)testALateCompletionReachesOnlyItsOwnTrack {
     NSURL *first = [self writeWAVNamed:@"first.wav" seconds:2.0];
     NSURL *second = [self writeWAVNamed:@"second.wav" seconds:1.0];
-    AudioTrack *late = [AudioTrack withURL:first];
-    AudioTrack *current = [AudioTrack withURL:second];
+    VibeTestTrack *late = [VibeTestTrack withURL:first];
+    VibeTestTrack *current = [VibeTestTrack withURL:second];
     [_frames holdNextDecode];
     [_cache loadWaveformForTrack:late];
     XCTAssertTrue([_frames awaitHeld]);
@@ -401,7 +422,7 @@
     [_frames resume];
 
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 2; }]);
-    VibeSpinFor(kVibeTestNegativeWindow);
+    WaveformSpinFor(kVibeTestNegativeWindow);
     XCTAssertEqualObjects(_recorder.completedTracks, @[current], @"the late waveform lands on no track");
     NSUInteger lateIndex = [_recorder.resultTracks indexOfObjectIdenticalTo:late];
     NSUInteger currentIndex = [_recorder.resultTracks indexOfObjectIdenticalTo:current];
@@ -436,7 +457,7 @@
 // under the new key and delivers the version the file now holds.
 - (void)testALateCompletionOfAReplacedVersionIsNotDelivered {
     NSURL *url = [self writeWAVNamed:@"replaced.wav" seconds:2.0];
-    AudioTrack *track = [AudioTrack withURL:url];
+    VibeTestTrack *track = [VibeTestTrack withURL:url];
     [_frames holdNextDecode];
     [_cache loadWaveformForTrack:track];
     XCTAssertTrue([_frames awaitHeld]);
@@ -445,13 +466,13 @@
 
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.completedTracks.count == 1; }]);
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 1; }]);
-    VibeSpinFor(kVibeTestNegativeWindow);
+    WaveformSpinFor(kVibeTestNegativeWindow);
     XCTAssertEqual(_frames.sinks.count, 2u, @"the stale decode, then the new version's");
     XCTAssertEqual(_frames.sinks.firstObject.frames, 88200u, @"the stale decode read the version it opened");
     XCTAssertEqualObjects(_recorder.completedTracks, @[track]);
     XCTAssertEqualObjects(_recorder.results, @[@{@"test.frames": @132300}], @"only the new version's result");
     XCTAssertEqual(_recorder.failures, 0u);
-    XCTAssertTrue([self eventuallyCached:[AudioTrack withURL:url]]);
+    XCTAssertTrue([self eventuallyCached:[VibeTestTrack withURL:url]]);
     XCTAssertEqual([self filedEntries], 1u, @"the stale decode filed nothing");
 }
 
@@ -459,7 +480,7 @@
 // is the one the decode was looked up under, so it is delivered and filed.
 - (void)testALateCompletionOfAnUnchangedFileIsDelivered {
     NSURL *url = [self writeWAVNamed:@"unchanged.wav" seconds:2.0];
-    AudioTrack *track = [AudioTrack withURL:url];
+    VibeTestTrack *track = [VibeTestTrack withURL:url];
     [_frames holdNextDecode];
     [_cache loadWaveformForTrack:track];
     XCTAssertTrue([_frames awaitHeld]);
@@ -467,12 +488,12 @@
     [_frames resume];
 
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 1; }]);
-    VibeSpinFor(kVibeTestNegativeWindow);
+    WaveformSpinFor(kVibeTestNegativeWindow);
     XCTAssertEqual(_frames.sinks.count, 1u, @"delivered, not decoded again");
     XCTAssertEqualObjects(_recorder.completedTracks, @[track]);
     XCTAssertEqualObjects(_recorder.results, @[@{@"test.frames": @88200}]);
     XCTAssertEqual(_recorder.failures, 0u);
-    XCTAssertTrue([self eventuallyCached:[AudioTrack withURL:url]]);
+    XCTAssertTrue([self eventuallyCached:[VibeTestTrack withURL:url]]);
 }
 
 // A cue row's key is its file's plus its window, read again the same way. An
@@ -481,8 +502,7 @@
 // loud in the new.
 - (void)testACueWindowsLateCompletionIsCheckedUnderItsWindowedKey {
     NSURL *url = [self writeWAVNamed:@"image.wav" seconds:4.0 quietFrom:1.0 to:3.0];
-    AudioTrack *row = [[AudioTrack alloc] initWithURL:url cueStart:75 cueEnd:150
-                                                title:nil performer:nil sheet:nil trackNumber:0];
+    VibeTestTrack *row = [[VibeTestTrack alloc] initWithURL:url cueStart:75 cueEnd:150];
     [_frames holdNextDecode];
     [_cache loadWaveformForTrack:row];
     XCTAssertTrue([_frames awaitHeld]);
@@ -492,8 +512,7 @@
     XCTAssertEqual(_frames.sinks.count, 1u, @"an unchanged window is its key's version");
     XCTAssertEqualObjects(_recorder.completedTracks, @[row]);
 
-    AudioTrack *next = [[AudioTrack alloc] initWithURL:url cueStart:150 cueEnd:225
-                                                 title:nil performer:nil sheet:nil trackNumber:0];
+    VibeTestTrack *next = [[VibeTestTrack alloc] initWithURL:url cueStart:150 cueEnd:225];
     [_frames holdNextDecode];
     [_cache loadWaveformForTrack:next];
     XCTAssertTrue([_frames awaitHeld]);
@@ -501,7 +520,7 @@
     [_frames resume];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.completedTracks.count == 2; }]);
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 2; }]);
-    VibeSpinFor(kVibeTestNegativeWindow);
+    WaveformSpinFor(kVibeTestNegativeWindow);
     NSArray<WaveformRecordingSink *> *sinks = _frames.sinks;
     XCTAssertEqual(sinks.count, 3u, @"the stale window's decode, then the new version's");
     XCTAssertEqual(sinks[1].peak, 0.25f, @"the stale decode read the old version's window");
@@ -518,8 +537,7 @@
 // and sees only its frames: the quiet second, none of the loud ones around it.
 - (void)testACueWindowsSinkSeesOnlyItsFrames {
     NSURL *url = [self writeWAVNamed:@"image.wav" seconds:3.0 quietFrom:1.0 to:2.0];
-    AudioTrack *row = [[AudioTrack alloc] initWithURL:url cueStart:75 cueEnd:150
-                                                title:nil performer:nil sheet:nil trackNumber:0];
+    VibeTestTrack *row = [[VibeTestTrack alloc] initWithURL:url cueStart:75 cueEnd:150];
     [_cache loadWaveformForTrack:row];
     XCTAssertTrue([self eventually:^BOOL { return self->_recorder.results.count == 1; }]);
     WaveformRecordingSink *sink = _frames.sinks.firstObject;

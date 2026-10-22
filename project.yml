@@ -747,7 +747,8 @@ targets:
       - path: Vibe/Debug/Seams/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
       - path: vibe-libs/files/DiskCache/PINCache+VibeAudioCache.m
       - path: vibe-libs/core/Common/NSURL+FileIdentity.m   # AudioFileConverter+Sandbox's same-file test
-      - path: Vibe/Debug/Oracles/AudioLoadTiming.m
+      - path: Vibe/Debug/Seams/AudioWaveformLoader+Debug.m   # the decode timings the loader records
+      - path: vibe-libs/Tests/Support/VibeTestTrack.m   # the waveform tests' playable item
       - path: Vibe/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Disposal.m

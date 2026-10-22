@@ -14,15 +14,15 @@
 #import "AudioWaveformLoaderInternal.h"
 #import "AudioFileHandle.h"
 #import "AudioFileHandle+Debug.h"
-#import "AudioFixtures.h"
-#import "AudioLoadTiming.h"
-#import "AudioTrack.h"
+#import "AudioFileFixtures.h"
+#import "AudioWaveformLoader+Debug.h"
 #import "AudioWaveform.h"
 #import "AudioWaveformCache.h"
 #import "AudioWaveformCache+Debug.h"
 #import "CloudFileMaterializer.h"
 #import "NSURL+Hash.h"
 #import "VibeReadAheadScript.h"
+#import "VibeTestTrack.h"
 
 #include <fcntl.h>
 #include <atomic>
@@ -64,6 +64,29 @@
 @end
 
 // The cache's deliveries, on main.
+// An item that memoizes its disk key, as an app's row may, stamped with the
+// generation NSURL+Hash bumps when a download installs another version.
+@interface WaveformMemoizingTrack : VibeTestTrack
+@end
+
+@implementation WaveformMemoizingTrack {
+    NSString *_memo;
+    uint64_t _memoGeneration;
+}
+
+- (NSString *)cacheKey {
+    uint64_t generation = NSURL.cacheKeyGeneration;
+    @synchronized (self) {
+        if (!_memo || _memoGeneration != generation) {
+            _memo = [super cacheKey];
+            _memoGeneration = generation;
+        }
+        return _memo;
+    }
+}
+
+@end
+
 @interface WaveformCacheRecorder : NSObject <AudioWaveformCacheDelegate>
 @property (nonatomic) CodableAudioWaveform *complete;
 @property (nonatomic) NSUInteger progressions;
@@ -72,7 +95,7 @@
 @end
 
 @implementation WaveformCacheRecorder
-- (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded forTrack:(AudioTrack *)track {
+- (void)audioWaveform:(CodableAudioWaveform *)waveform didLoadData:(float)percentLoaded forTrack:(id<VibePlayableItem>)track {
     if (percentLoaded >= 1) {
         _complete = waveform;
         _completions++;
@@ -81,7 +104,7 @@
         _progressions++;
     }
 }
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(AudioTrack *)track {
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(id<VibePlayableItem>)track {
     _failures++;
 }
 @end
@@ -663,7 +686,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     XCTAssertNotNil(reference);
     NSURL *url = [_tempDirectory URLByAppendingPathComponent:@"streaming.wav"];
     WaveformStreamAvailability *stream = [self stream:source as:url prefix:64 * 1024];
-    NSString *placeholderKey = [AudioTrack withURL:url].cacheKey;
+    NSString *placeholderKey = [VibeTestTrack withURL:url].cacheKey;
     XCTAssertNotNil(placeholderKey);
 
     WaveformSnapshotRecorder *recorder = [[WaveformSnapshotRecorder alloc] init];
@@ -826,7 +849,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     NSURL *url = [self writeNoiseWAVNamed:@"preview.wav" seconds:2.0 seed:31];
     WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
     AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
-    AudioTrack *track = [AudioTrack withURL:url];
+    VibeTestTrack *track = [VibeTestTrack withURL:url];
     __block BOOL settled = NO;
     [cache cachedWaveformForTrack:track completion:^(CodableAudioWaveform *waveform) {
         XCTAssertTrue(NSThread.isMainThread);
@@ -839,7 +862,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     XCTAssertEqual(recorder.failures, 0u);
 
     settled = NO;
-    [cache cacheWaveformForURL:url completion:^(BOOL ok, BOOL wasCached, NSDictionary *results) {
+    [cache cacheWaveformForTrack:track completion:^(BOOL ok, BOOL wasCached, NSDictionary *results) {
         XCTAssertTrue(ok);
         XCTAssertFalse(wasCached, @"the preview miss must not have populated the cache");
         settled = YES;
@@ -861,8 +884,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     }];
     XCTAssertTrue([self eventually:^BOOL { return settled; }]);
     cache.analysisProvider = nil;
-    AudioTrack *cue = [[AudioTrack alloc] initWithURL:url cueStart:75 cueEnd:150
-                                              title:nil performer:nil sheet:nil trackNumber:0];
+    VibeTestTrack *cue = [[VibeTestTrack alloc] initWithURL:url cueStart:75 cueEnd:150];
     settled = NO;
     [cache cachedWaveformForTrack:cue completion:^(CodableAudioWaveform *waveform) {
         XCTAssertNil(waveform, @"a cue row cannot borrow its whole file's waveform");
@@ -875,12 +897,12 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     NSURL *url = [self writeNoiseWAVNamed:@"foreground.wav" seconds:1.0 seed:17];
     WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
     AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
-    AudioTrack *preview = [AudioTrack withURL:[_tempDirectory URLByAppendingPathComponent:@"blocked.wav"]];
+    VibeTestTrack *preview = [VibeTestTrack withURL:[_tempDirectory URLByAppendingPathComponent:@"blocked.wav"]];
     dispatch_semaphore_t started = dispatch_semaphore_create(0);
     dispatch_semaphore_t release = dispatch_semaphore_create(0);
-    Method method = class_getInstanceMethod(AudioTrack.class, @selector(cacheKey));
+    Method method = class_getInstanceMethod(VibeTestTrack.class, @selector(cacheKey));
     IMP original = method_getImplementation(method);
-    IMP held = imp_implementationWithBlock(^NSString *(AudioTrack *track) {
+    IMP held = imp_implementationWithBlock(^NSString *(VibeTestTrack *track) {
         if (track == preview) {
             dispatch_semaphore_signal(started);
             dispatch_semaphore_wait(release, DISPATCH_TIME_FOREVER);
@@ -898,7 +920,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
             }];
         }
         XCTAssertTrue([self await:started]);
-        [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+        [cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
         XCTAssertTrue([self eventually:^BOOL { return recorder.completions || recorder.failures; }]);
         XCTAssertEqual(recorder.completions, 1u, @"preview stats must not occupy the playing lookup lane");
         XCTAssertEqual(recorder.failures, 0u);
@@ -917,10 +939,10 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     WaveformStreamAvailability *stream = [self stream:source as:url prefix:128 * 1024];
     WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
     AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
-    [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    [cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
     XCTAssertTrue([self await:stream.event]);
     __block BOOL settled = NO;
-    [cache cachedWaveformForTrack:[AudioTrack withURL:source] completion:^(CodableAudioWaveform *waveform) {
+    [cache cachedWaveformForTrack:[VibeTestTrack withURL:source] completion:^(CodableAudioWaveform *waveform) {
         XCTAssertNil(waveform);
         settled = YES;
     }];
@@ -941,7 +963,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
     AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
 
-    [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    [cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
     XCTAssertTrue([self await:stream.event]);
     [self complete:stream from:source as:url];
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }]);
@@ -955,7 +977,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     XCTAssertEqual(utimes(url.fileSystemRepresentation, times), 0);
     XCTAssertEqualObjects(url.cacheKey, installedKey);
     recorder.complete = nil;
-    [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+    [cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2 || recorder.failures > 0; }]);
     XCTAssertEqual(recorder.failures, 0u, @"a miss would have decoded the zeros and failed");
     XCTAssertEqual(MatchingBins(recorder.complete, reference), count);
@@ -987,7 +1009,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
         WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
         AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
         [AudioLoadTiming reset];
-        [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+        [cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
         XCTAssertTrue([self eventually:^BOOL { return recorder.progressions > 0; }], @"%@: decoding as the bytes arrive", name);
         XCTAssertEqual(recorder.completions, 0u, @"%@: nothing complete before the length is exact", name);
         [self complete:stream from:source as:url];
@@ -999,7 +1021,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
         XCTAssertTrue([zeros writeToURL:url atomically:NO]);
         struct timeval times[2] = {{kStreamModified, 0}, {kStreamModified, 0}};
         XCTAssertEqual(utimes(url.fileSystemRepresentation, times), 0);
-        [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+        [cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
         XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2 || recorder.failures > 0; }]);
         XCTAssertEqual(recorder.failures, 0u, @"%@: persisted under the file's key: a miss would have failed on the zeros", name);
     }
@@ -1031,7 +1053,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
         WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
         AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
         [AudioLoadTiming reset];
-        [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+        [cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
         XCTAssertTrue([self eventually:^BOOL { return recorder.progressions > 0; }], @"%@", name);
         XCTAssertEqual(recorder.completions, 0u, @"%@: nothing complete before the length is exact", name);
         [self complete:stream from:source as:url];
@@ -1044,7 +1066,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
         XCTAssertTrue([zeros writeToURL:url atomically:NO]);
         struct timeval times[2] = {{kStreamModified, 0}, {kStreamModified, 0}};
         XCTAssertEqual(utimes(url.fileSystemRepresentation, times), 0);
-        [cache loadWaveformForTrack:[AudioTrack withURL:url]];
+        [cache loadWaveformForTrack:[VibeTestTrack withURL:url]];
         XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 2 || recorder.failures > 0; }]);
         XCTAssertEqual(recorder.failures, 0u, @"%@: persisted under the file's key: a miss would have failed on the zeros", name);
     }
@@ -1058,7 +1080,7 @@ static NSUInteger MatchingBins(CodableAudioWaveform *waveform, CodableAudioWavef
     CodableAudioWaveform *first = [[[AudioWaveformLoader alloc] init] load:url.path];
     WaveformCacheRecorder *recorder = [[WaveformCacheRecorder alloc] init];
     AudioWaveformCache *cache = [self cacheWithRecorder:recorder];
-    AudioTrack *track = [AudioTrack withURL:url];
+    WaveformMemoizingTrack *track = [[WaveformMemoizingTrack alloc] initWithURL:url cueStart:0 cueEnd:0];
     [cache loadWaveformForTrack:track];
     XCTAssertTrue([self eventually:^BOOL { return recorder.completions == 1; }]);
     NSUInteger count = first.waveform->binCount();

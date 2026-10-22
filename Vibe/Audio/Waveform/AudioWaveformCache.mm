@@ -11,6 +11,8 @@
 #import "AudioWaveformLoader.h"
 #import "AudioWorkScheduler.h"
 #import "PlaceholderFiles.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 #include <atomic>
 
