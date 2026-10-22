@@ -217,7 +217,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
         _player.levelsEnabled=YES;
         [self play:[self fixture:@"1000.wav"] paused:NO position:0];
         [self render:12123];
-        AudioTrack *next = [AudioTrack withURL:[self fixture:[NSString stringWithFormat:@"quiet-intro-%@.wav", silence]]];
+        VibeTestTrack *next = [VibeTestTrack withURL:[self fixture:[NSString stringWithFormat:@"quiet-intro-%@.wav", silence]]];
         NSUInteger starts = [self count:@"start"];
         [_player play:next];
         [self settleUntil:^BOOL { return [self count:@"start"] > starts; }];
@@ -243,7 +243,7 @@ static float PeakLevel(const float levels[kLevelBandCount]) {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     _player.levelsEnabled=YES;
     [self play:[self fixture:@"1000.wav"] paused:NO position:0];
-    AudioTrack *next = [AudioTrack withURL:[self fixture:@"quiet-intro-700.wav"]];
+    VibeTestTrack *next = [VibeTestTrack withURL:[self fixture:@"quiet-intro-700.wav"]];
     [_player prefetchTrack:next];
     [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
     [self render:48000 * 5];

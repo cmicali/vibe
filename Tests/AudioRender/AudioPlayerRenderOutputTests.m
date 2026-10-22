@@ -84,7 +84,7 @@
 - (void)testOutputRateChangeKeepsThePlayingAndPausedTrack {
     [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
     NSURL *url = [self fixture:@"1000.wav"];
-    AudioTrack *track = [self play:url paused:NO position:0];
+    VibeTestTrack *track = [self play:url paused:NO position:0];
     [self render:22050];
     double before = _player.position;
     XCTAssertTrue([_player debugSetOutputRate:96000]);
@@ -279,7 +279,7 @@
     });
     @try {
         [self settleUntil:^BOOL { return bus.debugRendersHeld == 1; }];
-        [_player prefetchTrack:[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
+        [_player prefetchTrack:[VibeTestTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
         [self settleUntil:^BOOL { return [bus snapshotOfVoice:voice].endOfStream == UINT64_MAX; }]; // the reopen waits
         dispatch_group_async(rebuild, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
             XCTAssertTrue([self->_player debugSetOutputRate:96000]);
@@ -399,7 +399,7 @@
         _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@"" enableFX:NO delegate:self];
         [self settleUntil:^BOOL { return [self count:@"init"] == 1; }];
         XCTAssertFalse(_player.manualRenderingActive);
-        [_player play:[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
+        [_player play:[VibeTestTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
         [self settleUntil:^BOOL { return [self count:@"start"] > 0 || self->_playError; }];
         XCTAssertNotNil(_playError, @"a missing output unit must fail the start");
         XCTAssertEqual(_playError.code, VibeAudioErrorEngineStartFailed);
@@ -440,7 +440,7 @@
     originalDrives = method_setImplementation(drives, driveReplacement);
     originalCreate = method_setImplementation(create, createReplacement);
     @try {
-        [_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [_player play:[VibeTestTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
         [self settleUntil:^BOOL { return [self count:@"start"] > 0 || self->_playError; }];
         XCTAssertEqual(created, 1u);
         XCTAssertNotNil(_playError, @"no unit came of the creation, so the start fails");
@@ -560,7 +560,7 @@
         dispatch_semaphore_wait(release, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_GATE_TIMEOUT * NSEC_PER_SEC));
         return noErr;
     } body:^(AudioPlayer *target) {
-        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self->_player play:[VibeTestTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
         [self settleUntil:^BOOL { return [self count:@"start"] > 0 || self->_playError; }];
         XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0,
                        @"the device start never began");
@@ -572,7 +572,7 @@
         [self->_player runSyncOnQueue:^{}];
         XCTAssertLessThan((clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - began) / 1e6, 50.0,
                           @"the player queue waited on the device's start");
-        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
+        [self->_player play:[VibeTestTrack withURL:[self fixture:@"noise-48000-24-2.wav"]]];
         [self settleUntil:^BOOL { return [self count:@"start"] > 1 || self->_playError; }];
         XCTAssertEqual([self count:@"start"], 2u, @"a play submitted during the device start waited for it");
         dispatch_semaphore_signal(release);
@@ -584,7 +584,7 @@
 - (void)testARefusedDeviceStartParksThePlayAndSaysSo {
     self.continueAfterFailure = YES;
     [self withOutputUnitStartingAs:^OSStatus { return kAudioHardwareNotRunningError; } body:^(AudioPlayer *target) {
-        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self->_player play:[VibeTestTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
         [self settleUntil:^BOOL { return self->_playError != nil; }];
         [self->_player runSyncOnQueue:^{}];
         XCTAssertNotNil(self->_playError, @"the refusal was never reported");
@@ -707,7 +707,7 @@
 - (void)testTheOutputIsIdleOnlyOnceItsIdleStopHasStoppedIt {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     XCTAssertTrue(_player.outputIdle, @"an output never started has nothing to stop");
-    AudioTrack *track = [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    VibeTestTrack *track = [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
     [self render:4800];
     XCTAssertFalse(_player.outputIdle);
     [_player pause]; [self render:2048];
@@ -768,7 +768,7 @@
 // edge still arrives, and the answer it finds is the newer start's.
 - (void)testAnIdleEdgeOvertakenByANewPlayFindsTheOutputStarted {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
-    AudioTrack *track = [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    VibeTestTrack *track = [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
     [self render:4800];
     [_player pause]; [self render:2048];
     // Rendered without a turn of main's run loop, so the edge stays queued.
@@ -792,7 +792,7 @@
 // nothing will stop it later, so it must already answer idle.
 - (void)testAFailedOrParkedOpenLeavesTheOutputIdle {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
-    [_player play:[AudioTrack withURL:[_temporary URLByAppendingPathComponent:@"missing.wav"]]];
+    [_player play:[VibeTestTrack withURL:[_temporary URLByAppendingPathComponent:@"missing.wav"]]];
     [self settleUntil:^BOOL { return self->_playError != nil; }];
     XCTAssertTrue(_player.isStopped);
     XCTAssertTrue(_player.outputIdle, @"a failed open waits for a stop that cannot come");
@@ -811,7 +811,7 @@
 - (void)testASystemStopNoVerdictFollowsPauses {
     self.continueAfterFailure = YES;
     [self withOutputUnitStartingAs:^OSStatus { return noErr; } body:^(AudioPlayer *target) {
-        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self->_player play:[VibeTestTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
         [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
         __block AudioOutputUnit *unit = nil;
         [self->_player runSyncOnQueue:^{ unit = [target valueForKey:@"outputUnit"]; }];
@@ -834,7 +834,7 @@
 - (void)testASystemStopARestartFollowsKeepsPlaying {
     self.continueAfterFailure = YES;
     [self withOutputUnitStartingAs:^OSStatus { return noErr; } body:^(AudioPlayer *target) {
-        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self->_player play:[VibeTestTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
         [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
         __block AudioOutputUnit *unit = nil;
         [self->_player runSyncOnQueue:^{ unit = [target valueForKey:@"outputUnit"]; }];
@@ -855,7 +855,7 @@
 - (void)testASystemStopAnswersIdleAtItsIdleStop {
     self.continueAfterFailure = YES;
     [self withOutputUnitStartingAs:^OSStatus { return noErr; } body:^(AudioPlayer *target) {
-        [self->_player play:[AudioTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
+        [self->_player play:[VibeTestTrack withURL:[self fixture:@"noise-44100-24-2.wav"]]];
         [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
         __block AudioOutputUnit *unit = nil;
         [self->_player runSyncOnQueue:^{ unit = [target valueForKey:@"outputUnit"]; }];
@@ -895,9 +895,9 @@
     });
     original = method_setImplementation(method, replacement);
     @try {
-        AudioTrack *track = [self play:firstURL paused:NO position:0];
+        VibeTestTrack *track = [self play:firstURL paused:NO position:0];
         if (successor) {
-            [_player prefetchTrack:[AudioTrack withURL:failedURL]];
+            [_player prefetchTrack:[VibeTestTrack withURL:failedURL]];
             [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
         }
         if (superseded) {

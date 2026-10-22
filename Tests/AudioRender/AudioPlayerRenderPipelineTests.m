@@ -287,7 +287,7 @@
             XCTAssertLessThanOrEqual([_player.debugRenderCounts[@"hostedUnits"] unsignedIntegerValue], 1u);
         }
         NSURL *url = [self fixture:[NSString stringWithFormat:@"noise-%@-24-2.wav", rate]];
-        AudioTrack *track = [self play:url paused:YES position:0.25];
+        VibeTestTrack *track = [self play:url paused:YES position:0.25];
         NSUInteger installedNodes = 0;
         for (int i = 0; i < 8; i++) {
             BOOL bitPerfect = i % 2;
@@ -344,7 +344,7 @@
             [self render:4410];
             NSUInteger starts = [self count:@"start"];
             __weak AudioPlayer *weakPlayer = _player;
-            AudioTrack *next = [AudioTrack withURL:[self fixture:@"noise-44100-16-2.wav"]];
+            VibeTestTrack *next = [VibeTestTrack withURL:[self fixture:@"noise-44100-16-2.wav"]];
             // Queue both submissions before either can settle or main can apply
             // dependent settings. The mode can land before or during the open.
             [_player runSyncOnQueue:^{
@@ -443,7 +443,7 @@
             }
             NSInteger requestedDevice = _player.currentlyRequestedAudioDeviceId;
             NSTimeInterval position = _player.position;
-            AudioTrack *track = (AudioTrack *)_player.currentTrack;
+            VibeTestTrack *track = (VibeTestTrack *)_player.currentTrack;
             NSUInteger deviceChanges = [self count:@"device"];
             __block BOOL completed = NO;
             __weak AudioPlayerRenderTests *weakSelf = self;
@@ -551,7 +551,7 @@
     NSURL *empty=[_temporary URLByAppendingPathComponent:@"empty.wav"];
     [[NSData data] writeToURL:empty atomically:YES];
     for (NSURL *url in @[empty,[_temporary URLByAppendingPathComponent:@"missing.wav"]]) {
-        _playError=nil; [_player play:[AudioTrack withURL:url]];
+        _playError=nil; [_player play:[VibeTestTrack withURL:url]];
         [self settleUntil:^BOOL { return self->_playError!=nil; }];
         XCTAssertTrue(_player.isStopped); XCTAssertEqual([self count:@"finish"],0u);
         _playError=nil; [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
@@ -608,7 +608,7 @@
     [self play:urls[0] paused:NO position:0]; [self render:4800];
     for (int i=0;i<30;i++) {
         NSUInteger starts=[self count:@"start"];
-        [_player play:[AudioTrack withURL:urls[(i+1)%2]]];
+        [_player play:[VibeTestTrack withURL:urls[(i+1)%2]]];
         [self settleUntil:^BOOL { return [self count:@"start"]>starts || self->_playError; }];
         XCTAssertNil(_playError);
         [self render:160]; // 3.3 ms between skips
@@ -696,8 +696,8 @@
         NSMutableData *left=[NSMutableData dataWithLength:4*48000*8], *right=[left mutableCopy];
         float *l=left.mutableBytes,*r=right.mutableBytes;
         for(NSUInteger f=0;f<4*48000;f++) { l[f*2]=0.25; r[f*2+1]=0.25; }
-        AudioTrack *a=[AudioTrack withURL:[self write:left rate:48000 channels:2 name:@"left.wav"]];
-        AudioTrack *b=[AudioTrack withURL:[self write:right rate:48000 channels:2 name:@"right.wav"]];
+        VibeTestTrack *a=[VibeTestTrack withURL:[self write:left rate:48000 channels:2 name:@"left.wav"]];
+        VibeTestTrack *b=[VibeTestTrack withURL:[self write:right rate:48000 channels:2 name:@"right.wav"]];
         [_player play:a]; [self settleUntil:^BOOL { return [self count:@"start"]==1; }]; [self render:4800];
         [_player play:b]; [self settleUntil:^BOOL { return [self count:@"start"]==2; }];
         double duration=milliseconds.doubleValue/1000;
@@ -733,7 +733,7 @@
     [truncated setLength:truncated.length/2]; NSURL *url=[_temporary URLByAppendingPathComponent:@"truncated.wav"];
     [truncated writeToURL:url atomically:YES];
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
-    [_player play:[AudioTrack withURL:url]];
+    [_player play:[VibeTestTrack withURL:url]];
     [self settleUntil:^BOOL { return [self count:@"start"] || self->_playError; }];
     if (!_playError) {
         [self renderSeconds:2.1];
@@ -751,7 +751,7 @@
     XCTAssertTrue(_player.isPaused);
     [_player resume]; [_player pause]; [_player resume]; [self render:4096];
     XCTAssertTrue(_player.isPlaying); XCTAssertEqual([self count:@"finish"],0u);
-    [_player stop]; [_player play:[AudioTrack withURL:url]]; [_player stop]; [self render:2048];
+    [_player stop]; [_player play:[VibeTestTrack withURL:url]]; [_player stop]; [self render:2048];
     [self settleUntil:^BOOL { return self->_player.isStopped; }];
     XCTAssertEqual(VibeRMS([self renderSeconds:0.1],2,0,NSMakeRange(0,4800)),0);
 }

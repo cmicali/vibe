@@ -41,7 +41,7 @@
 #import <Accelerate/Accelerate.h>
 #import "AudioVoiceBusInternal.h"
 #import "AudioPlayer+Debug.h"
-#import "AudioFixtures.h"
+#import "AudioReferenceFixtures.h"
 
 typedef struct {
     double from, to;

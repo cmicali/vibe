@@ -9,7 +9,7 @@
 #import <XCTest/XCTest.h>
 #import <AVFoundation/AVFoundation.h>
 #import "AudioFX+Pipeline.h"
-#import "AudioFixtures.h"
+#import "AudioReferenceFixtures.h"
 #import "AudioFX+Debug.h"
 #import "VibeManualRenderPump.h"
 

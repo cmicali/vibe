@@ -14,7 +14,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import "AudioVoiceBusInternal.h"
 #import "AudioPlayer+Debug.h"
-#import "AudioFixtures.h"
+#import "AudioReferenceFixtures.h"
 #import <objc/runtime.h>
 #include <stdatomic.h>
 

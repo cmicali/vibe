@@ -504,7 +504,7 @@
 
 #pragma mark - Conversion
 
-// The reference conversion (AudioFixtures.h) of the whole file, read with
+// The reference conversion (AudioReferenceFixtures.h) of the whole file, read with
 // AVAudioFile rather than the bus's AudioFileHandle, interleaved.
 - (NSData *)referenceConversionOfURL:(NSURL *)url toRate:(double)rate {
     NSError *error = nil;

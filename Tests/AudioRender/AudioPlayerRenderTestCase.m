@@ -110,8 +110,8 @@ NSData *VibeStereoTone(NSUInteger frames, double rate, double frequency, float a
     return data;
 }
 
-AudioTrack *VibeCueRow(NSURL *url, NSUInteger start, NSUInteger end) {
-    return [[AudioTrack alloc] initWithURL:url cueStart:start cueEnd:end title:nil performer:nil sheet:nil trackNumber:0];
+VibeTestTrack *VibeCueRow(NSURL *url, NSUInteger start, NSUInteger end) {
+    return [[VibeTestTrack alloc] initWithURL:url cueStart:start cueEnd:end];
 }
 
 // Deterministic noise supplies distinct markers for alignment.
@@ -296,8 +296,8 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels) {
     [_player setBitPerfectOutput:bitPerfect exclusiveOutput:NO enableFX:fx allowAnyDevice:NO];
     [_player runSyncOnQueue:^{}]; // Land setup before a test replaces the mode provider.
 }
-- (AudioTrack *)play:(NSURL *)url paused:(BOOL)paused position:(double)position {
-    AudioTrack *track = [AudioTrack withURL:url];
+- (VibeTestTrack *)play:(NSURL *)url paused:(BOOL)paused position:(double)position {
+    VibeTestTrack *track = [VibeTestTrack withURL:url];
     NSUInteger before = [self count:@"start"];
     [_player play:track atPosition:position startPaused:paused];
     [self settleUntil:^BOOL { return [self count:@"start"] > before || self->_playError; }];
@@ -646,37 +646,37 @@ static int VibeCompareExcerptStarts(const void *a, const void *b) {
     }
 }
 
-- (void)record:(NSString *)event track:(AudioTrack *)track {
+- (void)record:(NSString *)event track:(VibeTestTrack *)track {
     [_events addObject:@{@"event":event,@"track":track.url.path?:@"",@"position":@(_player.position),@"render":_player.debugRenderCounts?:@{}}];
 }
 - (void)audioPlayerDidInitialize:(AudioPlayer *)p { [self record:@"init" track:nil]; }
-- (void)audioPlayer:(AudioPlayer *)p didStartPlaying:(AudioTrack *)t {
+- (void)audioPlayer:(AudioPlayer *)p didStartPlaying:(VibeTestTrack *)t {
     [self record:@"start" track:t];
     if (_chain && _nextPrefetch<_chain.count) [p prefetchTrack:_chain[_nextPrefetch]];
 }
 
-- (void)audioPlayer:(AudioPlayer *)p didPausePlaying:(AudioTrack *)t { [self record:@"pause" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didPausePlaying:(VibeTestTrack *)t { [self record:@"pause" track:t]; }
 // What the iOS shell's session reads at this edge: the answer now, not the edge's.
 - (void)audioPlayerOutputDidBecomeIdle:(AudioPlayer *)p {
     [_events addObject:@{@"event": @"idle", @"outputIdle": @(p.outputIdle)}];
 }
-- (void)audioPlayer:(AudioPlayer *)p didResumePlaying:(AudioTrack *)t { [self record:@"resume" track:t]; }
-- (void)audioPlayer:(AudioPlayer *)p didFinishSeeking:(AudioTrack *)t { [self record:@"seek" track:t]; }
-- (void)audioPlayer:(AudioPlayer *)p didFinishPlaying:(AudioTrack *)t { [self record:@"finish" track:t]; }
-- (void)audioPlayer:(AudioPlayer *)p didAutoAdvanceFromTrack:(AudioTrack *)a toTrack:(AudioTrack *)b {
+- (void)audioPlayer:(AudioPlayer *)p didResumePlaying:(VibeTestTrack *)t { [self record:@"resume" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didFinishSeeking:(VibeTestTrack *)t { [self record:@"seek" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didFinishPlaying:(VibeTestTrack *)t { [self record:@"finish" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didAutoAdvanceFromTrack:(VibeTestTrack *)a toTrack:(VibeTestTrack *)b {
     [self record:@"advance" track:b];
     _nextPrefetch++;
     if (_chain && _nextPrefetch<_chain.count) [p prefetchTrack:_chain[_nextPrefetch]];
 }
-- (void)audioPlayer:(AudioPlayer *)p didBeginLoading:(AudioTrack *)t openRequestIdentifier:(uint64_t)i { [self record:@"loading" track:t]; }
-- (void)audioPlayer:(AudioPlayer *)p didChangeBuffering:(BOOL)buffering forTrack:(AudioTrack *)t {
+- (void)audioPlayer:(AudioPlayer *)p didBeginLoading:(VibeTestTrack *)t openRequestIdentifier:(uint64_t)i { [self record:@"loading" track:t]; }
+- (void)audioPlayer:(AudioPlayer *)p didChangeBuffering:(BOOL)buffering forTrack:(VibeTestTrack *)t {
     [self record:buffering ? @"buffering" : @"buffered" track:t];
 }
-- (void)audioPlayer:(AudioPlayer *)p didChangeBufferingNotice:(BOOL)shown forTrack:(AudioTrack *)t {
+- (void)audioPlayer:(AudioPlayer *)p didChangeBufferingNotice:(BOOL)shown forTrack:(VibeTestTrack *)t {
     [self record:shown ? @"notice" : @"noticeEnded" track:t];
 }
-- (void)audioPlayer:(AudioPlayer *)p didChangeLoadingPaused:(BOOL)paused forTrack:(AudioTrack *)t {}
-- (void)audioPlayer:(AudioPlayer *)p didSettleDurationOfTrack:(AudioTrack *)t {
+- (void)audioPlayer:(AudioPlayer *)p didChangeLoadingPaused:(BOOL)paused forTrack:(VibeTestTrack *)t {}
+- (void)audioPlayer:(AudioPlayer *)p didSettleDurationOfTrack:(VibeTestTrack *)t {
     [_events addObject:@{@"event": @"settled", @"duration": @(p.duration), @"position": @(p.position)}];
 }
 - (void)audioPlayer:(AudioPlayer *)player outputModesForDeviceUID:(NSString *)uid

@@ -5,7 +5,7 @@
 
 #import <XCTest/XCTest.h>
 #import "PlaybackDeliveryRules.h"
-#import "AudioTrack.h"
+#import "VibeTestTrack.h"
 
 @interface PlaybackDeliveryRulesTests : XCTestCase
 @end
@@ -24,7 +24,7 @@
 
 - (void)testSeekSettlementMatchesRowsAndAcceptsEmptyOnlyWhileStopped {
     NSURL *url = [NSURL fileURLWithPath:@"/same.wav"];
-    AudioTrack *track = [AudioTrack withURL:url], *otherRow = [AudioTrack withURL:url];
+    VibeTestTrack *track = [VibeTestTrack withURL:url], *otherRow = [VibeTestTrack withURL:url];
     for (NSNumber *stopped in @[@NO, @YES]) {
         XCTAssertTrue(VibePlaybackSeekSettlementIsCurrent(track, track, stopped.boolValue));
         XCTAssertFalse(VibePlaybackSeekSettlementIsCurrent(track, otherRow, stopped.boolValue));

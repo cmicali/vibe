@@ -85,7 +85,7 @@
     _player.crossfadeMilliseconds = 2000;
     [self play:first paused:NO position:0]; [self render:14400];
     NSUInteger starts = [self count:@"start"];
-    [_player play:[AudioTrack withURL:second]];
+    [_player play:[VibeTestTrack withURL:second]];
     [self settleUntil:^BOOL { return [self count:@"start"] > starts; }];
     XCTAssertEqual([_player.debugRenderCounts[@"retiredFades"] unsignedIntegerValue], 1u, @"the crossfade fades with Declick off");
 }
@@ -131,7 +131,7 @@
     NSURL *url=[self fixture:@"noise-48000-24-2.wav"]; NSData *reference=VibePCM([self read:url]);
     for (NSNumber *block in @[@63,@256,@1024,@4096]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO]; _blockSize=block.unsignedIntegerValue;
-        AudioTrack *track=[self play:url paused:NO position:0]; [self render:12000];
+        VibeTestTrack *track=[self play:url paused:NO position:0]; [self render:12000];
         NSUInteger eventsBeforeStop=_events.count;
         [_player stop]; [self render:2048]; XCTAssertTrue(_player.isStopped);
         // Whatever the stop posted to main is queued before this marker.
@@ -190,7 +190,7 @@
         [self play:first paused:NO position:0];
         NSUInteger before = late.boolValue ? 256 : 0; // the first track decodes whole before its successor is named
         [self render:before];
-        [_player prefetchTrack:[AudioTrack withURL:second]];
+        [_player prefetchTrack:[VibeTestTrack withURL:second]];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
         [self render:52800 - before];
         [self settleUntil:^BOOL { return [self count:@"advance"] >= 1; }];
@@ -252,7 +252,7 @@
         for (NSNumber *end in @[@20003,@48001,@72007,@96000]) {
             NSData *part=[reference subdataWithRange:NSMakeRange(start*8,(end.unsignedIntegerValue-start)*8)];
             NSURL *url=[self write:part rate:48000 channels:2 name:[NSString stringWithFormat:@"split-%lu.wav",(unsigned long)start]];
-            [tracks addObject:[AudioTrack withURL:url]]; start=end.unsignedIntegerValue;
+            [tracks addObject:[VibeTestTrack withURL:url]]; start=end.unsignedIntegerValue;
         }
         _chain=tracks; _nextPrefetch=1;
         [_player play:tracks[0]];
@@ -270,7 +270,7 @@
     NSData *reference=VibePCM([self read:[self fixture:@"noise-48000-24-2.wav"]]);
     for (NSNumber *mode in @[@NO,@YES]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:mode.boolValue automatic:NO]; _blockSize=1024;
-        AudioTrack *track=[AudioTrack withURL:[self fixture:@"noise-48000-24-2.wav"]];
+        VibeTestTrack *track=[VibeTestTrack withURL:[self fixture:@"noise-48000-24-2.wav"]];
         _chain=@[track,track]; _nextPrefetch=1;
         [_player play:track];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
@@ -285,13 +285,13 @@
 #pragma mark - Track-end crossfade
 
 // Two tones, so each track's level reads apart from the other's in any window.
-- (NSArray<AudioTrack *> *)toneTracksOfSeconds:(double)firstSeconds and:(double)secondSeconds {
+- (NSArray<VibeTestTrack *> *)toneTracksOfSeconds:(double)firstSeconds and:(double)secondSeconds {
     NSURL *a = [self write:VibeStereoTone((NSUInteger)(firstSeconds * 48000), 48000, 440, 0.5f) rate:48000 channels:2 name:@"tone440.wav"];
     NSURL *b = [self write:VibeStereoTone((NSUInteger)(secondSeconds * 48000), 48000, 1000, 0.5f) rate:48000 channels:2 name:@"tone1000.wav"];
-    return @[[AudioTrack withURL:a], [AudioTrack withURL:b]];
+    return @[[VibeTestTrack withURL:a], [VibeTestTrack withURL:b]];
 }
 
-- (void)playParked:(NSArray<AudioTrack *> *)tracks {
+- (void)playParked:(NSArray<VibeTestTrack *> *)tracks {
     [_player play:tracks[0]];
     [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
     [_player prefetchTrack:tracks[1]];
@@ -312,7 +312,7 @@
     for (NSNumber *crossfade in @[@500, @2000]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
         _player.crossfadeMilliseconds = crossfade.integerValue;
-        NSArray<AudioTrack *> *tracks = @[[AudioTrack withURL:urls[0]], [AudioTrack withURL:urls[1]]];
+        NSArray<VibeTestTrack *> *tracks = @[[VibeTestTrack withURL:urls[0]], [VibeTestTrack withURL:urls[1]]];
         [self playParked:tracks];
         XCTAssertFalse(_player.gaplessArmed, @"a long crossfade never splices");
         NSData *capture = [self renderSeconds:5.5];
@@ -343,7 +343,7 @@
 
 - (void)testATrackEndWithTheCrossfadeOffIsGapless {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
-    NSArray<AudioTrack *> *tracks = [self toneTracksOfSeconds:1 and:1];
+    NSArray<VibeTestTrack *> *tracks = [self toneTracksOfSeconds:1 and:1];
     NSMutableData *reference = [VibePCM([self read:tracks[0].url]) mutableCopy];
     [reference appendData:VibePCM([self read:tracks[1].url])];
     [self playParked:tracks];
@@ -360,7 +360,7 @@
     for (NSNumber *raise in @[@YES, @NO]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
         _player.crossfadeMilliseconds = raise.boolValue ? 10 : 1000;
-        NSArray<AudioTrack *> *tracks = @[[AudioTrack withURL:urls[0]], [AudioTrack withURL:urls[1]]];
+        NSArray<VibeTestTrack *> *tracks = @[[VibeTestTrack withURL:urls[0]], [VibeTestTrack withURL:urls[1]]];
         [self playParked:tracks];
         [self render:48000];
         _player.crossfadeMilliseconds = raise.boolValue ? 1000 : 10;
@@ -381,7 +381,7 @@
 - (void)testAShortTrackIsHeardBeforeItsCrossfade {
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO]; _blockSize = 512;
     _player.crossfadeMilliseconds = 3000;
-    NSArray<AudioTrack *> *tracks = [self toneTracksOfSeconds:1 and:2];
+    NSArray<VibeTestTrack *> *tracks = [self toneTracksOfSeconds:1 and:2];
     [self playParked:tracks];
     NSData *capture = [self renderSeconds:1.5];
     XCTAssertEqualWithAccuracy(VibeToneAmplitude(capture, 2, 0, 48000, 440, NSMakeRange(4800, 12000)), 0.5, 0.02, @"the first 0.35 s is the short track alone");
@@ -408,7 +408,7 @@
     NSURL *url = [self fixture:@"noise-48000-24-2.wav"];
     NSData *reference = VibePCM([self read:url]);
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
-    AudioTrack *row = VibeCueRow(url, 30, 105);
+    VibeTestTrack *row = VibeCueRow(url, 30, 105);
     [_player play:row atPosition:0 startPaused:NO];
     [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
     XCTAssertEqualWithAccuracy(_player.duration, 1.0, 0);
@@ -435,7 +435,7 @@
     for (NSNumber *block in @[@63, @1024, @4096]) for (NSNumber *mode in @[@NO, @YES]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:mode.boolValue automatic:NO];
         _blockSize = block.unsignedIntegerValue;
-        NSArray<AudioTrack *> *rows = @[VibeCueRow(url, 0, 30), VibeCueRow(url, 30, 75), VibeCueRow(url, 75, 0)];
+        NSArray<VibeTestTrack *> *rows = @[VibeCueRow(url, 0, 30), VibeCueRow(url, 30, 75), VibeCueRow(url, 75, 0)];
         _chain = rows; _nextPrefetch = 1;
         [_player play:rows[0]];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
@@ -453,7 +453,7 @@
     NSData *reference = VibePCM([self read:url]);
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
     _blockSize = 1024;
-    AudioTrack *row = VibeCueRow(url, 30, 105);
+    VibeTestTrack *row = VibeCueRow(url, 30, 105);
     _chain = @[row, row, row]; _nextPrefetch = 1;
     [_player play:row];
     [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
@@ -473,7 +473,7 @@
     [self play:url paused:NO position:0];
     NSData *reference = [self renderSeconds:2.1];
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
-    NSArray<AudioTrack *> *rows = @[VibeCueRow(url, 0, 37), VibeCueRow(url, 37, 0)];
+    NSArray<VibeTestTrack *> *rows = @[VibeCueRow(url, 0, 37), VibeCueRow(url, 37, 0)];
     _chain = rows; _nextPrefetch = 1;
     [_player play:rows[0]];
     [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
@@ -489,7 +489,7 @@
     NSData *reference = VibePCM([self read:url]);
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     _player.crossfadeMilliseconds = 2000;
-    NSArray<AudioTrack *> *rows = @[VibeCueRow(url, 0, 75), VibeCueRow(url, 75, 0)];
+    NSArray<VibeTestTrack *> *rows = @[VibeCueRow(url, 0, 75), VibeCueRow(url, 75, 0)];
     _chain = rows; _nextPrefetch = 1;
     [_player play:rows[0]];
     [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
@@ -516,7 +516,7 @@
     NSData *reference = VibePCM([self read:url]);
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
     _player.crossfadeMilliseconds = 2000;
-    AudioTrack *first = VibeCueRow(url, 0, 150), *second = VibeCueRow(url, 150, 0);
+    VibeTestTrack *first = VibeCueRow(url, 0, 150), *second = VibeCueRow(url, 150, 0);
     [_player play:first];
     [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
     [_player prefetchTrack:second];
@@ -573,7 +573,7 @@
 - (void)testAnOutputRateChangeKeepsACueRowInsideItsWindow {
     [self startPlayerAt:44100 channels:2 fx:NO bitPerfect:NO automatic:NO];
     NSURL *url = [self fixture:@"1000.wav"];
-    AudioTrack *row = VibeCueRow(url, 75, 225);
+    VibeTestTrack *row = VibeCueRow(url, 75, 225);
     [_player play:row atPosition:0 startPaused:NO];
     [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
     [self render:22050];
@@ -614,7 +614,7 @@
         uint64_t started = coordinator.stateSnapshotForTesting.handleOpensStarted;
         [_player play:VibeCueRow(url, 0, 30) atPosition:0 startPaused:NO];
         XCTAssertEqual(dispatch_semaphore_wait(opened, dispatch_time(DISPATCH_TIME_NOW, VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC)), 0L);
-        AudioTrack *picked = VibeCueRow(url, 75, 0);
+        VibeTestTrack *picked = VibeCueRow(url, 75, 0);
         [_player play:picked atPosition:0 startPaused:NO];
         (void)_player.audioPathSnapshot; // a player-queue round trip: the pick was handled
         dispatch_semaphore_signal(release);
@@ -684,7 +684,7 @@
         }
         NSData *decoded = VibePCM([self read:url]);
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:NO automatic:NO];
-        NSArray<AudioTrack *> *rows = @[VibeCueRow(url, 0, 3), VibeCueRow(url, 3, 50), VibeCueRow(url, 50, 0)];
+        NSArray<VibeTestTrack *> *rows = @[VibeCueRow(url, 0, 3), VibeCueRow(url, 3, 50), VibeCueRow(url, 50, 0)];
         _chain = rows; _nextPrefetch = 1;
         [_player play:rows[0]];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed || [self count:@"advance"] > 0; }];
@@ -703,7 +703,7 @@
         NSUInteger split=96000-length.unsignedIntegerValue;
         NSURL *first=[self write:[reference subdataWithRange:NSMakeRange(0,split*8)] rate:48000 channels:2 name:@"first.wav"];
         NSURL *second=[self write:[reference subdataWithRange:NSMakeRange(split*8,length.unsignedIntegerValue*8)] rate:48000 channels:2 name:@"second.wav"];
-        [self play:first paused:NO position:0]; [_player prefetchTrack:[AudioTrack withURL:second]];
+        [self play:first paused:NO position:0]; [_player prefetchTrack:[VibeTestTrack withURL:second]];
         [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
         [self assertReference:reference capture:[self renderSeconds:2.1] skip:[self startupSkip] tolerance:0];
         [self settleUntil:^BOOL { return [self count:@"advance"] >= 1 && [self count:@"finish"] >= 1; }];
@@ -712,7 +712,7 @@
     for (NSString *next in @[@"noise-44100-24-2.wav",@"noise-48000-24-1.wav"]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
         [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
-        [_player prefetchTrack:[AudioTrack withURL:[self fixture:next]]];
+        [_player prefetchTrack:[VibeTestTrack withURL:[self fixture:next]]];
         [self renderSeconds:2.1]; XCTAssertFalse(_player.gaplessArmed);
         [self settleUntil:^BOOL { return [self count:@"finish"] >= 1; }];
         XCTAssertEqual([self count:@"advance"],0u); XCTAssertEqual([self count:@"finish"],1u);
@@ -722,14 +722,14 @@
     for (NSString *action in @[@"stop",@"seek",@"cancel",@"replace",@"crossfade",@"replay",@"pause"]) {
         [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
         NSURL *url=[self fixture:@"noise-48000-24-2.wav"];
-        AudioTrack *current=[self play:url paused:NO position:0];
-        AudioTrack *next=[AudioTrack withURL:[self fixture:@"1000.wav"]];
+        VibeTestTrack *current=[self play:url paused:NO position:0];
+        VibeTestTrack *next=[VibeTestTrack withURL:[self fixture:@"1000.wav"]];
         [_player prefetchTrack:next]; [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
         [self render:12000];
         if ([action isEqual:@"stop"]) [_player stop];
         else if ([action isEqual:@"seek"]) { [_player prefetchTrack:nil]; [_player seekToPosition:1]; }
         else if ([action isEqual:@"cancel"]) [_player prefetchTrack:nil];
-        else if ([action isEqual:@"replace"]) [_player prefetchTrack:[AudioTrack withURL:[self fixture:@"silence.wav"]]];
+        else if ([action isEqual:@"replace"]) [_player prefetchTrack:[VibeTestTrack withURL:[self fixture:@"silence.wav"]]];
         else if ([action isEqual:@"crossfade"]) _player.crossfadeMilliseconds=500;
         else if ([action isEqual:@"replay"]) [_player play:current];
         else { [_player pause]; [self render:2048]; [_player prefetchTrack:nil]; [_player resume]; }
@@ -743,8 +743,8 @@
 - (void)testCancellingABufferedSuccessorRevoicesTheCurrentTrack {
     self.continueAfterFailure = YES;
     [self startPlayerAt:48000 channels:2 fx:NO bitPerfect:YES automatic:NO];
-    AudioTrack *current = [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
-    AudioTrack *next = [AudioTrack withURL:[self fixture:@"1000.wav"]];
+    VibeTestTrack *current = [self play:[self fixture:@"noise-48000-24-2.wav"] paused:NO position:0];
+    VibeTestTrack *next = [VibeTestTrack withURL:[self fixture:@"1000.wav"]];
     [_player prefetchTrack:next];
     [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
     [self render:72000];
@@ -773,7 +773,7 @@
         self->_player.declick = NO;
         [self play:first paused:YES position:0];
     }];
-    AudioTrack *next = [AudioTrack withURL:second];
+    VibeTestTrack *next = [VibeTestTrack withURL:second];
     __block AudioVoiceBus *bus;
     __block VibeVoiceID old;
     [_player runSyncOnQueue:^{

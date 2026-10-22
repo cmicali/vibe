@@ -928,6 +928,7 @@ targets:
       - path: Tests/AudioRender
       - path: Tests/Support/TestFilesystemGuard.m
       - path: Tests/Support/HTTPStub.m        # a link played over it (AudioPlayerRenderLinkTests)
+      - path: Tests/Support/VibeTestTrack.m   # the render suite's playable item
       - path: vibe-libs/Tests/audio/Decode/AudioFileHandleFuzzTests.m   # over the generated fixtures
       - path: Vibe/Audio/AudioPlayer.m
       - path: Vibe/Audio/AudioPlayer+State.m

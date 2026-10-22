@@ -82,10 +82,8 @@ static NSData *MP3Frames(NSData *mp3) {
     NSURL *source = [self playEstimatedStreamOf:bytes prefix:32 * 1024 name:@"estimated.mp3"];
     NSData *reference = VibePCM([self read:source]);
     double exact = (double)[self open:source decoder:@"dr_mp3"].length / 48000;
-    AudioTrack *track = (AudioTrack *)_player.currentTrack;
     XCTAssertTrue(((AudioFileHandle *)[_player valueForKey:@"file"]).lengthIsEstimated);
     XCTAssertEqualWithAccuracy(_player.duration, exact, exact * 0.02);
-    XCTAssertEqual(track.duration, 0, @"the player only reads its items");
 
     [_player seekToPosition:0.2];
     [self settleUntil:^BOOL { return [self count:@"seek"] == 1; }];
@@ -247,7 +245,7 @@ static NSData *MP3Frames(NSData *mp3) {
 - (void)testACueRowPastAShortEstimatePlaysFromItsStart {
     NSURL *source = [self streamEstimated:[self constantHeadMP3] prefix:24576 name:@"cue.mp3"];
     NSData *reference = VibePCM([self read:source]);
-    AudioTrack *row = VibeCueRow(_streamURL, 480, 600);
+    VibeTestTrack *row = VibeCueRow(_streamURL, 480, 600);
     [self playOnTheDecodePoolBitPerfect:NO play:^{
         self->_player.declick = NO;
         [self->_player play:row atPosition:0 startPaused:NO];

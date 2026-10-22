@@ -303,7 +303,7 @@
     [self shortenTheOpenDeadline];
     AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
     uint64_t started = coordinator.stateSnapshotForTesting.handleOpensStarted;
-    [_player play:[AudioTrack withURL:url] atPosition:0 startPaused:NO];
+    [_player play:[VibeTestTrack withURL:url] atPosition:0 startPaused:NO];
     XCTAssertTrue([self await:_script.stalled]);
     [self settleUntil:^BOOL { return self->_playError != nil; }];
     XCTAssertEqual(_playError.code, VibeAudioErrorFileOpenTimedOut, @"%@", _playError);
@@ -339,7 +339,7 @@
     // Named once the first track decodes: a successor queued before its first
     // drain leaves the pool idle until a render.
     [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
-    [_player prefetchTrack:[AudioTrack withURL:second]];
+    [_player prefetchTrack:[VibeTestTrack withURL:second]];
     [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
     [self settleUntil:^BOOL {
         return AudioFileHandle.debugLiveReadAheads == 2 && [self->_script readsOf:@"second.wav" at:kReadAheadBlock] == 1;
@@ -368,7 +368,7 @@
         [self shortenTheOpenDeadline];
     }];
     [self settleUntil:^BOOL { return [self currentVoiceSnapshot].written >= 16384; }];
-    [_player prefetchTrack:[AudioTrack withURL:successor]];
+    [_player prefetchTrack:[VibeTestTrack withURL:successor]];
     [self settleUntil:^BOOL { return self->_player.gaplessArmed; }];
     [self stallTheStream];
     XCTAssertGreaterThan([_script readsOf:successor.lastPathComponent at:kReadAheadBlock], 0u, @"the successor read ahead");

@@ -30,7 +30,7 @@
             return NO;
         }];
         @try {
-            [_player play:[AudioTrack withURL:url] atPosition:0 startPaused:NO];
+            [_player play:[VibeTestTrack withURL:url] atPosition:0 startPaused:NO];
             XCTAssertEqual(dispatch_semaphore_wait(entered, dispatch_time(DISPATCH_TIME_NOW,
                     (int64_t)(VIBE_TEST_HANG_TIMEOUT * NSEC_PER_SEC))), 0);
             if (timeout.boolValue) {
@@ -90,7 +90,7 @@
         [self shortenTheOpenDeadline];
         AudioFileMaterializationCoordinator *coordinator = AudioFileMaterializationCoordinator.sharedCoordinator;
         uint64_t started = coordinator.stateSnapshotForTesting.handleOpensStarted;
-        [_player play:[AudioTrack withURL:url] atPosition:0 startPaused:NO];
+        [_player play:[VibeTestTrack withURL:url] atPosition:0 startPaused:NO];
         [self settleUntil:^BOOL { return self->_playError != nil; }];
         XCTAssertEqual(_playError.code, VibeAudioErrorFileOpenTimedOut, @"%@", _playError);
         XCTAssertEqual(coordinator.stateSnapshotForTesting.handleOpensStarted, started + 1, @"the open began, on the part file");
@@ -358,7 +358,7 @@
     [self play:_streamURL paused:NO position:0];
     [self stallTheStream];
     NSURL *local = [self fixture:@"noise-48000-16-2.wav"];
-    AudioTrack *other = [AudioTrack withURL:local];
+    VibeTestTrack *other = [VibeTestTrack withURL:local];
     NSUInteger starts = [self count:@"start"];
     [self withPlayerQueueHeld:^{
         [self->_player resume];

@@ -239,7 +239,7 @@ typedef struct {
                             (uint32_t)(lengthA * 8));
     NSURL *b = VibeWriteWAV([_temporary URLByAppendingPathComponent:@"saw-b.wav"], SawPCM(lengthA, lengthB, 2, 32), 48000, 2, 32,
                             (uint32_t)(lengthB * 8));
-    NSArray<AudioTrack *> *tracks = @[[AudioTrack withURL:a], [AudioTrack withURL:b]];
+    NSArray<VibeTestTrack *> *tracks = @[[VibeTestTrack withURL:a], [VibeTestTrack withURL:b]];
     [_player play:tracks[0]];
     [self settleUntil:^BOOL { return [self count:@"start"] == 1; }];
     [_player prefetchTrack:tracks[1]];

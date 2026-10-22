@@ -1,10 +1,10 @@
 // Shared capture, comparisons and delegate traces. This base class runs no tests.
 
 #import <XCTest/XCTest.h>
-#import "AudioFixtures.h"
+#import "AudioReferenceFixtures.h"
 #import "AudioPlayer+Debug.h"
 #import "AudioPlayerInternal.h"
-#import "AudioTrack.h"
+#import "VibeTestTrack.h"
 #import "AudioVoiceBusInternal.h"
 #import "CloudFileMaterializer.h"
 #include <float.h>
@@ -30,7 +30,7 @@ double VibeToneAmplitude(NSData *data, NSUInteger channels, NSUInteger channel, 
 
 // Sources more than one topic writes.
 NSData *VibeStereoTone(NSUInteger frames, double rate, double frequency, float amplitude);
-AudioTrack *VibeCueRow(NSURL *url, NSUInteger start, NSUInteger end);
+VibeTestTrack *VibeCueRow(NSURL *url, NSUInteger start, NSUInteger end);
 NSData *VibeUniqueNoise(NSUInteger frames, uint32_t seed);
 NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels);
 
@@ -46,7 +46,7 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels);
     NSUInteger _channels;
     NSUInteger _blockSize;
     NSMutableData *_capture;
-    NSArray<AudioTrack *> *_chain;
+    NSArray<VibeTestTrack *> *_chain;
     NSUInteger _nextPrefetch;
     void (^_outputModesProvider)(NSString *, BOOL *, BOOL *);
     // The remote file streamingCopyOf: stands up: its bytes, its first
@@ -72,7 +72,7 @@ NSData *VibeAudibleFrames(NSData *pcm, NSUInteger channels);
 - (void)settleUntil:(BOOL (^)(void))condition;
 - (NSDictionary *)settledSignalSnapshot;
 - (void)startPlayerAt:(double)rate channels:(NSUInteger)channels fx:(BOOL)fx bitPerfect:(BOOL)bitPerfect automatic:(BOOL)automatic;
-- (AudioTrack *)play:(NSURL *)url paused:(BOOL)paused position:(double)position;
+- (VibeTestTrack *)play:(NSURL *)url paused:(BOOL)paused position:(double)position;
 - (void)render:(NSUInteger)frames;
 - (NSData *)renderSeconds:(double)seconds;
 - (NSUInteger)startupSkip;

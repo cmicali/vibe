@@ -8,7 +8,7 @@
 #import <XCTest/XCTest.h>
 #import <objc/runtime.h>
 
-#import "../../Vibe/Audio/AudioOutputUnitInternal.h"
+#import "AudioOutputUnitInternal.h"
 
 #pragma mark - The hosted output unit's render callback
 

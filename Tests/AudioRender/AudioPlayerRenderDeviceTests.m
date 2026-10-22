@@ -204,7 +204,7 @@
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]];
         XCTAssertEqual([self count:@"finish"],0u,@"Termination must not deliver natural track-end and auto-advance during NSTerminateLater");
         XCTAssertFalse([_player.debugRenderCounts[@"running"] boolValue]);
-        AudioTrack *lateTrack = [[AudioTrack alloc] initWithURL:[self fixture:@"noise-48000-24-2.wav"]];
+        VibeTestTrack *lateTrack = [VibeTestTrack withURL:[self fixture:@"noise-48000-24-2.wav"]];
         [_player play:lateTrack];
         [_player prefetchTrack:lateTrack];
         [_player setBitPerfectOutput:YES exclusiveOutput:YES enableFX:NO allowAnyDevice:NO];
