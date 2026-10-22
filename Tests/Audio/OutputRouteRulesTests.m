@@ -6,7 +6,7 @@
 
 #import <XCTest/XCTest.h>
 
-#import "../../Vibe/Audio/iOS/OutputRouteRules.h"
+#import "OutputRouteRules.h"
 
 static const VibeOutputRouteKind kAllKinds[] = {
     VibeOutputRouteKindNone,

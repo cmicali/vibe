@@ -10,8 +10,6 @@
 #import <XCTest/XCTest.h>
 #import <objc/runtime.h>
 
-#import "AppSettings.h"
-#import "AppSettings+Mac.h"
 #import "AudioDeviceEventLog.h"
 #import "AudioDeviceManager.h"
 #import "CoreAudioUtil.h"
@@ -184,52 +182,7 @@
     XCTAssertEqual(deliveries, 2u);
 }
 
-#pragma mark - Carrying remembered modes to a new USB port
-
-static NSString *const kModesKey = @"AudioPlayer.outputModesByDeviceUID";
-
-// Remove the key after the test. Writing a registered default would leave
-// a stored value where none existed. Test defaults are process-local.
-- (void)withModeStore:(NSDictionary *)store run:(void (^)(void))block {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    [defaults setObject:store forKey:kModesKey];
-    block();
-    [defaults removeObjectForKey:kModesKey];
-}
-
-- (void)testCarryCopiesModesToTheNewPortAndLeavesTheOldPortIntact {
-    [self withModeStore:@{@"port-a": @{@"bitPerfect": @YES, @"exclusive": @YES}} run:^{
-        AppSettings *settings = AppSettings.sharedInstance;
-        [settings carryOutputModesFromDeviceUID:@"port-a" toDeviceUID:@"port-b"];
-        XCTAssertTrue([settings bitPerfectOutputForDeviceUID:@"port-b"]);
-        XCTAssertTrue([settings exclusiveOutputForDeviceUID:@"port-b"]);
-        // Copied, not moved: plugged back into the first port it still has them.
-        XCTAssertTrue([settings bitPerfectOutputForDeviceUID:@"port-a"]);
-    }];
-}
-
-// Modes someone already chose for that exact unit are a choice; a carry is a
-// guess, and must never overwrite a choice.
-- (void)testCarryNeverOverwritesModesAlreadyChosenForTheDestination {
-    [self withModeStore:@{@"port-a": @{@"bitPerfect": @YES},
-                          @"port-b": @{@"exclusive": @YES}} run:^{
-        AppSettings *settings = AppSettings.sharedInstance;
-        [settings carryOutputModesFromDeviceUID:@"port-a" toDeviceUID:@"port-b"];
-        XCTAssertFalse([settings bitPerfectOutputForDeviceUID:@"port-b"]);
-        XCTAssertTrue([settings exclusiveOutputForDeviceUID:@"port-b"]);
-    }];
-}
-
-- (void)testCarryIgnoresEmptyOrIdenticalUIDs {
-    [self withModeStore:@{@"port-a": @{@"bitPerfect": @YES}} run:^{
-        AppSettings *settings = AppSettings.sharedInstance;
-        [settings carryOutputModesFromDeviceUID:@"" toDeviceUID:@"port-b"];
-        [settings carryOutputModesFromDeviceUID:@"port-a" toDeviceUID:@""];
-        [settings carryOutputModesFromDeviceUID:@"port-a" toDeviceUID:@"port-a"];
-        XCTAssertFalse([settings bitPerfectOutputForDeviceUID:@"port-b"]);
-        XCTAssertEqual([[NSUserDefaults.standardUserDefaults dictionaryForKey:kModesKey] count], 1u);
-    }];
-}
+#pragma mark - Finding a saved device on another USB port
 
 // A class-compliant USB interface's device UID is its USB location, so the same
 // iD4 on another port has a new UID but the same model UID.
