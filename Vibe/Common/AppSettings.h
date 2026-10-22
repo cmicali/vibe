@@ -32,6 +32,11 @@ static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 #define SETTINGS_VALUE_REPEAT_MODE_ALL      @"all"
 #define SETTINGS_VALUE_REPEAT_MODE_ONE      @"one"
 
+// The folder-open order's stable stored identifiers, never display names.
+#define SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME            @"name"
+#define SETTINGS_VALUE_FOLDER_OPEN_SORT_NEWEST_FIRST    @"newest_first"
+#define SETTINGS_VALUE_FOLDER_OPEN_SORT_AS_RECEIVED     @"as_received"
+
 @interface AppSettings : NSObject
 
 #pragma mark - Both platforms

@@ -17,7 +17,7 @@ Every way a file arrives lands in `AppDelegate` and comes out as one playlist: a
 
 **Close invalidates the open coordinator before it unloads the playlist**, so a pending walk or a buffered append cannot reopen files the user closed. A replacing open uses the same invalidation.
 
-The walk is `FolderWalk` (`Vibe/Playlist/`) on a four-wide queue. An unreachable mount cannot hold every later open hostage, and a burst of drops cannot spawn a thread each.
+The walk is `FolderWalk` (vibe-libs' `media/FolderScan`) on a four-wide queue. An unreachable mount cannot hold every later open hostage, and a burst of drops cannot spawn a thread each.
 
 `DocumentTypes` lives in `Vibe/Common/`, because both targets declare document types. It seeds the ⌘O panel's filter and `DefaultAppRegistration` (`Mac/Settings/`). The panel then widens its filter to every type registered for those filename extensions.
 
