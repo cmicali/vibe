@@ -24,6 +24,8 @@
 #import "PlaybackDeliveryRules.h"
 #import "FadeMath.h"
 #import "PlaceholderFiles.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 #import <AVFAudio/AVFAudio.h>
 #import <os/lock.h>
 

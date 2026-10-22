@@ -4,6 +4,7 @@
 //
 
 #import "AudioOutputUnitInternal.h"
+#import "VibeMacros.h"
 #if !TARGET_OS_OSX
 #import <os/lock.h>
 #endif

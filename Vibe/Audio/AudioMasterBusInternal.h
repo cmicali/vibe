@@ -10,6 +10,7 @@
 #import "AudioFX+Pipeline.h"
 #import "AudioLevelMeter.h"
 #import "AudioVarispeed.h"
+#import "VibeMacros.h"
 #include <stdatomic.h>
 #include <unistd.h>
 

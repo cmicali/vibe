@@ -6,6 +6,8 @@
 #import "AudioPlayer+Recovery.h"
 #import "AudioPlayerInternal.h"
 #import "PlaybackDeliveryRules.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 @implementation AudioPlayer (PlatformOutput)
 

@@ -4,6 +4,7 @@
 //
 
 #import "AudioMasterBusInternal.h"
+#import "VibeMacros.h"
 #import <Accelerate/Accelerate.h>
 
 // The calls the compiler cannot check: the volume's vDSP, which Accelerate

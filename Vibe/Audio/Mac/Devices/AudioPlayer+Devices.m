@@ -8,6 +8,8 @@
 #import "AudioFX.h"
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 #import <AudioToolbox/AudioToolbox.h>
 
 static const NSTimeInterval kSystemOutputBindRetryDelay = 2.0;

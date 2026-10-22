@@ -7,6 +7,7 @@
 #import "AudioPlayerInternal.h"
 #import "AudioFileFormat.h"
 #import "AudioFX.h"
+#import "VibeMacros.h"
 #include <mach/mach_time.h>
 #if DEBUG
 #import "VibeManualRenderPump.h"

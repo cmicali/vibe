@@ -7,6 +7,7 @@
 //
 
 #import "AudioVoiceBusInternal.h"
+#import "VibeMacros.h"
 
 #import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>

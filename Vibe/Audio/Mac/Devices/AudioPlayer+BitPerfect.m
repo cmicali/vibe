@@ -8,6 +8,8 @@
 #import "AudioFX.h"
 #import "AudioDevice.h"
 #import "CoreAudioUtil.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 // Format changes and restoration wait, with the output stopped, for the
 // device to confirm the write before the graph follows its rate.

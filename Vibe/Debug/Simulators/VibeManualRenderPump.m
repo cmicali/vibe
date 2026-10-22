@@ -1,4 +1,5 @@
 #import "VibeManualRenderPump.h"
+#import "VibeMacros.h"
 #if DEBUG
 @implementation VibeManualRenderPump {
     VibeManualRenderBlock _render;

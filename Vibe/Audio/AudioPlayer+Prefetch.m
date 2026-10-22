@@ -5,6 +5,7 @@
 
 #import "AudioPlayer+Prefetch.h"
 #import "AudioPlayerInternal.h"
+#import "HelperMacros.h"
 
 @interface AudioPlayer (PrefetchPrivate)
 - (void)beginPrefetchRequestOnQueueForTrack:(nullable id<VibePlayableItem>)track;

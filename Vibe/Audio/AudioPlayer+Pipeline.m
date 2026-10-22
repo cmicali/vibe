@@ -8,6 +8,7 @@
 #import "AudioMasterBusInternal.h"
 #import "AudioFX+Pipeline.h"
 #import "AudioVarispeed.h"
+#import "VibeMacros.h"
 #if TARGET_OS_OSX
 #import "OutputFormatRules.h"
 #endif

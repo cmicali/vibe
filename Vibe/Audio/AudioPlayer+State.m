@@ -7,6 +7,7 @@
 //
 
 #import "AudioPlayerInternal.h"
+#import "HelperMacros.h"
 
 @implementation AudioPlayer (State)
 
