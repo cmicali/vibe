@@ -26,7 +26,7 @@ NS_ASSUME_NONNULL_BEGIN
     NSURL *_testRootURL;
 }
 - (NSURL *)URLNamed:(NSString *)name;
-- (AudioTrack *)trackNamed:(NSString *)name;
+- (VibeLoaderTestTrack *)trackNamed:(NSString *)name;
 - (AudioLoadingConfiguration *)testConfigurationWithValues:(VibeAudioLoadingConfigurationValues)values;
 - (AudioLoadingConfiguration *)testConfigurationWithRetryCount:(NSUInteger)retryCount;
 - (AudioLoadingConfiguration *)testConfiguration;

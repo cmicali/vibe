@@ -6,7 +6,7 @@
 
 #import <XCTest/XCTest.h>
 
-#import "AudioFixtures.h"
+#import "ImageFixtures.h"
 #import "AudioTrackArtwork.h"
 #import "FolderArtResolverInternal.h"
 #import "NSImage+Util.h"

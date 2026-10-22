@@ -2,20 +2,30 @@
 //  MetadataLoaderTestFakes.h
 //
 //  The fakes the AudioTrackMetadataLoader tests run the real loader over:
-//  the duck-typed metadata, the loader's owner and delegate, and a provider
-//  operation each test completes by hand. MetadataLoaderTestFakes.m also
-//  holds the suite's one AudioTrackMetadata decoy.
+//  the holder, the duck-typed metadata, the loader's owner and delegate, and
+//  a provider operation each test completes by hand.
 //
 
 #import <XCTest/XCTest.h>
 
 #import "AudioFileMaterializationCoordinatorInternal.h"
-#import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataLoader.h"
 #import "MetadataParseCoordinator.h"
 
 NS_ASSUME_NONNULL_BEGIN
+
+// The tests' own holder: a file, its window, and the metadata a loader
+// installs. It memoizes its cache key as an app's row may, stamped with
+// NSURL.cacheKeyGeneration. A fresh object per call, so two holders for one
+// file stay two holders.
+@interface VibeLoaderTestTrack : NSObject <AudioTrackMetadataHolder>
++ (VibeLoaderTestTrack *)withURL:(NSURL *)url;
+// A window of the file in CD frames; an end of 0 runs to the file's end.
+- (instancetype)initWithURL:(NSURL *)url cueStart:(NSUInteger)cueStart cueEnd:(NSUInteger)cueEnd
+        NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+@end
 
 @interface VibeLoaderTestMetadata : NSObject <NSCopying>
 @property(nonatomic) BOOL parsedOK;
@@ -27,17 +37,17 @@ NS_ASSUME_NONNULL_BEGIN
 AudioTrackMetadata *VibeLoaderTestMetadataResult(BOOL parsedOK, NSString *marker);
 
 // A cue image's rows: consecutive ten-second windows of one file.
-NSMutableArray<AudioTrack *> *VibeLoaderTestCueRows(NSURL *image, NSUInteger count);
+NSMutableArray<VibeLoaderTestTrack *> *VibeLoaderTestCueRows(NSURL *image, NSUInteger count);
 
 @interface VibeMetadataLoaderOwner : NSObject
-@property(nonatomic, strong) MetadataParseCoordinator<AudioTrack *> *parseCoordinator;
+@property(nonatomic, strong) MetadataParseCoordinator<VibeLoaderTestTrack *> *parseCoordinator;
 @property(atomic) uint64_t cacheGeneration;
 @property(atomic, strong, nullable) id metadataCache;
 @end
 
 @interface VibeMetadataLoaderDelegate : NSObject <AudioTrackMetadataCacheDelegate>
 @property(nonatomic, strong, nullable) XCTestExpectation *deliveryExpectation;
-@property(nonatomic, strong) NSMutableArray<AudioTrack *> *deliveredTracks;
+@property(nonatomic, strong) NSMutableArray<VibeLoaderTestTrack *> *deliveredTracks;
 @property(nonatomic, strong) NSMutableArray<AudioTrackMetadata *> *deliveredMetadata;
 @property(nonatomic) BOOL allDeliveriesOnMain;
 @end

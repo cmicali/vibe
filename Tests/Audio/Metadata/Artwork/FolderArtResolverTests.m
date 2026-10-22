@@ -4,7 +4,7 @@
 
 #import <XCTest/XCTest.h>
 
-#import "AudioFixtures.h"
+#import "ImageFixtures.h"
 #import "FolderArtRules.h"
 #import "FolderArtResolverInternal.h"
 

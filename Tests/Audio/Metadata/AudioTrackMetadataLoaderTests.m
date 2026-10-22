@@ -13,7 +13,7 @@
 #pragma mark - Stage one and cache hits
 
 - (void)testStageOneFullyDrainsBeforeExactNeighborhoodOrderedScanStarts {
-    NSArray<AudioTrack *> *tracks = @[
+    NSArray<VibeLoaderTestTrack *> *tracks = @[
         [self trackNamed:@"zero.wav"],
         [self trackNamed:@"one.wav"],
         [self trackNamed:@"two.wav"],
@@ -23,7 +23,7 @@
     XCTestExpectation *checksEntered = [self expectationWithDescription:@"all cache checks entered"];
     checksEntered.expectedFulfillmentCount = tracks.count;
     NSObject *counterLock = [[NSObject alloc] init];
-    NSMutableSet<AudioTrack *> *initiallyChecked = [NSMutableSet set];
+    NSMutableSet<VibeLoaderTestTrack *> *initiallyChecked = [NSMutableSet set];
     __block NSUInteger checksReturned = 0;
 
     VibeMetadataLoaderOperationController *controller =
@@ -39,7 +39,7 @@
     XCTestExpectation *parsed = [self expectationWithDescription:@"all parsed"];
     parsed.expectedFulfillmentCount = tracks.count;
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) {
         BOOL initialCheck;
         @synchronized (counterLock) {
             initialCheck = ![initiallyChecked containsObject:track];
@@ -82,8 +82,8 @@
 }
 
 - (void)testDebugScanLaneStateReflectsBarrierPendingAndInFlightWork {
-    AudioTrack *first = [self trackNamed:@"debug-first.wav"];
-    AudioTrack *second = [self trackNamed:@"debug-second.wav"];
+    VibeLoaderTestTrack *first = [self trackNamed:@"debug-first.wav"];
+    VibeLoaderTestTrack *second = [self trackNamed:@"debug-second.wav"];
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
     controller.blocksUntilCancelled = YES;
@@ -92,7 +92,7 @@
     controller.cancellationExpectation =
             [self expectationWithDescription:@"held scan cancelled"];
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *url) {
         XCTFail(@"held debug-state scan parsed");
         return VibeLoaderTestMetadataResult(NO, @"unexpected");
@@ -120,7 +120,7 @@
 }
 
 - (void)testStageOneCacheHitInstallsAndPublishesWithoutMaterialization {
-    AudioTrack *track = [self trackNamed:@"stage-one-hit.wav"];
+    VibeLoaderTestTrack *track = [self trackNamed:@"stage-one-hit.wav"];
     AudioTrackMetadata *cached = VibeLoaderTestMetadataResult(YES, @"stage-one-cache");
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
@@ -130,7 +130,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfiguration]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) { return cached; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *candidate) { return cached; }
             fileParser:^AudioTrackMetadata *(NSURL *url) {
         XCTFail(@"a stage-one cache hit must not parse the file");
         return VibeLoaderTestMetadataResult(NO, @"unexpected");
@@ -149,19 +149,19 @@
 // The browser's road for a song not on the device: a miss must not read the
 // file, which for a dataless one is a download.
 - (void)testCacheOnlyHitPublishesAndMissReadsNothing {
-    AudioTrack *hit = [self trackNamed:@"cache-only-hit.wav"];
-    AudioTrack *miss = [self trackNamed:@"cache-only-miss.wav"];
+    VibeLoaderTestTrack *hit = [self trackNamed:@"cache-only-hit.wav"];
+    VibeLoaderTestTrack *miss = [self trackNamed:@"cache-only-miss.wav"];
     AudioTrackMetadata *cached = VibeLoaderTestMetadataResult(YES, @"cache-only");
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
     VibeMetadataLoaderDelegate *delegate = [[VibeMetadataLoaderDelegate alloc] init];
     delegate.deliveryExpectation =
             [self expectationWithDescription:@"cache-only hit published"];
-    NSMutableArray<AudioTrack *> *lookups = [NSMutableArray array];
+    NSMutableArray<VibeLoaderTestTrack *> *lookups = [NSMutableArray array];
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfiguration]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) {
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *candidate) {
         @synchronized (lookups) {
             [lookups addObject:candidate];
         }
@@ -190,14 +190,14 @@
 #pragma mark - Priority
 
 - (void)testPriorityRecordBypassesStageOneAndIsNotResubmittedByTheScan {
-    AudioTrack *priority = [self trackNamed:@"priority.wav"];
-    AudioTrack *first = [self trackNamed:@"first.wav"];
-    AudioTrack *second = [self trackNamed:@"second.wav"];
+    VibeLoaderTestTrack *priority = [self trackNamed:@"priority.wav"];
+    VibeLoaderTestTrack *first = [self trackNamed:@"first.wav"];
+    VibeLoaderTestTrack *second = [self trackNamed:@"second.wav"];
     dispatch_semaphore_t cacheGate = dispatch_semaphore_create(0);
     XCTestExpectation *ordinaryChecks = [self expectationWithDescription:@"ordinary checks blocked"];
     ordinaryChecks.expectedFulfillmentCount = 2;
     NSObject *cacheLock = [[NSObject alloc] init];
-    NSMutableSet<AudioTrack *> *initiallyChecked = [NSMutableSet set];
+    NSMutableSet<VibeLoaderTestTrack *> *initiallyChecked = [NSMutableSet set];
 
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
@@ -207,7 +207,7 @@
     XCTestExpectation *parsed = [self expectationWithDescription:@"all parsed"];
     parsed.expectedFulfillmentCount = 3;
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) {
         if (track == priority) {
             return nil;
         }
@@ -252,7 +252,7 @@
 - (void)testPriorityTagsOfARemotePlaceholderArriveWhileItsPlaybackTransferRuns {
     XCTAssertTrue([NSFileManager.defaultManager createDirectoryAtURL:_testRootURL withIntermediateDirectories:YES
                                                           attributes:nil error:NULL]);
-    AudioTrack *track = [self trackNamed:@"mix.mp3"];
+    VibeLoaderTestTrack *track = [self trackNamed:@"mix.mp3"];
     XCTAssertTrue([NSFileManager.defaultManager createFileAtPath:track.url.path contents:nil
                                                       attributes:@{NSFilePosixPermissions: @0}]);
     [PlaceholderFiles setRemotePlaceholderRoots:@[_testRootURL]];
@@ -267,7 +267,7 @@
     delegate.deliveryExpectation = [self expectationWithDescription:@"tags delivered"];
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller configuration:[self testConfiguration]
                                                          delegate:delegate
-                                                      cacheReader:^AudioTrackMetadata *(AudioTrack *t) { return nil; }
+                                                      cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *t) { return nil; }
                                                        fileParser:^AudioTrackMetadata *(NSURL *url) {
         return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
     }];
@@ -295,9 +295,9 @@
 // The shell's row removal abandons the queued entry; its undo is the later
 // priority edge.
 - (void)testAbandonedQueuedTrackNeverMaterializesAndPriorityRebuildsIt {
-    AudioTrack *first = [self trackNamed:@"first.wav"];
-    AudioTrack *removed = [self trackNamed:@"removed.wav"];
-    AudioTrack *last = [self trackNamed:@"last.wav"];
+    VibeLoaderTestTrack *first = [self trackNamed:@"first.wav"];
+    VibeLoaderTestTrack *removed = [self trackNamed:@"removed.wav"];
+    VibeLoaderTestTrack *last = [self trackNamed:@"last.wav"];
 
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
@@ -345,7 +345,7 @@
 }
 
 - (void)testPriorityInvalidatesAnOffLockScanPickBeforeItCanClaimTheRecord {
-    AudioTrack *track = [self trackNamed:@"priority-during-scan-pick.wav"];
+    VibeLoaderTestTrack *track = [self trackNamed:@"priority-during-scan-pick.wav"];
     dispatch_semaphore_t pickGate = dispatch_semaphore_create(0);
     XCTestExpectation *pickEntered =
             [self expectationWithDescription:@"scan pick reached validation seam"];
@@ -356,7 +356,7 @@
     XCTestExpectation *parsed =
             [self expectationWithDescription:@"reclassified priority parsed"];
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
-            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *candidate) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *url) {
         [parsed fulfill];
         return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
@@ -379,7 +379,7 @@
 }
 
 - (void)testPriorityArrivingDuringScanMaterializationPromotesItsParse {
-    AudioTrack *track = [self trackNamed:@"priority-during-scan.wav"];
+    VibeLoaderTestTrack *track = [self trackNamed:@"priority-during-scan.wav"];
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
     controller.blocksUntilCancelled = YES;
@@ -388,7 +388,7 @@
     XCTestExpectation *parsed =
             [self expectationWithDescription:@"promoted scan result parsed"];
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
-            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *candidate) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *url) {
         [parsed fulfill];
         return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
@@ -411,8 +411,8 @@
 }
 
 - (void)testPriorityPromotesAUtilityParseAlreadyQueuedBehindAnotherParse {
-    AudioTrack *blocker = [self trackNamed:@"queued-parse-blocker.wav"];
-    AudioTrack *target = [self trackNamed:@"queued-parse-target.wav"];
+    VibeLoaderTestTrack *blocker = [self trackNamed:@"queued-parse-blocker.wav"];
+    VibeLoaderTestTrack *target = [self trackNamed:@"queued-parse-target.wav"];
     dispatch_semaphore_t blockerGate = dispatch_semaphore_create(0);
     XCTestExpectation *blockerEntered =
             [self expectationWithDescription:@"blocking parser entered"];
@@ -433,7 +433,7 @@
             [[VibeMetadataLoaderOperationController alloc] init];
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:configuration
-            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *candidate) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *url) {
         [bothParsed fulfill];
         if ([url isEqual:blocker.url]) {
@@ -463,7 +463,7 @@
 }
 
 - (void)testPriorityBookkeepingTracksAUtilityParseThatIsAlreadyRunning {
-    AudioTrack *target = [self trackNamed:@"running-parse-target.wav"];
+    VibeLoaderTestTrack *target = [self trackNamed:@"running-parse-target.wav"];
     dispatch_semaphore_t parserGate = dispatch_semaphore_create(0);
     XCTestExpectation *parserEntered =
             [self expectationWithDescription:@"utility parser entered"];
@@ -483,7 +483,7 @@
             [[VibeMetadataLoaderOperationController alloc] init];
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:configuration
-            cacheReader:^AudioTrackMetadata *(AudioTrack *candidate) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *candidate) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *url) {
         [parserEntered fulfill];
         dispatch_semaphore_wait(parserGate, DISPATCH_TIME_FOREVER);
@@ -512,8 +512,8 @@
 
 - (void)testCacheHitRetiresTargetMarkAndReopensDuplicateURLScan {
     NSURL *url = [self URLNamed:@"cache-target-duplicate.wav"];
-    AudioTrack *cachedTarget = [AudioTrack withURL:url];
-    AudioTrack *scanDuplicate = [AudioTrack withURL:url];
+    VibeLoaderTestTrack *cachedTarget = [VibeLoaderTestTrack withURL:url];
+    VibeLoaderTestTrack *scanDuplicate = [VibeLoaderTestTrack withURL:url];
     dispatch_semaphore_t scanCacheGate = dispatch_semaphore_create(0);
     dispatch_semaphore_t targetCacheGate = dispatch_semaphore_create(0);
     XCTestExpectation *scanCacheEntered =
@@ -548,7 +548,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:configuration
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) {
         if (track == cachedTarget) {
             [targetCacheEntered fulfill];
             dispatch_semaphore_wait(targetCacheGate, DISPATCH_TIME_FOREVER);
@@ -597,8 +597,8 @@
 
 - (void)testOlderDuplicateReadyCannotRetireNewerTargetPriorityMark {
     NSURL *url = [self URLNamed:@"ready-target-duplicate.wav"];
-    AudioTrack *first = [AudioTrack withURL:url];
-    AudioTrack *second = [AudioTrack withURL:url];
+    VibeLoaderTestTrack *first = [VibeLoaderTestTrack withURL:url];
+    VibeLoaderTestTrack *second = [VibeLoaderTestTrack withURL:url];
     dispatch_semaphore_t secondCacheGate = dispatch_semaphore_create(0);
     XCTestExpectation *secondCacheEntered =
             [self expectationWithDescription:@"new target stage-one read entered"];
@@ -621,7 +621,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfiguration]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) {
         if (track == second) {
             BOOL shouldBlock = NO;
             @synchronized (cacheLock) {
@@ -679,9 +679,9 @@
 
 - (void)testPriorityAddedDuringParseRetiresAtSettlementAndSettlesTheDuplicate {
     NSURL *url = [self URLNamed:@"parse-target-duplicate.wav"];
-    AudioTrack *parseTarget = [AudioTrack withURL:url];
-    AudioTrack *scanDuplicate = [AudioTrack withURL:url];
-    AudioTrack *scanBlocker = [self trackNamed:@"parse-target-blocker.wav"];
+    VibeLoaderTestTrack *parseTarget = [VibeLoaderTestTrack withURL:url];
+    VibeLoaderTestTrack *scanDuplicate = [VibeLoaderTestTrack withURL:url];
+    VibeLoaderTestTrack *scanBlocker = [self trackNamed:@"parse-target-blocker.wav"];
     dispatch_semaphore_t parserGate = dispatch_semaphore_create(0);
     XCTestExpectation *parserEntered =
             [self expectationWithDescription:@"target parser held"];
@@ -709,7 +709,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:configuration
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *parsedURL) {
         NSUInteger currentParse;
         BOOL shouldBlock;

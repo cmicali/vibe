@@ -4,38 +4,84 @@
 
 #import "MetadataLoaderTestFakes.h"
 
-// The real AudioTrackMetadata is ObjC++/TagLib and stays out of the host-less
-// target. The tests replace the loader's parse boundary; this definition only
-// satisfies the dormant path's class reference and raises if it is crossed.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wincomplete-implementation"
-@implementation AudioTrackMetadata
-+ (BOOL)supportsSecureCoding {
-    return YES;
+#import "NSURL+Hash.h"
+
+@interface VibeLoaderTestTrack ()
+@property (atomic, strong, nullable, readwrite) AudioTrackMetadata *metadata;
+@end
+
+@implementation VibeLoaderTestTrack {
+    NSString *_sourceKey;
+    NSString *_memoizedCacheKey;
+    uint64_t _memoizedCacheKeyGeneration;
 }
 
-+ (instancetype)metadataWithURL:(NSURL *)url displayArtData:(NSData **)displayArtData {
-    [NSException raise:NSInternalInconsistencyException
-                format:@"Metadata parser escaped its test seam for %@", url];
-    return nil;
+@synthesize url = _url, cueStart = _cueStart, cueEnd = _cueEnd;
+
++ (VibeLoaderTestTrack *)withURL:(NSURL *)url {
+    return [[VibeLoaderTestTrack alloc] initWithURL:url cueStart:0 cueEnd:0];
 }
 
-- (instancetype)initWithCoder:(NSCoder *)coder {
-    return [super init];
-}
-
-- (void)encodeWithCoder:(NSCoder *)coder {
-}
-
-- (id)copyWithZone:(NSZone *)zone {
+- (instancetype)initWithURL:(NSURL *)url cueStart:(NSUInteger)cueStart cueEnd:(NSUInteger)cueEnd {
+    if ((self = [super init])) {
+        _url = [url copy];
+        _cueStart = cueStart;
+        _cueEnd = cueEnd;
+        _sourceKey = VibeKeyByAppendingCueWindow(url.path, cueStart, cueEnd) ?: @"";
+    }
     return self;
 }
-@end
-#pragma clang diagnostic pop
 
-// PlaylistController observes it. The real definition is in the ObjC++ file.
-NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification =
-        @"AudioTrackMetadataThumbnailDidLoadNotification";
+- (NSString *)sourceKey {
+    return _sourceKey;
+}
+
+// Outside the monitor, since the stat can block. A key read under an older
+// generation is computed again.
+- (nullable NSString *)cacheKey {
+    uint64_t generation = NSURL.cacheKeyGeneration;
+    @synchronized (self) {
+        if (_memoizedCacheKey && _memoizedCacheKeyGeneration == generation) {
+            return _memoizedCacheKey;
+        }
+    }
+    NSString *key = self.url.cacheKey;
+    if (!key) {
+        return nil;
+    }
+    @synchronized (self) {
+        if (!_memoizedCacheKey || _memoizedCacheKeyGeneration < generation) {
+            _memoizedCacheKey = key;
+            _memoizedCacheKeyGeneration = generation;
+        }
+        return _memoizedCacheKey;
+    }
+}
+
+- (BOOL)installMetadataIfUnresolved:(AudioTrackMetadata *)metadata {
+    @synchronized (self) {
+        AudioTrackMetadata *installed = self.metadata;
+        if (installed.parsedOK && (installed.cacheKey == metadata.cacheKey
+                || [installed.cacheKey isEqualToString:metadata.cacheKey])) {
+            return NO;
+        }
+        self.metadata = metadata;
+        return YES;
+    }
+}
+
+- (BOOL)deliverIfMetadataStillInstalled:(AudioTrackMetadata *)metadata
+                              usingBlock:(NS_NOESCAPE dispatch_block_t)delivery {
+    @synchronized (self) {
+        if (self.metadata != metadata) {
+            return NO;
+        }
+        delivery();
+        return YES;
+    }
+}
+
+@end
 
 @implementation VibeLoaderTestMetadata
 // None: a parse of a file that exists has a cache key, and its cache write
@@ -61,13 +107,11 @@ AudioTrackMetadata *VibeLoaderTestMetadataResult(BOOL parsedOK,
     return (AudioTrackMetadata *)metadata;
 }
 
-NSMutableArray<AudioTrack *> *VibeLoaderTestCueRows(NSURL *image, NSUInteger count) {
-    NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:count];
+NSMutableArray<VibeLoaderTestTrack *> *VibeLoaderTestCueRows(NSURL *image, NSUInteger count) {
+    NSMutableArray<VibeLoaderTestTrack *> *rows = [NSMutableArray arrayWithCapacity:count];
     for (NSUInteger row = 0; row < count; row++) {
-        [rows addObject:[[AudioTrack alloc] initWithURL:image cueStart:row * 750
-                                                 cueEnd:(row + 1) * 750
-                                                  title:nil performer:nil sheet:nil
-                                            trackNumber:(NSInteger)row + 1]];
+        [rows addObject:[[VibeLoaderTestTrack alloc] initWithURL:image cueStart:row * 750
+                                                          cueEnd:(row + 1) * 750]];
     }
     return rows;
 }
@@ -86,7 +130,7 @@ NSMutableArray<AudioTrack *> *VibeLoaderTestCueRows(NSURL *image, NSUInteger cou
     return self;
 }
 
-- (void)didLoadMetadata:(AudioTrack *)track {
+- (void)didLoadMetadata:(VibeLoaderTestTrack *)track {
     self.allDeliveriesOnMain &= NSThread.isMainThread;
     [self.deliveredTracks addObject:track];
     [self.deliveredMetadata addObject:track.metadata];

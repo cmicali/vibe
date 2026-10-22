@@ -82,8 +82,8 @@ static BOOL VibeMetadataLoaderCoordinatorIsSettled(
     return [_testRootURL URLByAppendingPathComponent:name];
 }
 
-- (AudioTrack *)trackNamed:(NSString *)name {
-    return [AudioTrack withURL:[self URLNamed:name]];
+- (VibeLoaderTestTrack *)trackNamed:(NSString *)name {
+    return [VibeLoaderTestTrack withURL:[self URLNamed:name]];
 }
 
 - (AudioLoadingConfiguration *)testConfigurationWithValues:(VibeAudioLoadingConfigurationValues)values {

@@ -1,6 +1,6 @@
 //
 //  AudioTrackMetadataFuzzTests.mm
-//  VibeAudioTests
+//  The metadata tests
 //
 //  Seeded mutations of the tag tests' fixtures through the real parse and art
 //  read. A mutant may parse or fail. It must take a bounded CPU time and throw

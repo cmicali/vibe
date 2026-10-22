@@ -14,14 +14,14 @@
 
 - (void)testRowsOfOneFileShareOneStageOneCacheRead {
     NSURL *image = [self URLNamed:@"cue-image.flac"];
-    NSMutableArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 40);
+    NSMutableArray<VibeLoaderTestTrack *> *rows = VibeLoaderTestCueRows(image, 40);
     // The same file spelled another way, and one unrelated file between.
-    AudioTrack *respelled = [self trackNamed:@"./cue-image.flac"];
+    VibeLoaderTestTrack *respelled = [self trackNamed:@"./cue-image.flac"];
     XCTAssertNotEqualObjects(respelled.url.path, image.path);
-    AudioTrack *neighbor = [self trackNamed:@"cue-neighbor.wav"];
+    VibeLoaderTestTrack *neighbor = [self trackNamed:@"cue-neighbor.wav"];
     [rows insertObject:neighbor atIndex:20];
     [rows addObject:respelled];
-    NSMutableArray<AudioTrack *> *readTracks = [NSMutableArray array];
+    NSMutableArray<VibeLoaderTestTrack *> *readTracks = [NSMutableArray array];
     AudioTrackMetadata *cached = VibeLoaderTestMetadataResult(YES, @"cue-image");
 
     VibeMetadataLoaderOperationController *controller =
@@ -33,7 +33,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfiguration]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) {
         @synchronized (readTracks) {
             [readTracks addObject:track];
         }
@@ -52,7 +52,7 @@
     XCTAssertEqual(readTracks.count, 2u);
     XCTAssertEqualObjects([NSSet setWithArray:delegate.deliveredTracks],
             [NSSet setWithArray:rows]);
-    for (AudioTrack *row in rows) {
+    for (VibeLoaderTestTrack *row in rows) {
         XCTAssertEqualObjects(((VibeLoaderTestMetadata *)row.metadata).marker,
                 row == neighbor ? @"neighbor" : @"cue-image");
     }
@@ -65,7 +65,7 @@
 
 - (void)testRowsOfOneUncachedFileCostOneMaterializationAndOneParse {
     NSURL *image = [self URLNamed:@"uncached-cue-image.flac"];
-    NSMutableArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 40);
+    NSMutableArray<VibeLoaderTestTrack *> *rows = VibeLoaderTestCueRows(image, 40);
     NSObject *countLock = [[NSObject alloc] init];
     __block NSUInteger cacheReads = 0;
     __block NSUInteger fileParses = 0;
@@ -79,7 +79,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfiguration]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) {
         @synchronized (countLock) {
             cacheReads++;
         }
@@ -101,7 +101,7 @@
     XCTAssertEqual(fileParses, 1u);
     XCTAssertEqual(cacheReads, 2u,
             @"one stage-1 read for the file plus the owner's post-claim read");
-    for (AudioTrack *row in rows) {
+    for (VibeLoaderTestTrack *row in rows) {
         XCTAssertEqualObjects(((VibeLoaderTestMetadata *)row.metadata).marker,
                 @"uncached-image");
     }
@@ -109,7 +109,7 @@
 }
 
 - (void)testAFailedParseLeavesTheFilesOtherRowsTheirOwnTry {
-    NSArray<AudioTrack *> *rows =
+    NSArray<VibeLoaderTestTrack *> *rows =
             VibeLoaderTestCueRows([self URLNamed:@"unreadable-cue-image.flac"], 3);
     NSObject *countLock = [[NSObject alloc] init];
     __block NSUInteger fileParses = 0;
@@ -122,7 +122,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfiguration]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *url) {
         @synchronized (countLock) {
             fileParses++;
@@ -142,8 +142,8 @@
 
 - (void)testPriorityTakesItsFilesRecordAndItsRowTakesAFailureFirst {
     NSURL *image = [self URLNamed:@"priority-cue-image.flac"];
-    NSArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 3);
-    AudioTrack *blocker = [self trackNamed:@"priority-cue-blocker.wav"];
+    NSArray<VibeLoaderTestTrack *> *rows = VibeLoaderTestCueRows(image, 3);
+    VibeLoaderTestTrack *blocker = [self trackNamed:@"priority-cue-blocker.wav"];
     // A lane beside the parked blocker, for the priority start.
     VibeAudioLoadingConfigurationValues values =
             VibeAudioLoadingProductionConfigurationValues();
@@ -161,7 +161,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:configuration
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *url) {
         return VibeLoaderTestMetadataResult([url isEqual:blocker.url], url.lastPathComponent);
     }];
@@ -191,9 +191,9 @@
 
 - (void)testAbandoningARowLeavesTheRestOfItsFilesRecord {
     NSURL *image = [self URLNamed:@"abandon-cue-image.flac"];
-    NSArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 3);
-    AudioTrack *blocker = [self trackNamed:@"abandon-cue-blocker.wav"];
-    AudioTrack *departed = [self trackNamed:@"abandon-departed.wav"];
+    NSArray<VibeLoaderTestTrack *> *rows = VibeLoaderTestCueRows(image, 3);
+    VibeLoaderTestTrack *blocker = [self trackNamed:@"abandon-cue-blocker.wav"];
+    VibeLoaderTestTrack *departed = [self trackNamed:@"abandon-departed.wav"];
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
     controller.blocksUntilCancelled = YES;
@@ -206,7 +206,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfiguration]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *url) {
         return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
     }];
@@ -234,9 +234,9 @@
 // mark must go with it, or the image's other rows are never scanned.
 - (void)testAbandoningAMarkedRowReleasesItsFilesOtherRowsToTheScan {
     NSURL *image = [self URLNamed:@"abandon-marked-cue-image.flac"];
-    NSArray<AudioTrack *> *rows = VibeLoaderTestCueRows(image, 3);
-    AudioTrack *blocker = [self trackNamed:@"abandon-marked-blocker.wav"];
-    AudioTrack *busy = [self trackNamed:@"abandon-marked-busy-priority.wav"];
+    NSArray<VibeLoaderTestTrack *> *rows = VibeLoaderTestCueRows(image, 3);
+    VibeLoaderTestTrack *blocker = [self trackNamed:@"abandon-marked-blocker.wav"];
+    VibeLoaderTestTrack *busy = [self trackNamed:@"abandon-marked-busy-priority.wav"];
     // A lane beside the parked blocker, for the priority slot's parked start.
     VibeAudioLoadingConfigurationValues values =
             VibeAudioLoadingProductionConfigurationValues();
@@ -253,7 +253,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfigurationWithValues:values]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *url) {
         return VibeLoaderTestMetadataResult(YES, url.lastPathComponent);
     }];
@@ -282,15 +282,15 @@
 
 - (void)testSuccessfulParseJoinsDuplicateRowsAndPublishesIndependentCopies {
     NSURL *url = [self URLNamed:@"duplicate-success.wav"];
-    AudioTrack *first = [AudioTrack withURL:url];
-    AudioTrack *second = [AudioTrack withURL:url];
+    VibeLoaderTestTrack *first = [VibeLoaderTestTrack withURL:url];
+    VibeLoaderTestTrack *second = [VibeLoaderTestTrack withURL:url];
     NSObject *countLock = [[NSObject alloc] init];
     __block NSUInteger cacheReads = 0;
     __block NSUInteger fileParses = 0;
     dispatch_semaphore_t parserGate = dispatch_semaphore_create(0);
     XCTestExpectation *parserEntered =
             [self expectationWithDescription:@"owner entered file parser"];
-    MetadataParseCoordinator<AudioTrack *> *parseCoordinator = _owner.parseCoordinator;
+    MetadataParseCoordinator<VibeLoaderTestTrack *> *parseCoordinator = _owner.parseCoordinator;
 
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
@@ -304,7 +304,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfiguration]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) {
         @synchronized (countLock) {
             cacheReads++;
         }
@@ -351,8 +351,8 @@
 
 - (void)testPostClaimCacheHitCopiesIntoAJoinedRowWithoutReadingAgain {
     NSURL *url = [self URLNamed:@"duplicate-cache.wav"];
-    AudioTrack *first = [AudioTrack withURL:url];
-    AudioTrack *second = [AudioTrack withURL:url];
+    VibeLoaderTestTrack *first = [VibeLoaderTestTrack withURL:url];
+    VibeLoaderTestTrack *second = [VibeLoaderTestTrack withURL:url];
     NSObject *countLock = [[NSObject alloc] init];
     __block NSUInteger cacheReads = 0;
     dispatch_semaphore_t secondCacheGate = dispatch_semaphore_create(0);
@@ -360,7 +360,7 @@
             [self expectationWithDescription:@"owner entered post-claim cache read"];
     AudioTrackMetadata *cached =
             VibeLoaderTestMetadataResult(YES, @"post-claim-cache");
-    MetadataParseCoordinator<AudioTrack *> *parseCoordinator = _owner.parseCoordinator;
+    MetadataParseCoordinator<VibeLoaderTestTrack *> *parseCoordinator = _owner.parseCoordinator;
 
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
@@ -371,7 +371,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfiguration]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) {
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) {
         NSUInteger read;
         @synchronized (countLock) {
             cacheReads++;
@@ -415,14 +415,14 @@
 
 - (void)testFailedParsePublishesIndependentFallbacksToOwnerAndWaiter {
     NSURL *url = [self URLNamed:@"duplicate-fallback.wav"];
-    AudioTrack *first = [AudioTrack withURL:url];
-    AudioTrack *second = [AudioTrack withURL:url];
+    VibeLoaderTestTrack *first = [VibeLoaderTestTrack withURL:url];
+    VibeLoaderTestTrack *second = [VibeLoaderTestTrack withURL:url];
     NSObject *countLock = [[NSObject alloc] init];
     __block NSUInteger fileParses = 0;
     dispatch_semaphore_t parserGate = dispatch_semaphore_create(0);
     XCTestExpectation *parserEntered =
             [self expectationWithDescription:@"fallback parser entered"];
-    MetadataParseCoordinator<AudioTrack *> *parseCoordinator = _owner.parseCoordinator;
+    MetadataParseCoordinator<VibeLoaderTestTrack *> *parseCoordinator = _owner.parseCoordinator;
 
     VibeMetadataLoaderOperationController *controller =
             [[VibeMetadataLoaderOperationController alloc] init];
@@ -433,7 +433,7 @@
     AudioTrackMetadataLoader *loader = [self loaderWithController:controller
             configuration:[self testConfiguration]
             delegate:delegate
-            cacheReader:^AudioTrackMetadata *(AudioTrack *track) { return nil; }
+            cacheReader:^AudioTrackMetadata *(VibeLoaderTestTrack *track) { return nil; }
             fileParser:^AudioTrackMetadata *(NSURL *parsedURL) {
         @synchronized (countLock) {
             fileParses++;

@@ -1,17 +1,18 @@
 //
 //  AudioTrackMetadataTagFixtures.h
-//  VibeAudioTests
+//  The metadata tests
 //
 //  Tagged files for the tag and fuzz tests. The audio comes from
-//  AudioFixtures.h or a stock Apple encoder. The tags come from TagLib's own
+//  AudioFileFixtures.h or a stock Apple encoder. The tags come from TagLib's own
 //  writers, except APE, which the vendored TagLib cannot write to MPEG. Ogg
 //  has no Apple encoder. So Vorbis and Opus start from the render suite's
 //  generated fixtures, and are nil without them. C++, so only .mm files
 //  import it.
 //
 
-#import "AudioFixtures.h"
-#import "TestFilesystemGuard.h"
+#import "AudioFileFixtures.h"
+#import "FLACFixtures.h"
+#import "ImageFixtures.h"
 
 #include <attachedpictureframe.h>
 #include <aifffile.h>
@@ -69,10 +70,10 @@ static inline BOOL VibeTagFixtureHasArt(VibeTagFixture fixture) {
     return VibeTagFixtureHasBPMAndKey(fixture) && fixture != VibeTagFixtureMP3APE;
 }
 
-// A fresh directory inside TestFilesystemGuard's per-process root, which the
-// guard removes at exit and a later run removes after a crash.
+// A fresh directory under the temporary directory. The test that made it
+// removes it.
 static inline NSURL *VibeTagFixtureDirectory(void) {
-    NSURL *dir = [NSURL fileURLWithPath:[VibeTestProcessRoot() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]
+    NSURL *dir = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]
                             isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:dir withIntermediateDirectories:YES
                                             attributes:nil error:NULL];
