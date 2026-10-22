@@ -53,7 +53,7 @@ All of these run in CI (`.github/workflows/build.yml`). `make test-ios` runs onl
 | `make test-summary` | Markdown pass/fail table from the last `make test`, with the skip gate. `test-audio-summary` and `test-ios-summary` read the other two suites. |
 | `make analyze CONFIG=Release` | clang static analyzer over **both** app targets. Fails on any finding outside `ThirdParty/` and vibe-libs' `third_party/`. Findings depend on the configuration, and CI checks Release. |
 | `make check-layout` | The layout rule below. |
-| `make check-vocabulary` | The mechanical vocabulary rules below, and no doc line over 1500 characters. |
+| `make check-vocabulary` | The mechanical vocabulary rules below, no doc line over 1500 characters, and no merge conflict marker. |
 | `make check-strings` | Fails when `Resources/Localizable.xcstrings` is stale against the source. |
 | `make check-translations` | Fails when any key in any catalog is missing a language. Both release paths run it; CI only reports. |
 | `make appstore-validate-copy` | App Store copy completeness and caption fit. |

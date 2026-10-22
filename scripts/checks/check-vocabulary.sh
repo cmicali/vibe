@@ -1,6 +1,6 @@
 #!/bin/bash
 # Enforces the mechanical half of the root AGENTS.md's Vocabulary section,
-# and the doc line limit.
+# the doc line limit, and the absence of merge conflict markers.
 set -uo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -81,6 +81,18 @@ long_lines=$(git ls-files --cached --others --exclude-standard \
 if [ -n "$long_lines" ]; then
     fail "doc line over $max_doc_line characters — split the paragraph or make it a list:"
     echo "$long_lines" >&2
+fi
+
+# 8. No merge conflict marker in a text file, tracked or new. A marker is
+# exactly seven <, = or > at a line's start, then a space or the line's end.
+# A longer Markdown or RST underline of = is not one. Vendored code is other
+# authors', and vibe-libs/ is a submodule that runs its own check.
+markers=$(git ls-files -z --cached --others --exclude-standard \
+        | grep -zv '^Vibe/ThirdParty/' \
+        | xargs -0 grep -InE '^(<{7}|={7}|>{7})( |$)' 2>/dev/null || true)
+if [ -n "$markers" ]; then
+    fail "merge conflict marker — resolve the conflict:"
+    echo "$markers" >&2
 fi
 
 if [ "$status" -eq 0 ]; then
