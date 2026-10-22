@@ -1,6 +1,6 @@
 # Equalizer counters
 
-`dump_equalizer`'s schema, the bounds each counter must hold, and `set_equalizer_mode`. Read when judging the equalizer bars on either platform. The producer contract is `vibe-libs/audio/Meter/AGENTS.md`'s, with the player's side in `Vibe/Audio/AGENTS.md` (Live output levels). The renderer's is `Vibe/Controls/AGENTS.md`'s.
+`dump_equalizer`'s schema, the bounds each counter must hold, and `set_equalizer_mode`. Read when judging the equalizer bars on either platform. The producer contract is `vibe-libs/audio/Meter/AGENTS.md`'s, with the player's side in `vibe-libs/audio/Player/AGENTS.md` and the shells' demand in `Vibe/Audio/AGENTS.md` (Live output levels). The renderer's is `Vibe/Controls/AGENTS.md`'s.
 
 `dump_equalizer` has the same schema on both apps: `{levelsEnabled, outputAudioActive, published, sequence, bands, audio: {requested, meterObject, installed, callbacks, analyzedWindows, publications, sequence, lastFrameLength, sampleRate, retiredOutputCount, outputAudioActive, normalizationMode, signalProbe}, renderer: {activeDisplayLinks, displayTicks, geometryLayouts, transformWrites}, silent, noAudioHw, manualRendering}`. Counters are cumulative and never reset.
 

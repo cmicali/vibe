@@ -21,13 +21,11 @@ Vibe/
   Common/              settings, strings, document types
     Mac/               the macOS-only settings
       Theme/           AppTheme, the theme record, and the theme store
-  Audio/               the playback engine: player, voice bus, master bus, output unit
+  Audio/               how Vibe hosts vibe-libs' player, and the audio features beside it
     Metadata/          tags, the metadata cache, and the playlist scan
       Artwork/         embedded art and the shared row thumbnails
         FolderArt/     the cover image beside the files, for a file with no art (macOS)
     Waveform/          waveform data: the decode, the summary, and the disk cache
-    Mac/Devices/       the player's device binding and bit-perfect output (macOS)
-    iOS/               the player's output recovery (iOS)
   Loading/             the app's own transfers: HTTP, links, and Dropbox
     Net/               the app's own HTTP: transfers, placeholders, and Open URL's links
     iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
@@ -70,7 +68,7 @@ Vibe/
 VibeWidget/            the widget extension, in Swift
 vibe-libs/             the shared toolbox, a git submodule; pieces compile into both apps
 Tests/                 unit tests, laid out like Vibe/
-  AudioRender/         the audio suite: the real player, rendered with no device
+  AudioRender/         the audio suite's link topic and corpus test; the rest is vibe-libs'
   Support/             shared test helpers
   BenchComponents/     the component benchmarks, not tests
   iOSDriver/           the touch driver for the iOS simulator, not tests
@@ -93,14 +91,12 @@ Makefile               every build, test, and check command
 
 ### Audio
 
-`Vibe/Audio/` is the playback engine. There is no `AVAudioEngine`. Vibe decodes, mixes, and renders the audio itself. One output unit pulls the result. `AudioPlayer` is the transport: play, pause, seek, stop, and the delegate callbacks. Its categories own the rest. `+Pipeline` is the render pipeline's player-queue side. `+Prefetch` is the next file, opened early. `+State` is the getters, and `+Diagnostics` the reports. `AudioVoiceBus` decodes and mixes the voices. `AudioMasterBus` is the render function. `AudioOutputUnit` is the output unit. `AudioFileHandle`, from vibe-libs' `audio/Decode`, opens and reads one file. The engine takes any object that adopts `VibePlayableItem`: a file, its window, and the keys it is matched by. Read next: `Vibe/Audio/AGENTS.md`. Its section "The model in one page" is the place to start.
+The playback engine is vibe-libs' `audio/Player`, and `Vibe/Audio/` hosts it. There is no `AVAudioEngine`. Vibe decodes, mixes, and renders the audio itself. One output unit pulls the result. `AudioPlayer` is the transport: play, pause, seek, stop, and the delegate callbacks. Its categories own the rest. `+Pipeline` is the render pipeline's player-queue side. `+Prefetch` is the next file, opened early. `+State` is the getters, and `+Diagnostics` the reports. `AudioVoiceBus` decodes and mixes the voices. `AudioMasterBus` is the render function. `AudioOutputUnit` is the output unit. `AudioFileHandle`, from vibe-libs' `audio/Decode`, opens and reads one file. The engine takes any object that adopts `VibePlayableItem`: a file, its window, and the keys it is matched by. On macOS `AudioPlayer+Devices` binds the output unit to a device, and `AudioPlayer+BitPerfect` is bit-perfect and exclusive output. On iOS `AudioPlayer+Recovery` rebuilds the output when the system changes the route. Read next: `vibe-libs/audio/Player/AGENTS.md`. Its section "The model in one page" is the place to start. `Vibe/Audio/AGENTS.md` says what Vibe pushes into the player.
 
-The DJ effects, the meter, and the fades are vibe-libs' (below). `Vibe/Audio/AGENTS.md` says how the player hosts the effects, the pitch fader's stage, and the meter. Each other feature beside the engine has its own directory and doc:
+The DJ effects, the meter, and the fades are vibe-libs' (below). `vibe-libs/audio/Player/AGENTS.md` says how the player hosts the effects, the pitch fader's stage, and the meter. Each other feature beside the engine has its own directory and doc:
 
 - **`Metadata/`**: `AudioTrackMetadataCache` is the facade over tags, their disk cache, and the playlist scan. `AudioTrackMetadataLoader` is the scan behind it. `TagLibAudioFile` reads tags through TagLib. `Artwork/` holds `AudioTrackArtwork` and `EmbeddedThumbnailCache`. `Artwork/FolderArt/FolderArtResolver` finds a cover beside the files, on macOS. Docs: `Audio/Metadata/AGENTS.md` and `Audio/Metadata/Artwork/FolderArt/AGENTS.md`.
 - **`Waveform/`**: `AudioWaveformLoader` decodes a file into an `AudioWaveform`, and feeds each mono block to the observers its request lists. `AudioWaveformCache` owns the loaders and stores the results on disk through PINCache. The data is `Packages/WaveformCore`'s summary. Docs: `Audio/Waveform/AGENTS.md` and `Packages/WaveformCore/AGENTS.md`.
-- **`Mac/Devices/`**: `AudioPlayer+Devices` binds the output unit to a device. `AudioPlayer+BitPerfect` is bit-perfect and exclusive output. The devices themselves come from vibe-libs: `AudioDeviceManager` tracks them, and `CoreAudioUtil` reads and writes them (`vibe-libs/audio/OutputDevices/Mac/`). Docs: `Audio/Mac/Devices/AGENTS.md` and `vibe-libs/audio/OutputDevices/AGENTS.md`.
-- **`iOS/`**: `AudioPlayer+Recovery` rebuilds the output when the system changes the route. The `AVAudioSession` is managed by `AudioSessionController`, which comes from vibe-libs (`vibe-libs/audio/OutputDevices/iOS/`). Docs: `Audio/iOS/AGENTS.md` and `vibe-libs/audio/OutputDevices/AGENTS.md`.
 
 ### Loading
 
@@ -146,7 +142,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 `vibe-libs/` is a git submodule: [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries that Vibe and another app share. Each library is a piece. A piece's sources compile into both apps as their own, through the templates in `vibe-libs/vibe-libs.yml`. Nothing builds differently.
 
-**Vibe uses fourteen pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/AudioTypes` holds the words the audio code shares: the playable-item protocol, the CUE window math, the musical key, the format names, and `PlayableExtensions`, every audio extension the apps play. `audio/DSP` holds the pitch fader's varispeed, the fades, and the resampler. `audio/Analysis` holds tempo and key detection (below). `audio/Decode` holds the audio file handle, which hosts the decoders. `audio/OutputDevices` holds the mac's output devices and HAL reads, and the iOS audio session and its route rules. `audio/FX` holds `AudioFX`, the DJ effects on the master bus: a low-kill filter, a reverb, and two tempo-synced delays. `audio/Meter` holds `AudioLevelMeter`, which reads the final output inside the render and feeds the equalizer bars.
+**Vibe uses fifteen pieces today, besides the vendored libraries.** `core/Common` holds the log, realtime-effects and signpost macros, which the prefix header imports. It also holds the featureless helpers: path spelling, the disk key, the work lanes, the stall sampler, the update timer, build provenance, and the form-label colon rule. `core/Graphics` holds the image, color, and font helpers. Its `PlatformTypes.h` defines `VibeImage` and `VibeColor`. A shared header can then hold an image without AppKit or UIKit. `audio/AudioTypes` holds the words the audio code shares: the playable-item protocol, the CUE window math, the musical key, the format names, and `PlayableExtensions`, every audio extension the apps play. `audio/DSP` holds the pitch fader's varispeed, the fades, and the resampler. `audio/Analysis` holds tempo and key detection (below). `audio/Decode` holds the audio file handle, which hosts the decoders. `audio/OutputDevices` holds the mac's output devices and HAL reads, and the iOS audio session and its route rules. `audio/FX` holds `AudioFX`, the DJ effects on the master bus: a low-kill filter, a reverb, and two tempo-synced delays. `audio/Meter` holds `AudioLevelMeter`, which reads the final output inside the render and feeds the equalizer bars. `audio/Player` holds the playback engine, its mac device and bit-perfect half, its iOS route recovery, and the manual render pump.
 
 `files/FileLoading` holds the file-open path, from a path to a readable file, with its debug seams and the fake cloud. `files/DiskCache` holds the bounded disk cache that the metadata and waveform caches build on. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. `ui/Shortcuts` holds the shortcut encoding, the keyboard layout, and the Keyboard Shortcuts pane. Every vendored library but Sparkle is a piece under `third_party/` too. Controls, SettingsWindow, and Shortcuts are macOS only. Only the mac app lists them.
 
@@ -160,7 +156,7 @@ There is no package manager. Vendored code is vibe-libs' `third_party/`: a subse
 
 ### Tests, resources, and scripts
 
-`make test` runs `VibeTests` and the cloud-runner oracle tests. These tests need no window, no audio device, and no running app. `make test-audio` runs `VibeAudioTests` from `Tests/AudioRender/`. It drives the real player and FX with no device. It checks the output with full PCM comparisons and signal-quality checks. A test lives in the `Tests/` directory that matches the code it tests. Read `Tests/AGENTS.md` before adding one. A check that needs the running app goes through the debug channel instead.
+`make test` runs `VibeTests` and the cloud-runner oracle tests. These tests need no window, no audio device, and no running app. `make test-audio` runs `VibeAudioTests`, the render suite in vibe-libs' `Tests/audio/Player/Render/`, with Vibe's link topic from `Tests/AudioRender/`. It drives the real player and FX with no device. It checks the output with full PCM comparisons and signal-quality checks. A test lives in the `Tests/` directory that matches the code it tests. Read `Tests/AGENTS.md` before adding one. A check that needs the running app goes through the debug channel instead.
 
 `Resources/` holds the string catalogs, the built-in themes (`Themes/*.json`), the app icon, and the bundled welcome track. `make strings` writes the keys, English text and comments in `Localizable.xcstrings`. Translations are edited in the catalog. Read `Resources/AGENTS.md`, and `Resources/Themes-README.md` before making a theme.
 
@@ -200,9 +196,9 @@ Read `Vibe/Mac/App/AGENTS.md` ("Opening files is a funnel, not an event") and `V
 
 ### 2. The player takes the request
 
-`AudioPlayer play:` (`Audio/AudioPlayer.m`) gives the play a submission identity and queues it on the serial player queue. `PlaybackRequestCoordinator` gives the open its own identifier. It holds the open's row, its intent (playing or paused, and the start position), and whether it is slow. `submitOpenOnQueueForTrack:openRequestId:` asks the loading coordinator for a handle. It also arms the open's deadline. An open with no progress for 60 seconds is abandoned. Each movement of the download extends the deadline (`vibe-libs/files/FileLoading/Claim/AudioFileOpenTimeoutMath.h`). A File Provider placeholder shows Loading as soon as it is classified as dataless. Other opens show Loading after half a second.
+`AudioPlayer play:` (`vibe-libs/audio/Player/AudioPlayer.m`) gives the play a submission identity and queues it on the serial player queue. `PlaybackRequestCoordinator` gives the open its own identifier. It holds the open's row, its intent (playing or paused, and the start position), and whether it is slow. `submitOpenOnQueueForTrack:openRequestId:` asks the loading coordinator for a handle. It also arms the open's deadline. An open with no progress for 60 seconds is abandoned. Each movement of the download extends the deadline (`vibe-libs/files/FileLoading/Claim/AudioFileOpenTimeoutMath.h`). A File Provider placeholder shows Loading as soon as it is classified as dataless. Other opens show Loading after half a second.
 
-Read `Vibe/Audio/AGENTS.md` ("AudioPlayer" and "Opening a file").
+Read `vibe-libs/audio/Player/AGENTS.md` ("The model in one page" and "Opening a file").
 
 ### 3. Loading
 
@@ -242,11 +238,11 @@ A voice is one file being rendered. `AudioVoiceBus` has eight slots. Each slot h
 
 Crossfades, the declick, pauses, and seeks are all gain ramps on voices. A seek starts a new voice at the target and fades the old one out beside it.
 
-Read `Vibe/Audio/AGENTS.md` ("The voice bus", "Threading", and "Crossfades, pauses and seeks").
+Read `vibe-libs/audio/Player/AGENTS.md` ("The voice bus", "Threading", and "Crossfades, pauses and seeks").
 
 ### 7. The master bus
 
-`VibeMasterBusRender` (`Audio/AudioMasterBus.m`) is the one render function on both platforms. For each slice of output it runs these stages in order:
+`VibeMasterBusRender` (`vibe-libs/audio/Player/AudioMasterBus.m`) is the one render function on both platforms. For each slice of output it runs these stages in order:
 
 1. The voice bus, through `VibeVoiceBusRender`.
 2. The varispeed on macOS (`VibeVarispeedRender`, `vibe-libs/audio/DSP/AudioVarispeed.m`). At zero pitch it passes samples through and records history for a later pitch change.
@@ -256,19 +252,19 @@ Read `Vibe/Audio/AGENTS.md` ("The voice bus", "Threading", and "Crossfades, paus
 
 After pitch transitions and FX tails settle, zero pitch and full volume preserve the voice bus's samples. Debug silent mode still mutes them.
 
-Read `Vibe/Audio/AGENTS.md` ("The model in one page"), `vibe-libs/audio/FX/AGENTS.md`, and `vibe-libs/audio/Meter/AGENTS.md`.
+Read `vibe-libs/audio/Player/AGENTS.md` ("The model in one page"), `vibe-libs/audio/FX/AGENTS.md`, and `vibe-libs/audio/Meter/AGENTS.md`.
 
 ### 8. The output unit
 
-`AudioOutputUnit` (`Audio/AudioOutputUnit.m`) hosts Apple's output audio unit. Its render callback calls `VibeMasterBusRender`. On macOS it is HALOutput, bound to the chosen device by `AudioPlayer+Devices` (`Audio/Mac/Devices/`). Bit-perfect output may also switch the device to the file's rate (`AudioPlayer+BitPerfect`). On iOS it is RemoteIO, routed by `AVAudioSession`. `AudioPlayer+Recovery` (`Audio/iOS/`) follows the session, and vibe-libs' `AudioSessionController` manages it. Binding, configuring, starting, and stopping the unit run on its own serial queue. A slow device then cannot hold the player queue.
+`AudioOutputUnit` (`vibe-libs/audio/Player/AudioOutputUnit.m`) hosts Apple's output audio unit. Its render callback calls `VibeMasterBusRender`. On macOS it is HALOutput, bound to the chosen device by `AudioPlayer+Devices` (`vibe-libs/audio/Player/Mac/`). Bit-perfect output may also switch the device to the file's rate (`AudioPlayer+BitPerfect`). On iOS it is RemoteIO, routed by `AVAudioSession`. `AudioPlayer+Recovery` (`vibe-libs/audio/Player/iOS/`) follows the session, and vibe-libs' `AudioSessionController` manages it. Binding, configuring, starting, and stopping the unit run on its own serial queue. A slow device then cannot hold the player queue.
 
-Read `Vibe/Audio/Mac/Devices/AGENTS.md`, `Vibe/Audio/iOS/AGENTS.md`, and `vibe-libs/audio/OutputDevices/AGENTS.md`.
+Read `vibe-libs/audio/Player/AGENTS.md` ("Mac/: the output devices" and "iOS/: output recovery") and `vibe-libs/audio/OutputDevices/AGENTS.md`.
 
 ### 9. After the start
 
 Each shell handles `didStartPlaying:`. On macOS it is `performPerTrackRefreshForStartedTrack:` (`MainPlayerController+PlayerEvents.m`). On iOS it is `PlaybackController+PlayerEvents.m`. The shell asks the player to prefetch what follows (`AudioPlayer prefetchTrack:` with `Playlist.trackEndSuccessor`). The prefetch opens the next file early through the same coordinator. For a gapless change, the player queues that file on the current voice (`AudioPlayer+Prefetch.m`). The shell then asks for the playing track's metadata and starts the deferred metadata scan. The scan waits for the open to settle, with a two-second fallback (`scheduleDeferredMetadataLoad`). Its downloads also yield while the user waits on an open. The macOS shell also starts the waveform load (`AudioWaveformCache loadWaveformForTrack:`).
 
-Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AGENTS.md`.
+Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AGENTS.md`.
 
 ### Who runs where
 
@@ -290,15 +286,15 @@ Read `Vibe/Audio/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio/Metadata/AG
 | A user-facing string | [localization.md](localization.md), the `vibe-strings` skill | `Common/VibeStrings.h`, then `make strings` |
 | Which formats play | `vibe-libs/audio/Decode/AGENTS.md` (the decoders) | `vibe-libs/audio/AudioTypes/PlayableExtensions.m`, `vibe-libs/audio/Decode/AudioFileHandle.m` |
 | How a file is decoded | `vibe-libs/audio/Decode/AGENTS.md`, each decoder's doc in `vibe-libs/third_party/` | `vibe-libs/audio/Decode/AudioFileHandle.m`, `AudioFileHandle+MPEG.m`, `AudioFileHandle+Stream.m` |
-| Play, pause, seek, or crossfade | `Audio/AGENTS.md` | `Audio/AudioPlayer.m`, `vibe-libs/audio/DSP/FadeMath.h` |
-| Gapless playback and prefetch | `Audio/AGENTS.md` (Prefetch and gapless) | `Audio/AudioPlayer+Prefetch.m`, `Audio/AudioPrefetchRules.h` |
+| Play, pause, seek, or crossfade | `vibe-libs/audio/Player/AGENTS.md` | `vibe-libs/audio/Player/AudioPlayer.m`, `vibe-libs/audio/DSP/FadeMath.h` |
+| Gapless playback and prefetch | `vibe-libs/audio/Player/AGENTS.md` (Prefetch and gapless) | `vibe-libs/audio/Player/AudioPlayer+Prefetch.m`, `AudioPrefetchRules.h` |
 | What plays next, repeat, or shuffle | `Playlist/AGENTS.md` | `Playlist/Playlist.m` |
-| Mixing and real-time code | `Audio/AGENTS.md` (The voice bus, Threading) | `Audio/AudioVoiceBusRender.m`, `Audio/AudioMasterBus.m` |
+| Mixing and real-time code | `vibe-libs/audio/Player/AGENTS.md` (The voice bus, Threading) | `vibe-libs/audio/Player/AudioVoiceBusRender.m`, `AudioMasterBus.m` |
 | Sample-rate conversion | [audio-quality.md](audio-quality.md), `vibe-libs/audio/DSP/AGENTS.md` | `vibe-libs/audio/DSP/AudioResampler.mm` |
 | Decoder conformance against public test files | the `vibe-audio-quality` skill, [audio-quality.md](audio-quality.md) | `Tests/AudioRender/AudioQualityCorpusTests.m` |
-| DJ effects or pitch | `vibe-libs/audio/FX/AGENTS.md`, `vibe-libs/audio/DSP/AGENTS.md`, `Audio/AGENTS.md` (The FX segment and the pitch stage) | `vibe-libs/audio/FX/AudioFX.m`, `vibe-libs/audio/DSP/AudioVarispeed.m` |
-| Output devices or bit-perfect output | `Audio/Mac/Devices/AGENTS.md`, `vibe-libs/audio/OutputDevices/AGENTS.md` | `Audio/Mac/Devices/AudioPlayer+Devices.m`, `AudioPlayer+BitPerfect.m`, `vibe-libs/audio/OutputDevices/Mac/AudioDeviceManager.m` |
-| The iOS audio session and routes | `vibe-libs/audio/OutputDevices/AGENTS.md`, `Audio/iOS/AGENTS.md` | `vibe-libs/audio/OutputDevices/iOS/AudioSessionController.m` |
+| DJ effects or pitch | `vibe-libs/audio/FX/AGENTS.md`, `vibe-libs/audio/DSP/AGENTS.md`, `vibe-libs/audio/Player/AGENTS.md` (The FX segment and the pitch stage) | `vibe-libs/audio/FX/AudioFX.m`, `vibe-libs/audio/DSP/AudioVarispeed.m` |
+| Output devices or bit-perfect output | `vibe-libs/audio/Player/AGENTS.md`, `vibe-libs/audio/OutputDevices/AGENTS.md` | `vibe-libs/audio/Player/Mac/AudioPlayer+Devices.m`, `AudioPlayer+BitPerfect.m`, `vibe-libs/audio/OutputDevices/Mac/AudioDeviceManager.m` |
+| The iOS audio session and routes | `vibe-libs/audio/OutputDevices/AGENTS.md`, `vibe-libs/audio/Player/AGENTS.md` | `vibe-libs/audio/OutputDevices/iOS/AudioSessionController.m` |
 | Cloud downloads, their order, the loading bar | `vibe-libs/files/FileLoading/AGENTS.md`, [file-loading-spec.md](file-loading-spec.md) | `vibe-libs/files/FileLoading/Claim/AudioFileMaterializationCoordinator.m` |
 | Playing a file that is still downloading | `vibe-libs/files/FileLoading/AGENTS.md` (CloudFileAvailability) | `vibe-libs/files/FileLoading/Transfer/CloudFileAvailability.m` |
 | Files on a network share | `vibe-libs/files/FileLoading/AGENTS.md` (The network-mount read-ahead) | `vibe-libs/files/FileLoading/Transfer/NetworkReadAhead.m` |

@@ -1,6 +1,6 @@
 # Future: streaming from any source
 
-**Status: Partly built.** `CloudFileAvailability` takes any writer, and a file on a network mount reads ahead through it. The waveform loader's read-ahead and the stall's pause on a dropped server are built too. Current behavior is in vibe-libs' `files/FileLoading/AGENTS.md` (the availability, `VibeMountReadsAhead`), `Audio/AGENTS.md` (the read-ahead, buffering and the stall), `Audio/Waveform/AGENTS.md` and `Debug/AGENTS.md` (`set_slow_volume`). This plan keeps only what is not built.
+**Status: Partly built.** `CloudFileAvailability` takes any writer, and a file on a network mount reads ahead through it. The waveform loader's read-ahead and the stall's pause on a dropped server are built too. Current behavior is in vibe-libs' `files/FileLoading/AGENTS.md` (the availability, `VibeMountReadsAhead`), vibe-libs' `audio/Player/AGENTS.md` (the read-ahead, buffering and the stall), `Audio/Waveform/AGENTS.md` and `Debug/AGENTS.md` (`set_slow_volume`). This plan keeps only what is not built.
 
 ## Not built
 
@@ -53,7 +53,7 @@ What the open and a seek read, from logging every read of `AudioFileHandle` over
 | Ogg Vorbis | the head, plus 64 KB at the end | a bisection of pages |
 | Opus, ADTS AAC | the whole file, in order | direct |
 
-A downloading MP3 with no Xing, Info or VBRI frame opens on a length estimated from its head (`Audio/AGENTS.md`). A local one reads every frame header at open. Backward seeks stayed within bytes already read. Measure a real library before paying for arbitrary range fetching.
+A downloading MP3 with no Xing, Info or VBRI frame opens on a length estimated from its head (vibe-libs' `audio/Player/AGENTS.md`). A local one reads every frame header at open. Backward seeks stayed within bytes already read. Measure a real library before paying for arbitrary range fetching.
 
 ## Writers that serve the wanted range, each on evidence
 
