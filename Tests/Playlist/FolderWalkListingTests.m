@@ -1,7 +1,8 @@
 #import <XCTest/XCTest.h>
 
-#import "AudioTrack.h"
 #import "FolderWalk.h"
+#import "PlaylistEntry.h"
+#import "VibePlayableItem.h"
 
 @interface FolderWalkListingTests : XCTestCase
 @end
@@ -53,8 +54,8 @@
 
 - (NSArray<NSString *> *)listedNamesSortedBy:(VibeFolderOpenSort)sort {
     NSMutableArray<NSString *> *names = [NSMutableArray array];
-    for (AudioTrack *row in [AudioTrack rowsForEntries:[FolderWalk entriesInDirectory:_dir sortedBy:sort]]) {
-        [names addObject:[row keyByAppendingWindowTo:row.url.lastPathComponent]];
+    for (PlaylistEntry *entry in [FolderWalk entriesInDirectory:_dir sortedBy:sort]) {
+        [names addObject:VibeKeyByAppendingCueWindow(entry.url.lastPathComponent, entry.cueStart, entry.cueEnd)];
     }
     return names;
 }
@@ -200,8 +201,8 @@
     XCTAssertEqualObjects([self listedNamesSortedBy:VibeFolderOpenSortName], (@[@"a.flac", @"b.mp3"]));
 
     NSMutableArray<NSString *> *entries = [NSMutableArray array];
-    for (AudioTrack *row in [AudioTrack rowsForEntries:[FolderWalk entriesForFile:m3u]]) {
-        [entries addObject:row.url.lastPathComponent];
+    for (PlaylistEntry *entry in [FolderWalk entriesForFile:m3u]) {
+        [entries addObject:entry.url.lastPathComponent];
     }
     XCTAssertEqualObjects(entries, (@[@"b.mp3", @"a.flac"]));
 }

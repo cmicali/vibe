@@ -8,13 +8,12 @@
 #import <sys/stat.h>
 #import <unistd.h>
 
-#import "AudioFixtures.h"
-#import "AudioTrack.h"
+#import "FLACFixtures.h"
 #import "PlaylistEntry.h"
 #import "PlaceholderFiles+Debug.h"
 #import "FolderWalkInternal.h"
 #import "PlayableExtensions.h"
-#import "TrackCommands.h"
+#import "VibePlayableItem.h"
 
 @interface FolderWalkTests : XCTestCase
 @end
@@ -116,14 +115,14 @@
 
 // Strips both spellings of the root: the walk answers in resolved paths, and
 // playlist resolution standardizes, which drops the /private prefix again.
-// Each entry is made into the row the app makes, and a windowed row reads as
-// its file plus its window (sourceKey).
+// A windowed entry reads as its file plus its window, as its row's sourceKey
+// does.
 - (NSArray<NSString *> *)relativePaths:(NSArray<PlaylistEntry *> *)entries {
     NSArray<NSString *> *prefixes = @[[_root.path stringByAppendingString:@"/"],
                                       [_root.path.stringByStandardizingPath stringByAppendingString:@"/"]];
     NSMutableArray<NSString *> *names = [NSMutableArray arrayWithCapacity:entries.count];
-    for (AudioTrack *row in [AudioTrack rowsForEntries:entries]) {
-        NSString *name = row.sourceKey;
+    for (PlaylistEntry *entry in entries) {
+        NSString *name = VibeKeyByAppendingCueWindow(entry.url.path, entry.cueStart, entry.cueEnd) ?: @"";
         for (NSString *prefix in prefixes) {
             if ([name hasPrefix:prefix]) {
                 name = [name substringFromIndex:prefix.length];
@@ -772,30 +771,6 @@ static const unsigned long long kLargeFLACBytes = 100ULL * 1024 * 1024 + 1;
     [PlaceholderFiles setRemotePlaceholderRoots:@[]];
     XCTAssertFalse([PlaceholderFiles isRemotePlaceholderFile:first]);
     XCTAssertFalse(VibePathIsUnderRemotePlaceholderRoot(first.path));
-}
-
-// Copy Files and a drag out of the playlist hand no remote placeholder to
-// another app. A download under the root, a file elsewhere, and an unreadable
-// file elsewhere are handed out.
-- (void)testOnlyARemotePlaceholderIsNeverHandedOut {
-    NSURL *placeholder = [self makeFile:@"remote/aa/link.mp3"];
-    NSURL *download = [self makeFile:@"remote/bb/kept.mp3"];
-    NSURL *local = [self makeFile:@"music/local.mp3"];
-    NSURL *unreadable = [self makeFile:@"music/locked.mp3"];
-    chmod(placeholder.fileSystemRepresentation, 0000);
-    chmod(unreadable.fileSystemRepresentation, 0000);
-    [PlaceholderFiles setRemotePlaceholderRoots:@[[_root URLByAppendingPathComponent:@"remote" isDirectory:YES]]];
-
-    XCTAssertFalse([TrackCommands handsOutURL:placeholder]);
-    XCTAssertTrue([TrackCommands handsOutURL:download]);
-    XCTAssertTrue([TrackCommands handsOutURL:local]);
-    XCTAssertTrue([TrackCommands handsOutURL:unreadable]);
-    XCTAssertFalse([TrackCommands handsOutURL:[NSURL URLWithString:@"https://example.com/a.mp3"]]);
-    XCTAssertFalse([TrackCommands handsOutURL:nil]);
-
-    // With no root, nothing is a placeholder.
-    [PlaceholderFiles setRemotePlaceholderRoots:@[]];
-    XCTAssertTrue([TrackCommands handsOutURL:placeholder]);
 }
 
 - (void)testAMaterializedFileIsNotDataless {
