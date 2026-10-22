@@ -154,9 +154,9 @@ targets:
     # vorbis/vorbisfile.h.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
                 VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform,
-                VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists, VibeLibsControls,
-                VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTags, VibeLibsTaglib,
-                VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists, VibeLibsFolderScan,
+                VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTags,
+                VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -453,9 +453,9 @@ targets:
     # target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
                 VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform,
-                VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists, VibeLibsVorbis,
-                VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac,
-                VibeLibsDrWav]
+                VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists, VibeLibsFolderScan,
+                VibeLibsVorbis, VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
+                VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -866,6 +866,7 @@ targets:
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/vibe-libs/media/PlayQueue"
           - "$(SRCROOT)/vibe-libs/media/Playlists"
+          - "$(SRCROOT)/vibe-libs/media/FolderScan"
           - "$(SRCROOT)/Vibe/Util"
           - "$(SRCROOT)/Vibe/Util/Categories"
           - "$(SRCROOT)/Vibe/Util/Mac"
@@ -1012,7 +1013,7 @@ targetTemplates:
       - path: vibe-libs/core/Common/FilePaths.m
       - path: vibe-libs/files/FileLoading/PlaceholderFiles.m
       - path: vibe-libs/files/FileLoading/PlaceholderFiles+Debug.m   # its dataless test asks the probe first
-      - path: Vibe/Playlist/FolderWalk.m
+      - path: vibe-libs/media/FolderScan/FolderWalk.m
       - path: vibe-libs/media/Playlists/PlaylistEntry.m
       - path: vibe-libs/media/Playlists/PlaylistFile.m
       - path: vibe-libs/media/Playlists/PlaylistFile+CUE.m
