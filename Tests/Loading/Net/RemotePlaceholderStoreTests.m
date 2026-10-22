@@ -12,6 +12,7 @@
 #import "NSURL+Hash.h"
 #import "PlaceholderFiles.h"
 #import "RemotePlaceholderStoreInternal.h"
+#import "TailWindowMath.h"
 
 static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.test-store";
 static const char *const kVersionAttribute = "com.commonwealthrecordings.Vibe.rev";
@@ -20,8 +21,6 @@ static const time_t kStamp = 1577934245;
 static const uint64_t kReadableBytes = 256 * 1024;
 // Where a streaming download is held: past readable, short of the end.
 static const NSUInteger kStallBytes = 5 * 64 * 1024;
-// A small format's window (TailWindowMath.h).
-static const uint64_t kWindowBytes = 128 * 1024;
 
 // What PlaceholderFiles reads as a placeholder under a registered root.
 static BOOL IsPlaceholder(NSURL *url) {
@@ -309,7 +308,8 @@ typedef struct {
     [self waitUntil:^BOOL {
         return stream.windowLength > 0;
     }];
-    XCTAssertEqual(stream.windowLength, kWindowBytes, @"the tail read is installed past the download's edge");
+    XCTAssertEqual(stream.windowLength, VibeAudioFileTailWindowBytes(url.pathExtension, bytes.length),
+                   @"the tail read is installed past the download's edge");
     XCTAssertEqualObjects([stream readyBytesAt:bytes.length - 128 length:128],
                           [bytes subdataWithRange:NSMakeRange(bytes.length - 128, 128)]);
     XCTAssertEqual([self closedRangeRequestsTo:@"a.flac"].count, 1u);

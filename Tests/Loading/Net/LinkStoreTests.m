@@ -13,6 +13,7 @@
 #import "FilePaths.h"
 #import "PlaceholderFiles.h"
 #import "StringRules.h"
+#import "TailWindowMath.h"
 
 static const char *const kRecordAttribute = "com.commonwealthrecordings.vibe.link";
 static const char *const kVersionAttribute = "com.commonwealthrecordings.Vibe.rev";
@@ -20,8 +21,6 @@ static const char *const kVersionAttribute = "com.commonwealthrecordings.Vibe.re
 static const uint64_t kReadableBytes = 256 * 1024;
 // Where a streaming download is held: past readable, short of the end.
 static const NSUInteger kStallBytes = 5 * 64 * 1024;
-// A small format's window (TailWindowMath.h).
-static const uint64_t kWindowBytes = 128 * 1024;
 static const NSTimeInterval kDay = 24 * 60 * 60;
 
 @interface LinkStoreTests : LinkStoreTestCase
@@ -508,7 +507,7 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
     [self waitUntil:^BOOL {
         return stream.windowLength > 0;
     }];
-    XCTAssertEqual(stream.windowLength, kWindowBytes);
+    XCTAssertEqual(stream.windowLength, VibeAudioFileTailWindowBytes(file.pathExtension, bytes.length));
     XCTAssertEqualObjects([stream readyBytesAt:bytes.length - 64 length:64],
                           [bytes subdataWithRange:NSMakeRange(bytes.length - 64, 64)]);
 
