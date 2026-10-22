@@ -9,6 +9,7 @@
 #import "PlayableExtensions.h"
 #import "PlaylistEntry.h"
 #import "PlaylistFile.h"
+#import "VibeMacros.h"
 
 #include <errno.h>
 #include <limits.h>
