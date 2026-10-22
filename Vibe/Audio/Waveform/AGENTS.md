@@ -74,7 +74,7 @@ Up to `kMaxDetachedWaveformLoads` (2) detached decodes run behind the active one
 
 **A cancel ends a streaming decode's wait at once** (`cancel`: `interruptReads` on the handle, and the open's `interrupted` block with the file's waiters woken). The cap's eviction frees its slot now. An interruption is not logged. **TRAP: the loader holds that handle only until its load ends** (`load:`). A loader outlives its load, held by its claim and the claim's wait timer. Keeping the handle would also retain its descriptor and read block. **The 20 s claim wait is not a streaming timeout.** A streaming decode has no deadline of its own. The play's stall deadline and the transfer's request timeout bound it, through the cancel.
 
-**A file on a network mount reads ahead for the loader too** (`Audio/AGENTS.md`), on a thread of its own apart from the play's. Only a `cancel` ends its waits. The play's stall lets go of the play's handle, not the loader's. **A read-ahead decode on a dead mount holds its decode slot until it is cancelled**, which the cap's eviction does once newer decodes push it out.
+**A file on a network mount reads ahead for the loader too** (vibe-libs' `audio/Decode/AGENTS.md`), on a thread of its own apart from the play's. Only a `cancel` ends its waits. The play's stall lets go of the play's handle, not the loader's. **A read-ahead decode on a dead mount holds its decode slot until it is cancelled**, which the cap's eviction does once newer decodes push it out.
 
 **One decode slot per window for the length of the download.** The claim and reattachment keep a second request off a second slot. Each cue row of a streaming image takes one.
 

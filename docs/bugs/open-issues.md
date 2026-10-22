@@ -12,7 +12,7 @@ Bugs seen in testing that are not fixed or not explained.
 - It has not been reproduced. These all passed: the iPad alone, the iPad while the host default output flipped, the iPad during a Mac exclusive run, and a command replay of the crash's last operations.
 - A standalone RemoteIO probe with no Vibe code survived hog ownership, rate writes and format changes on the host.
 - Audio had stopped advancing almost three minutes before the abort. The soak's oracle checked only `state == playing`, so it missed this. A real-output soak must check that the position advances, and sample the process when it stops.
-- The stop-before-deactivation wait is required (`Audio/iOS/AudioPlayer+Recovery.m`, its `TRAP`). Removing it, or putting a timeout on Vibe's waiter, would not cancel the RemoteIO RPC in flight.
+- The stop-before-deactivation wait is required (vibe-libs' `audio/Player/iOS/AudioPlayer+Recovery.m`, its `TRAP`). Removing it, or putting a timeout on Vibe's waiter, would not cancel the RemoteIO RPC in flight.
 - Next step: reproduce first. Replay the whole preceding host sequence, including the Mac device-fault and aggregate work. Sample frame progress continuously and take stacks before the timeout. Physical devices were never tested.
 
 ## Mac output hangs in AudioUnitInitialize

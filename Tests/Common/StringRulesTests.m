@@ -32,7 +32,7 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
                                    @(VibeAudioErrorConnectionLost)];
     NSMutableSet<NSString *> *lines = [NSMutableSet set];
     for (NSNumber *code in codes) {
-        NSString *line = VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain, code.integerValue));
+        NSString *line = VibeStatusForPlayError(VibeErr(VibeAudioErrorDomain(), code.integerValue));
         XCTAssertGreaterThan(line.length, 0u);
         XCTAssertNotEqualObjects(line, VibeStatusForPlayError(VibeErr(@"other.domain", 1)),
                                  @"a mapped code must not fall through to the generic line");
@@ -43,26 +43,26 @@ static NSError *LinkError(VibeLinkError code, NSDictionary *info) {
 
 - (void)testAnUnderlyingErrorOfOursNamesTheCause {
     // A refused start reaches the shell wrapped in the caller's "could not resume".
-    NSError *inUse = VibeErr(kVibeAudioErrorDomain, VibeAudioErrorDeviceInUse);
-    NSError *wrapped = [NSError errorWithDomain:kVibeAudioErrorDomain code:VibeAudioErrorEngineStartFailed
+    NSError *inUse = VibeErr(VibeAudioErrorDomain(), VibeAudioErrorDeviceInUse);
+    NSError *wrapped = [NSError errorWithDomain:VibeAudioErrorDomain() code:VibeAudioErrorEngineStartFailed
                                        userInfo:@{NSUnderlyingErrorKey: inUse}];
     XCTAssertEqualObjects(VibeStatusForPlayError(wrapped), VibeStatusForPlayError(inUse));
-    NSError *hal = [NSError errorWithDomain:kVibeAudioErrorDomain code:VibeAudioErrorEngineStartFailed
+    NSError *hal = [NSError errorWithDomain:VibeAudioErrorDomain() code:VibeAudioErrorEngineStartFailed
                                    userInfo:@{NSUnderlyingErrorKey: VibeErr(NSOSStatusErrorDomain, -10851)}];
     XCTAssertEqualObjects(VibeStatusForPlayError(hal),
-                          VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain, VibeAudioErrorEngineStartFailed)),
+                          VibeStatusForPlayError(VibeErr(VibeAudioErrorDomain(), VibeAudioErrorEngineStartFailed)),
                           @"a foreign underlying error leaves the outer code's line");
 }
 
 - (void)testNotPlayingFallsThroughToGeneric {
     // The shell drops it as benign before asking for a line.
-    XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain,
+    XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(VibeAudioErrorDomain(),
                                                          VibeAudioErrorNotPlaying)),
                           VibeStatusForPlayError(VibeErr(@"other.domain", 1)));
 }
 
 - (void)testUnknownCodeInOurDomainIsGeneric {
-    XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(kVibeAudioErrorDomain, 9999)),
+    XCTAssertEqualObjects(VibeStatusForPlayError(VibeErr(VibeAudioErrorDomain(), 9999)),
                           VibeStatusForPlayError(VibeErr(@"other.domain", 1)));
 }
 
