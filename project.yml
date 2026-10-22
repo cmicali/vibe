@@ -154,9 +154,9 @@ targets:
     # vorbis/vorbisfile.h.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
                 VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsWaveform, VibeLibsDiskCache,
-                VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis,
-                VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac,
-                VibeLibsDrWav]
+                VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists, VibeLibsControls, VibeLibsSettingsWindow,
+                VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache,
+                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -453,8 +453,8 @@ targets:
     # target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
                 VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsWaveform, VibeLibsDiskCache,
-                VibeLibsGraphics, VibeLibsVorbis, VibeLibsTags, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
-                VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists, VibeLibsVorbis, VibeLibsTags,
+                VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -790,7 +790,7 @@ targets:
       - path: Vibe/Util/Mac/NSDraggingImageComponent+Util.m
       - path: Vibe/Util/Mac/NSTextField+Label.m
       - path: vibe-libs/core/Common/VibeWeakProxy.m
-      - path: Vibe/Playlist/Playlist.m
+      - path: vibe-libs/media/PlayQueue/Playlist.m
       - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Playlist/Mac/PlaylistFile+Session.m
       - path: vibe-libs/core/Common/UIUpdateTimer.m
@@ -863,6 +863,8 @@ targets:
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/Vibe/Playlist"
+          - "$(SRCROOT)/vibe-libs/media/PlayQueue"
+          - "$(SRCROOT)/vibe-libs/media/Playlists"
           - "$(SRCROOT)/Vibe/Util"
           - "$(SRCROOT)/Vibe/Util/Categories"
           - "$(SRCROOT)/Vibe/Util/Mac"
@@ -1006,9 +1008,9 @@ targetTemplates:
       - path: vibe-libs/files/FileLoading/PlaceholderFiles.m
       - path: vibe-libs/files/FileLoading/PlaceholderFiles+Debug.m   # its dataless test asks the probe first
       - path: Vibe/Playlist/FolderWalk.m
-      - path: Vibe/Playlist/PlaylistEntry.m
-      - path: Vibe/Playlist/PlaylistFile.m
-      - path: Vibe/Playlist/PlaylistFile+CUE.m
+      - path: vibe-libs/media/Playlists/PlaylistEntry.m
+      - path: vibe-libs/media/Playlists/PlaylistFile.m
+      - path: vibe-libs/media/Playlists/PlaylistFile+CUE.m
       - path: Vibe/Util/Formatters.m
       - path: vibe-libs/core/Common/NSURL+Hash.m
       - path: vibe-libs/core/Common/NSURL+Emptiness.m
