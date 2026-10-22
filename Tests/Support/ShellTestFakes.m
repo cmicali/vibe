@@ -28,35 +28,6 @@
 @end
 #pragma clang diagnostic pop
 
-// The real AudioTrackMetadata is ObjC++/TagLib and stays out of the host-less
-// target. The suite's tests never parse; this definition only satisfies the
-// dormant path's class reference and raises if it is crossed.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wincomplete-implementation"
-@implementation AudioTrackMetadata
-+ (BOOL)supportsSecureCoding {
-    return YES;
-}
-
-+ (instancetype)metadataWithURL:(NSURL *)url displayArtData:(NSData **)displayArtData {
-    [NSException raise:NSInternalInconsistencyException
-                format:@"Metadata parser escaped its test seam for %@", url];
-    return nil;
-}
-
-- (instancetype)initWithCoder:(NSCoder *)coder {
-    return [super init];
-}
-
-- (void)encodeWithCoder:(NSCoder *)coder {
-}
-
-- (id)copyWithZone:(NSZone *)zone {
-    return self;
-}
-@end
-#pragma clang diagnostic pop
-
 // PlaylistController observes it. The real definition is in the ObjC++ file.
 NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification =
         @"AudioTrackMetadataThumbnailDidLoadNotification";

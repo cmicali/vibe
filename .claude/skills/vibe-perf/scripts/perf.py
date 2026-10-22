@@ -96,7 +96,8 @@ def features(src):
     playlist = find('Playlist.h')
     renderer = find('WaveformRenderer.h') or find('AudioWaveformRenderer.h')
     summary, raster = find('WaveformSummary.hpp'), find('WaveformRaster.hpp')
-    metadata = list((src / 'Vibe').rglob('AudioTrackMetadata*.h'))
+    metadata = [path for root in (src / 'Vibe', src / 'vibe-libs') if root.is_dir()
+                for path in root.rglob('AudioTrackMetadata*.h')]
     flags = {
         'VIBE_BENCH_COMPONENTS_FILE_HANDLE': handle is not None,
         'VIBE_BENCH_COMPONENTS_FILE_HANDLE_COMMON_FORMAT': handle is not None and re.search(
