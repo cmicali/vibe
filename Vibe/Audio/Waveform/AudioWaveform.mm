@@ -4,6 +4,7 @@
 //
 
 #import "AudioWaveform.h"
+#import "VibeMacros.h"
 
 #include <vector>
 

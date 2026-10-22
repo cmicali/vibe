@@ -3,6 +3,7 @@
 //  Vibe
 //
 
+#import <Foundation/Foundation.h>
 #include <Accelerate/Accelerate.h>
 #include <memory>
 
