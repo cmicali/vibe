@@ -4,6 +4,7 @@
 //
 
 #import "AudioLevelPublisherInternal.h"
+#import "HelperMacros.h"
 
 @implementation AudioLevelPublisher {
     VibeLevelPublisherState _publisherState;

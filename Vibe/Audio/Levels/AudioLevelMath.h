@@ -21,6 +21,7 @@
 #import <Foundation/Foundation.h>
 #import <math.h>
 #import <stdint.h>
+#import "HelperMacros.h"
 
 // One per bar in EqualizerIndicatorView. Five is the indicator's shape, not a
 // tunable: the bars are the app icon's waveform.

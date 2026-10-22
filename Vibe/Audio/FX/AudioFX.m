@@ -7,6 +7,8 @@
 #import "AudioFXMath.h"
 #import "AudioVarispeed.h"
 #import "FadeMath.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 #import <AVFAudio/AVFAudio.h>
 #import <Accelerate/Accelerate.h>
 #import <AudioToolbox/AudioToolbox.h>

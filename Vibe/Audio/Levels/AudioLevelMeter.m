@@ -7,6 +7,7 @@
 
 #import "AudioLevelAnalyzer.h"
 #import "AudioLevelPublisherInternal.h"
+#import "VibeMacros.h"
 
 #include <stdatomic.h>
 #include <unistd.h>

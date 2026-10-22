@@ -4,6 +4,7 @@
 //
 
 #import "AudioLevelAnalyzer.h"
+#import "VibeMacros.h"
 
 #import <Accelerate/Accelerate.h>
 
