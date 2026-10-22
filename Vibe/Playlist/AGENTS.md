@@ -12,9 +12,23 @@
 
 **Rows are made from entries in one place.** The walk and the readers return `PlaylistEntry` records: a file whole, or a CUE sheet's window of one with the sheet's names. `AudioTrack rowsForEntries:` makes a fresh row of each. `entriesForRows:` goes the other way for the writer. It adds each row's duration and display names, which the `#EXTINF` line takes. Only `AudioTrack` names both types, so the walk and `PlaylistFile` never name the row.
 
+**The player never writes the row, so each shell stores its settled length.** `duration` takes the player's at `didStartPlaying:`, at `didAutoAdvanceFromTrack:toTrack:` and at `didSettleDurationOfTrack:` (`adoptSettledDurationOfTrack:`, in each shell's `+PlayerEvents`). It is written only while the player still sounds that row, since the player's duration is the sounding track's. Until then a windowed row answers its window, and a whole file its metadata's length.
+
+## Tempo and key
+
+The analyzers are vibe-libs' `audio/Analysis`, which has its own `AGENTS.md`. This section is what Vibe adds.
+
 **The app joins the tempo and key analyzers to the waveform decode** (`AudioAnalysisObservers.h`). It lives here because the row is where tempo and key land. Analysis and the waveform loader do not know each other. Each analyzer is its own sink, through a category. Each has one observer. Their identifiers are `bpm` and `key`, and each result is an `NSNumber`. A change to what either computes takes a new identifier. Every entry analyzed the old way then misses and is analyzed again. The same file reads a tempo or a key back out of a decode's results. A bad one reads as unknown.
 
-**The player never writes the row, so each shell stores its settled length.** `duration` takes the player's at `didStartPlaying:`, at `didAutoAdvanceFromTrack:toTrack:` and at `didSettleDurationOfTrack:` (`adoptSettledDurationOfTrack:`, in each shell's `+PlayerEvents`). It is written only while the player still sounds that row, since the player's duration is the sounding track's. Until then a windowed row answers its window, and a whole file its metadata's length.
+**Tempo runs on both platforms, and key on macOS only.** A decode runs an analyzer only when its `VibeWaveformAnalysisProvider` lists the observer. The mac's provider reads `analyzeBPM` and `analyzeKey`. The iOS card's lists only the tempo, under `analyzeBPM`. So on iOS `AudioTrack.detectedKey` stays unset, and a track's `key` is its tag's. `analyzeBPM` is shared in `AppSettings`, and `analyzeKey` is macOS-only.
+
+**`analyzeBPM` defaults on.** On iOS the detected tempo also drives the FX pad's delay taps (`iOS/Player/AGENTS.md`). Off, the waveform caches with no tempo. A file scanned while it was off is analyzed again only when a request that lists the tempo's observer misses its entry (`Audio/Waveform/AGENTS.md`). **`analyzeKey` defaults off.** Exact-match accuracy on real dance music is around half, which is not worth showing unasked. A tagged tempo or key always displays.
+
+**Results land on every row sounding the window.** They travel in `CodableAudioWaveform.results` and arrive through `audioWaveformCache:didLoadResults:forTrack:`. They land in the transient `AudioTrack.detectedBPM` and `.detectedKey`. A cue row is analyzed over its own window, so a mix gets a tempo and key per track. A receiver stamps every row whose `sourceKey` is the delivered track's (`Playlist.stampTracksSounding:usingBlock:`), never just the current one (root `AGENTS.md`, async deliveries).
+
+**A whole file's tag beats analysis, and a cue row's never does** (root `AGENTS.md`). `AudioTrack.rowTagMetadata` is nil for a windowed row. `AudioTrackMetadata.bpm` reads TagLib's PropertyMap "BPM": ID3 TBPM, MP4 tmpo, and Vorbis BPM. `AudioTrackMetadata.key` reads "INITIALKEY": ID3 TKEY and Vorbis or FLAC INITIALKEY. It falls back to the MP4 freeform atom "initialkey". It is parsed through `VibeMusicalKeyFromString`.
+
+**The loader pipelines the decode and the analysis.** Analysis adds wall time only when it outlasts the decode it overlaps. The debug verbs `scan_bpm` and `scan_key` report the split between `streamSeconds` and `finishSeconds`, in Debug, where `-O0` inflates everything but vDSP. For a quick signal with no app and no dataset, use the `vibe-debug` skill's `scan-bpm.sh` and `scan-key.sh` on the generated `bpm-*.wav` and `key-*.wav` loops. The `bpm-*.wav` loops double as the atonal case for key. Real accuracy is GiantSteps, through `scripts/analysis/validate-tempo.py` and `validate-key.py`. Re-run both after any analyzer change.
 
 ## The model
 

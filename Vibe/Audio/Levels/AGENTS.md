@@ -1,6 +1,6 @@
 # Live output levels
 
-The demand-driven output meter behind the shared equalizer indicator. It is separate from `../Analysis/`, the offline BPM and key detection. Nothing here opens or analyzes a file. The root `AGENTS.md` equalizer guarantees are the contract. This is the producer half. The consumer, activity and animation contracts are `../../Controls/AGENTS.md`'s.
+The demand-driven output meter behind the shared equalizer indicator. It is separate from vibe-libs' `audio/Analysis`, the offline tempo and key detection. Nothing here opens or analyzes a file. The root `AGENTS.md` equalizer guarantees are the contract. This is the producer half. The consumer, activity and animation contracts are `../../Controls/AGENTS.md`'s.
 
 | File | Owns |
 | --- | --- |

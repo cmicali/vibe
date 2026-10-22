@@ -127,7 +127,7 @@ The `per unit` column is realtime factor (audio seconds per CPU second) for audi
 
 ## Proving a change exact
 
-`VibeBenchComponents --analyze <folder>` runs every audio file under it through the production waveform loader with both analyzers and prints `name<TAB>bpm<TAB>key`, the tempo to nine significant digits. Run it at both refs over the GiantSteps sets (`~/projects/giantsteps-tempo-dataset`, `~/projects/giantsteps-key-dataset`) and `cmp` the outputs: an analyzer change that is meant to be exact must leave them identical. A change meant to move the answers is `scripts/analysis/validate-tempo.py` / `validate-key.py`'s job (`Audio/Analysis/AGENTS.md`).
+`VibeBenchComponents --analyze <folder>` runs every audio file under it through the production waveform loader with both analyzers and prints `name<TAB>bpm<TAB>key`, the tempo to nine significant digits. Run it at both refs over the GiantSteps sets (`~/projects/giantsteps-tempo-dataset`, `~/projects/giantsteps-key-dataset`) and `cmp` the outputs: an analyzer change that is meant to be exact must leave them identical. A change meant to move the answers is `scripts/analysis/validate-tempo.py` / `validate-key.py`'s job (`vibe-libs/audio/Analysis/AGENTS.md`).
 
 `VibeBenchComponents --waveform <file>` draws one file's waveform as the iOS scrubber does. It measures nothing. The `vibe-waveform` skill drives it.
 

@@ -150,9 +150,9 @@ targets:
     #
     # TRAP: VibeLibsVorbis before VibeLibsTaglib. Header search paths follow
     # this order, and taglib/ogg holds TagLib's own vorbis/vorbisfile.h.
-    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsFileLoading, VibeLibsDiskCache, VibeLibsGraphics,
-                VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis, VibeLibsTaglib,
-                VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsFileLoading, VibeLibsDiskCache,
+                VibeLibsGraphics, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis,
+                VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -459,9 +459,9 @@ targets:
     type: application
     platform: iOS
     # VibeLibsVorbis before VibeLibsTaglib: see the Vibe target.
-    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsFileLoading, VibeLibsDiskCache, VibeLibsGraphics,
-                VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
-                VibeLibsDrFlac, VibeLibsDrWav]
+    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsFileLoading, VibeLibsDiskCache,
+                VibeLibsGraphics, VibeLibsVorbis, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
+                VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -751,8 +751,8 @@ targets:
           - "Audio/Metadata/AudioTrackMetadataTagTests.mm"    # VibeAudioTests': TagLib
           - "Audio/Metadata/AudioTrackMetadataFuzzTests.mm"   # same
           - "iOSSim/**"                       # VibeiOSTests' suite: UIKit, on a simulator
-      - path: Vibe/Audio/Analysis/AudioBPMAnalyzer.mm
-      - path: Vibe/Audio/Analysis/AudioKeyAnalyzer.mm
+      - path: vibe-libs/audio/Analysis/AudioBPMAnalyzer.mm
+      - path: vibe-libs/audio/Analysis/AudioKeyAnalyzer.mm
       - path: Vibe/Playlist/AudioAnalysisObservers.m
       - path: Vibe/Audio/Waveform/AudioWaveformObserver.m
       - path: Vibe/Audio/Waveform/AudioWaveform.mm
@@ -887,7 +887,7 @@ targets:
           - "$(SRCROOT)/Vibe/Audio/Metadata"
           - "$(SRCROOT)/Vibe/Audio/Waveform"
           - "$(SRCROOT)/Packages/WaveformCore/Sources/WaveformCore/include"
-          - "$(SRCROOT)/Vibe/Audio/Analysis"
+          - "$(SRCROOT)/vibe-libs/audio/Analysis"
           - "$(SRCROOT)/Vibe/Audio/FX"
           # Header-only activity/animation seams shared by both controls.
           - "$(SRCROOT)/Vibe/Controls"
