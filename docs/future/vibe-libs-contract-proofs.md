@@ -42,7 +42,7 @@ A test named as vibe-libs' moved there with its piece, and runs in vibe-libs' CI
 | A cancelled request detaches its decode, and its sinks still finish. | `AudioWaveformObserverTests` `testACancelledRequestsDecodeStillFinishesItsSinks`. `AudioWaveformLoaderTests` `testDetachedLoadFinishesWithoutProgressDeliveries`. |
 | A late completion reaches only a request that is still current, by source key and version. | By source key: `AudioWaveformObserverTests` `testALateCompletionReachesOnlyItsOwnTrack`, `PageWaveformCoordinatorTests` `testDeliveryForAnotherRowOfTheSameFileIsDropped`, `PlaylistTests` `testStampingReachesEveryRowSoundingTheWindowAndNoOtherRowOfTheFile`. By version: rule 4's rows below. |
 | A CUE window decodes only its frames, so its observers see only those. | `AudioWaveformObserverTests` `testACueWindowsSinkSeesOnlyItsFrames`. `AudioWaveformLoaderTests` `testFullLoadOfAWindowCoversOnlyTheWindow`. |
-| `perf.py --analyze` proves tempo and key identical. | A measurement, not a test. It is the `vibe-perf` skill's. |
+| `perf.py --analyze` proves tempo and key identical. | A measurement, not a test. It is the `vibe-perf` skill's. It ran again for Analysis' move (#374): every answer over 655 GiantSteps tempo files and 602 key files was identical. |
 
 ## Seam 22: Metadata's holder protocol
 
