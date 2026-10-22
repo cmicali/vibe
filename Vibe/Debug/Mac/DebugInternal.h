@@ -24,7 +24,7 @@
 #import "DebugHealth.h"
 #import "DebugMacConsistency.h"
 #import "DebugSettingsUI.h"
-#import "AudioLoadTiming.h"
+#import "AudioWaveformLoader+Debug.h"
 
 #import "AppDelegate.h"
 #import "MainPlayerController.h"

@@ -1,6 +1,6 @@
 # Waveform rendering
 
-The *rendering* half of the waveform system. The data, its decoding and caching, is `Audio/Waveform/` over vibe-libs' `waveform/Waveform`, and tempo and key are vibe-libs' `audio/Analysis`. **The styles are vibe-libs' `waveform/WaveformStyles`**: the renderers, the registry, the morph engine, the level and bar math, the theme, and the zoom math. Its `AGENTS.md` is the authority for how each style draws and for the theme's rules. This directory holds the views that host a renderer, and what Vibe maps onto the theme. **`Mac/` (the `NSView`) and `iOS/` (the scrubber) each have their own `AGENTS.md`.**
+The *rendering* half of the waveform system. The data is vibe-libs' `waveform/Waveform`, its decoding and caching are `waveform/WaveformLoading`, and tempo and key are `audio/Analysis`. **The styles are vibe-libs' `waveform/WaveformStyles`**: the renderers, the registry, the morph engine, the level and bar math, the theme, and the zoom math. Its `AGENTS.md` is the authority for how each style draws and for the theme's rules. This directory holds the views that host a renderer, and what Vibe maps onto the theme. **`Mac/` (the `NSView`) and `iOS/` (the scrubber) each have their own `AGENTS.md`.**
 
 `WaveformAccessibility.h` is the one shared file here. The platform views live under `Mac/` and `iOS/`.
 

@@ -11,7 +11,6 @@
 #import "AudioAnalysisObservers.h"
 #import "AudioFileHandle.h"
 #import "AudioWaveform.h"
-#import "AudioLoadTiming.h"
 #import "MusicalKey.h"
 
 #include <vector>
@@ -59,7 +58,7 @@ static NSString *VibeScanDecode(NSString *rawPath, AudioWaveformObserver *observ
         monoScratch.resize(kBlockFrames);
     }
     while (file.framePosition < file.length) {
-        uint64_t phaseStart = VibeLoadClockNow();
+        uint64_t phaseStart = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         if (![file readIntoBuffer:buffer error:&error]) {
             return VibeScanJSONForDictionary(@{
                 @"error": [NSString stringWithFormat:@"read failed at frame %lld: %@",
@@ -71,15 +70,15 @@ static NSString *VibeScanDecode(NSString *rawPath, AudioWaveformObserver *observ
         }
         const float *mono = AudioWaveformMonoMix(buffer.floatChannelData[0], monoScratch.data(),
                                                  buffer.frameLength, numChannels);
-        decodeNanos += VibeLoadClockNow() - phaseStart;
-        phaseStart = VibeLoadClockNow();
+        decodeNanos += clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - phaseStart;
+        phaseStart = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         [sink appendMonoSamples:mono frameCount:buffer.frameLength];
-        appendNanos += VibeLoadClockNow() - phaseStart;
+        appendNanos += clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - phaseStart;
         frames += buffer.frameLength;
     }
-    uint64_t finishStart = VibeLoadClockNow();
+    uint64_t finishStart = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
     *outResult = [sink waveformResult];
-    uint64_t finishNanos = VibeLoadClockNow() - finishStart;
+    uint64_t finishNanos = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - finishStart;
     // decodeSeconds here includes the mono downmix, which dump_timing's
     // in-app entries count under chunkSeconds instead: the two reports agree
     // on the total, not bucket by bucket.

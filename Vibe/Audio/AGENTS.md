@@ -4,7 +4,7 @@ Vibe's audio features beside the engine, and how Vibe hosts the engine. **The en
 
 The file handle it reads through, with the decoders it hosts, is vibe-libs' `audio/Decode`. The resampler, the varispeed, and the fades are `audio/DSP`. The words it shares with the rest of the audio code are `audio/AudioTypes`: `VibePlayableItem`, the item the player reads, `CueWindowMath.h`, `MusicalKey.h`, and `AudioFileFormat`. The file-open path beneath it is `files/FileLoading`. The output devices and the iOS audio session it plays through are `audio/OutputDevices`. The DJ FX and the meter are `audio/FX` and `audio/Meter`. Tempo and key detection is `audio/Analysis`. Each has its own `AGENTS.md`.
 
-**The metadata pipeline is vibe-libs' `media/Metadata`**: the tag record and its CoreAudio fallback, the cache and its scan, embedded art and the row thumbnails, and folder art. Its `AGENTS.md` is the authority for them, and Metadata and artwork, below, is what Vibe does with them. `Waveform/` has its own `AGENTS.md` (data only; rendering is `Vibe/WaveformUI/`). Convert to FLAC is the mac shell's (`Vibe/Mac/Convert/AGENTS.md`). `PINCache+VibeAudioCache`, the disk-cache policy the metadata and waveform caches share, is vibe-libs' `files/DiskCache`.
+**The metadata pipeline is vibe-libs' `media/Metadata`**: the tag record and its CoreAudio fallback, the cache and its scan, embedded art and the row thumbnails, and folder art. Its `AGENTS.md` is the authority for them, and Metadata and artwork, below, is what Vibe does with them. The waveform's data is vibe-libs' `waveform/Waveform` and `waveform/WaveformLoading`, and how Vibe uses them is below. Rendering is `Vibe/WaveformUI/`. Convert to FLAC is the mac shell's (`Vibe/Mac/Convert/AGENTS.md`). `PINCache+VibeAudioCache`, the disk-cache policy the metadata and waveform caches share, is vibe-libs' `files/DiskCache`.
 
 ## How Vibe hosts the player
 
@@ -32,6 +32,20 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 **Termination.** `AppDelegate` detaches the player's delegate on main. `applicationShouldTerminate:` calls `prepareForTermination`, so nothing restarts the output during `NSTerminateLater`.
 
 **On iOS, `PlaybackController` is `AudioSessionController`'s delegate** (`iOS/AGENTS.md`). It maps each verdict onto the player's public API, calls `recoverOutput` after the remote Play command's resume (`PlaybackController+NowPlaying.m`), and releases the session on `audioPlayerOutputDidBecomeIdle:`. Its media-services reset completion publishes Stopped and re-parks the captured track.
+
+## How Vibe uses the waveform loader
+
+**The loader, the cache, and the observers are vibe-libs' `waveform/WaveformLoading`.** Its `AGENTS.md` is the authority for the decode pass, the bands, the store, cue windows, admission, detached decodes, streaming, and the deliveries. The summary and the cache entry are `waveform/Waveform`'s. Vibe's item is its playlist row, `AudioTrack`.
+
+**Each shell owns one cache and installs its analysis provider.** The mac's `MainPlayerController` answers from the two analysis settings and the theme's style. The iOS `PlayerViewController` answers from `analyzeBPM` and the card's and widget's styles. A style asks for the bands through `WaveformRendererRegistry readsBandsForIdentifier:`. 3-Band and Spectrum are their only readers.
+
+**Vibe's observers are the tempo and the key** (`Playlist/AudioAnalysisObservers.h`), identified as `bpm` and `key`. Key analysis is macOS-only (root `AGENTS.md`).
+
+**An owner that comes to want more asks for its track again.** The mac asks when the style becomes 3-Band or Spectrum, or a detection switch turns on (`VibeSettingsLiveEffectWaveformStyle`, `VibeSettingsLiveEffectTrackAnalysis`). The iOS card asks when the card's or the widget's style does. Switching between 3-Band and Spectrum asks for nothing, since both read the same entry.
+
+**Receivers match the delivered row's `sourceKey`**: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator`. A tempo or key is stamped on every row sounding that window (`Playlist.stampTracksSounding:usingBlock:`). iOS reads only the tempo from the results, and forwards it to `PlaybackController.noteDetectedBPM:forTrack:`. The iOS pager reads its neighbors' entries only, through `cachedWaveformForTrack:completion:`. The iOS scrubber asks for the deep zoom blocks its last draw lacked (`WaveformUI/iOS/AGENTS.md`).
+
+**The debug verbs drive the piece's two seams.** `file_cache`, `dump_waveform`, and `file_clear_cache` make a row for the file and pass it to the cache's seam. `set_waveform_decode_seconds` sets the decode pace. `dump_timing` and `clear_timing` read the loader's seam (`Debug/AGENTS.md`).
 
 ## Metadata and artwork
 
@@ -65,6 +79,6 @@ The player's beta lines (`Timeline:`, `Phase:`, `Callback:`, `Buffering:`, `Reco
 
 ## Tests
 
-The player's tests are vibe-libs' `Tests/audio/Player`, and they run there. **The render suite is vibe-libs' `Tests/audio/Player/Render`**, which `VibeAudioTests` compiles from the submodule over the generated fixtures (`make test-audio`, `Tests/AGENTS.md`). Two test files stay here. `AudioPlayerRenderLinkTests` plays a link through Vibe's own `LinkStore`. `AudioQualityCorpusTests` runs only from the `vibe-audio-quality` skill. `Tests/Audio/AudioErrorRulesTests.m` covers `AudioErrorRules.h`.
+The player's tests are vibe-libs' `Tests/audio/Player`, and they run there. **The render suite is vibe-libs' `Tests/audio/Player/Render`**, which `VibeAudioTests` compiles from the submodule over the generated fixtures (`make test-audio`, `Tests/AGENTS.md`). Two test files stay here. `AudioPlayerRenderLinkTests` plays a link through Vibe's own `LinkStore`. `AudioQualityCorpusTests` runs only from the `vibe-audio-quality` skill. `Tests/Audio/AudioErrorRulesTests.m` covers `AudioErrorRules.h`. The waveform loader's and the observers' tests are vibe-libs' `Tests/waveform/WaveformLoading`. `Tests/Playlist/AudioAnalysisObserversTests.m` covers how Vibe reads its tempo and key from the results.
 
 The metadata pipeline's tests are vibe-libs' `Tests/media/Metadata`, and they run there. `VibeAudioTests` also compiles its tag and fuzz tests from the submodule over the generated fixtures, so their Ogg cases run (`Tests/AGENTS.md`). Two test files stay here. `Tests/Playlist/AudioTrackTagTests.mm` checks the row over the real parse. `Tests/Playlist/FolderArtWalkTests.m` checks the walk's handoff to the resolver, as `AppDelegate` wires it.

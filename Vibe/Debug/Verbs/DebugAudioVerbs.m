@@ -15,9 +15,10 @@
 #import "DebugChannel.h"
 #import "AudioAnalysisObservers.h"
 #import "AudioLevelMath.h"
-#import "AudioLoadTiming.h"
+#import "AudioWaveformLoader+Debug.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Debug.h"
+#import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioTrackMetadataCache+Debug.h"
 #import "AudioWaveformCache.h"
@@ -177,7 +178,7 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                 return VibeJSONString(@{@"ok": @YES});
             }),
             // Every recent waveform decode, playback's or file_cache's. See
-            // AudioLoadTiming.h.
+            // AudioWaveformLoader+Debug.h.
             VibeDebugCmd(@"dump_timing", 5, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                         id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(@{@"loads": [AudioLoadTiming recentJSON]});
@@ -196,8 +197,8 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                 }
                 // A cold decode of a long file runs well past the default
                 // client wait, hence the 60s clientTimeout.
-                [surface.debugWaveformCache cacheWaveformForURL:[NSURL fileURLWithPath:path]
-                                                     completion:^(BOOL ok, BOOL wasCached, NSDictionary *results) {
+                [surface.debugWaveformCache cacheWaveformForTrack:[AudioTrack withURL:[NSURL fileURLWithPath:path]]
+                                                       completion:^(BOOL ok, BOOL wasCached, NSDictionary *results) {
                     float bpm = [AudioBPMAnalyzer tempoInResults:results];
                     VibeMusicalKey key = [AudioKeyAnalyzer keyInResults:results];
                     NSDictionary *timing = [AudioLoadTiming newestJSONForPath:path];
@@ -231,9 +232,9 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                 if (!path) {
                     return errorJSON;
                 }
-                [surface.debugWaveformCache dumpWaveformForURL:[NSURL fileURLWithPath:path]
-                                                       columns:(NSUInteger)columns
-                                                    completion:^(NSDictionary *dump) {
+                [surface.debugWaveformCache dumpWaveformForTrack:[AudioTrack withURL:[NSURL fileURLWithPath:path]]
+                                                         columns:(NSUInteger)columns
+                                                      completion:^(NSDictionary *dump) {
                     NSMutableDictionary *reply = [dump mutableCopy];
                     NSDictionary *results = reply[@"results"];
                     [reply removeObjectForKey:@"results"];
@@ -262,8 +263,8 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                 if (!path) {
                     return errorJSON;
                 }
-                [surface.debugWaveformCache clearCachedWaveformForURL:[NSURL fileURLWithPath:path]
-                                                           completion:^(BOOL wasPresent) {
+                [surface.debugWaveformCache clearCachedWaveformForTrack:[AudioTrack withURL:[NSURL fileURLWithPath:path]]
+                                                             completion:^(BOOL wasPresent) {
                     VibeWriteDebugResponse(commandId, VibeJSONString(@{
                         @"ok": @YES, @"path": path, @"wasPresent": @(wasPresent),
                     }));
