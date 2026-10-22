@@ -4,7 +4,7 @@
 //
 //  The order a folder's tracks land in the playlist when the user opens it.
 //  Its own header because FolderWalk takes it as a walk parameter and may not
-//  import a setting.
+//  import a setting. An app keeps its stored identifiers for the orders.
 //
 
 #import <Foundation/Foundation.h>
@@ -19,8 +19,3 @@ typedef NS_ENUM(NSInteger, VibeFolderOpenSort) {
     // order (effectively random) on a local volume.
     VibeFolderOpenSortAsReceived,
 };
-
-// Stable stored identifiers, never display names.
-#define SETTINGS_VALUE_FOLDER_OPEN_SORT_NAME            @"name"
-#define SETTINGS_VALUE_FOLDER_OPEN_SORT_NEWEST_FIRST    @"newest_first"
-#define SETTINGS_VALUE_FOLDER_OPEN_SORT_AS_RECEIVED     @"as_received"
