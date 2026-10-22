@@ -12,7 +12,7 @@
 #import "HelperMacros.h"
 
 // A level is the RMS of the loudest short window a bar covers
-// (WaveformCore's Column.loudest), so the hits stand above the sound around
+// (the summary's Column.loudest), so the hits stand above the sound around
 // them. Not peaks: on a limited master every coarse bar holds a full-scale
 // peak and the strip reads as a block, while the loudest window still rises
 // on each kick. Not a mean: over a coarse bar it averages each hit away. Full
