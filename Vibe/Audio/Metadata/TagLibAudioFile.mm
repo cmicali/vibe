@@ -4,6 +4,7 @@
 //
 
 #import "TagLibAudioFile.h"
+#import "VibeMacros.h"
 
 #include <map>
 #include <memory>
