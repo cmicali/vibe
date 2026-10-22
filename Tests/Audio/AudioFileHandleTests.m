@@ -11,7 +11,7 @@
 
 #import "AudioFileHandle.h"
 #import "AudioFileHandle+Debug.h"
-#import "AudioFixtures.h"
+#import "AudioFileFixtures.h"
 #import "NSURL+Emptiness.h"
 
 @interface AudioFileHandleTests : XCTestCase

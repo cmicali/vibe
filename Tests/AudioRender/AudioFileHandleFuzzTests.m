@@ -40,7 +40,7 @@
 #include <float.h>
 #include <time.h>
 
-#import "AudioFixtures.h"
+#import "AudioFileFixtures.h"
 #import "AudioFileHandle.h"
 
 typedef NS_ENUM(NSUInteger, FuzzFamily) { FuzzFamilyWAV, FuzzFamilyFLAC, FuzzFamilyMPEG, FuzzFamilyApple };

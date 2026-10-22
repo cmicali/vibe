@@ -457,12 +457,13 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
 // A chunk after the audio, a 235 KB tag as a Dropbox AIFF carried, is past
 // the small window. An AIFF's open and a CAF's walk to that chunk's header.
 // On the small window those opens wait for the download.
-// dr_wav stops at a WAV's or a W64's data chunk, so its opens never wait. On
-// the window its format takes, each opens on its head and the window with no
-// wait. The stream then decodes as the whole file.
+// dr_wav stops at a WAV's or a W64's data chunk, so its opens never wait. A
+// placeholder store gives a chunked file of this size a 512 KB window. On
+// that window each opens on its head and the window with no wait. The stream
+// then decodes as the whole file.
 - (void)testAChunkAfterTheAudioOpensFromTheWindow {
     const uint32_t frames = 441000, tag = 235 * 1024;
-    const uint64_t head = 64 * 1024, small = 128 * 1024;
+    const uint64_t head = 64 * 1024, small = 128 * 1024, window = 512 * 1024;
     NSData *samples = VibeNoiseSamples(frames, 2);
     NSError *error = nil;
     NSURL *wav = VibeWriteWAV([self sourceNamed:@"plain.wav"], samples, 44100, 2, 16, (uint32_t)samples.length);
@@ -481,8 +482,6 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
         NSString *extension = name.pathExtension;
         NSURL *source = [self sourceNamed:[@"tagged-" stringByAppendingString:name]];
         XCTAssertTrue([VibeWithTrailingTag(plain[name], extension, tag) writeToURL:source atomically:YES], @"%@", name);
-        uint64_t size = [NSData dataWithContentsOfURL:source].length;
-        uint64_t window = VibeAudioFileTailWindowBytes(extension, size);
         XCTAssertGreaterThan(window, (uint64_t)tag + 24, @"%@", name);
         BOOL walksToTheEnd = [extension isEqualToString:@"aiff"] || [decoders[name] isEqualToString:@"apple"];
 
@@ -1184,19 +1183,20 @@ static NSData *VibeWithTrailingTag(NSData *file, NSString *extension, uint32_t l
 }
 
 // A transfer that installs another version than its placeholder stood for
-// (here the placeholder is empty) retires the memoized keys, so the file's
-// waveform and metadata are filed under the version it now holds.
+// (here the placeholder is empty) moves the disk key's generation. Every
+// memoized key is then stale, so the file's waveform and metadata are filed
+// under the version it now holds.
 - (void)testATransferInstallingAnotherVersionRetiresTheMemoizedKeys {
     VibeGrowingFile *file = [self remote:[self remoteSource] prefix:64 * 1024 readable:YES];
-    AudioTrack *track = [AudioTrack withURL:file.url];
-    NSString *placeholderKey = track.cacheKey;
+    NSString *placeholderKey = file.url.cacheKey;
     XCTAssertNotNil(placeholderKey);
+    uint64_t generation = NSURL.cacheKeyGeneration;
     AudioFileHandle *handle = [self deliver:file purpose:VibeAudioFileOpenPurposePlayback];
-    XCTAssertEqualObjects(track.cacheKey, placeholderKey, @"while it streams, the placeholder's");
+    XCTAssertEqualObjects(file.url.cacheKey, placeholderKey, @"while it streams, the placeholder's");
     XCTAssertTrue([self finishRemote:VibeFetchCompleted]);
     XCTAssertTrue([self eventually:^BOOL { return [self running:NO]; }]);
-    XCTAssertNotEqualObjects(track.cacheKey, placeholderKey);
-    XCTAssertEqualObjects(track.cacheKey, file.url.cacheKey);
+    XCTAssertGreaterThan(NSURL.cacheKeyGeneration, generation);
+    XCTAssertNotEqualObjects(file.url.cacheKey, placeholderKey);
     XCTAssertNotNil(handle);
 }
 
