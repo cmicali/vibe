@@ -26,6 +26,12 @@ static const NSInteger kVibeCrossfadeOffMilliseconds = 10;
 static const NSInteger kVibeCrossfadeStepMilliseconds = 100;
 static const NSInteger kVibeCrossfadeMaxMilliseconds = 3000;
 
+// The repeat mode's stable stored identifiers, never display names. The order
+// a tap or ⌘R cycles the modes is VibeRepeatModeAfter's.
+#define SETTINGS_VALUE_REPEAT_MODE_OFF      @"off"
+#define SETTINGS_VALUE_REPEAT_MODE_ALL      @"all"
+#define SETTINGS_VALUE_REPEAT_MODE_ONE      @"one"
+
 @interface AppSettings : NSObject
 
 #pragma mark - Both platforms
