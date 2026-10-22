@@ -3,47 +3,29 @@
 //  VibeAudioTests
 //
 //  TagLibAudioFile's detection over the real TagLib: the extension's parser
-//  first, then the content sniff, and FLAC in Ogg refused. The files are
-//  AudioTrackMetadataTagFixtures.h's.
+//  first, then the content sniff, and FLAC in Ogg refused. The tests write
+//  their own files, with AVFoundation's encoders and an MP3's frames. They
+//  carry no tags, since detection never reads one.
 //
 
 #import <XCTest/XCTest.h>
+#import <AVFoundation/AVFoundation.h>
 
-#import "AudioTrackMetadataTagFixtures.h"
 #import "TagLibAudioFile.h"
 
 @interface TagLibAudioFileTests : XCTestCase
 @end
 
-// Each fixture tagged with the class's art, written once for the class.
-// A test gets a copy in its own directory, so it may change the copy.
-static NSURL *sFixtureDir;
-static NSDictionary<NSNumber *, NSURL *> *sFixtures;
-static NSData *sArt;
-
 @implementation TagLibAudioFileTests {
     NSURL *_dir;
 }
 
-+ (void)setUp {
-    [super setUp];
-    sArt = VibeImageOfColor(300, 0.8, 0.2, 0.3, NO);
-    sFixtureDir = VibeTagFixtureDirectory();
-    NSMutableDictionary<NSNumber *, NSURL *> *fixtures = [NSMutableDictionary dictionary];
-    for (NSInteger fixture = 0; fixture < VibeTagFixtureCount; fixture++) {
-        fixtures[@(fixture)] = VibeWriteTagFixture(sFixtureDir, (VibeTagFixture)fixture, sArt, NULL);
-    }
-    sFixtures = fixtures;
-}
-
-+ (void)tearDown {
-    [NSFileManager.defaultManager removeItemAtURL:sFixtureDir error:NULL];
-    [super tearDown];
-}
-
 - (void)setUp {
     [super setUp];
-    _dir = VibeTagFixtureDirectory();
+    _dir = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:NSUUID.UUID.UUIDString]
+                      isDirectory:YES];
+    [NSFileManager.defaultManager createDirectoryAtURL:_dir withIntermediateDirectories:YES attributes:nil
+                                                 error:NULL];
 }
 
 - (void)tearDown {
@@ -51,24 +33,39 @@ static NSData *sArt;
     [super tearDown];
 }
 
-// The class's copy when `art` is the class's or the format carries none.
-// Other art is written fresh.
-- (NSURL *)write:(VibeTagFixture)fixture art:(NSData *)art {
-    NSURL *url = nil;
-    if (art == sArt || !VibeTagFixtureHasArt(fixture)) {
-        NSURL *written = sFixtures[@(fixture)];
-        NSURL *copy = [_dir URLByAppendingPathComponent:VibeTagFixtureName(fixture)];
-        [NSFileManager.defaultManager removeItemAtURL:copy error:NULL];
-        if (written && [NSFileManager.defaultManager copyItemAtURL:written toURL:copy error:NULL]) url = copy;
+// Half a second of stereo silence at 44.1 kHz in the format `extension`
+// names. An MP3 is 38 frames of MPEG-1 Layer III at 320 kbps, since no Apple
+// encoder writes MP3. The others go through AVAudioFile: AAC in M4A, FLAC,
+// and 16-bit PCM in WAV and AIFF.
+- (NSURL *)write:(NSString *)extension {
+    NSURL *url = [_dir URLByAppendingPathComponent:[@"audio" stringByAppendingPathExtension:extension]];
+    if ([extension isEqualToString:@"mp3"]) {
+        NSMutableData *bytes = [NSMutableData dataWithLength:38 * 1044];
+        for (NSUInteger frame = 0; frame < 38; frame++) {
+            memcpy((uint8_t *)bytes.mutableBytes + frame * 1044, "\xFF\xFB\xE0\x00", 4);
+        }
+        XCTAssertTrue([bytes writeToURL:url atomically:YES]);
+        return url;
     }
-    else {
-        url = VibeWriteTagFixture(_dir, fixture, art, NULL);
+    NSDictionary<NSString *, NSNumber *> *codecs = @{@"m4a": @(kAudioFormatMPEG4AAC), @"flac": @(kAudioFormatFLAC),
+                                                     @"wav": @(kAudioFormatLinearPCM), @"aif": @(kAudioFormatLinearPCM)};
+    NSMutableDictionary *settings = [@{AVFormatIDKey: codecs[extension], AVSampleRateKey: @44100,
+                                       AVNumberOfChannelsKey: @2} mutableCopy];
+    if ([extension isEqualToString:@"flac"]) settings[AVEncoderBitDepthHintKey] = @16;
+    if (codecs[extension].unsignedIntValue == kAudioFormatLinearPCM) {
+        [settings addEntriesFromDictionary:@{AVLinearPCMBitDepthKey: @16, AVLinearPCMIsFloatKey: @NO,
+                                             AVLinearPCMIsBigEndianKey: @([extension isEqualToString:@"aif"])}];
     }
-    if (fixture == VibeTagFixtureVorbis || fixture == VibeTagFixtureOpus) {
-        XCTSkipUnless(url != nil, @"%@ needs the render fixtures; run make test-audio with ffmpeg installed",
-                      VibeTagFixtureName(fixture));
+    NSError *error = nil;
+    @autoreleasepool {
+        AVAudioFile *file = [[AVAudioFile alloc] initForWriting:url settings:settings
+                                                   commonFormat:AVAudioPCMFormatInt16 interleaved:YES error:&error];
+        AVAudioPCMBuffer *silence = [[AVAudioPCMBuffer alloc] initWithPCMFormat:file.processingFormat
+                                                                   frameCapacity:22050];
+        silence.frameLength = 22050;
+        memset(silence.int16ChannelData[0], 0, 22050 * 2 * sizeof(int16_t));
+        XCTAssertTrue([file writeFromBuffer:silence error:&error], @"%@: %@", extension, error);
     }
-    XCTAssertNotNil(url, @"%@", VibeTagFixtureName(fixture));
     return url;
 }
 
@@ -95,34 +92,31 @@ static VibeAudioFileFormat Detected(NSURL *url) {
             @"mp3-as.m4a": VibeAudioFileFormatMP3,
             @"flac-as.m4a": VibeAudioFileFormatFLAC,
     };
-    NSDictionary<NSString *, NSNumber *> *sources = @{
-            @"m4a-as.flac": @(VibeTagFixtureM4A), @"wav-as.m4a": @(VibeTagFixtureWAVID3),
-            @"wav-as.flac": @(VibeTagFixtureWAVID3), @"aiff-as.m4a": @(VibeTagFixtureAIFF),
-            @"mp3-as.m4a": @(VibeTagFixtureMP3ID3v24), @"flac-as.m4a": @(VibeTagFixtureFLAC),
+    NSDictionary<NSString *, NSString *> *sources = @{
+            @"m4a-as.flac": @"m4a", @"wav-as.m4a": @"wav", @"wav-as.flac": @"wav", @"aiff-as.m4a": @"aif",
+            @"mp3-as.m4a": @"mp3", @"flac-as.m4a": @"flac",
     };
     for (NSString *name in cases) {
-        NSURL *url = [self rename:[self write:(VibeTagFixture)sources[name].integerValue art:sArt] to:name];
+        NSURL *url = [self rename:[self write:sources[name]] to:name];
         XCTAssertEqualObjects(Detected(url), cases[name], @"%@", name);
     }
 }
 
 - (void)testNoExtensionSniffsTheContent {
-    NSDictionary<NSNumber *, VibeAudioFileFormat> *cases = @{
-            @(VibeTagFixtureFLAC): VibeAudioFileFormatFLAC, @(VibeTagFixtureMP3ID3v24): VibeAudioFileFormatMP3,
-            @(VibeTagFixtureM4A): VibeAudioFileFormatMP4, @(VibeTagFixtureWAVID3): VibeAudioFileFormatWAV,
-            @(VibeTagFixtureAIFF): VibeAudioFileFormatAIFF,
+    NSDictionary<NSString *, VibeAudioFileFormat> *cases = @{
+            @"flac": VibeAudioFileFormatFLAC, @"mp3": VibeAudioFileFormatMP3, @"m4a": VibeAudioFileFormatMP4,
+            @"wav": VibeAudioFileFormatWAV, @"aif": VibeAudioFileFormatAIFF,
     };
-    for (NSNumber *fixture in cases) {
-        NSString *name = [VibeTagFixtureName((VibeTagFixture)fixture.integerValue)
-                stringByReplacingOccurrencesOfString:@"." withString:@"-"];
-        NSURL *url = [self rename:[self write:(VibeTagFixture)fixture.integerValue art:sArt] to:name];
-        XCTAssertEqualObjects(Detected(url), cases[fixture], @"%@", name);
+    for (NSString *extension in cases) {
+        NSString *name = [@"audio-" stringByAppendingString:extension];
+        NSURL *url = [self rename:[self write:extension] to:name];
+        XCTAssertEqualObjects(Detected(url), cases[extension], @"%@", name);
     }
 }
 
 // TagLib's FLAC reader skips a leading ID3v2 tag, and so does its sniff.
 - (void)testAFLACWithAnID3v2PrefixReadsAsFLAC {
-    NSURL *flac = [self write:VibeTagFixtureFLAC art:sArt];
+    NSURL *flac = [self write:@"flac"];
     NSMutableData *bytes = [NSMutableData dataWithBytes:"ID3\x04\x00\x00\x00\x00\x00\x40" length:10];
     [bytes increaseLengthBy:64];
     [bytes appendData:[NSData dataWithContentsOfURL:flac]];
