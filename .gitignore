@@ -79,6 +79,3 @@ __pycache__/
 
 # Local retagged copies of the screenshot author's music; never publish recordings.
 /Assets/app-store/demo-music/tracks/
-# swift build and swift test in the package.
-/Packages/WaveformCore/.build/
-/Packages/WaveformCore/.swiftpm/

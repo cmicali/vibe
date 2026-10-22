@@ -73,7 +73,7 @@ static inline NSArray<NSString *> *VibeWaveformObserverIdentifiers(VibeWaveformA
 @property (atomic) NSUInteger cueEnd;
 
 // Reads blocks of the window into the waveform's detail at full resolution,
-// as the mix, for deep zoom (WaveformCore's Detail). Skips blocks already
+// as the mix, for deep zoom (the summary's Detail). Skips blocks already
 // held. Set the window first. NO when the file cannot be opened or read, or
 // the loader was cancelled.
 - (BOOL)loadDetailBlocks:(NSIndexSet *)blocks ofFile:(NSString *)filename

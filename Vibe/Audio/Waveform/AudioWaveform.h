@@ -31,7 +31,7 @@ static inline const float* AudioWaveformMonoMix(const float* buffer, float* scra
     return scratch;
 }
 
-// Vibe's waveform is WaveformCore's summary (Packages/WaveformCore): peaks
+// Vibe's waveform is the summary of vibe-libs' waveform/Waveform: peaks
 // and energy in bins of fixed time, read through its pyramid.
 typedef wavecore::Summary AudioWaveform;
 
