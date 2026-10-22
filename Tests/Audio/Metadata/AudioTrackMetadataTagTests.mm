@@ -1,22 +1,20 @@
 //
 //  AudioTrackMetadataTagTests.mm
-//  VibeAudioTests
+//  The metadata tests
 //
 //  The real tag parse over the real TagLib: each format's tags and facts, the
-//  tempo and key that beat analysis, embedded art through the bounded decode,
-//  and the parse of a file whose extension misleads. vibe-libs' media/Tags
-//  tests the detection itself. Every file is written here
-//  (AudioTrackMetadataTagFixtures.h), except Ogg's audio, which the render
-//  suite's generator makes with ffmpeg; those tests skip without it.
+//  tagged tempo and key, embedded art through the bounded decode, and the
+//  parse of a file whose extension misleads. vibe-libs' media/Tags tests the
+//  detection itself. Every file is written here
+//  (AudioTrackMetadataTagFixtures.h), except Ogg's audio, which comes from the
+//  generated fixtures VIBE_AUDIO_FIXTURES names. Those tests skip without them.
 //
 
 #import <XCTest/XCTest.h>
 
-#import "AudioTrack.h"
 #import "AudioTrackMetadataInternal.h"
 #import "AudioTrackMetadataTagFixtures.h"
 #import "PlatformImage.h"
-#import "PlaylistFile.h"
 #import "CloudFileMaterializer.h"
 
 #include <fcntl.h>
@@ -183,12 +181,9 @@ static const NSTimeInterval kMP3Duration = 38 * 1152 / 44100.0;
     [self assertFixture:VibeTagFixtureFLAC fileType:VibeAudioFileFormatFLAC rate:44100 duration:0.5];
 }
 
-// TagLib's save keeps the CUESHEET block, so the file still plays as rows.
+// A CUESHEET block beside the tags, which TagLib's save keeps.
 - (void)testFLACWithAnEmbeddedCueSheet {
     [self assertFixture:VibeTagFixtureFLACCueSheet fileType:VibeAudioFileFormatFLAC rate:44100 duration:0.5];
-    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:
-            [_dir URLByAppendingPathComponent:@"cuesheet.flac"]]];
-    XCTAssertEqual(rows.count, 2u);
 }
 
 - (void)testOggVorbis {
@@ -255,20 +250,6 @@ static const NSTimeInterval kMP3Duration = 38 * 1152 / 44100.0;
 }
 
 #pragma mark - Tags beat analysis
-
-- (void)testATaggedTempoAndKeyBeatAnalysis {
-    AudioTrackMetadata *tagged = Parse([self write:VibeTagFixtureFLAC art:sArt], NULL);
-    AudioTrackMetadata *untagged = Parse([self write:VibeTagFixtureWAVInfo art:nil], NULL);
-    for (AudioTrackMetadata *metadata in @[tagged, untagged]) {
-        AudioTrack *track = [[AudioTrack alloc] initWithURL:_dir];
-        track.detectedBPM = 90;
-        track.detectedKey = VibeMusicalKeyMake(0, NO);
-        XCTAssertTrue([track installMetadataIfUnresolved:metadata]);
-        BOOL isTagged = metadata == tagged;
-        XCTAssertEqual(track.bpm, isTagged ? kVibeTagBPM : 90.0f);
-        XCTAssertEqual(track.key, isTagged ? VibeMusicalKeyMake(9, YES) : VibeMusicalKeyMake(0, NO));
-    }
-}
 
 // A tempo outside (0, 1000) and a key no spelling reads are untagged, so
 // analysis fills both in.
