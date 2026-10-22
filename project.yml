@@ -752,6 +752,7 @@ targets:
           - "AudioRender/**"                  # VibeAudioTests' suite
           - "Audio/Metadata/AudioTrackMetadataTagTests.mm"    # VibeAudioTests': TagLib
           - "Audio/Metadata/AudioTrackMetadataFuzzTests.mm"   # same
+          - "Audio/Metadata/TagLibAudioFileTests.mm"          # same
           - "iOSSim/**"                       # VibeiOSTests' suite: UIKit, on a simulator
       - path: Vibe/Playlist/AudioAnalysisObservers.m
       - path: Vibe/Audio/Waveform/AudioWaveformObserver.m
@@ -945,6 +946,7 @@ targets:
       # decoy instead (Tests/AGENTS.md).
       - path: Tests/Audio/Metadata/AudioTrackMetadataTagTests.mm
       - path: Tests/Audio/Metadata/AudioTrackMetadataFuzzTests.mm
+      - path: Tests/Audio/Metadata/TagLibAudioFileTests.mm
       - path: Vibe/Audio/Metadata/AudioTrackMetadata.mm
       - path: Vibe/Audio/Metadata/TagLibAudioFile.mm
       - path: Vibe/Util/Categories/NSString+CPPStrings.mm
