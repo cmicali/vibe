@@ -242,12 +242,18 @@ static dispatch_queue_t VibeFakeHTTPDeliveryQueue(void) {
 }
 
 // Also sent after a load that finished. Only one still running was cancelled.
+// The answer holds the served file open. The session can keep a stopped
+// protocol for a long time, so the answer is dropped here. It is dropped on
+// the delivery queue, where every later read of it runs after a cancel check.
 - (void)stopLoading {
     self.cancelled = YES;
     VibeFakeHTTPAnswer *answer = self.answer;
     if (!self.ended && answer.progress) {
         answer.progress(@"cancelled", 0);
     }
+    dispatch_async(VibeFakeHTTPDeliveryQueue(), ^{
+        self.answer = nil;
+    });
 }
 
 @end
