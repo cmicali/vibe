@@ -14,6 +14,7 @@
 #import "PlatformImage.h"
 #import "NSString+CPPStrings.h"
 #import "MusicalKey.h"
+#import "VibeMacros.h"
 
 #import <AudioToolbox/AudioToolbox.h>
 

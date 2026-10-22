@@ -13,6 +13,7 @@
 #import "EmbeddedThumbnailCache.h"
 #import "FolderArtResolver.h"
 #import "PlatformImage.h"
+#import "VibeMacros.h"
 
 static const NSUInteger kEmbeddedThumbnailDecodeRunningCount = 2;
 // Parked blocks for visible rows, unrelated to the pixel cache's count.

@@ -12,6 +12,8 @@
 #import "FolderArtFileIO.h"
 #import "FolderArtRules.h"
 #import "PlatformImage.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 #import <os/lock.h>
 #import <stdatomic.h>

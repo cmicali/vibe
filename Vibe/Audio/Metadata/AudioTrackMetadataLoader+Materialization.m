@@ -14,6 +14,7 @@
 #import "MetadataScanOrderRules.h"
 #import "MetadataRetryRules.h"
 #import "PlaceholderFiles.h"
+#import "VibeMacros.h"
 
 #import "AudioTrackMetadataLoader+Debug.h"
 

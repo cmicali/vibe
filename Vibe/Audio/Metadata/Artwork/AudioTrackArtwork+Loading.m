@@ -11,6 +11,7 @@
 #import "ArtworkLoadRegistry.h"
 #import "FolderArtResolver.h"
 #import "PlatformImage.h"
+#import "VibeMacros.h"
 
 // Failed reads per display pass; discardDecodedArt re-arms them.
 static const NSUInteger kMaxEmbeddedArtExtractionFailures = 3;

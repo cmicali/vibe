@@ -15,6 +15,8 @@
 #import "AudioTrackArtwork.h"
 #import "MetadataScanEntry.h"
 #import "MetadataParseCoordinator.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 #import "AudioTrackMetadataLoader+Debug.h"
 

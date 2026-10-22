@@ -10,6 +10,7 @@
 //
 
 #import "AudioTrackMetadataLoader.h"
+#import "HelperMacros.h"
 
 #include <os/lock.h>
 

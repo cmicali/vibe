@@ -8,6 +8,8 @@
 #import "AudioFileMaterializationCoordinator.h"
 #import "AudioWorkScheduler.h"
 #import "PlaceholderFiles.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 static const NSUInteger kArtworkMaterializationMaximumFailures = 3;
 static const NSTimeInterval kArtworkAdmissionInitialRetryDelay = 0.1;

@@ -4,6 +4,9 @@
 //
 
 #import "EmbeddedThumbnailCache.h"
+#if !TARGET_OS_OSX
+#import <UIKit/UIKit.h>
+#endif
 
 // A session's scrolled rows stay decoded (spec H): <=128px RGBA, ~64 KiB each,
 // ~1 GiB only at 16k distinct rows. iOS flushes it on a memory warning rather

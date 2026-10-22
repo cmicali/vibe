@@ -15,6 +15,7 @@
 #import "FilePaths.h"
 #import "MetadataScanEntry.h"
 #import "MetadataRetryRules.h"
+#import "VibeMacros.h"
 
 #import "AudioTrackMetadataLoader+Debug.h"
 
