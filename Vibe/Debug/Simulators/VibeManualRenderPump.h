@@ -1,5 +1,4 @@
 // Shared manual output driver: paced app debugging or frame-driven audio tests.
-#if DEBUG
 #import <Foundation/Foundation.h>
 #import <AVFAudio/AVFAudio.h>
 NS_ASSUME_NONNULL_BEGIN
@@ -36,4 +35,3 @@ typedef OSStatus (^VibeManualRenderBlock)(AVAudioPCMBuffer *chunk, AVAudioFrameC
 - (void)cancel;
 @end
 NS_ASSUME_NONNULL_END
-#endif

@@ -7,8 +7,6 @@
 //  sits under #if DEBUG in AudioVoiceBus.m.
 //
 
-#if DEBUG
-
 #import "AudioPlayer.h"
 #import "AudioVoiceBus.h"
 #import <AVFAudio/AVFAudio.h>
@@ -126,5 +124,3 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
-
-#endif
