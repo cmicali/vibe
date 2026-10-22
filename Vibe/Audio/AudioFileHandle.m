@@ -7,6 +7,7 @@
 #import "NetworkReadAheadMath.h"
 #import "CloudFileMaterializer.h"
 #import "NetworkReadAhead.h"
+#import "VibeMacros.h"
 #if DEBUG
 #import "AudioFileHandle+Debug.h"
 #endif

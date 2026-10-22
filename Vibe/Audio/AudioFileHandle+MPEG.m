@@ -10,6 +10,7 @@
 
 #import "AudioFileHandleInternal.h"
 #import "CloudFileAvailability.h"
+#import "VibeMacros.h"
 
 #import <Accelerate/Accelerate.h>
 
