@@ -44,7 +44,7 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 ## Material visibility: the equalizer's macOS fold
 
-**The playing row's indicator is active only for modeled output audio and material visibility. This directory owns the row half of the visibility fold** (root `AGENTS.md`). `MainPlayerController` supplies `equalizerAudioOutputActive` and `equalizerSurfaceVisible` (window occlusion). The controller ANDs the surface gate with `isCurrentEqualizerRowVisible`, the row's real intersection with the scroll clip and the window's content. It re-runs that check on every clip bounds change and on every write of either input. The surface boolean can stay true while a resize clips the row away. A scrolled-away row and the compact window height are both covered by that geometry. The poll, demand and release contracts are `Controls/AGENTS.md`'s and `Audio/Levels/AGENTS.md`'s.
+**The playing row's indicator is active only for modeled output audio and material visibility. This directory owns the row half of the visibility fold** (root `AGENTS.md`). `MainPlayerController` supplies `equalizerAudioOutputActive` and `equalizerSurfaceVisible` (window occlusion). The controller ANDs the surface gate with `isCurrentEqualizerRowVisible`, the row's real intersection with the scroll clip and the window's content. It re-runs that check on every clip bounds change and on every write of either input. The surface boolean can stay true while a resize clips the row away. A scrolled-away row and the compact window height are both covered by that geometry. The poll, demand and release contracts are `Controls/AGENTS.md`'s, vibe-libs' `audio/Meter/AGENTS.md`'s, and `Audio/AGENTS.md`'s (Live output levels).
 
 ## Wiring, the row menu and the keyboard
 

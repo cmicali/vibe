@@ -216,4 +216,4 @@ EOS
 
 ## Beta signal diagnostics
 
-Beta builds (`VIBE_VERBOSE_LOGGING=1`) log `Signal:`, `Phase:`, `AudioOutputUnit:` and `Timeline:` lines on every start. What each line means is in `Vibe/Audio/AGENTS.md` (Beta diagnostics) and `Vibe/Audio/Levels/AGENTS.md`. Under the debug pump the probe needs ordinary meter demand, so keep the playlist's equalizer visible.
+Beta builds (`VIBE_VERBOSE_LOGGING=1`) log `Signal:`, `Phase:`, `AudioOutputUnit:` and `Timeline:` lines on every start. What each line means is in `Vibe/Audio/AGENTS.md` (Beta diagnostics) and `vibe-libs/audio/Meter/AGENTS.md` (The signal probe). Under the debug pump the probe needs ordinary meter demand, so keep the playlist's equalizer visible.
