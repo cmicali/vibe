@@ -1,51 +1,18 @@
-# Audio session and output recovery (iOS only)
+# Output recovery (iOS only)
 
-The iOS counterpart of `Audio/Mac/Devices/`: what answers when the system moves the audio out from under the output. The render is pulled by the same `AudioOutputUnit` on both platforms (`Audio/AGENTS.md`), a RemoteIO unit here. This directory implements the shared `(PlatformOutput)` declaration in `AudioPlayerInternal.h` for iOS. `(Recovery)` receives the session controller's recovery verdicts.
+The iOS counterpart of `Audio/Mac/Devices/`: what the player does when the system moves the audio out from under the output. The render is pulled by the same `AudioOutputUnit` on both platforms (`Audio/AGENTS.md`), a RemoteIO unit here. This directory implements the shared `(PlatformOutput)` declaration in `AudioPlayerInternal.h` for iOS. `(Recovery)` receives the session controller's recovery verdicts.
 
-## AudioSessionController
+The session itself is vibe-libs' `audio/OutputDevices`: `AudioSessionController`, `AudioSessionRecoveryRules.h`, and `OutputRouteRules.h`. Its `AGENTS.md` is the authority for activation and release, the four events and their verdicts, and the route rules. `PlaybackController` is the controller's delegate. It maps each verdict onto the player's public API.
 
-The `AVAudioSession` half of what `AudioPlayer+Devices` is on macOS.
+## The player's side of the session
 
-**The playback category is activated before every play, never at launch.** It is released with `NotifyOthersOnDeactivation`, so an interrupted podcast gets its resume hint. **It is released once the player's output has actually stopped, never on a timer of the session's own.** The release is one rule, `VibeAudioSessionMayDeactivate` (`AudioSessionRecoveryRules.h`), over three facts read when it is asked:
-
-- a pause or end asked for it, and no `activate` has reclaimed the session since (`deactivateWhenIdle`);
-- no interruption is in progress;
-- `AudioPlayer.outputIdle`.
-
-It is asked at each edge that can complete it. The request itself releases at once under an output that never started. The player's idle edge asks (`audioPlayerOutputDidBecomeIdle:` → `deactivateIfIdle`), and so does an interruption's Ended with no resume. The idle stop is the player's and waits out an FX tail (`Audio/AGENTS.md`), which no timer here can know. **TRAP: `setActive:NO` answering NO is not a refusal.** With audio objects running, the session goes inactive anyway and stops them. **TRAP: the idle stop's unit stop is only queued**, so `releaseIdleOutputUnitOnQueue` waits the unit's queue out before idle is published.
+**The session is released once the player's output has actually stopped.** `AudioPlayer.outputIdle` answers the delegate's `audioSessionOutputIsIdle:`. The player's idle edge asks again (`audioPlayerOutputDidBecomeIdle:` → `deactivateIfIdle`). The idle stop is the player's and waits out an FX tail (`Audio/AGENTS.md`), which no timer of the session's can know. **TRAP: the idle stop's unit stop is only queued**, so `releaseIdleOutputUnitOnQueue` waits the unit's queue out before idle is published.
 
 **A buffering hold keeps the output running, by construction.** The hold is the pause's ramp with the transport left Playing (`Audio/AGENTS.md`). The idle stop is armed only on a pause or stop, and stops nothing unless the state is still Paused or Stopped. So RemoteIO keeps pulling silence and the session stays active while a stream buffers. A backgrounded app keeps the audio that keeps it from suspension, and the download with it. The stall is a real pause, so its idle stop follows six seconds later and the session releases. On a device, check a hold with the screen locked: the `Buffering:` line's held time against `dump_state.player` (`state` playing, `buffering` 1), and no `AudioOutputUnit: stop` or `AudioSession: deactivated` line.
 
 **No output unit exists before the first play.** Launch sets the pipeline's format from the session's rate. FX hosting follows its enabled connection and claims no output. The RemoteIO unit is made at the first output start, after the play activated the session. A unit made at launch would take the session's default SoloAmbient category, which is not mixable and stops whatever else the device is playing.
 
-Four events, four delegate verdicts, each mapped onto the player's public API:
-
-| Event | Verdict |
-| --- | --- |
-| Interruption Began / Ended | pause, then resume |
-| Route loss (`OldDeviceUnavailable`) | pause |
-| Any other route change | classify the output transition, then pause or `recoverOutput` |
-| Media services reset | `beginMediaServicesResetWithCompletion:` at notification receipt |
-
-**An interruption whose reason is route-disconnected is a pause and nothing else.** It may have no Ended notification. It sets neither the in-progress flag nor the interruption blocker to avoid preventing idle release. The route loss beside it owns the blocker.
-
-**Was-playing is captured at the interruption's Began edge *only*.** The route-loss pauses that pile up mid-interruption must not overwrite it, or the resume decides from the wrong state.
-
-**Interruption-ended automatic activation is not user intent.** It checks the route-loss and media-reset blockers before and after the session activation. So unplugging headphones during a call cannot turn the system's `ShouldResume` hint into playback on the speaker. Only an explicit user activation clears those blockers.
-
-**The route-change notification is the only output trigger.** RemoteIO keeps running across a route change that brings a device in, converting to the new hardware rate itself. **iOS can stop the unit itself after a route loses its device.** That stop reaches the player through the system-stop path below, after the route-loss verdict has already paused. So the unit is not guaranteed to survive a route change. For a device coming in, the recovery verdict has the pipeline follow the route's rate, so the bus's conversion stays the only one. The controller records whether the last and current outputs are built-in, external or absent. An external-to-built-in transition is headphone loss and pauses, whatever reason the notification carried. A recorded route loss or media reset blocks recovery until a successful explicit activation. An interruption blocks it until its end or such an activation. Ordinary recoveries are generation-coalesced before main delivery.
-
-**The verdicts are decided in a header, not in the controller.** `AudioSessionRecoveryRules.h` is header-only, Foundation-only and tested. It holds:
-
-- `VibeAudioSessionConfigurationActionForRoutes`: recover on the new route, park because the output is disappearing, or ignore while an interruption, route loss or reset owns the output;
-- `VibeAudioSessionMayDeliverConfigurationRecovery`: a later route change coalesces an earlier ordinary recovery, and any safety verdict received before main delivery blocks it;
-- `VibeAudioSessionMayAutomaticallyResume`: interruption-ended is a system suggestion, not a fresh user play.
-
-Existing interruption, route-loss and reset ownership wins in all three, which makes the rules fail-closed.
-
-**One scan classifies a route, and two things read the result.** `OutputRouteRules.h` (header-only, Foundation-only, tested) holds the fine kind the card's indicator draws (speaker, receiver, wired, Bluetooth, AirPlay, CarPlay, other, none). It also holds the fold onto the coarse none/built-in/external kind the pause/recover decision uses. Deriving one from the other stops a new port from being external to the indicator and built-in to the headphones rule. The `portType` mapping stays in `AudioSessionController.m`, since the `AVAudioSessionPort*` constants are AVFoundation's. **A Bluetooth route's glyph is guessed from its device name**, because no public API says what the device is (`docs/not-doing/rejected-alternatives.md`). An unrecognised name draws the generic glyph.
-
-**The route pair (kind and the system's device name) is published on a real change and nowhere else.** `recordOutputRoute:name:` writes both under one lock and reports whether either changed. Each public getter takes the lock separately. Init records without publishing, since `PlaybackController` is still inside its own init. `activateSession` publishes on change: a destination picked against an inactive session posts no route notification and first shows here. `handleRouteChange:` publishes whatever its verdict. **TRAP:** the hop is an unconditional `dispatch_async`, not `onMain:`. This edge fans out to every `PlaybackObserver`, and `activate` calls it from inside an activation the play path waits on. **Before the first activation the session can report no outputs at all**, which is `None`, a real answer.
+**RemoteIO keeps running across a route change that brings a device in**, converting to the new hardware rate itself. **iOS can stop the unit itself after a route loses its device.** That stop reaches the player through the system-stop path below, after the route-loss verdict has already paused. So the unit is not guaranteed to survive a route change. For a device coming in, the recovery verdict has the pipeline follow the route's rate, so the bus's conversion stays the only one.
 
 **A pause verdict during Loading parks the landing** rather than being dropped. The player's `pause`/`resume` update the pending request to the requested state, so duplicate system verdicts are no-ops, not toggles.
 

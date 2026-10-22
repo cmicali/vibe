@@ -25,7 +25,7 @@ Every transfer slot ends at stage-1 settlement. Live handle runs have a separate
 
 ## The Bluetooth route glyph: asking the system what the device is
 
-The iOS card's route indicator draws a device glyph for a Bluetooth route by matching the route's `portName` (`VibeOutputRouteSymbolName`, `Audio/iOS/OutputRouteRules.h`). The name is user-renamable, so it is a guess. Apple says no audio API answers the question ([forum thread 815255](https://developer.apple.com/forums/thread/815255)). Every other signal was checked against the iOS 27 SDK and rejected:
+The iOS card's route indicator draws a device glyph for a Bluetooth route by matching the route's `portName` (`VibeOutputRouteSymbolName`, vibe-libs' `audio/OutputDevices/iOS/OutputRouteRules.h`). The name is user-renamable, so it is a guess. Apple says no audio API answers the question ([forum thread 815255](https://developer.apple.com/forums/thread/815255)). Every other signal was checked against the iOS 27 SDK and rejected:
 
 - **`AVAudioSessionPortDescription`.** None of its fields identifies the model.
 - **Parsing the Bluetooth `UID`.** It is the MAC address plus a suffix, an undocumented format. A manufacturer prefix could say "Apple" at most. A hardware address is a privacy liability.

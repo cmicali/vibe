@@ -20,7 +20,7 @@ Bugs seen in testing that are not fixed or not explained.
 **What fails.** During the device-fault check of `verify-bit-perfect.swift`, the output queue blocked for more than six minutes in `AudioUnitInitialize`, in `HALC_ProxyIOContext::_TellServerAboutStreamUsage`. It hung on the first volume-read fault case on VibeBlackHole.
 
 **What is known.**
-- One cause is fixed. HAL delivers running and overload notifications on its IO thread. The beta event logger read a HAL property inside them, which deadlocked the stop (the HAL notification `TRAP` in `Audio/Mac/Devices/AGENTS.md`). The same fault case reproduced 13 to 28 second stalls, and the fix removed them.
+- One cause is fixed. HAL delivers running and overload notifications on its IO thread. The beta event logger read a HAL property inside them, which deadlocked the stop (the HAL notification `TRAP` in vibe-libs' `audio/OutputDevices/AGENTS.md`). The same fault case reproduced 13 to 28 second stalls, and the fix removed them.
 - The original hang was a wait on the server RPC, not that cycle. The host had already logged IO-thread start errors before the app launched. The cause is not proven.
 - With the fix, the whole device-fault check passes, the volume-read fault and the aggregate case included.
 - If it recurs: sample the app before recovery, and keep the bundle UUID, the dSYM and the client and server logs. Keep simulator audio and other HAL drivers out of the run. Do not wrap a blocked HAL call in a timeout that frees state it still uses.
