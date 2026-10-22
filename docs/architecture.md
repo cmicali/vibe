@@ -29,7 +29,7 @@ Vibe/
   Loading/             the app's own transfers: HTTP, links, and Dropbox
     Net/               the app's own HTTP: transfers, placeholders, and Open URL's links
     iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
-  Playlist/            the playlist row and the folder walk
+  Playlist/            the playlist row
     Mac/               the playlist table and the last-playlist store (macOS)
   NowPlaying/          the system's Now Playing info and remote commands
   Controls/            controls both apps draw the same way: equalizer bars, loading indicator
@@ -102,7 +102,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### Playlist
 
-`Vibe/Playlist/` is the playlist model and how its rows are made. `AudioTrack` is one row: a whole file, or a CUE sheet's window of one. It adopts `AudioTrackMetadataHolder`, which extends `VibePlayableItem`. So the engine can play it, and the metadata loader can install its tags. `Playlist`, vibe-libs' `media/PlayQueue`, holds the rows, the current row, and the shuffle order. `trackEndSuccessor` is its one answer to what plays after a track ends. `FolderWalk` turns what the user opened into entries. It walks folders, follows links to folders, and expands playlist files. It runs on background workers and reads no setting. `PlaylistFile`, vibe-libs' `media/Playlists`, reads M3U files and CUE sheets, including a sheet embedded in a FLAC, and writes M3U files. A CUE sheet becomes one entry per track, each a window of its file. An entry is a `PlaylistEntry` record, and `AudioTrack rowsForEntries:` makes the rows from them. `Mac/` is the macOS table (`PlaylistController`, `PlaylistTableView`) and the last-playlist store (`PlaylistFile+Session`). The iOS list is `Vibe/iOS/PlaylistViewController`. Read next: `Vibe/Playlist/AGENTS.md`, then `Playlist/Mac/AGENTS.md`.
+`Vibe/Playlist/` is the playlist model and how its rows are made. `AudioTrack` is one row: a whole file, or a CUE sheet's window of one. It adopts `AudioTrackMetadataHolder`, which extends `VibePlayableItem`. So the engine can play it, and the metadata loader can install its tags. `Playlist`, vibe-libs' `media/PlayQueue`, holds the rows, the current row, and the shuffle order. `trackEndSuccessor` is its one answer to what plays after a track ends. `FolderWalk`, vibe-libs' `media/FolderScan`, turns what the user opened into entries. It walks folders, follows links to folders, and expands playlist files. It runs on background workers and reads no setting. `PlaylistFile`, vibe-libs' `media/Playlists`, reads M3U files and CUE sheets, including a sheet embedded in a FLAC, and writes M3U files. A CUE sheet becomes one entry per track, each a window of its file. An entry is a `PlaylistEntry` record, and `AudioTrack rowsForEntries:` makes the rows from them. `Mac/` is the macOS table (`PlaylistController`, `PlaylistTableView`) and the last-playlist store (`PlaylistFile+Session`). The iOS list is `Vibe/iOS/PlaylistViewController`. Read next: `Vibe/Playlist/AGENTS.md`, then `Playlist/Mac/AGENTS.md`.
 
 ### NowPlaying
 
@@ -306,7 +306,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `Vibe/Audio
 | How a waveform looks, or a new style | `WaveformUI/AGENTS.md`, `WaveformUI/Renderers/AGENTS.md` | `WaveformUI/Renderers/WaveformRendererRegistry.mm` |
 | The equalizer bars | `Controls/AGENTS.md`, `vibe-libs/audio/Meter/AGENTS.md` | `Controls/EqualizerIndicatorView.m` |
 | How files open on macOS | `Mac/App/AGENTS.md` | `Mac/App/AppDelegate.m` |
-| The folder walk, its sort order, CUE or M3U | `Playlist/AGENTS.md`, `vibe-libs/media/Playlists/AGENTS.md` | `Playlist/FolderWalk.m`, `vibe-libs/media/Playlists/PlaylistFile.m`, `vibe-libs/media/Playlists/PlaylistFile+CUE.m` |
+| The folder walk, its sort order, CUE or M3U | `vibe-libs/media/FolderScan/AGENTS.md`, `vibe-libs/media/Playlists/AGENTS.md` | `vibe-libs/media/FolderScan/FolderWalk.m`, `vibe-libs/media/Playlists/PlaylistFile.m`, `vibe-libs/media/Playlists/PlaylistFile+CUE.m` |
 | The macOS player window | `Mac/MainWindow/AGENTS.md`, `Mac/MainWindow/LAYOUT.md` | `Mac/MainWindow/MainPlayerController.m` |
 | Keyboard shortcuts and skips | `Mac/MainWindow/Transport/AGENTS.md` | `Mac/MainWindow/Transport/TransportKeyMonitor.m` |
 | The macOS playlist table | `Playlist/Mac/AGENTS.md` | `Playlist/Mac/PlaylistController.m` |
