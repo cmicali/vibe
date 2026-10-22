@@ -7,8 +7,6 @@
 #import "DetailedWaveformRenderer.h"
 #import "ThreeBandWaveformRenderer.h"
 #import "WaveformBarMath.h"
-#import "AppSettings.h"
-#import "TestFilesystemGuard.h"
 
 #include <algorithm>
 #include <array>
@@ -1537,7 +1535,7 @@ static WaveformRenderer *VibeHostedRenderer(NSString *identifier, CGRect bounds,
             held.emplace_back(delivery + 1 < 12 ? builder.snapshot() : builder.finish(true));
             AudioWaveform *waveform = held.back().get();
             [partial updateWaveform:bounds progress:0.4 waveform:waveform];
-            VibeSpinFor(0.05);
+            [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
             [partial settleMorphImmediately];
             WaveformRenderer *whole = VibeHostedRenderer(identifier, bounds, 2, NO);
             [whole updateWaveform:bounds progress:0.4 waveform:waveform];
