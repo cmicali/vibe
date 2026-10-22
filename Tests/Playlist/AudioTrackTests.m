@@ -360,6 +360,32 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
     XCTAssertFalse(VibePlayableItemIsFollowedContiguouslyBy(first, elsewhere), @"another file is another recording");
 }
 
+#pragma mark - The convert swap's replacement
+
+- (void)testReplacementAtURLCarriesDurationBPMAndKeyIntoTheRow {
+    AudioTrack *outgoing = TrackNamed(@"a.wav");
+    outgoing.duration = 123.5;
+    outgoing.detectedBPM = 128.0f;
+    outgoing.detectedKey = 18; // F#m
+
+    AudioTrack *incoming = [outgoing replacementAtURL:TrackNamed(@"a.flac").url];
+    XCTAssertNotEqual(incoming, outgoing);
+    XCTAssertEqualObjects(incoming.url, TrackNamed(@"a.flac").url);
+    XCTAssertEqual(incoming.duration, 123.5);
+    XCTAssertEqual(incoming.detectedBPM, 128.0f);
+    XCTAssertEqual(incoming.detectedKey, 18);
+}
+
+- (void)testReplacementAtURLCarriesACueRowsWindowAndNames {
+    AudioTrack *incoming = [VibeCueRow(4500, 9000, @"Row", nil) replacementAtURL:TrackNamed(@"mix.wav").url];
+    XCTAssertEqual(incoming.cueStart, 4500u);
+    XCTAssertEqual(incoming.cueEnd, 9000u);
+    XCTAssertEqualObjects(incoming.cueTitle, @"Row");
+    XCTAssertEqualObjects(incoming.cueSheetURL, TrackNamed(@"mix.cue").url);
+    XCTAssertEqual(incoming.cueTrackNumber, 3);
+    XCTAssertEqualObjects(incoming.url, TrackNamed(@"mix.wav").url);
+}
+
 #pragma mark - Disk key memoization
 
 // A directory of this test's own, removed when it ends.

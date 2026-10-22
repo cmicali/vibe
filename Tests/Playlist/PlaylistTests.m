@@ -18,7 +18,7 @@
     XCTAssertEqualObjects([playlist indexesOfTracks:captured], RowSetOf(@[@1, @3]));
     [playlist removeTracksAtIndexes:RowSet(1)];
     XCTAssertEqualObjects([playlist indexesOfTracks:captured], RowSet(2));
-    [playlist replaceTrackAtIndex:2 withTrack:[AudioTrack withURL:URLNamed(@"same.mp3")]];
+    [playlist replaceTrackAtIndex:2 withTrack:[TestRow withURL:URLNamed(@"same.mp3")]];
     XCTAssertEqual([playlist indexesOfTracks:captured].count, 0u);
     XCTAssertEqual([playlist indexesOfTracks:@[]].count, 0u);
 }
@@ -40,7 +40,7 @@
             playlist.currentIndex = cursor;
             NSArray *before = playlist.tracks;
             NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
-            AudioTrack *expectedForward = nil;
+            TestRow *expectedForward = nil;
             for (NSUInteger i = 0; i < before.count; i++) {
                 if (mask & (1u << i)) {
                     [rows addIndex:i];
@@ -49,7 +49,7 @@
                 }
             }
             if (!(mask & (1u << cursor))) expectedForward = nil;
-            AudioTrack *forward = [playlist forwardTrackAfterRemovingTracksAtIndexes:rows];
+            TestRow *forward = [playlist forwardTrackAfterRemovingTracksAtIndexes:rows];
             XCTAssertEqual(forward, expectedForward, @"cursor %lu mask %lu", cursor, mask);
             [playlist removeTracksAtIndexes:rows];
             if (forward) {
@@ -78,7 +78,7 @@
     Playlist *playlist = PlaylistWithFiles(@[@"same.mp3", @"same.mp3", @"c.mp3"]);
     RecordingObserver *observer = [RecordingObserver new];
     playlist.observer = observer;
-    AudioTrack *finished = playlist.currentTrack, *started = [playlist trackAtIndex:1];
+    TestRow *finished = playlist.currentTrack, *started = [playlist trackAtIndex:1];
     XCTAssertTrue([playlist advanceFromTrack:finished toTrack:started]);
     XCTAssertEqual(playlist.currentTrack, started);
     XCTAssertEqualObjects(observer.events, (@[@"index 0->1"]));
@@ -89,8 +89,8 @@
 
 - (void)testGaplessAdoptionRefusesAReplacedSuccessorWithTheSameURL {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
-    AudioTrack *finished = playlist.currentTrack, *started = [playlist trackAtIndex:1];
-    [playlist replaceTrackAtIndex:1 withTrack:[AudioTrack withURL:started.url]];
+    TestRow *finished = playlist.currentTrack, *started = [playlist trackAtIndex:1];
+    [playlist replaceTrackAtIndex:1 withTrack:[TestRow withURL:started.url]];
     RecordingObserver *observer = [RecordingObserver new];
     playlist.observer = observer;
     XCTAssertFalse([playlist advanceFromTrack:finished toTrack:started]);
@@ -100,7 +100,7 @@
 
 - (void)testGaplessAdoptionRefusesChangedCursorReorderedSuccessorAndEmptyList {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3"]);
-    AudioTrack *finished = playlist.currentTrack, *started = [playlist trackAtIndex:1];
+    TestRow *finished = playlist.currentTrack, *started = [playlist trackAtIndex:1];
     playlist.currentIndex = 2;
     XCTAssertFalse([playlist advanceFromTrack:finished toTrack:started]);
     XCTAssertEqual(playlist.currentIndex, 2u);
@@ -118,7 +118,7 @@
     NSUInteger generation = playlist.structureGeneration;
     [playlist next];
     [playlist appendTracks:Rows(@[URLNamed(@"d.mp3")])];
-    [playlist replaceTrackAtIndex:3 withTrack:[AudioTrack withURL:URLNamed(@"e.mp3")]];
+    [playlist replaceTrackAtIndex:3 withTrack:[TestRow withURL:URLNamed(@"e.mp3")]];
     NSArray *removed = [playlist removeTracksAtIndexes:RowSet(0)];
     [playlist insertTracks:removed atIndexes:RowSet(0)];
     [playlist moveTracksAtIndexes:RowSet(0) toIndexes:RowSet(2)];
@@ -137,7 +137,7 @@
 }
 
 - (void)testReplaceAllOrdersTracksAndResetsCursor {
-    Playlist<AudioTrack *> *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3"]);
+    Playlist<TestRow *> *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"c.mp3"]);
     XCTAssertEqual(playlist.count, 3u);
     XCTAssertEqual(playlist.currentIndex, 0u);
     XCTAssertEqualObjects([playlist trackAtIndex:0].url, URLNamed(@"a.mp3"));
@@ -147,7 +147,7 @@
 }
 
 - (void)testAppendExtendsWithoutTouchingCursor {
-    Playlist<AudioTrack *> *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
+    Playlist<TestRow *> *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
     [playlist next];
     XCTAssertEqual(playlist.currentIndex, 1u);
     [playlist appendTracks:Rows(@[URLNamed(@"c.mp3")])];
@@ -157,7 +157,7 @@
 }
 
 - (void)testAppendToEmptyPlaylist {
-    Playlist<AudioTrack *> *playlist = NewPlaylist();
+    Playlist<TestRow *> *playlist = NewPlaylist();
     [playlist appendTracks:Rows(@[URLNamed(@"a.mp3")])];
     XCTAssertEqual(playlist.count, 1u);
     XCTAssertEqualObjects(playlist.currentTrack.url, URLNamed(@"a.mp3"));
@@ -176,7 +176,7 @@
 
 - (void)testTracksIsADefensiveCopy {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3"]);
-    NSArray<AudioTrack *> *snapshot = playlist.tracks;
+    NSArray<TestRow *> *snapshot = playlist.tracks;
     [playlist appendTracks:Rows(@[URLNamed(@"b.mp3")])];
     XCTAssertEqual(snapshot.count, 1u);
     XCTAssertEqual(playlist.count, 2u);
@@ -229,7 +229,7 @@
 
 - (void)testTrackForURLReturnsTheFirstMatch {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3", @"a.mp3"]);
-    AudioTrack *found = [playlist trackForURL:URLNamed(@"a.mp3")];
+    TestRow *found = [playlist trackForURL:URLNamed(@"a.mp3")];
     XCTAssertEqual(found, [playlist trackAtIndex:0]);
     XCTAssertNil([playlist trackForURL:URLNamed(@"missing.mp3")]);
 }
@@ -238,25 +238,25 @@
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"a.mp3"]);
     XCTAssertEqual([playlist getIndexForTrack:[playlist trackAtIndex:0]], 0);
     XCTAssertEqual([playlist getIndexForTrack:[playlist trackAtIndex:1]], 1);
-    // A different AudioTrack for the same file is a different row.
-    XCTAssertEqual([playlist getIndexForTrack:[AudioTrack withURL:URLNamed(@"a.mp3")]], -1);
+    // A different row object for the same file is a different row.
+    XCTAssertEqual([playlist getIndexForTrack:[TestRow withURL:URLNamed(@"a.mp3")]], -1);
     XCTAssertEqual([playlist getIndexForTrack:nil], -1);
 }
 
 - (void)testStampingReachesEveryRowSoundingTheWindowAndNoOtherRowOfTheFile {
     Playlist *playlist = NewPlaylist();
     [playlist replaceAllWithTracks:@[CueRowOf(@"mix.flac", 0, 4500), CueRowOf(@"mix.flac", 4500, 0),
-                                     [AudioTrack withURL:URLNamed(@"mix.flac")], CueRowOf(@"mix.flac", 0, 4500)]
+                                     [TestRow withURL:URLNamed(@"mix.flac")], CueRowOf(@"mix.flac", 0, 4500)]
                    startingAtIndex:NSNotFound];
     NSMutableIndexSet *stamped = [NSMutableIndexSet indexSet];
-    BOOL current = [playlist stampTracksSounding:CueRowOf(@"mix.flac", 0, 4500) usingBlock:^(AudioTrack *track) {
+    BOOL current = [playlist stampTracksSounding:CueRowOf(@"mix.flac", 0, 4500) usingBlock:^(TestRow *track) {
         [stamped addIndex:(NSUInteger)[playlist getIndexForTrack:track]];
     }];
     XCTAssertEqualObjects(RowsString(stamped), RowsString(RowSetOf(@[@0, @3])));
     XCTAssertTrue(current);
 
     [stamped removeAllIndexes];
-    current = [playlist stampTracksSounding:[AudioTrack withURL:URLNamed(@"mix.flac")] usingBlock:^(AudioTrack *track) {
+    current = [playlist stampTracksSounding:[TestRow withURL:URLNamed(@"mix.flac")] usingBlock:^(TestRow *track) {
         [stamped addIndex:(NSUInteger)[playlist getIndexForTrack:track]];
     }];
     XCTAssertEqualObjects(RowsString(stamped), RowsString(RowSet(2)));
@@ -271,39 +271,9 @@
 
 #pragma mark - Replace
 
-- (void)testReplacementAtURLCarriesDurationBPMAndKeyIntoTheRow {
-    Playlist *playlist = PlaylistWithFiles(@[@"a.wav", @"b.mp3"]);
-    AudioTrack *outgoing = [playlist trackAtIndex:0];
-    outgoing.duration = 123.5;
-    outgoing.detectedBPM = 128.0f;
-    outgoing.detectedKey = 18; // F#m
-
-    AudioTrack *incoming = [outgoing replacementAtURL:URLNamed(@"a.flac")];
-    XCTAssertTrue([playlist replaceTrackAtIndex:0 withTrack:incoming]);
-    XCTAssertNotEqual(incoming, outgoing);
-    XCTAssertEqualObjects(incoming.url, URLNamed(@"a.flac"));
-    XCTAssertEqual(incoming.duration, 123.5);
-    XCTAssertEqual(incoming.detectedBPM, 128.0f);
-    XCTAssertEqual(incoming.detectedKey, 18);
-    XCTAssertEqual([playlist trackAtIndex:0], incoming);
-
-    XCTAssertEqual([playlist getIndexForTrack:incoming], 0);
-    XCTAssertEqual([playlist getIndexForTrack:outgoing], -1);
-}
-
-- (void)testReplacementAtURLCarriesACueRowsWindowAndNames {
-    AudioTrack *incoming = [CueRowOf(@"mix.wav", 4500, 9000) replacementAtURL:URLNamed(@"mix.flac")];
-    XCTAssertEqual(incoming.cueStart, 4500u);
-    XCTAssertEqual(incoming.cueEnd, 9000u);
-    XCTAssertEqualObjects(incoming.cueTitle, @"Row");
-    XCTAssertEqualObjects(incoming.cueSheetURL, URLNamed(@"album.cue"));
-    XCTAssertEqual(incoming.cueTrackNumber, 1);
-    XCTAssertEqualObjects(incoming.url, URLNamed(@"mix.flac"));
-}
-
 - (void)testReplaceRefusesOutOfRange {
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3"]);
-    XCTAssertFalse([playlist replaceTrackAtIndex:1 withTrack:[AudioTrack withURL:URLNamed(@"b.mp3")]]);
+    XCTAssertFalse([playlist replaceTrackAtIndex:1 withTrack:[TestRow withURL:URLNamed(@"b.mp3")]]);
     XCTAssertEqual(playlist.count, 1u);
 }
 
@@ -313,7 +283,7 @@
     Playlist *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
     RecordingObserver *observer = [RecordingObserver new];
     playlist.observer = observer;
-    AudioTrack *first = [playlist trackAtIndex:0], *second = [playlist trackAtIndex:1];
+    TestRow *first = [playlist trackAtIndex:0], *second = [playlist trackAtIndex:1];
     XCTAssertFalse([playlist replaceTrackAtIndex:1 withTrack:first]);
     XCTAssertFalse([playlist replaceTrackAtIndex:1 withTrack:second]);
     XCTAssertEqual([playlist trackAtIndex:1], second);
@@ -324,9 +294,9 @@
     // the second keeps its entry.
     NSURL *output = URLNamed(@"same.flac");
     Playlist *duplicates = PlaylistWithFiles(@[@"same.mp3", @"same.mp3"]);
-    AudioTrack *kept = [duplicates trackAtIndex:1];
-    AudioTrack *shared = [AudioTrack withURL:output];
-    NSIndexSet *rows = [duplicates replaceTracksMatchingTrack:kept usingBlock:^AudioTrack *(AudioTrack *outgoing) {
+    TestRow *kept = [duplicates trackAtIndex:1];
+    TestRow *shared = [TestRow withURL:output];
+    NSIndexSet *rows = [duplicates replaceTracksMatchingTrack:kept usingBlock:^TestRow *(TestRow *outgoing) {
         return shared;
     }];
     XCTAssertEqualObjects(RowsString(rows), @"0");
@@ -336,7 +306,7 @@
 
 - (void)testAPlaylistMadeWithoutKeysHasNoLookupByFile {
     Playlist *playlist = [[Playlist alloc] init];
-    AudioTrack *track = [AudioTrack withURL:URLNamed(@"a.mp3")];
+    TestRow *track = [TestRow withURL:URLNamed(@"a.mp3")];
     [playlist replaceAllWithTracks:@[track] startingAtIndex:NSNotFound];
     XCTAssertEqual([playlist indexesOfTracksWithURL:track.url].count, 0u);
     XCTAssertNil([playlist trackForURL:track.url]);
@@ -350,9 +320,9 @@
 }
 
 - (void)testReplaceLeavesTheCursorAlone {
-    Playlist<AudioTrack *> *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
+    Playlist<TestRow *> *playlist = PlaylistWithFiles(@[@"a.mp3", @"b.mp3"]);
     [playlist next];
-    [playlist replaceTrackAtIndex:1 withTrack:[AudioTrack withURL:URLNamed(@"b.flac")]];
+    [playlist replaceTrackAtIndex:1 withTrack:[TestRow withURL:URLNamed(@"b.flac")]];
     XCTAssertEqual(playlist.currentIndex, 1u);
     XCTAssertEqualObjects(playlist.currentTrack.url, URLNamed(@"b.flac"));
 }
@@ -367,7 +337,7 @@
     [playlist next];
     [playlist previous];
     [playlist appendTracks:Rows(@[URLNamed(@"c.mp3"), URLNamed(@"d.mp3")])];
-    [playlist replaceTrackAtIndex:0 withTrack:[AudioTrack withURL:URLNamed(@"a.flac")]];
+    [playlist replaceTrackAtIndex:0 withTrack:[TestRow withURL:URLNamed(@"a.flac")]];
     [playlist moveTracksAtIndexes:RowSet(0) toIndexes:RowSet(1)];
     [playlist clear];
 
@@ -433,7 +403,7 @@
     NSURL *source = [NSURL fileURLWithPath:@"/tests/source.wav"];
     NSURL *output = [NSURL fileURLWithPath:@"/tests/source.flac"];
     NSURL *other = [NSURL fileURLWithPath:@"/tests/other.wav"];
-    Playlist<AudioTrack *> *playlist = NewPlaylist();
+    Playlist<TestRow *> *playlist = NewPlaylist();
     [playlist replaceAllWithTracks:Rows(@[source, other, source]) startingAtIndex:NSNotFound];
     playlist.currentIndex = 2;
     NSArray *before = playlist.tracks;
@@ -456,7 +426,7 @@
     NSURL *output = [NSURL fileURLWithPath:@"/tests/output.flac"];
     Playlist *playlist = NewPlaylist();
     [playlist replaceAllWithTracks:Rows(@[source]) startingAtIndex:NSNotFound];
-    AudioTrack *departed = playlist.currentTrack;
+    TestRow *departed = playlist.currentTrack;
     [playlist replaceAllWithTracks:Rows(@[source, source]) startingAtIndex:NSNotFound];
     XCTAssertEqualObjects([playlist replaceTracksMatchingTrack:departed usingBlock:ReplacementAt(output)], RowSetOf(@[@0, @1]));
     XCTAssertEqual([playlist indexesOfTracksWithURL:source].count, 0u);
@@ -464,10 +434,10 @@
 }
 
 - (void)testConversionCompletionReplacesSurvivingDuplicateAfterOriginalRowRemoval {
-    Playlist<AudioTrack *> *playlist = PlaylistWithFiles(@[@"source.wav", @"other.wav", @"source.wav"]);
-    AudioTrack *departed = playlist.currentTrack;
+    Playlist<TestRow *> *playlist = PlaylistWithFiles(@[@"source.wav", @"other.wav", @"source.wav"]);
+    TestRow *departed = playlist.currentTrack;
     [playlist removeTracksAtIndexes:RowSet(0)];
-    AudioTrack *other = playlist.currentTrack;
+    TestRow *other = playlist.currentTrack;
     NSURL *output = [NSURL fileURLWithPath:@"/tests/output.flac"];
     XCTAssertEqualObjects([playlist replaceTracksMatchingTrack:departed usingBlock:ReplacementAt(output)], RowSet(1));
     XCTAssertEqual(playlist.currentTrack, other);

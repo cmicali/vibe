@@ -5,6 +5,34 @@
 
 #import "PlaylistTestSupport.h"
 
+@implementation TestRow
+
++ (TestRow *)withURL:(NSURL *)url {
+    return [[TestRow alloc] initWithURL:url cueStart:0 cueEnd:0];
+}
+
+- (instancetype)initWithURL:(NSURL *)url cueStart:(NSUInteger)start cueEnd:(NSUInteger)end {
+    self = [super init];
+    if (self) {
+        _url = [url copy];
+        _cueStart = start;
+        _cueEnd = end;
+        _sourceKey = start > 0 || end > 0
+                ? [NSString stringWithFormat:@"%@#%lu-%lu", url.path, (unsigned long)start, (unsigned long)end]
+                : url.path;
+        _duration = -1;
+    }
+    return self;
+}
+
+- (TestRow *)replacementAtURL:(NSURL *)url {
+    TestRow *row = [[TestRow alloc] initWithURL:url cueStart:_cueStart cueEnd:_cueEnd];
+    row.duration = self.duration;
+    return row;
+}
+
+@end
+
 @implementation RecordingObserver
 
 - (instancetype)init {

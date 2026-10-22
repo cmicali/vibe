@@ -11,7 +11,7 @@
 #import "FavoritesStore.h"
 #import "FilePaths.h"
 #import "FolderSessionInternal.h"
-#import "PlaylistTestSupport.h"
+#import "PlaylistRowTestSupport.h"
 #import "LinkStore.h"
 #import "LocationStore.h"
 #import "RecentsStore.h"
