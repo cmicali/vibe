@@ -1,6 +1,6 @@
 # File loading and metadata: behavioral spec
 
-What the file-load and metadata subsystem does, as observable behavior. It spans `Vibe/Loading/`, `Vibe/Audio/Metadata/`, the player and both shells. Their `AGENTS.md` files describe the mechanism. Code, tests and the `vibe-stress` scenarios cite items here by letter and number (`spec D7`, `J8`), so an item keeps its label. A removed item leaves a gap.
+What the file-load and metadata subsystem does, as observable behavior. It spans `Vibe/Loading/`, vibe-libs' `files/FileLoading` and `media/Metadata`, the player and both shells. Their `AGENTS.md` files describe the mechanism. Code, tests and the `vibe-stress` scenarios cite items here by letter and number (`spec D7`, `J8`), so an item keeps its label. A removed item leaves a gap.
 
 The spec does **not** constrain mechanism. Holds or preemption, one coordinator or two, which object owns a timer: all are free, as long as every numbered behavior survives. File references are pointers for verification.
 

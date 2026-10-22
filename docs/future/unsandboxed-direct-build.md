@@ -2,7 +2,7 @@
 
 **Status: Not built.** It stands on the Sparkle updater, the `AppStore` configuration and the `VIBE_DIRECT_DISTRIBUTION` marker (`Vibe/Mac/App/AGENTS.md`, Updates). The updater is also what lets Phase 4's data migration reach existing users.
 
-Each phase builds, passes `make test` and can be verified alone. Read first: the root `AGENTS.md`, `Vibe/Mac/App/AGENTS.md` ("Sandbox grants", "The last playlist"), `Vibe/Mac/Convert/AGENTS.md`, `Vibe/Audio/Metadata/Artwork/FolderArt/AGENTS.md`, `Vibe/Mac/Settings/AGENTS.md` and `Tests/AGENTS.md`. The release scripts need the `vibe-release` skill, strings the `vibe-strings` skill, and verification the `vibe-debug` and `vibe-stress` skills.
+Each phase builds, passes `make test` and can be verified alone. Read first: the root `AGENTS.md`, `Vibe/Mac/App/AGENTS.md` ("Sandbox grants", "The last playlist"), `Vibe/Mac/Convert/AGENTS.md`, vibe-libs' `media/Metadata/AGENTS.md` (Folder art), `Vibe/Mac/Settings/AGENTS.md` and `Tests/AGENTS.md`. The release scripts need the `vibe-release` skill, strings the `vibe-strings` skill, and verification the `vibe-debug` and `vibe-stress` skills.
 
 ## The feature
 
@@ -101,7 +101,7 @@ Sparkle updates a sandboxed build to an unsandboxed one without special handling
 
 ## Phase 6 — Docs, release, and rollout
 
-- Root `AGENTS.md`: "Building" gains the sandbox column per configuration; the folder-art guarantee's last sentence is restated in terms of *permission panels* (grant or TCC), not grants; `Mac/App/AGENTS.md`, `Convert/AGENTS.md`, `FolderArt/AGENTS.md`, and `Settings/AGENTS.md` each say what their sandbox section does unsandboxed. Every `TRAP:` touched changes in both its copies.
+- Root `AGENTS.md`: "Building" gains the sandbox column per configuration; the folder-art guarantee's last sentence is restated in terms of *permission panels* (grant or TCC), not grants; `Mac/App/AGENTS.md`, `Convert/AGENTS.md`, vibe-libs' `media/Metadata/AGENTS.md`, and `Settings/AGENTS.md` each say what their sandbox section does unsandboxed. Every `TRAP:` touched changes in both its copies.
 - The privacy page says which build is sandboxed.
 - The `vibe-release`, `vibe-debug`, and `vibe-stress` skills: the two entitlement sets, `SANDBOX=0`, the state locations, and a release checklist line to run the Phase 2 list against both variants.
 - **Roll out as its own release**, first to the `beta` channel, with nothing else risky in it, so a migration report is unambiguous.

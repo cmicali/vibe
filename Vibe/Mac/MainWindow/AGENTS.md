@@ -28,13 +28,13 @@ This directory holds the main window and its controller, `MainPlayerController`,
 
 ## Folder art invalidation
 
-`FolderArtResolver` (`Audio/Metadata/Artwork/FolderArt/`) is the feature. This controller owns invalidation and redraw.
+`FolderArtResolver` (vibe-libs' `media/Metadata`, Folder art) is the feature. This controller owns invalidation and redraw.
 
 - The `FolderArt` effect calls `refreshFolderArt`, which calls `folderArtSettingDidChange`. **The resolver caches the setting on the cell-draw path, so this effect is the only way a write is ever seen.** It keeps settled answers.
 - A grant change (`FolderAccessManagerDidChangeNotification`) is narrower. It is observed here because a grant can change with the Files pane gone. `invalidateDirectoriesSettledWithoutGrant` forgets the no-grant answers and re-arms known cover reads.
 - `folderArtDidResolve:` fires for "none" as well as a cover. It coalesces a reload of the visible rows over a short delay. The resolver is serial, so a per-turn gate would coalesce nothing.
 
-Neither may wipe everything (`Audio/Metadata/Artwork/FolderArt/AGENTS.md`).
+Neither may wipe everything (vibe-libs' `media/Metadata/AGENTS.md`, Folder art).
 
 ## The UI tick
 
