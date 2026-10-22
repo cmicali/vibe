@@ -7,8 +7,6 @@
 //  DebugMaterialization is implemented in AudioTrackMetadataCache+Debug.m.
 //
 
-#if DEBUG
-
 #import "AudioTrackMetadataCache.h"
 
 @class AudioLoadingConfiguration;
@@ -49,5 +47,3 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
-
-#endif
