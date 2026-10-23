@@ -1,26 +1,31 @@
 //
 //  VibeiOSDriverTests.m
-//  Vibe (iOS)
+//  vibe-libs
 //
 //  Not a test suite: an interactive touch driver in XCUITest clothing (the
 //  WebDriverAgent pattern). Touch synthesis exists only inside the XCUITest
 //  harness; there is no public UITouch constructor. The one "test" polls
-//  VIBE_DRIVER_DIR (build/ios-driver/<UDID>, passed by drive-ios.sh as
-//  TEST_RUNNER_VIBE_DRIVER_DIR) for vibe-touch-*.json in the debug channel's
-//  {id, args} format and replies to vibe-touch-response-<id>.txt.
+//  VIBE_DRIVER_DIR for vibe-touch-*.json in the debug channel's {id, args}
+//  format and replies to vibe-touch-response-<id>.txt.
+//
+//  The app's script passes each value as TEST_RUNNER_<name>, which xcodebuild
+//  hands the runner as <name>:
+//    VIBE_DRIVER_DIR            a host directory for the command files
+//    VIBE_DRIVER_APP            the bundle identifier of the app to drive
+//    VIBE_DRIVER_RELAUNCH_ARGS  the arguments a self-heal relaunch passes,
+//                               separated by spaces; optional
+//    VIBE_DRIVER_PINCH_ELEMENT  the accessibility identifier pinch acts on;
+//                               optional, and pinch refuses without it
 //
 //  Coordinates are app-window POINTS, top-left origin: device pixels from
-//  `simctl io <UDID> screenshot` (the session's simulator, sim-udid.sh)
-//  divided by the screen scale.
+//  `simctl io <UDID> screenshot` divided by the screen scale.
 //
 
 #import <XCTest/XCTest.h>
 #import <objc/runtime.h>
 
-static NSString *const kAppBundleID = @"com.commonwealthrecordings.Vibe";
 static NSString *const kReadyMarker = @"vibe-driver-ready";
-// The loop's absolute lifetime; drive-ios.sh stop (the quit verb) is the
-// normal exit.
+// The loop's absolute lifetime; the quit verb is the normal exit.
 static const NSTimeInterval kMaxSessionSeconds = 4 * 60 * 60;
 
 @interface VibeiOSDriverTests : XCTestCase
@@ -31,6 +36,8 @@ static const NSTimeInterval kMaxSessionSeconds = 4 * 60 * 60;
     XCUIApplication *_player;
     BOOL             _attached;
     NSString        *_dir;
+    NSArray<NSString *> *_relaunchArguments;
+    NSString        *_pinchElement;
 }
 
 - (void)setUp {
@@ -88,18 +95,18 @@ static void DisableQuiescenceWaits(void) {
 }
 
 // Foregrounds the app if something else is, relaunching a dead one with the
-// same audio-silencing argv launch-ios.sh uses, so a self-heal never plays
-// through the mac's speakers.
+// arguments the app's script passed, so a self-heal launches the app as its
+// own launcher does.
 // TRAP: XCTest snapshots only a process it launched or activated. Against
-// the one launch-ios.sh started, every query retries for 60 s and then
-// RELAUNCHES the app itself — playlist gone, and without the silencing
-// flags. So the player is activated, which attaches without a relaunch, on
-// the first gesture and after every relaunch (`attach`, which launch-ios.sh
-// sends).
+// one the app's launcher started, every query retries for 60 s and then
+// RELAUNCHES the app itself — its state gone, and without the launcher's
+// arguments. So the player is activated, which attaches without a relaunch,
+// on the first gesture and after every relaunch (`attach`, which the
+// launcher sends).
 - (void)ensureForeground {
     XCUIApplicationState state = _app.state;
     if (state == XCUIApplicationStateNotRunning) {
-        _app.launchArguments = @[@"--no-audio-hw", @"--silent"];
+        _app.launchArguments = _relaunchArguments;
         [_app launch];
     }
     else if (state != XCUIApplicationStateRunningForeground || (_app == _player && !_attached)) {
@@ -178,7 +185,7 @@ static void DisableQuiescenceWaits(void) {
             @"right": @(UIDeviceOrientationLandscapeRight),
         };
         NSNumber *orientation = tokens.count == 2 ? orientations[tokens[1]] : nil;
-        if (!orientation) {
+        if (orientation == nil) {
             return JSONString(@{@"error": @"rotate needs: portrait|left|right"});
         }
         [self ensureForeground];
@@ -232,9 +239,9 @@ static void DisableQuiescenceWaits(void) {
         }
         return JSONString(@{@"ok": @YES});
     }
-    // XCUITest synthesizes multi-touch only through an ELEMENT, so the waveform
-    // carries an accessibilityIdentifier purely to be findable here
-    // (kWaveformScrubberIdentifier, WaveformScrubberView.mm).
+    // XCUITest synthesizes multi-touch only through an ELEMENT, so the app
+    // gives the view it pinches an accessibilityIdentifier purely to be
+    // findable here, and passes it as VIBE_DRIVER_PINCH_ELEMENT.
     //
     // Scale > 1 opens the fingers, which zooms IN (less of the track visible).
     // Velocity is scale-factors per second and must be negative to zoom out.
@@ -243,12 +250,15 @@ static void DisableQuiescenceWaits(void) {
                 || a1 <= 0) {
             return JSONString(@{@"error": @"pinch needs: scale velocity"});
         }
-        [self ensureForeground];
-        XCUIElement *waveform = _app.otherElements[@"waveform-scrubber"];
-        if (!waveform.exists) {
-            return JSONString(@{@"error": @"no waveform on screen — expand the player first"});
+        if (_pinchElement.length == 0) {
+            return JSONString(@{@"error": @"pinch needs VIBE_DRIVER_PINCH_ELEMENT"});
         }
-        [waveform pinchWithScale:(CGFloat)a1 velocity:(XCUIGestureVelocity)a2];
+        [self ensureForeground];
+        XCUIElement *element = _app.otherElements[_pinchElement];
+        if (!element.exists) {
+            return JSONString(@{@"error": [NSString stringWithFormat:@"no '%@' on screen", _pinchElement]});
+        }
+        [element pinchWithScale:(CGFloat)a1 velocity:(XCUIGestureVelocity)a2];
         return JSONString(@{@"ok": @YES, @"scale": @(a1), @"velocity": @(a2)});
     }
     return JSONString(@{@"error": [NSString stringWithFormat:
@@ -295,12 +305,19 @@ static void DisableQuiescenceWaits(void) {
 }
 
 - (void)testDriverLoop {
-    _dir = NSProcessInfo.processInfo.environment[@"VIBE_DRIVER_DIR"];
-    XCTAssertTrue(_dir.length > 0, @"VIBE_DRIVER_DIR not set — start via drive-ios.sh");
-    if (_dir.length == 0) {
+    NSDictionary<NSString *, NSString *> *environment = NSProcessInfo.processInfo.environment;
+    _dir = environment[@"VIBE_DRIVER_DIR"];
+    NSString *bundleID = environment[@"VIBE_DRIVER_APP"];
+    XCTAssertTrue(_dir.length > 0, @"VIBE_DRIVER_DIR not set — start through the app's driver script");
+    XCTAssertTrue(bundleID.length > 0, @"VIBE_DRIVER_APP not set — start through the app's driver script");
+    if (_dir.length == 0 || bundleID.length == 0) {
         return;
     }
-    _app = [[XCUIApplication alloc] initWithBundleIdentifier:kAppBundleID];
+    NSArray<NSString *> *words = [environment[@"VIBE_DRIVER_RELAUNCH_ARGS"] ?: @""
+            componentsSeparatedByString:@" "];
+    _relaunchArguments = [words filteredArrayUsingPredicate:[NSPredicate predicateWithFormat:@"length > 0"]];
+    _pinchElement = environment[@"VIBE_DRIVER_PINCH_ELEMENT"];
+    _app = [[XCUIApplication alloc] initWithBundleIdentifier:bundleID];
     _player = _app;
     DisableQuiescenceWaits();
 
