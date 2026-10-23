@@ -25,7 +25,7 @@
 #      Apple caps these at 5 per account, so keep the one you make. An "Apple
 #      Development" cert is not accepted for notarization.
 #   4. Sparkle's EdDSA signing key in the login keychain, made once with
-#      Vibe/ThirdParty/Sparkle/bin/generate_keys. Its public half is
+#      vibe-libs/third_party/Sparkle/bin/generate_keys. Its public half is
 #      VIBE_SPARKLE_PUBLIC_KEY in project.yml. Back the private half up offline
 #      (generate_keys -x <file>): losing it strands every installed build.
 #
@@ -64,7 +64,7 @@ ARM64_DMG="$ARM64_BUILD_DIR/$PRODUCT.dmg"
 ARM64_DMG_STAGE="$ARM64_BUILD_DIR/dmg"
 VOLNAME="$PRODUCT"
 
-SPARKLE_BIN="Vibe/ThirdParty/Sparkle/bin"
+SPARKLE_BIN="vibe-libs/third_party/Sparkle/bin"
 UNIVERSAL_FEED="https://vibeplayer.app/appcast.xml"
 ARM64_FEED="https://vibeplayer.app/appcast-arm64.xml"
 
@@ -106,10 +106,10 @@ if [[ -z "$SPARKLE_PUBLIC_KEY" ]]; then
 error: no Sparkle signing key in the login keychain.
 
   Make it once (this prints the public key):
-    Vibe/ThirdParty/Sparkle/bin/generate_keys
+    vibe-libs/third_party/Sparkle/bin/generate_keys
   Put the public key in project.yml as VIBE_SPARKLE_PUBLIC_KEY, and back up
   the private key offline beside the Developer ID certificate:
-    Vibe/ThirdParty/Sparkle/bin/generate_keys -x <file>
+    vibe-libs/third_party/Sparkle/bin/generate_keys -x <file>
   Losing it strands every installed build. On another Mac, import it with
   generate_keys -f <file>.
 MSG

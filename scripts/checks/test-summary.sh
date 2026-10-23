@@ -13,7 +13,7 @@
 # unqualified green. The sum check flags any state the table does not name.
 #
 # When the bundle has coverage, one line follows with the line coverage of the
-# sources under Vibe/ that the suite compiled, ThirdParty/ excluded. It is a
+# sources under Vibe/ that the suite compiled. It is a
 # measurement and never fails the run.
 #
 # The skip gate fails the run when any test skipped that skip-allowlist does
@@ -81,11 +81,11 @@ fi
 if COVERAGE="$(xcrun xccov view --report --json "$BUNDLE" 2>/dev/null)"; then
     # Every target that compiled a file reports it, so each path counts once.
     jq -r --arg vibe "$ROOT/Vibe/" '
-      [.targets[].files[] | select((.path | startswith($vibe)) and (.path | contains("/ThirdParty/") | not))]
+      [.targets[].files[] | select(.path | startswith($vibe))]
       | unique_by(.path)
       | (map(.coveredLines) | add // 0) as $covered | (map(.executableLines) | add // 0) as $lines
       | if $lines > 0 then
-          "\n**Coverage:** \($covered * 1000 / $lines | round / 10)% of \($lines) lines in the \(length) files under `Vibe/` the suite compiled, `ThirdParty/` excluded.\n"
+          "\n**Coverage:** \($covered * 1000 / $lines | round / 10)% of \($lines) lines in the \(length) files under `Vibe/` the suite compiled.\n"
         else empty end' <<<"$COVERAGE" | emit
 fi
 

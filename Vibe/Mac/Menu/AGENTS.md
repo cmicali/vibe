@@ -12,7 +12,7 @@ There is no main nib. `MainMenuBuilder` is a stateless one-shot class method. `A
 
 ## App menu
 
-**Check for Updates…** sits under About in the direct download only. It is compiled out of the Mac App Store build, never hidden, since App Review rejects an app that updates itself. It targets Sparkle's updater controller, which validates it (`Mac/App/AGENTS.md`, Updates). Like Settings…, it has no entry in `MenuValidationRules.h`, and it is not remappable.
+**Check for Updates…** sits under About in the direct download only. It is compiled out of the Mac App Store build, never hidden, since App Review rejects an app that updates itself. It targets the controller of `AppDelegate.updater`, which validates it (`Mac/App/AGENTS.md`, Updates). Like Settings…, it has no entry in `MenuValidationRules.h`, and it is not remappable.
 
 **Send Feedback…** follows it and opens the support page (`kVibeSupportURL`, `Common/VibeProductURLs.h`). It targets the app delegate, which always enables it.
 
