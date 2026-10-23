@@ -1,5 +1,5 @@
-# Vibe's settings for the strings scripts, which source this file. Their
-# AGENTS.md documents each key. Not bundled.
+# Vibe's settings for the strings scripts, which source this file. They are
+# vibe-libs' tools/strings, whose AGENTS.md documents each key. Not bundled.
 
 # Relative to this file. Every other path is relative to it.
 STRINGS_ROOT=..

@@ -24,7 +24,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 COMPOSE="$ROOT/scripts/appstore/compose-app-store-overlay.swift"
-langs() { "$ROOT/scripts/strings/catalog-languages.sh" "$ROOT/Resources/strings-config.sh"; }
+langs() { "$ROOT/vibe-libs/tools/strings/catalog-languages.sh" "$ROOT/Resources/strings-config.sh"; }
 
 # Compile the compositor once: `swift file.swift` recompiles per run. Exported,
 # so --all's children reuse it.

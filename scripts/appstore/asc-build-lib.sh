@@ -18,7 +18,7 @@ asc_require_xcodegen() {
 asc_require_translations() {
     local root
     root="$(dirname "${BASH_SOURCE[0]}")/../.."
-    "$root/scripts/strings/check-translations.sh" "$root/Resources/strings-config.sh"
+    "$root/vibe-libs/tools/strings/check-translations.sh" "$root/Resources/strings-config.sh"
 }
 
 # Archive $ASC_CONFIGURATION into $ARCHIVE, under the hardened runtime that a
