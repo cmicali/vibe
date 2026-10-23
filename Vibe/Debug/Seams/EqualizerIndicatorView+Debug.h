@@ -6,8 +6,6 @@
 //  view, whose hot paths increment them as relaxed atomics.
 //
 
-#if DEBUG
-
 #import "EqualizerIndicatorView.h"
 
 @interface EqualizerIndicatorView (Debug)
@@ -18,5 +16,3 @@
 + (uint64_t)vibeDebugTotalTransformWriteCount;
 
 @end
-
-#endif

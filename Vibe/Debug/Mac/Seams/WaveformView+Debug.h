@@ -6,8 +6,6 @@
 //  the shipping header free of #if DEBUG.
 //
 
-#if DEBUG
-
 #import "WaveformView.h"
 
 @interface WaveformView (Debug)
@@ -15,5 +13,3 @@
 // settles flat, so a resting sample waits for it. Main thread.
 - (BOOL)debugWaveformEasing;
 @end
-
-#endif
