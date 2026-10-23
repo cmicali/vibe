@@ -31,6 +31,7 @@
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
 #import "FolderArtRules.h"
+#import "LegacyCacheStores.h"
 #import "LinkDropRules.h"
 #import "LinkStore.h"
 #import "StringRules.h"
@@ -192,7 +193,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     VibeInstallDebugCommandHook();
 #endif
 
-    [self cleanupLegacyCaches];
+    VibeRemoveLegacyCacheStoresOffMain();
 
     [self.mainPlayerController showWindow:self];
 
@@ -260,27 +261,6 @@ static void VibeAfterLaunch(dispatch_block_t block) {
         run_on_main_thread({
             [self->_openBurstCoalescer openBurstURLs:urls];
         });
-    });
-}
-
-- (void)cleanupLegacyCaches {
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        NSString *cachesDir = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
-        if (!cachesDir) {
-            return;
-        }
-        NSArray<NSString *> *legacyCacheNames = @[
-                @"com.pinterest.PINDiskCache.Audio Track Metadata",
-                @"com.pinterest.PINDiskCache.Audio Track Metadata v2",
-                @"com.pinterest.PINDiskCache.Audio Track Metadata v3",
-                @"com.pinterest.PINDiskCache.audio_waveform_cache",
-                @"com.pinterest.PINDiskCache.audio_waveform_cache_v2",
-                @"com.pinterest.PINDiskCache.audio_waveform_cache_v3",
-                @"com.pinterest.PINDiskCache.audio_waveform_cache_v4",
-        ];
-        for (NSString *name in legacyCacheNames) {
-            [[NSFileManager defaultManager] removeItemAtPath:[cachesDir stringByAppendingPathComponent:name] error:nil];
-        }
     });
 }
 
