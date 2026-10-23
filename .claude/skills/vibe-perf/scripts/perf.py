@@ -15,8 +15,10 @@ run it over a fixed corpus, and compare two refs.
 
 REF is any git ref, or bin:<path> for a VibeBenchComponents built some other way (a
 build-setting experiment); HEAD defaults to the working tree, uncommitted edits
-included. A ref older than the harness gets the working tree's Tests/BenchComponents and
-VibeBenchComponents target grafted on, so every ref runs the same suite.
+included. A bare branch name that origin also has means origin's, fetched
+first (bench.resolve). A ref older than the harness gets the working tree's
+Tests/BenchComponents and VibeBenchComponents target grafted on, so every ref
+runs the same suite.
 
 compare alternates the two binaries ROUNDS times (default 3), REPS repetitions
 each (default 3), so drift in the machine's load lands on both sides; the table
@@ -174,16 +176,23 @@ def tool_spec(src, dumped):
     settings.setdefault('base', {}).update({
         'PRODUCT_NAME': 'VibeBenchComponents', 'PRODUCT_BUNDLE_IDENTIFIER': 'com.commonwealthrecordings.VibeBenchComponents',
         'ARCHS': 'arm64', 'ONLY_ACTIVE_ARCH': 'YES', 'CODE_SIGN_IDENTITY': '-',
-        'ENABLE_APP_SANDBOX': 'NO', 'ENABLE_HARDENED_RUNTIME': 'NO', 'GCC_TREAT_WARNINGS_AS_ERRORS': 'NO'})
+        'ENABLE_APP_SANDBOX': 'NO', 'ENABLE_HARDENED_RUNTIME': 'NO', 'GCC_TREAT_WARNINGS_AS_ERRORS': 'NO',
+        'VIBE_DIRECT_DISTRIBUTION': '0'})
     tool = {'type': 'tool', 'platform': 'macOS', 'sources': sources, 'settings': settings,
             'dependencies': [d for d in app.get('dependencies', []) if 'sdk' in d]}
     # vibe-libs' pieces reach the app as templates. The dump keeps the templates
     # with their paths rewritten from the root, so the tool takes them as they
     # are, and the include they came from goes: it resolves against the spec's
     # own folder, and the dumped spec is written elsewhere.
+    #
+    # The updater is the only piece left out. Its template links and embeds
+    # Sparkle, and a tool has no Frameworks folder to load it from. The App
+    # Store channel above compiles every call to the updater out.
     for key in ('templates', 'templateAttributes'):
         if key in app:
             tool[key] = app[key]
+    if 'templates' in tool:
+        tool['templates'] = [t for t in tool['templates'] if t not in ('VibeLibsUpdates', 'VibeLibsSparkle')]
     spec.pop('include', None)
     if app.get('preBuildScripts'):
         tool['preBuildScripts'] = app['preBuildScripts']
