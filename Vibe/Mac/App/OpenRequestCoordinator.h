@@ -12,6 +12,8 @@
 
 #import <Foundation/Foundation.h>
 
+#import "HelperMacros.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 @class OpenRequestToken;

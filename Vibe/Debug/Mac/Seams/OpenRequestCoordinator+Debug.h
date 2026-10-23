@@ -2,13 +2,12 @@
 //  OpenRequestCoordinator+Debug.h
 //  Vibe
 //
-//  Declaration-only: the implementation is in the class's own .m, which keeps
-//  the shipping header free of #if DEBUG.
+//  Implemented beside the coordinator, whose buffer is private to it.
 //
 
-#if DEBUG
-
 #import "OpenRequestCoordinator.h"
+
+NS_ASSUME_NONNULL_BEGIN
 
 @interface OpenRequestCoordinator (Debug)
 // Results finished but buffered behind an earlier request. Zero after every
@@ -17,4 +16,4 @@
 - (NSUInteger)debugBufferedResultCount;
 @end
 
-#endif
+NS_ASSUME_NONNULL_END

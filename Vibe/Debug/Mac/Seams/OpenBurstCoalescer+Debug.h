@@ -2,17 +2,16 @@
 //  OpenBurstCoalescer+Debug.h
 //  Vibe
 //
-//  Declaration-only: the implementation is in the class's own .m, which keeps
-//  the shipping header free of #if DEBUG.
+//  Implemented beside the coalescer, whose queue is private to it.
 //
 
-#if DEBUG
-
 #import "OpenBurstCoalescer.h"
+
+NS_ASSUME_NONNULL_BEGIN
 
 @interface OpenBurstCoalescer (Debug)
 // URLs still waiting behind the quiet period; zero between bursts. Main thread.
 - (NSUInteger)debugQueuedURLCount;
 @end
 
-#endif
+NS_ASSUME_NONNULL_END

@@ -110,10 +110,16 @@
     _sink(urls, append);
 }
 
+@end
+
 #if DEBUG
+#import "OpenBurstCoalescer+Debug.h"
+
+@implementation OpenBurstCoalescer (Debug)
+
 - (NSUInteger)debugQueuedURLCount {
     return _queue.count;
 }
-#endif
 
 @end
+#endif

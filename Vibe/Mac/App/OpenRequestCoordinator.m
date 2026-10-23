@@ -196,11 +196,17 @@ static const NSTimeInterval kStragglerDeadline = 10.0;
     });
 }
 
+@end
+
 #if DEBUG
+#import "OpenRequestCoordinator+Debug.h"
+
+@implementation OpenRequestCoordinator (Debug)
+
 - (NSUInteger)debugBufferedResultCount {
     NSAssert(NSThread.isMainThread, @"OpenRequestCoordinator is main-thread only");
     return _completed.count;
 }
-#endif
 
 @end
+#endif
