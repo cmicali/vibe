@@ -5,7 +5,7 @@ description: Launch, drive, inspect, and visually verify the Vibe app — macOS,
 
 # Debugging and verifying Vibe
 
-All debug tooling compiles into **debug builds only** (`Vibe/Debug/`). `launch.sh` looks in `build/DerivedData`, where `make build` writes:
+All debug tooling compiles into **debug builds only** (`Vibe/Debug/`, over vibe-libs' `dev/DebugChannel`). `launch.sh` looks in `build/DerivedData`, where `make build` writes:
 
 ```bash
 make build CONFIG=Debug
