@@ -24,7 +24,7 @@
 #import "VibeStrings.h"
 
 #if VIBE_DIRECT_DISTRIBUTION
-#import <Sparkle/Sparkle.h>
+#import "VibeUpdater.h"
 #endif
 
 // TRAP: macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to
@@ -141,7 +141,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // Compiled out of the Mac App Store build, never hidden: App Review
     // rejects an app that updates itself (guideline 2.4.5).
     AddItem(appMenu, STR_MENU_APP_CHECK_FOR_UPDATES, @selector(checkForUpdates:),
-            appDelegate.updaterController, @"", 0, @"menu_check_for_updates");
+            appDelegate.updater.controller, @"", 0, @"menu_check_for_updates");
 #endif
     // There is no Help menu: the app ships no help book, and this was its
     // one item.

@@ -6,7 +6,7 @@
 #import "SettingsGeneralViewController.h"
 #import "AppDelegate.h"
 #if VIBE_DIRECT_DISTRIBUTION
-#import "AppDelegate+Updates.h"
+#import "VibeUpdater.h"
 #endif
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
@@ -85,7 +85,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     // The controller exists before any window and never changes. Unstarted
     // (a Debug build without --update-feed) it refuses the check and logs.
     _checkNowButton = [NSButton buttonWithTitle:STR_SETTINGS_UPDATE_CHECK_NOW_BUTTON
-                                         target:[(AppDelegate *)NSApp.delegate updaterController]
+                                         target:[(AppDelegate *)NSApp.delegate updater].controller
                                          action:@selector(checkForUpdates:)];
     _betaUpdatesSwitch = [self switchWithAction:@selector(betaUpdatesChanged:)];
     [sections addObject:[SettingsSectionView sectionWithHeader:STR_SETTINGS_UPDATES_SECTION rows:@[
@@ -105,7 +105,7 @@ static const CGFloat kGeneralPopUpWidth = 280;
     [self selectValue:AppSettings.sharedInstance.waveformDragBehavior in:_waveformDragPopUp];
     [self selectValue:AppSettings.sharedInstance.artworkDragAction in:_artworkDragPopUp];
 #if VIBE_DIRECT_DISTRIBUTION
-    _updateCheckSwitch.state = StateForBOOL([(AppDelegate *)NSApp.delegate updateCheckInterval] > 0);
+    _updateCheckSwitch.state = StateForBOOL([(AppDelegate *)NSApp.delegate updater].checkInterval > 0);
     // Never disabled with the automatic check off: Check Now still honors it.
     _betaUpdatesSwitch.state = StateForBOOL(AppSettings.sharedInstance.receiveBetaUpdates);
 #endif
@@ -139,12 +139,12 @@ static const CGFloat kGeneralPopUpWidth = 280;
 // On is daily; off is never. A longer interval Sparkle still holds from an
 // older build reads as on and is kept.
 - (void)updateCheckChanged:(id)sender {
-    AppDelegate *delegate = (AppDelegate *)NSApp.delegate;
+    VibeUpdater *updater = [(AppDelegate *)NSApp.delegate updater];
     BOOL on = _updateCheckSwitch.state == NSControlStateValueOn;
-    if (on && delegate.updateCheckInterval <= 0) {
-        delegate.updateCheckInterval = kVibeUpdateCheckIntervalDefault;
+    if (on && updater.checkInterval <= 0) {
+        updater.checkInterval = kVibeUpdateCheckIntervalDefault;
     } else if (!on) {
-        delegate.updateCheckInterval = 0;
+        updater.checkInterval = 0;
     }
 }
 

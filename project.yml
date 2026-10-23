@@ -419,8 +419,9 @@ targets:
         AppStore:
           VIBE_DIRECT_DISTRIBUTION: 0
           CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe.entitlements"
-          # Unlinks and unembeds the framework the dependency below adds.
-          EXCLUDED_SOURCE_FILE_NAMES: Sparkle.framework
+          # Unlinks and unembeds the framework the dependency below adds, and
+          # leaves out the updater, which links it.
+          EXCLUDED_SOURCE_FILE_NAMES: [Sparkle.framework, VibeUpdater.m]
     dependencies:
       # The updater, direct download only (the AppStore configuration above).
       - framework: Vibe/ThirdParty/Sparkle/Sparkle.framework
