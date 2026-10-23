@@ -15,7 +15,7 @@
 
 ## What carries over
 
-`Loading/Net/` already holds the shared mechanics (`Loading/Net/AGENTS.md`). `HTTPTransferClient` is the streamed download, the ranged read, the resends, the kept part and the version pin. `RemotePlaceholderStore` is placeholders under one root, the directory index, the fetch that streams, the ranged read, the download budget and the backend it installs. `CloudFileMaterializer` already takes several remote roots and sends a file to the backend of the longest root holding it. `DropboxClient` and `DropboxMirror` subclass the two, and so do `LinkClient` and `LinkStore`.
+vibe-libs' `files/HTTP` and `files/RemoteFiles` already hold the shared mechanics (their `AGENTS.md`). `HTTPTransferClient` is the streamed download, the ranged read, the resends, the kept part and the version pin. `RemotePlaceholderStore` is placeholders under one root, the directory index, the fetch that streams, the ranged read, the download budget and the backend it installs. `CloudFileMaterializer` already takes several remote roots and sends a file to the backend of the longest root holding it. `DropboxClient` and `DropboxMirror` subclass the two, and so do `LinkClient` and `LinkStore`.
 
 A Drive client and store follow that shape. Its subclass hooks hold the OAuth configuration, request construction, metadata extraction and failure ladder. The Dropbox pair adds `ASWebAuthenticationSession`, PKCE, Keychain refresh-token storage, one refresh claim, account-generation checks and cancellable retries. Factor those out of `DropboxClient` rather than copy them. A Drive pair is two new types, so it needs a complexity-budget exception argued on its own terms.
 
