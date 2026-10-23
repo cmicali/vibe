@@ -35,7 +35,10 @@ mkdir -p "$(dirname "$DD")"
 cd "$SRC"
 
 # Isolate channel files to keep unrelated temp-directory entries out of its scan.
-grep -rl 'NSTemporaryDirectory()' Vibe/Debug | xargs perl -pi -e \
+# The transport is vibe-libs' dev/DebugChannel in a version that has it.
+CHANNEL_DIRS=(Vibe/Debug)
+[ ! -d vibe-libs/dev/DebugChannel ] || CHANNEL_DIRS+=(vibe-libs/dev/DebugChannel)
+grep -rl 'NSTemporaryDirectory()' "${CHANNEL_DIRS[@]}" | xargs perl -pi -e \
     's/(?<!\?: )NSTemporaryDirectory\(\)/(NSProcessInfo.processInfo.environment[\@"VIBE_DEBUG_TMPDIR"] ?: NSTemporaryDirectory())/g'
 
 xcodegen generate >/dev/null
