@@ -19,6 +19,7 @@
 #import "DebugWireFormat.h"
 #import "DebugChannel.h"
 #import "DebugCommandDispatch.h"
+#import "IntegerTokenRules.h"
 #import "DebugCommonVerbs.h"
 #import "DebugConsistency.h"
 #import "DebugHealth.h"

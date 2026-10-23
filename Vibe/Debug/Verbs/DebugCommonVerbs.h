@@ -20,6 +20,10 @@ NS_ASSUME_NONNULL_BEGIN
 // DebugCommonVerbs.m's state and transport verbs, then each topic's below.
 NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void);
 
+// A transport or toggle verb: runs action, then replies with the surface's
+// debugActionSummary, so every one answers in the same shape.
+NSDictionary *VibeTransportCmd(NSString *usage, void (^action)(id controller));
+
 // The topic tables, which only the common table reads.
 NSArray<NSDictionary *> *VibeDebugStallVerbs(void);   // DebugStallVerbs.m
 NSArray<NSDictionary *> *VibeDebugAudioVerbs(void);   // DebugAudioVerbs.m

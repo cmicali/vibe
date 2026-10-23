@@ -12,6 +12,7 @@
 
 #import "DebugCommandDispatch.h"
 #import "DebugWireFormat.h"
+#import "IntegerTokenRules.h"
 #import "AudioFileHandle.h"
 #import "AudioFileHandle+Debug.h"
 #import "AudioFileMaterializationCoordinator.h"

@@ -156,8 +156,8 @@ targets:
                 VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts,
-                VibeLibsNowPlaying, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache,
-                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsNowPlaying, VibeLibsDebugChannel, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata,
+                VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -449,9 +449,9 @@ targets:
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
                 VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
-                VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsNowPlaying, VibeLibsVorbis, VibeLibsTags,
-                VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac,
-                VibeLibsDrWav]
+                VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsNowPlaying, VibeLibsDebugChannel,
+                VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
+                VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -650,14 +650,15 @@ targets:
   # Not a test suite: the interactive touch driver for agentic workflows —
   # the iOS counterpart of the debug channel's key/click injection, which
   # UIKit cannot do in-process (no public UITouch synthesis). One resident
-  # XCUITest command loop; drive-ios.sh in the vibe-debug skill starts it and
-  # sends gestures. Sources live under Tests/ for the same reason VibeTests'
-  # do: the app targets recurse whole subsystem directories under Vibe/.
+  # XCUITest command loop, vibe-libs' dev/iOSDriver; drive-ios.sh in the
+  # vibe-debug skill starts it, passes it the app it drives, and sends
+  # gestures. It depends on the app so `xcodebuild test` builds the app first.
   VibeiOSDriver:
     type: bundle.ui-testing
     platform: iOS
-    sources:
-      - path: Tests/iOSDriver
+    templates: [VibeLibsIOSDriver]
+    templateAttributes:
+      excludedPlatform: Mac
     dependencies:
       - target: VibeiOS
     settings:
@@ -724,7 +725,6 @@ targets:
         excludes:
           - "**/.DS_Store"
           - "**/*.md"
-          - "iOSDriver/**"                    # VibeiOSDriver's XCUI sources: iOS-only API
           - "BenchComponents/**"              # the component benchmarks, perf.py's tool
           - "AudioRender/**"                  # VibeAudioTests' suite
           - "Playlist/AudioTrackTagTests.mm"  # VibeAudioTests': TagLib
@@ -870,9 +870,8 @@ targets:
           # The styles: the theme, the zoom math, the renderers, the level
           # math, and the host-less morph engine.
           - "$(SRCROOT)/vibe-libs/waveform/WaveformStyles"
-          # The channel, oracles, simulators and seams that the tests and
-          # their compiled production sources import.
-          - "$(SRCROOT)/Vibe/Debug/Channel"
+          # The oracles, simulators and seams that the tests and their
+          # compiled production sources import.
           - "$(SRCROOT)/Vibe/Debug/Oracles"
           - "$(SRCROOT)/Vibe/Debug/Simulators"
           - "$(SRCROOT)/Vibe/Debug/Seams"
