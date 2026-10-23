@@ -4,7 +4,6 @@
 //
 
 #import "NowPlayingController.h"
-#import "AudioTrack.h"
 #import "NowPlayingRules.h"
 #import <MediaPlayer/MediaPlayer.h>
 
@@ -224,7 +223,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         }];
     }];
 
-    // Enabled until updateWithTrack: tracks the playlist's boundaries.
+    // Enabled until updateWithSourceKey: tracks the playlist's boundaries.
     center.nextTrackCommand.enabled = YES;
     _publishedHasNext = YES;
     [center.nextTrackCommand addTargetWithHandler:^MPRemoteCommandHandlerStatus(MPRemoteCommandEvent *event) {
@@ -295,14 +294,16 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 
 #pragma mark - Now Playing info
 
-- (void)updateWithTrack:(AudioTrack *)track
-         placeholderArt:(VibeImage *)placeholderArt
-               position:(NSTimeInterval)position
-               duration:(NSTimeInterval)duration
-                  state:(NowPlayingPlaybackState)state
-                   rate:(double)rate
-                hasNext:(BOOL)hasNext
-            hasPrevious:(BOOL)hasPrevious {
+- (void)updateWithSourceKey:(NSString *)sourceKey
+                      title:(NSString *)title
+                     artist:(NSString *)artist
+                    artwork:(VibeImage *)artwork
+                   position:(NSTimeInterval)position
+                   duration:(NSTimeInterval)duration
+                      state:(NowPlayingPlaybackState)state
+                       rate:(double)rate
+                    hasNext:(BOOL)hasNext
+                hasPrevious:(BOOL)hasPrevious {
 #if DEBUG
     if (_suppressed) {
         return;
@@ -319,7 +320,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         return;
     }
 
-    if (!track) {
+    if (!sourceKey) {
         if (_publishedSource == nil) {
             return;
         }
@@ -330,17 +331,10 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
         return;
     }
 
-    NSString *title = track.displayTitle ?: @"";
-    NSString *artist = track.displayArtist;
-    // Non-blocking. The thumbnail covers the gap until full art decodes, or
-    // the card would show the placeholder beside a window showing a cover;
-    // the identity check promotes whichever arrives. The placeholder must
-    // already match the app's appearance: the drawing appearance here is the
-    // system's.
-    VibeImage *artwork = track.cachedArt ?: track.cachedThumbnail ?: placeholderArt;
+    title = title ?: @"";
 
     if (_publishedSource != nil) {
-        BOOL unchanged = [_publishedSource isEqualToString:track.sourceKey]
+        BOOL unchanged = [_publishedSource isEqualToString:sourceKey]
                 && [title isEqualToString:_publishedTitle]
                 && VibeNowPlayingStringsEqual(artist, _publishedArtist)
                 && state == _publishedState
@@ -398,7 +392,7 @@ static VibeImage *_Nullable VibeArtworkForPublishing(VibeImage *artwork) {
 
     _publish(info, state);
     _hasPublished = YES;
-    _publishedSource = track.sourceKey;
+    _publishedSource = sourceKey;
     _publishedTitle = title;
     _publishedArtist = artist;
     _publishedState = state;

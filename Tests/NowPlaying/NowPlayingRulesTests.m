@@ -5,7 +5,6 @@
 
 #import "NowPlayingRules.h"
 #import "NowPlayingController.h"
-#import "AudioTrack.h"
 #import <MediaPlayer/MediaPlayer.h>
 
 @interface NowPlayingRulesTests : XCTestCase
@@ -78,12 +77,20 @@ static BOOL Dirty(double publishedRate, BOOL wasPlaying, NSTimeInterval position
 
 - (NSDictionary *)publishedInfo { return self.publications.lastObject[@"info"]; }
 
-- (void)publish:(AudioTrack *)track state:(NowPlayingPlaybackState)state position:(double)position rate:(double)rate {
-    [self.publisher updateWithTrack:track placeholderArt:nil position:position duration:120 state:state rate:rate hasNext:NO hasPrevious:NO];
+// A track is its path: the path is its source key, and its file name its title.
+- (void)update:(NSString *)track position:(double)position duration:(NSTimeInterval)duration
+         state:(NowPlayingPlaybackState)state rate:(double)rate hasNext:(BOOL)hasNext hasPrevious:(BOOL)hasPrevious {
+    [self.publisher updateWithSourceKey:track title:track.lastPathComponent.stringByDeletingPathExtension artist:nil
+                                artwork:nil position:position duration:duration state:state rate:rate
+                                hasNext:hasNext hasPrevious:hasPrevious];
+}
+
+- (void)publish:(NSString *)track state:(NowPlayingPlaybackState)state position:(double)position rate:(double)rate {
+    [self update:track position:position duration:120 state:state rate:rate hasNext:NO hasPrevious:NO];
 }
 
 - (void)testLaunchAndRestoredPauseDoNotClaimNowPlayingButCommandsStillUpdate {
-    AudioTrack *track = [AudioTrack withURL:[NSURL fileURLWithPath:@"/tests/restored.wav"]];
+    NSString *track = @"/tests/restored.wav";
     [self publish:nil state:NowPlayingPlaybackStateStopped position:0 rate:1];
     [self publish:track state:NowPlayingPlaybackStatePaused position:30 rate:1];
     XCTAssertEqual(self.publications.count, 0u);
@@ -95,7 +102,7 @@ static BOOL Dirty(double publishedRate, BOOL wasPlaying, NSTimeInterval position
 }
 
 - (void)testClearPublishesOnceAndLaterPausedTrackCanPublish {
-    AudioTrack *track = [AudioTrack withURL:[NSURL fileURLWithPath:@"/tests/a.wav"]];
+    NSString *track = @"/tests/a.wav";
     [self publish:nil state:NowPlayingPlaybackStatePlaying position:0 rate:1];
     XCTAssertEqual(self.publications.count, 0u);
     [self publish:track state:NowPlayingPlaybackStatePlaying position:0 rate:1];
@@ -108,7 +115,7 @@ static BOOL Dirty(double publishedRate, BOOL wasPlaying, NSTimeInterval position
 }
 
 - (void)testNaturalTicksSkipPublicationButSeekRateStateAndDurationChangesPublish {
-    AudioTrack *track = [AudioTrack withURL:[NSURL fileURLWithPath:@"/tests/a.wav"]];
+    NSString *track = @"/tests/a.wav";
     [self publish:track state:NowPlayingPlaybackStatePlaying position:30 rate:2];
     self.now += 10;
     [self publish:track state:NowPlayingPlaybackStatePlaying position:50 rate:2];
@@ -120,7 +127,7 @@ static BOOL Dirty(double publishedRate, BOOL wasPlaying, NSTimeInterval position
     [self publish:track state:NowPlayingPlaybackStatePaused position:70 rate:1];
     XCTAssertEqual(self.publications.count, 4u);
     [self publish:track state:NowPlayingPlaybackStatePaused position:10 rate:1];
-    [self.publisher updateWithTrack:track placeholderArt:nil position:10 duration:0 state:NowPlayingPlaybackStatePaused rate:1 hasNext:YES hasPrevious:NO];
+    [self update:track position:10 duration:0 state:NowPlayingPlaybackStatePaused rate:1 hasNext:YES hasPrevious:NO];
     XCTAssertEqual(self.publications.count, 6u);
     XCTAssertNil(self.publishedInfo[MPMediaItemPropertyPlaybackDuration]);
     XCTAssertEqualObjects(self.availability.lastObject, (@[@YES, @NO]));
@@ -130,7 +137,7 @@ static BOOL Dirty(double publishedRate, BOOL wasPlaying, NSTimeInterval position
 // position, the held ticks republish nothing, and the release republishes the
 // real rate from where the audio resumes.
 - (void)testABufferingHoldPublishesRateZeroUntilItsRelease {
-    AudioTrack *track = [AudioTrack withURL:[NSURL fileURLWithPath:@"/tests/streaming.flac"]];
+    NSString *track = @"/tests/streaming.flac";
     [self publish:track state:NowPlayingPlaybackStatePlaying position:30 rate:1];
     self.now += 2;
     [self publish:track state:NowPlayingPlaybackStatePlaying position:32 rate:0];
@@ -148,12 +155,12 @@ static BOOL Dirty(double publishedRate, BOOL wasPlaying, NSTimeInterval position
 }
 
 - (void)testCommandOnlyChangeDoesNotRepublishAndNewURLDoes {
-    AudioTrack *track = [AudioTrack withURL:[NSURL fileURLWithPath:@"/tests/a.wav"]];
+    NSString *track = @"/tests/a.wav";
     [self publish:track state:NowPlayingPlaybackStatePlaying position:-10 rate:1];
     XCTAssertEqualObjects(self.publishedInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime], @0);
-    [self.publisher updateWithTrack:track placeholderArt:nil position:-10 duration:120 state:NowPlayingPlaybackStatePlaying rate:1 hasNext:YES hasPrevious:YES];
+    [self update:track position:-10 duration:120 state:NowPlayingPlaybackStatePlaying rate:1 hasNext:YES hasPrevious:YES];
     XCTAssertEqual(self.publications.count, 1u);
-    [self publish:[AudioTrack withURL:[NSURL fileURLWithPath:@"/elsewhere/a.wav"]]
+    [self publish:@"/elsewhere/a.wav"
             state:NowPlayingPlaybackStatePlaying position:0 rate:1];
     XCTAssertEqual(self.publications.count, 2u);
 }

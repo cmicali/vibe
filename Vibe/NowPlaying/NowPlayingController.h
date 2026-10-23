@@ -18,7 +18,6 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class AudioTrack;
 @class NowPlayingController;
 
 // Loading maps by its intent: an ordinary load is Playing, a parked one Paused.
@@ -54,20 +53,26 @@ typedef NS_ENUM(NSInteger, NowPlayingPlaybackState) {
           commandAvailability:(void (^)(BOOL hasNext, BOOL hasPrevious))commandAvailability;
 
 // Nothing is published until the first Playing update, so a launch never
-// claims the system slot; after that a nil track clears it once. hasNext and
-// hasPrevious gate the system commands and apply even before the first
-// publish. Cheap on every transport event: a dirty check skips unchanged
-// publishes, and art is read non-blocking. placeholderArt stands in while the
-// track has no decoded art; pass the same object while it is unchanged, since
-// the dirty check compares identity. Main thread.
-- (void)updateWithTrack:(nullable AudioTrack *)track
-         placeholderArt:(nullable VibeImage *)placeholderArt
-               position:(NSTimeInterval)position
-               duration:(NSTimeInterval)duration
-                  state:(NowPlayingPlaybackState)state
-                   rate:(double)rate
-                hasNext:(BOOL)hasNext
-            hasPrevious:(BOOL)hasPrevious;
+// claims the system slot. After that, a nil sourceKey clears it once.
+// sourceKey names the track, so a cue row of the same file is a change. A nil
+// title publishes as empty, and a nil artist publishes none. artwork is the
+// track's art, else its thumbnail, else the app's placeholder, each read
+// without blocking. The thumbnail covers the gap until the full art decodes.
+// The placeholder must already match the app's appearance, since the drawing
+// appearance here is the system's. Pass the same image while it is unchanged,
+// since the dirty check compares identity. hasNext and hasPrevious gate the
+// system commands, even before the first publish. A dirty check skips
+// unchanged publishes, so this is cheap on every transport event. Main thread.
+- (void)updateWithSourceKey:(nullable NSString *)sourceKey
+                      title:(nullable NSString *)title
+                     artist:(nullable NSString *)artist
+                    artwork:(nullable VibeImage *)artwork
+                   position:(NSTimeInterval)position
+                   duration:(NSTimeInterval)duration
+                      state:(NowPlayingPlaybackState)state
+                       rate:(double)rate
+                    hasNext:(BOOL)hasNext
+                hasPrevious:(BOOL)hasPrevious;
 
 // The modes the system's controls show, and whether they offer them at all:
 // unavailable, CarPlay draws neither button. There is no Now Playing info key
