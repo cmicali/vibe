@@ -36,7 +36,7 @@ Only five files in the moving code read `AppSettings`: one in folder art and fou
 | `ui/` | Controls, SettingsWindow, Shortcuts | `Controls/`, `Mac/Controls/`, `Mac/About/VibeLinkLabel`, the window, sidebar, pane base and form views of `Mac/Settings/`, the shortcut encoding of `Mac/Menu/ShortcutRules.h` and the Shortcuts pane |
 | `system/` | NowPlaying, AppOpening, Updates | `NowPlaying/`, `Mac/App/OpenBurstCoalescer`, `OpenRequestCoordinator`, the Sparkle wiring |
 | `dev/` | DebugChannel, iOSDriver | `Debug/Channel/`, `Tests/iOSDriver/` |
-| `tools/strings` | the strings extraction and catalog checks | `scripts/strings/`. The three scripts moved with their history, with vibe-libs' tools/strings pull request. They first learned to read a config file. Vibe keeps its config, `Resources/strings-config.sh`, and its make targets, CI, and App Store scripts pass it. |
+| `tools/strings` | the strings extraction and catalog checks | `scripts/strings/`. The three scripts moved with their history, with vibe-libs #40. They first learned to read a config file. Vibe keeps its config, `Resources/strings-config.sh`, and its make targets, CI, and App Store scripts pass it. |
 | `third_party/` | each vendored library, Sparkle included | `ThirdParty/`. Every library but Sparkle moved in #364. Sparkle moves with Updates. |
 
 **What stays in Vibe:** both shells, the playlist row (`AudioTrack`), the playlist table, the settings store and every pane's content, strings, themes and the Themes pane, the main menu and its command table, the About window, the link store, Dropbox, Convert to FLAC, the debug verbs and their command tables, and the widget.
