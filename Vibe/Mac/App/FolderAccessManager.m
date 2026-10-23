@@ -7,6 +7,8 @@
 #import "FilePaths.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderAccessRules.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 
 #import <AppKit/AppKit.h>
 
@@ -106,12 +108,12 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
         _entries = [NSMutableArray array];
         _restorationWaiters = [NSMutableArray array];
         _restorationQueue = [NSOperationQueue new];
-        _restorationQueue.name = @"com.commonwealthrecordings.Vibe.folder-access-restore";
+        _restorationQueue.name = @"vibe-libs.sandboxaccess.restore";
         _restorationQueue.qualityOfService = NSQualityOfServiceUtility;
         // Leave one slot for a grant an open is actively waiting on.
         _restorationQueue.maxConcurrentOperationCount = VibeFolderAccessRestoreConcurrencyLimit - 1;
         _urgentRestorationQueue = [NSOperationQueue new];
-        _urgentRestorationQueue.name = @"com.commonwealthrecordings.Vibe.folder-access-restore.open";
+        _urgentRestorationQueue.name = @"vibe-libs.sandboxaccess.restore.open";
         _urgentRestorationQueue.qualityOfService = NSQualityOfServiceUserInitiated;
         _urgentRestorationQueue.maxConcurrentOperationCount = 1;
         _pendingRestorations = [NSMutableArray array];
@@ -152,7 +154,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     return folders;
 }
 
-// No I/O: the pane asks per row on main, and a dead mount blocks a stat.
+// No I/O: a list asks per row on main, and a dead mount blocks a stat.
 // Restoration alone settles a bookmark, so an inactive settled row failed.
 - (VibeGrantedFolderState)stateForEntry:(NSDictionary *)entry {
     if (entry[kEntryAccessedURLKey] || [entry[kEntryPowerboxActiveKey] boolValue]) {
@@ -577,7 +579,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
             return YES;
         }
     }
-    // Not appended to grantedPaths: this runs per folder art considers.
+    // Not appended to grantedPaths: a reader may ask this per directory.
     return caseInsensitive ? VibeUncanonicalPathIsUnderFolder(candidate, self.musicRoot)
                            : VibePathIsUnderFolder(candidate, self.musicRoot);
 }
@@ -626,8 +628,8 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
 }
 
 // Restoration settles one bookmark at a time and observers do real work
-// (folder art), so one post per run-loop turn. User add and remove post
-// directly, so the pane redraws in the click's turn.
+// (an art scan), so one post per run-loop turn. User add and remove post
+// directly, so a list redraws in the click's turn.
 - (void)postCoalescedChangeNotification {
     if (_changeNotificationPending) {
         return;

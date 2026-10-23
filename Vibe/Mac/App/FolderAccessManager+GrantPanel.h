@@ -13,7 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface FolderAccessManager (GrantPanel)
 
-// Blocks the calling expansion worker until the picker closes. Never call it
+// Blocks the calling folder walk's worker until the picker closes. Never call it
 // on main: it deadlocks. The app passes the panel's message and its button's
 // title, localized.
 - (BOOL)requestAccessForPlaylistFolder:(NSURL *)playlistURL

@@ -4,11 +4,12 @@
 //
 
 #import "FolderAccessManager+GrantPanel.h"
+#import "VibeMacros.h"
 #import <AppKit/AppKit.h>
 
 @implementation FolderAccessManager (GrantPanel)
 
-// The expansion worker waits for main to run the panel. Main never waits on
+// The walk's worker waits for main to run the panel. Main never waits on
 // that worker. A private gate prevents stacked prompts without locking the
 // manager that main may need.
 - (BOOL)requestAccessForPlaylistFolder:(NSURL *)playlistURL

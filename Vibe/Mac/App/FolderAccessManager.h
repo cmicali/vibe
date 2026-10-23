@@ -2,9 +2,9 @@
 //  FolderAccessManager.h
 //  Vibe
 //
-//  Every folder the user opens, drops or adds in Settings > Files is stored as
-//  an app-scoped security bookmark and re-opened at launch. ~/Music needs none:
-//  the music read-write entitlement covers it standing.
+//  Every folder the user opens, drops or adds is stored as an app-scoped
+//  security bookmark and re-opened at launch. ~/Music needs none: the app's
+//  music read-write entitlement covers it standing.
 //
 
 #import <Foundation/Foundation.h>
