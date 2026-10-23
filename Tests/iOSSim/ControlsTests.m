@@ -1,5 +1,5 @@
-// The shared controls on UIKit: only what differs from the mac. The rules
-// under them are VibeTests' (EqualizerActivityRulesTests,
+// The shared controls on UIKit: only what differs from the mac. vibe-libs'
+// ui/Controls tests the rules under them (EqualizerActivityRulesTests,
 // LoadingIndicatorMathTests). Here the UIKit hooks feed them: didMoveToWindow,
 // hidden, alpha and the trait registrations.
 
