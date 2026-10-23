@@ -1,6 +1,6 @@
 # The waveform view (macOS only)
 
-`WaveformView` is a CALayer-based `NSView` that draws through the shared renderers in `../Renderers/`. **It is a pure rendering surface.** `MainPlayerController` owns the `AudioWaveformCache` and requests loads. It forwards deliveries through `TrackDisplayController`'s pass-throughs: `prepareForWaveformLoad` to reset, then `showWaveform:`.
+`WaveformView` is a CALayer-based `NSView` that draws through vibe-libs' renderers, `waveform/WaveformStyles`. **It is a pure rendering surface.** `MainPlayerController` owns the `AudioWaveformCache` and requests loads. It forwards deliveries through `TrackDisplayController`'s pass-throughs: `prepareForWaveformLoad` to reset, then `showWaveform:`.
 
 `WaveformView+Loading` holds the two states with no waveform. `WaveformViewInternal.h` is the private surface they share.
 
@@ -54,4 +54,4 @@ A locked window (`Mac/MainWindow/AGENTS.md`) declines every handoff. Under `drag
 
 ## The convert sweep
 
-`convertSweepFraction` keeps the front and dips only the span since the last set, so bars behind the front are never re-zeroed while they recover. A value at or below the front only moves the front, which is the post-conversion reset. It is gated on having a waveform and resets with every presentation reset. The mechanism is `../Renderers/AGENTS.md`'s.
+`convertSweepFraction` keeps the front and dips only the span since the last set, so bars behind the front are never re-zeroed while they recover. A value at or below the front only moves the front, which is the post-conversion reset. It is gated on having a waveform and resets with every presentation reset. The mechanism is in vibe-libs' `waveform/WaveformStyles/AGENTS.md`, The convert sweep.

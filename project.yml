@@ -152,9 +152,9 @@ targets:
     # TRAP: VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, and
     # VibeLibsTaglib. Header search paths follow this order, and taglib/ogg
     # holds TagLib's own vorbis/vorbisfile.h.
-    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
-                VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform,
-                VibeLibsWaveformLoading, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
+    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
+                VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
+                VibeLibsWaveformStyles, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
                 VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis,
                 VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
                 VibeLibsDrFlac, VibeLibsDrWav]
@@ -452,9 +452,9 @@ targets:
     platform: iOS
     # VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, and VibeLibsTaglib:
     # see the Vibe target.
-    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX,
-                VibeLibsMeter, VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform,
-                VibeLibsWaveformLoading, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
+    templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
+                VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
+                VibeLibsWaveformStyles, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
                 VibeLibsFolderScan, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache,
                 VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
@@ -802,17 +802,17 @@ targets:
       - path: Vibe/Common/AppStats.m   # FolderSession counts opens
       - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
       - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
-      - path: Vibe/WaveformUI/WaveformTheme.m
+      - path: vibe-libs/waveform/WaveformStyles/WaveformTheme.m
       - path: Vibe/Common/WaveformTheme+Settings.m
-      - path: Vibe/WaveformUI/Renderers/WaveformMorphEngine.mm
-      - path: Vibe/WaveformUI/Renderers/WaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/BasicWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/CupertinoWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/DetailedWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/OversamplingDetailedWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/SonicCirrusWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/ThreeBandWaveformRenderer.mm
-      - path: Vibe/WaveformUI/Renderers/WaveformRendererRegistry.mm
+      - path: vibe-libs/waveform/WaveformStyles/WaveformMorphEngine.mm
+      - path: vibe-libs/waveform/WaveformStyles/WaveformRenderer.mm
+      - path: vibe-libs/waveform/WaveformStyles/BasicWaveformRenderer.mm
+      - path: vibe-libs/waveform/WaveformStyles/CupertinoWaveformRenderer.mm
+      - path: vibe-libs/waveform/WaveformStyles/DetailedWaveformRenderer.mm
+      - path: vibe-libs/waveform/WaveformStyles/OversamplingDetailedWaveformRenderer.mm
+      - path: vibe-libs/waveform/WaveformStyles/SonicCirrusWaveformRenderer.mm
+      - path: vibe-libs/waveform/WaveformStyles/ThreeBandWaveformRenderer.mm
+      - path: vibe-libs/waveform/WaveformStyles/WaveformRendererRegistry.mm
     settings:
       base: &hostless-test-settings
         PRODUCT_NAME: "$(TARGET_NAME)"
@@ -876,9 +876,11 @@ targets:
           - "$(SRCROOT)/vibe-libs/audio/FX"
           # Header-only activity/animation seams shared by both controls.
           - "$(SRCROOT)/Vibe/Controls"
-          # The theme and zoom math; the renderers, level math and host-less morph engine.
+          # The views' accessibility contract.
           - "$(SRCROOT)/Vibe/WaveformUI"
-          - "$(SRCROOT)/Vibe/WaveformUI/Renderers"
+          # The styles: the theme, the zoom math, the renderers, the level
+          # math, and the host-less morph engine.
+          - "$(SRCROOT)/vibe-libs/waveform/WaveformStyles"
           # The channel, oracles, simulators and seams that the tests and
           # their compiled production sources import.
           - "$(SRCROOT)/Vibe/Debug/Channel"

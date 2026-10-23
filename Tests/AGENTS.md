@@ -8,7 +8,9 @@ This directory holds the tests of the three test targets, `VibeTests`, `VibeAudi
 
 **The directories mirror `Vibe/`.** A test lives in the directory of the code it tests: `Audio/`, `Loading/` (with `Net/` and `iOS/Dropbox/`), `Playlist/`, `WaveformUI/`, `Common/`, `Util/`, `Controls/`, `NowPlaying/`, `Mac/`, and `iOS/`. A subsystem's platform half shares its directory. So `Playlist/` holds the drag rules. The FLAC conversion tests are in `Mac/`, beside the other mac shell tests. A test of a debug seam sits beside the tests of the class the seam opens. `Debug/` holds the tests of the debug fakes.
 
-**A piece's tests moved with it to vibe-libs and run there.** The file loader's tests, the fake cloud's included, are vibe-libs' `Tests/files/FileLoading`. The player's, the FX math's, the meter's, the fades', the file handle's, and the tempo and key analyzers' are in vibe-libs' `Tests/audio/`. The TagLib wrapper's, the metadata pipeline's, the play queue's, the playlist readers', and the folder walk's are in vibe-libs' `Tests/media/`. `Playlist/` keeps the row's tests, its entries', its replacement's, and its tag tests over the real parse included, the walk's handoff to the folder art resolver, and the shells'. The player's render suite is there too, and runs here (Rendered audio, below). The Dropbox tests are in `Loading/iOS/Dropbox/`, beside the Dropbox code. `SmokeTests.m` stays at the root, because it tests the harness itself. **The waveform engine's tests are vibe-libs'** (`Tests/waveform/Waveform`). So are the loader's and the cache's (`Tests/waveform/WaveformLoading`).
+**A piece's tests moved with it to vibe-libs and run there.** The file loader's tests, the fake cloud's included, are vibe-libs' `Tests/files/FileLoading`. The player's, the FX math's, the meter's, the fades', the file handle's, and the tempo and key analyzers' are in vibe-libs' `Tests/audio/`. The TagLib wrapper's, the metadata pipeline's, the play queue's, the playlist readers', and the folder walk's are in vibe-libs' `Tests/media/`. `Playlist/` keeps the row's tests, its entries', its replacement's, and its tag tests over the real parse included, the walk's handoff to the folder art resolver, and the shells'. The player's render suite is there too, and runs here (Rendered audio, below). The Dropbox tests are in `Loading/iOS/Dropbox/`, beside the Dropbox code. `SmokeTests.m` stays at the root, because it tests the harness itself.
+
+**The waveform engine's tests are vibe-libs'** (`Tests/waveform/Waveform`). So are the loader's and the cache's (`Tests/waveform/WaveformLoading`). The waveform styles' tests are vibe-libs' too (`Tests/waveform/WaveformStyles`): the renderers', the theme's, and the level and zoom math's. `WaveformUI/` keeps the mac view's tests, and `Common/` keeps the tests of Vibe's mapping onto the theme (`WaveformThemeSettingsTests`).
 
 ## Helpers
 
@@ -22,7 +24,8 @@ This directory holds the tests of the three test targets, `VibeTests`, `VibeAudi
 - `ShellTestFakes.h` and `.m`: the mac shell's duck-typed player and metadata scan, the window's occlusion answer, the partial `MainMenuBuilder` decoy, and the thumbnail notification's name, which `AudioTrackMetadata.mm` defines.
 - `TestFilesystemGuard.h` and `.m`: the per-process temp root (`VibeTestProcessRoot`) and in-memory defaults, installed at image load. All three targets compile it. Its header also holds the one run-loop wait: `VibeSpinUntil` polls up to the hang guard, and `VibeSpinFor` spins a fixed window. Each harness calls the first `eventually:`.
 - `FakeTrackMetadata.h` and `.m`: the duck-typed `AudioTrackMetadata` that `VibeTests` and `VibeiOSTests` share.
-- `WaveformTestSupport.h`: waveforms built bin by bin, for the renderer and view tests. ObjC++ only.
+
+The view tests build their waveforms bin by bin through vibe-libs' `Tests/Support/WaveformTestSupport.h`, which the styles' tests share. `VibeTests` searches that directory.
 
 ## What belongs here
 
