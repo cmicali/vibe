@@ -153,7 +153,8 @@ targets:
     # VibeLibsTaglib. Header search paths follow this order, and taglib/ogg
     # holds TagLib's own vorbis/vorbisfile.h.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
-                VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
+                VibeLibsFileLoading, VibeLibsHTTP, VibeLibsRemoteFiles, VibeLibsShareLinks, VibeLibsDecode, VibeLibsPlayer,
+                VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts,
                 VibeLibsNowPlaying, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache,
@@ -447,7 +448,8 @@ targets:
     # VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, and VibeLibsTaglib:
     # see the Vibe target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
-                VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
+                VibeLibsFileLoading, VibeLibsHTTP, VibeLibsRemoteFiles, VibeLibsShareLinks, VibeLibsDecode, VibeLibsPlayer,
+                VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsNowPlaying, VibeLibsVorbis, VibeLibsTags,
                 VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac,
@@ -842,6 +844,9 @@ targets:
           - "$(SRCROOT)/vibe-libs/audio/Decode"
           # The handle's test helpers, which the waveform and render tests share.
           - "$(SRCROOT)/vibe-libs/Tests/Support"
+          - "$(SRCROOT)/vibe-libs/files/HTTP"
+          - "$(SRCROOT)/vibe-libs/files/RemoteFiles"
+          - "$(SRCROOT)/vibe-libs/files/ShareLinks"
           - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
@@ -874,7 +879,6 @@ targets:
           # their compiled production sources import.
           - "$(SRCROOT)/Vibe/Debug/Channel"
           - "$(SRCROOT)/Vibe/Debug/Oracles"
-          - "$(SRCROOT)/Vibe/Debug/Simulators"
           - "$(SRCROOT)/Vibe/Debug/Seams"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
           - "$(SRCROOT)/Vibe/Mac/Convert"
@@ -901,7 +905,6 @@ targets:
       - path: vibe-libs/Tests/audio/Player/Render   # the render suite, over the generated fixtures
       - path: Tests/AudioRender               # the link topic and the corpus conformance test
       - path: Tests/Support/TestFilesystemGuard.m
-      - path: Tests/Support/HTTPStub.m        # a link played over it (AudioPlayerRenderLinkTests)
       - path: vibe-libs/Tests/Support/VibeTestTrack.m   # the render suite's playable item
       - path: vibe-libs/Tests/audio/Decode/AudioFileHandleFuzzTests.m   # over the generated fixtures
       # Optimize the render path for long PCM comparisons without enabling fast math.
@@ -958,8 +961,9 @@ targetTemplates:
     templates: [VibeLibsAudioTypes, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav,
                 VibeLibsVorbis]
     sources:
-      - path: Vibe/Debug/Simulators/VibeFakeHTTP.m           # HTTPStub's sessionConfiguration
-      - path: Vibe/Debug/Simulators/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
+      - path: vibe-libs/Tests/Support/HTTPStub.m   # the link tests' host, and a link played over it
+      - path: vibe-libs/files/ShareLinks/VibeFakeHTTP.m           # HTTPStub's sessionConfiguration
+      - path: vibe-libs/files/ShareLinks/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
       - path: Vibe/Playlist/AudioTrack.m
       - path: vibe-libs/media/Metadata/NSURL+FilenameTitle.m
       # The render path's -O2, anchored in VibeAudioTests' list, which YAML reads first.
@@ -990,10 +994,10 @@ targetTemplates:
       - path: vibe-libs/files/FileLoading/Transfer/DownloadProgressMonitor.m
       - path: vibe-libs/files/FileLoading/Transfer/DownloadProgressMonitor+Debug.m   # its start asks the fake first
       - path: vibe-libs/files/FileLoading/Transfer/DownloadProgressSourceAdapters.m
-      - path: Vibe/Loading/Net/HTTPTransferClient.m
-      - path: Vibe/Loading/Net/RemotePlaceholderStore.m
+      - path: vibe-libs/files/HTTP/HTTPTransferClient.m
+      - path: vibe-libs/files/RemoteFiles/RemotePlaceholderStore.m
       - path: Vibe/Loading/Net/LinkStore.m
-      - path: Vibe/Loading/Net/LinkClient.m
+      - path: vibe-libs/files/ShareLinks/LinkClient.m
       - path: vibe-libs/audio/OutputDevices/Mac/AudioDevice.m
       - path: vibe-libs/audio/OutputDevices/Mac/AudioDeviceEventLog.m
       - path: vibe-libs/audio/OutputDevices/Mac/AudioDeviceManager.m
