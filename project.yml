@@ -144,8 +144,8 @@ targets:
     type: application
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources.
-    # SettingsWindow and Shortcuts are macOS only, so VibeiOS never lists
-    # them. The vendored libraries carry their own flags. Metadata's parse
+    # SettingsWindow, Shortcuts, and AppOpening are macOS only, so VibeiOS
+    # never lists them. The vendored libraries carry their own flags. Metadata's parse
     # reads TagLib's own types, and the FLAC converter writes tags through
     # TagLib, so both apps list TagLib's template beside Tags' and Metadata's.
     #
@@ -156,7 +156,7 @@ targets:
                 VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts,
-                VibeLibsNowPlaying, VibeLibsDebugChannel, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata,
+                VibeLibsAppOpening, VibeLibsNowPlaying, VibeLibsDebugChannel, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata,
                 VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
@@ -743,8 +743,7 @@ targets:
       - path: vibe-libs/system/NowPlaying/NowPlayingController.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: vibe-libs/ui/Controls/Mac/CrossfadingImageView.m
-      - path: Vibe/Mac/App/OpenBurstCoalescer.m
-      - path: Vibe/Mac/App/OpenRequestCoordinator.m
+      - path: vibe-libs/system/AppOpening/Mac/OpenRequestCoordinator.m   # +Playlist's close invalidates it
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
       - path: Vibe/Mac/MainWindow/MainPlayerController.m   # injected constructor; ShellTestFakes stand in for the rest
       - path: Vibe/Mac/MainWindow/MainPlayerController+Playlist.m
