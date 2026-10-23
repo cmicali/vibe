@@ -23,17 +23,15 @@ Vibe/
       Theme/           AppTheme, the theme record, and the theme store
   Audio/               how Vibe hosts vibe-libs' player, and the audio features beside it
   Loading/             the app's own transfers: HTTP, links, and Dropbox
-    Net/               the app's own HTTP: transfers, placeholders, and Open URL's links
+    Net/               Open URL's link store
     iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
   Playlist/            the playlist row
     Mac/               the playlist table and the last-playlist store (macOS)
   Util/                Vibe's helpers with no feature
     Mac/ and iOS/      the AppKit and UIKit categories
   Debug/               the debug command channel, compiled into Debug builds only
-    Channel/           the transport: command and reply files
     Verbs/             the commands both apps answer
     Oracles/           consistency checks and health counts
-    Simulators/        a stand-in for an HTTP host
     Mac/ and iOS/      each app's command table, its own verbs, and its seams
   Mac/                 the macOS app shell
     App/               AppDelegate, the open funnel, the grants' owner, Open URL, updates
@@ -59,7 +57,6 @@ Tests/                 unit tests, laid out like Vibe/
   AudioRender/         the audio suite's link topic and corpus test; the rest is vibe-libs'
   Support/             shared test helpers
   BenchComponents/     the component benchmarks, not tests
-  iOSDriver/           the touch driver for the iOS simulator, not tests
   iOSSim/              the iOS shell's tests, hosted in the app on a simulator
 Resources/             string catalogs, built-in themes, the app icon, the welcome track
 docs/                  docs for users and contributors (docs/README.md lists them)
@@ -102,7 +99,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### Debug
 
-`Vibe/Debug/` is the debug command channel. It lets a script drive and inspect a running Debug build of either app. On macOS the command is `Vibe --debug-cmd <command>`. For the simulator it is the `vibe-debug` skill's `debug-ios.sh`. Nearly every file is wrapped in `#if DEBUG`. A Release build compiles them to empty objects. `Channel/` is the transport. `Verbs/` holds the commands both apps answer. `Oracles/` holds the consistency checks. `Simulators/` holds a stand-in for an HTTP host. vibe-libs' `audio/Player` holds the manual render pump the audio tests use in place of a device. vibe-libs' `files/FileLoading` holds the stand-in for a cloud provider. Each app's `Mac/Seams/` or `iOS/Seams/` holds the `+Debug` categories that open a shell class to the channel and the tests. A shared class's category sits beside it in vibe-libs. Read next: the `vibe-debug` skill to use the channel, and `Vibe/Debug/AGENTS.md` to change it.
+`Vibe/Debug/` is the debug command channel. It lets a script drive and inspect a running Debug build of either app. On macOS the command is `Vibe --debug-cmd <command>`. For the simulator it is the `vibe-debug` skill's `debug-ios.sh`. Nearly every file is wrapped in `#if DEBUG`. A Release build compiles them to empty objects. The transport, the command and reply files, is vibe-libs' `dev/DebugChannel`. `Verbs/` holds the commands both apps answer. `Oracles/` holds the consistency checks. vibe-libs' `files/ShareLinks` holds the stand-in for a web server. vibe-libs' `audio/Player` holds the manual render pump the audio tests use in place of a device. vibe-libs' `files/FileLoading` holds the stand-in for a cloud provider. Each app's `Mac/Seams/` or `iOS/Seams/` holds the `+Debug` categories that open a shell class to the channel and the tests. A shared class's category sits beside it in vibe-libs. The simulator's touch driver is vibe-libs' `dev/iOSDriver`. Read next: the `vibe-debug` skill to use the channel, and `Vibe/Debug/AGENTS.md` to change it.
 
 ### The macOS shell
 
@@ -280,7 +277,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | Cloud downloads, their order, the loading bar | `vibe-libs/files/FileLoading/AGENTS.md`, [file-loading-spec.md](file-loading-spec.md) | `vibe-libs/files/FileLoading/Claim/AudioFileMaterializationCoordinator.m` |
 | Playing a file that is still downloading | `vibe-libs/files/FileLoading/AGENTS.md` (CloudFileAvailability) | `vibe-libs/files/FileLoading/Transfer/CloudFileAvailability.m` |
 | Files on a network share | `vibe-libs/files/FileLoading/AGENTS.md` (The network-mount read-ahead) | `vibe-libs/files/FileLoading/Transfer/NetworkReadAhead.m` |
-| Open URL and links | `Loading/Net/AGENTS.md`, `Mac/App/AGENTS.md` | `Loading/Net/LinkStore.m` |
+| Open URL and links | `Loading/Net/AGENTS.md`, vibe-libs' `files/ShareLinks/AGENTS.md`, `Mac/App/AGENTS.md` | `Loading/Net/LinkStore.m` |
 | Dropbox on iOS | `Loading/iOS/Dropbox/AGENTS.md` | `Loading/iOS/Dropbox/DropboxMirror.m` |
 | Tags, the metadata cache, or the scan | `vibe-libs/media/Metadata/AGENTS.md`, `vibe-libs/media/Tags/AGENTS.md` | `vibe-libs/media/Metadata/AudioTrackMetadataLoader.m`, `vibe-libs/media/Tags/TagLibAudioFile.mm` |
 | Artwork and row thumbnails | `vibe-libs/media/Metadata/AGENTS.md` | `vibe-libs/media/Metadata/Artwork/AudioTrackArtwork.m` |

@@ -125,6 +125,14 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
     } mutableCopy];
 }
 
+NSDictionary *VibeTransportCmd(NSString *usage, void (^action)(id controller)) {
+    return VibeDebugCmd(usage, 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
+                                              id<VibeDebugPlayerSurface> surface) {
+        action(surface);
+        return VibeJSONString(surface.debugActionSummary);
+    });
+}
+
 NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
     static NSArray<NSDictionary *> *table;
     static dispatch_once_t once;

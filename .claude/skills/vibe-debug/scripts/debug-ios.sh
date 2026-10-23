@@ -2,8 +2,8 @@
 # Run one debug command against the iOS app on this session's simulator
 # (sim-udid.sh, never `booted`) and print its JSON reply. There is no CLI
 # client: the app's container tmp is a host directory, so this writes the
-# command file and reads the reply; the app's vnode watcher (DebugChannel.m)
-# picks it up.
+# command file and reads the reply; the app's vnode watcher picks it up
+# (vibe-libs' dev/DebugChannel/DebugChannel.m).
 #
 # Usage: debug-ios.sh <verb> [args ...]
 #        debug-ios.sh --all <verb> [<verb> ...]

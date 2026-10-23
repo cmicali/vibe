@@ -63,6 +63,10 @@ void VibeInstallDebugCommandHook(void);
 // failure, 2 command error, 64 usage.
 int VibeDebugCommandClientMain(int argc, const char *argv[]);
 
+// The spec for verb in either table the app dispatches with. The client reads
+// its clientTimeout, so its wait derives from the table the app uses.
+NSDictionary *VibeCommandSpecForVerb(NSString *verb);
+
 #ifdef __cplusplus
 }
 #endif
