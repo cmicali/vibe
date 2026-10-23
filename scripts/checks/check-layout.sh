@@ -1,9 +1,8 @@
 #!/bin/bash
 # Enforces the layout rule stated in AGENTS.md: every directory directly under
-# Vibe/ except Mac/, iOS/ and ThirdParty/ is a shared subsystem listed in both
-# targets, and within any subsystem Mac/ and iOS/ are the only platform
-# markers. ThirdParty/ holds only Sparkle now. Every other vendored library is
-# a vibe-libs piece.
+# Vibe/ except Mac/ and iOS/ is a shared subsystem listed in both targets, and
+# within any subsystem Mac/ and iOS/ are the only platform markers. Every
+# vendored library is a vibe-libs piece.
 #
 # Seven assertions. The first three read project.yml, which settles which
 # SOURCES compile; the fourth reads the imports, which settles which HEADERS may
@@ -141,7 +140,7 @@ done <<< "$shared"
 # 3. Top-level coverage. A NEW DIRECTORY NEEDS A NEW ENTRY — nothing globs it in.
 for d in Vibe/*/; do
     d="${d%/}"
-    case "$d" in Vibe/Mac|Vibe/iOS|Vibe/ThirdParty) continue ;; esac
+    case "$d" in Vibe/Mac|Vibe/iOS) continue ;; esac
     has_word "$d" "$(echo "$vibe_paths" | tr '\n' ' ')" \
         || fail "Vibe: '$d' exists on disk but is not a source path — every shared subsystem is in both targets"
     has_word "$d" "$(echo "$ios_paths" | tr '\n' ' ')" \
@@ -167,11 +166,11 @@ echo "$ios_paths" | grep -q '^Vibe/iOS' \
 #    basename is the key. A vibe-libs piece's Mac/ and iOS/ halves count as
 #    that platform's tree, since the app targets compile them in.
 basenames_under() {   # basenames_under <Mac|iOS>
-    find Vibe vibe-libs -name '*.h' -path "*/$1/*" ! -path '*/ThirdParty/*' ! -path '*/third_party/*' \
+    find Vibe vibe-libs -name '*.h' -path "*/$1/*" ! -path '*/third_party/*' \
         ! -path 'vibe-libs/build/*' -exec basename {} \; | sort -u
 }
 basenames_outside() {
-    find Vibe vibe-libs -name '*.h' ! -path "*/$1/*" ! -path '*/ThirdParty/*' ! -path '*/third_party/*' \
+    find Vibe vibe-libs -name '*.h' ! -path "*/$1/*" ! -path '*/third_party/*' \
         ! -path 'vibe-libs/build/*' -exec basename {} \; | sort -u
 }
 
@@ -184,7 +183,7 @@ for platform in Mac iOS; do
     printf '%s\n' "$exclusive" > "$names_file"
     # TARGET_OS_OSX (either polarity) is the one sanctioned reach across. The
     # guard is tracked by depth so a nested #if does not end it early.
-    hits=$(find Vibe ! -path "*/$platform/*" ! -path '*/ThirdParty/*' \
+    hits=$(find Vibe ! -path "*/$platform/*" \
                 \( -name '*.m' -o -name '*.mm' -o -name '*.h' \) -print0 \
         | xargs -0 -I{} awk -v names="$names_file" -v file="{}" '
             BEGIN { while ((getline n < names) > 0) if (n != "") want[n] = 1 }
@@ -269,9 +268,8 @@ libs_pieces=$(find vibe-libs -mindepth 1 -maxdepth 1 -type d \
                    ! -name Tests ! -name third_party ! -name docs ! -name scripts ! -name '.*' ! -name build)
 import_edges=$(grep -rHo '^[[:space:]]*#[[:space:]]*import[[:space:]]*"[^"]*"' Vibe Tests $libs_pieces vibe-libs/Tests \
                     --include='*.h' --include='*.m' --include='*.mm' \
-               | grep -v '/ThirdParty/' \
                | awk '{ f = $0; sub(/:.*$/, "", f); h = $0; sub(/^[^"]*"/, "", h); sub(/".*$/, "", h); sub(/^.*\//, "", h); print f "\t" h }')
-header_paths=$(find Vibe Tests $libs_pieces vibe-libs/Tests -name '*.h' ! -path '*/ThirdParty/*' | awk -F/ '{ print $NF "\t" $0 }')
+header_paths=$(find Vibe Tests $libs_pieces vibe-libs/Tests -name '*.h' | awk -F/ '{ print $NF "\t" $0 }')
 seam_impls=$( { find Vibe/Debug -path '*/Seams/*' \( -name '*+Debug*.m' -o -name '*+Debug*.mm' \)
                 find $libs_pieces \( -name '*+Debug*.m' -o -name '*+Debug*.mm' \); } \
              | sed -E 's/.*\///; s/\.mm?$//')

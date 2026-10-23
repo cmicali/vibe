@@ -71,7 +71,7 @@ Validate a template change with `brew tap cmicali/tap <local clone>` and `brew a
 
 ## Updates (Sparkle)
 
-The direct download updates itself through Sparkle 2, vendored at `Vibe/ThirdParty/Sparkle/` with its `sign_update` and `generate_keys` tools. The Mac App Store build has none of it. `release-appstore.sh` archives the `AppStore` configuration and fails if the archive carries any Sparkle file, link, `SU*` Info.plist key or the direct download's entitlements (`asc_require_no_updater`). CI builds `AppStore` and runs the same check.
+The direct download updates itself through Sparkle 2, vendored at vibe-libs' `third_party/Sparkle/` with its `sign_update` and `generate_keys` tools. The Mac App Store build has none of it. `release-appstore.sh` archives the `AppStore` configuration and fails if the archive carries any Sparkle file, link, `SU*` Info.plist key or the direct download's entitlements (`asc_require_no_updater`). CI builds `AppStore` and runs the same check.
 
 **The signing key is permanent.** `generate_keys` makes an EdDSA key pair once and keeps the private half in the login keychain. The public half is `VIBE_SPARKLE_PUBLIC_KEY` in `project.yml`, and every shipped build trusts only it. Back the private half up offline beside the Developer ID certificate (`generate_keys -x <file>`; `-f <file>` imports it on another Mac). Losing it strands every installed build. `release.sh` preflights the key, then checks that each exported app trusts it.
 

@@ -10,7 +10,7 @@ Vibe is two apps. The `Vibe` target is the macOS app. The `VibeiOS` target is th
 
 `Vibe.xcodeproj` is generated from `project.yml` by XcodeGen, and it is not checked in. Run `make project` after cloning, after pulling, and after any edit to `project.yml`.
 
-**The directory is the platform boundary.** Every directory directly under `Vibe/` is compiled into both apps, except `Mac/`, `iOS/`, and `ThirdParty/`. Inside a shared directory, only a `Mac/` or `iOS/` subdirectory is platform-specific. A new file in a shared directory joins the iOS app automatically. It must not use AppKit unless the code is guarded by `TARGET_OS_OSX`. `make check-layout` enforces the rule.
+**The directory is the platform boundary.** Every directory directly under `Vibe/` is compiled into both apps, except `Mac/` and `iOS/`. Inside a shared directory, only a `Mac/` or `iOS/` subdirectory is platform-specific. A new file in a shared directory joins the iOS app automatically. It must not use AppKit unless the code is guarded by `TARGET_OS_OSX`. `make check-layout` enforces the rule.
 
 Each app is a shell over the shared code. The shell owns the windows, the screens, and the gestures. The shared code owns playback, loading, the playlist model, metadata, and waveform drawing. The engine knows nothing about either shell. It reports back through a delegate.
 
@@ -50,7 +50,6 @@ Vibe/
     Search/            Favorites and Search
     Settings/          the settings screens
     Widget/            the app's side of the Home Screen widget
-  ThirdParty/          the prebuilt Sparkle framework; every other vendored library is in vibe-libs/third_party/
 VibeWidget/            the widget extension, in Swift
 vibe-libs/             the shared toolbox, a git submodule; pieces compile into both apps
 Tests/                 unit tests, laid out like Vibe/
@@ -103,7 +102,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### The macOS shell
 
-`Vibe/Mac/` is the macOS app shell, with one directory per piece. `App/` holds `AppDelegate` and the services it owns. Those are the open funnel (`OpenBurstCoalescer`, `OpenRequestCoordinator`), sandbox folder grants (`FolderAccessManager`), Open URL (`OpenLinkWindowController`), updates through Sparkle (`AppDelegate+Updates`), and Save Debug Info (`DebugInfo`). `MainWindow/` is the player window. `MainPlayerController` coordinates it, and each of its categories owns one concern: `+Playlist`, `+Transport`, `+PlayerEvents`, `+Delivery`, `+Window`, `+Menus`, `+Settings`, `+NowPlaying`, and `+Convert`. `Menu/` builds the menu bar in code (`MainMenuBuilder`), over vibe-libs' `ui/Shortcuts`. `Controls/` holds the artwork view and the pitch controls, such as `PitchFaderView`. The other AppKit controls, such as `SymbolButton` and the drawn slider and switch, are vibe-libs' `ui/Controls`. `Settings/` is the Settings window (`SettingsWindowController`) and its panes. The generic window under it, with the sidebar, the pane base, and the form views, is vibe-libs' `ui/SettingsWindow`. The Keyboard Shortcuts pane is `ui/Shortcuts`' too. `Settings/Themes/` is the theme list and editor. `About/` is the About window. `Convert/` is Convert to FLAC (`AudioFileConverter`). Read next: `Vibe/Mac/App/AGENTS.md` and `Vibe/Mac/MainWindow/AGENTS.md`. The window's layout and chrome are in `Vibe/Mac/MainWindow/LAYOUT.md`.
+`Vibe/Mac/` is the macOS app shell, with one directory per piece. `App/` holds `AppDelegate` and the services it owns. Those are the open funnel (`OpenBurstCoalescer`, `OpenRequestCoordinator`), sandbox folder grants (`FolderAccessManager`), Open URL (`OpenLinkWindowController`), updates through vibe-libs' `system/Updates` (`VibeUpdater`), and Save Debug Info (`DebugInfo`). `MainWindow/` is the player window. `MainPlayerController` coordinates it, and each of its categories owns one concern: `+Playlist`, `+Transport`, `+PlayerEvents`, `+Delivery`, `+Window`, `+Menus`, `+Settings`, `+NowPlaying`, and `+Convert`. `Menu/` builds the menu bar in code (`MainMenuBuilder`), over vibe-libs' `ui/Shortcuts`. `Controls/` holds the artwork view and the pitch controls, such as `PitchFaderView`. The other AppKit controls, such as `SymbolButton` and the drawn slider and switch, are vibe-libs' `ui/Controls`. `Settings/` is the Settings window (`SettingsWindowController`) and its panes. The generic window under it, with the sidebar, the pane base, and the form views, is vibe-libs' `ui/SettingsWindow`. The Keyboard Shortcuts pane is `ui/Shortcuts`' too. `Settings/Themes/` is the theme list and editor. `About/` is the About window. `Convert/` is Convert to FLAC (`AudioFileConverter`). Read next: `Vibe/Mac/App/AGENTS.md` and `Vibe/Mac/MainWindow/AGENTS.md`. The window's layout and chrome are in `Vibe/Mac/MainWindow/LAYOUT.md`.
 
 ### The iOS shell
 
@@ -131,7 +130,7 @@ More of Vibe's shared code moves there piece by piece (`docs/future/vibe-libs.md
 
 ### Third-party code
 
-There is no package manager. Vendored code is vibe-libs' `third_party/`: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, and libogg, each a piece of its own. Its template carries its compiler flags, and both apps list it. The three dr_ libraries carry fixes of Vibe's own. Read the piece's `AGENTS.md` before changing one. `Vibe/ThirdParty/` holds only the prebuilt Sparkle framework, until the Updates piece moves. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
+There is no package manager. Vendored code is vibe-libs' `third_party/`: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, and the prebuilt Sparkle framework, each a piece of its own. Its template carries its compiler flags, and both apps list it, except Sparkle's, which only the mac app reaches through `system/Updates`. The three dr_ libraries carry fixes of Vibe's own. Read the piece's `AGENTS.md` before changing one. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
 
 ### Tests, resources, and scripts
 
@@ -296,7 +295,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | Themes | [themes.md](themes.md), `Common/Mac/Theme/AGENTS.md` | `Common/Mac/Theme/AppTheme.m`, `Resources/Themes/` |
 | Convert to FLAC | `Mac/Convert/AGENTS.md` | `Mac/Convert/AudioFileConverter.m` |
 | Sandbox folder grants on macOS | `Mac/App/AGENTS.md` (Sandbox grants) | `Mac/App/FolderAccessManager.m` |
-| Updates through Sparkle | `Mac/App/AGENTS.md` (Updates) | `Mac/App/AppDelegate+Updates.m` |
+| Updates through Sparkle | `Mac/App/AGENTS.md` (Updates), `vibe-libs/system/Updates/AGENTS.md` | `vibe-libs/system/Updates/Mac/VibeUpdater.m` |
 | The iOS model and opening folders | `iOS/AGENTS.md` | `iOS/PlaybackController.m`, `iOS/FolderSession.m` |
 | The iOS now-playing card | `iOS/Player/AGENTS.md`, `vibe-libs/waveform/WaveformView/AGENTS.md` | `iOS/Player/PlayerViewController.m` |
 | The iOS Files tab, Favorites, Search, or settings | the `AGENTS.md` in `iOS/Files/`, `iOS/Search/`, or `iOS/Settings/` | that directory |

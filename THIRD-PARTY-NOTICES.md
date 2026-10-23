@@ -4,8 +4,8 @@ Vibe is licensed under Apache 2.0 (see `LICENSE`). Its third-party sources
 are vendored in vibe-libs, the submodule at `vibe-libs/`. Each library is a
 piece under `vibe-libs/third_party/`, with its license beside its sources,
 and both app targets compile it in. `vibe-libs/THIRD-PARTY-NOTICES.md` has
-each library's full notice. Sparkle is a prebuilt framework in
-`Vibe/ThirdParty/`, in the direct-download Mac app only.
+each library's full notice. Sparkle is a prebuilt framework, embedded in the
+direct-download Mac app only.
 
 ## Summary
 
@@ -22,7 +22,7 @@ each library's full notice. Sparkle is a prebuilt framework in
 | dr_wav | `vibe-libs/third_party/dr_wav/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
 | libogg | `vibe-libs/third_party/ogg/` | BSD 3-Clause |
 | libvorbis | `vibe-libs/third_party/vorbis/` | BSD 3-Clause |
-| Sparkle | `Vibe/ThirdParty/Sparkle/` | MIT, with its bundled components' permissive notices |
+| Sparkle | `vibe-libs/third_party/Sparkle/` | MIT, with its bundled components' permissive notices |
 
 ## The libraries in vibe-libs
 
@@ -52,4 +52,4 @@ Matuschak, 2009-2013 Elgato Systems GmbH, 2011-2014 Kornel Lesiński,
 2014 Big Nerd Ranch. MIT license. Vendored unmodified as the prebuilt
 release. It bundles bsdiff 4.3 (Colin Percival, BSD 2-clause), sais-lite
 (Yuta Mori, MIT) and orlp/ed25519 (Orson Peters, zlib). Sparkle's license and
-all three notices are `Vibe/ThirdParty/Sparkle/LICENSE.txt`.
+all three notices are `vibe-libs/third_party/Sparkle/LICENSE.txt`.

@@ -37,7 +37,7 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if VIBE_DIRECT_DISTRIBUTION
-#import "AppDelegate+Updates.h"
+#import "VibeUpdater.h"
 #endif
 
 #if DEBUG
@@ -58,6 +58,21 @@
 // Long enough to absorb a split multi-file open, short enough that a
 // deliberate second open replaces rather than appends.
 static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
+
+#if VIBE_DIRECT_DISTRIBUTION
+// A Debug build starts the updater only with --update-feed, and checks only
+// the feed it names. So the debug channel, stress runs and screenshots never
+// raise an update dialog. nil keeps the Info.plist's feed.
+static NSString *DebugUpdateFeed(void) {
+#if DEBUG
+    NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
+    NSUInteger index = [args indexOfObject:@"--update-feed"];
+    return index != NSNotFound && index + 1 < args.count ? args[index + 1] : nil;
+#else
+    return nil;
+#endif
+}
+#endif
 
 // Launch work the first window does not need runs half a second after it.
 // TRAP: dispatch_async is not enough. A main-queue block queued during launch
@@ -128,7 +143,9 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     }];
 #if VIBE_DIRECT_DISTRIBUTION
     // Before the menu, whose Check for Updates… targets it.
-    _updaterController = [self makeUpdaterController];
+    _updater = [[VibeUpdater alloc] initWithFeedURLString:DebugUpdateFeed() betaUpdates:^BOOL {
+        return AppSettings.sharedInstance.receiveBetaUpdates;
+    }];
 #endif
     // Window state restoration runs before applicationDidFinishLaunching.
     self.mainPlayerController = [[MainPlayerController alloc] init];
@@ -175,7 +192,13 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     });
 
 #if VIBE_DIRECT_DISTRIBUTION
-    [self startUpdaterIfConfigured];
+#if DEBUG
+    if (DebugUpdateFeed()) {
+        [_updater start];
+    }
+#else
+    [_updater start];
+#endif
 #endif
 
     [self openCommandLineArguments];

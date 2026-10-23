@@ -144,8 +144,8 @@ targets:
     type: application
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources.
-    # SettingsWindow and Shortcuts are macOS only, so VibeiOS never lists
-    # them. The vendored libraries carry their own flags. Metadata's parse
+    # SettingsWindow, Shortcuts, and Updates are macOS only, so VibeiOS never
+    # lists them. Updates lists Sparkle, which links and embeds the framework. The vendored libraries carry their own flags. Metadata's parse
     # reads TagLib's own types, and the FLAC converter writes tags through
     # TagLib, so both apps list TagLib's template beside Tags' and Metadata's.
     #
@@ -157,7 +157,7 @@ targets:
                 VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts,
-                VibeLibsNowPlaying, VibeLibsDebugChannel, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata,
+                VibeLibsNowPlaying, VibeLibsUpdates, VibeLibsDebugChannel, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata,
                 VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
@@ -233,8 +233,8 @@ targets:
           - "$(SRCROOT)/build/generated/VibeGitInfo.h"
     postBuildScripts:
       # The Mac App Store build carries no updater (App Review guideline
-      # 2.4.5): EXCLUDED_SOURCE_FILE_NAMES keeps the framework out, and this
-      # takes Sparkle's keys out of its Info.plist. release-appstore.sh checks
+      # 2.4.5): EXCLUDED_SOURCE_FILE_NAMES keeps the framework and the updater
+      # out, and this takes Sparkle's keys out of its Info.plist. release-appstore.sh checks
       # both.
       - script: |
           [ "$VIBE_DIRECT_DISTRIBUTION" = 1 ] && exit 0
@@ -420,13 +420,10 @@ targets:
         AppStore:
           VIBE_DIRECT_DISTRIBUTION: 0
           CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/Mac/App/Vibe.entitlements"
-          # Unlinks and unembeds the framework the dependency below adds.
-          EXCLUDED_SOURCE_FILE_NAMES: Sparkle.framework
+          # Unlinks and unembeds the framework VibeLibsSparkle adds, and leaves
+          # out VibeLibsUpdates' updater, which links it.
+          EXCLUDED_SOURCE_FILE_NAMES: [Sparkle.framework, VibeUpdater.m]
     dependencies:
-      # The updater, direct download only (the AppStore configuration above).
-      - framework: Vibe/ThirdParty/Sparkle/Sparkle.framework
-        embed: true
-        codeSign: true
       - sdk: AVFAudio.framework             # AVAudioFormat/PCMBuffer/ChannelLayout; MediaPlayer loads AVFoundation regardless
       - sdk: Accelerate.framework
       - sdk: ApplicationServices.framework
