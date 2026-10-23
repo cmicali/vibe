@@ -732,6 +732,7 @@ targets:
           - "Playlist/AudioTrackTagTests.mm"  # VibeAudioTests': TagLib
           - "iOSSim/**"                       # VibeiOSTests' suite: UIKit, on a simulator
       - path: Vibe/Playlist/AudioAnalysisObservers.m
+      - path: Vibe/Audio/LegacyCacheStores.m
       - path: vibe-libs/waveform/WaveformLoading/AudioWaveformObserver.m
       - path: vibe-libs/waveform/WaveformLoading/AudioWaveformLoader.mm
       - path: vibe-libs/waveform/WaveformLoading/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)

@@ -6,6 +6,8 @@ The application object and the app-wide services it owns. The test for this dire
 
 **Launch work the first window does not need runs half a second after the window is up** (`VibeAfterLaunch`). The menu's key equivalents and the link prune run there. A main-queue block queued during launch can still run before the window, so `dispatch_async` is not enough.
 
+**`applicationDidFinishLaunching:` removes the cache stores other builds left**, off main. The rule is shared with iOS (`Audio/AGENTS.md`, Metadata and artwork).
+
 ## Opening files is a funnel, not an event
 
 Every way a file arrives lands in `AppDelegate` and comes out as one playlist: a Finder double-click, ⌘O, Add to Playlist, Open Recent, Open URL, a drop on the window, argv. The OS delivers opens in two broken shapes. Two classes of vibe-libs' `system/AppOpening` handle them. That piece's `AGENTS.md` is their authority: the burst's shape, the launch order, supersession, holds, and the straggler deadline.

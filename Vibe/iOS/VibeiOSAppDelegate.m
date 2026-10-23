@@ -7,6 +7,7 @@
 #import "AppSettings.h"
 #import "AudioError.h"
 #import "DropboxMirror.h"
+#import "LegacyCacheStores.h"
 #import "LinkStore.h"
 #import "LocationStore.h"
 #import "NSBundle+BuildInfo.h"
@@ -38,6 +39,7 @@
 #if DEBUG
     VibeiOSInstallDebugCommandHook();
 #endif
+    VibeRemoveLegacyCacheStoresOffMain();
     [self copyWelcomeTrackIfFirstLaunch];
     return YES;
 }
