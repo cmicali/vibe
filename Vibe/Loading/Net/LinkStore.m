@@ -18,6 +18,9 @@
 // directory, because a placeholder's attributes are as unreadable as its
 // bytes.
 static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.link";
+// The size the downloads of every link may reach before the oldest go back
+// to placeholders. Decimal, as the other download budgets are.
+static const long long kVibeLinkDownloadBudgetBytes = 2000LL * 1000 * 1000;
 // Enough for every signature VibeLinkAudioExtension knows.
 static const uint64_t kProbeBytes = 16;
 

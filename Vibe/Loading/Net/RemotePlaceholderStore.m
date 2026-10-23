@@ -1,6 +1,6 @@
 //
 //  RemotePlaceholderStore.m
-//  Vibe
+//  vibe-libs
 //
 
 #import "RemotePlaceholderStoreInternal.h"
@@ -71,7 +71,7 @@ static NSError *VibePOSIXError(void) {
         _streams = [NSMutableDictionary dictionary];
         _fetching = [NSMutableSet set];
         _streamedTagWait = kStreamedTagWaitSeconds;
-        NSString *label = [NSString stringWithFormat:@"com.commonwealthrecordings.Vibe.%@-store",
+        NSString *label = [NSString stringWithFormat:@"vibe-libs.remotefiles.%@-store",
                            self.logName.lowercaseString];
         _diskQueue = dispatch_queue_create(label.UTF8String,
                 dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0));

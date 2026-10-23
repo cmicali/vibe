@@ -1,11 +1,11 @@
 //
 //  LinkRules.h
-//  Vibe
+//  vibe-libs
 //
-//  The decisions behind Open URL that need no network and no disk: which
-//  addresses Vibe fetches, whether the first bytes are audio, the file's name,
-//  and how a link's directory and download are named and sized. Header-only
-//  and Foundation-only so the host-less suite tests it.
+//  The decisions behind opening a web link that need no network and no
+//  disk: which addresses are fetched, whether the first bytes are audio, the
+//  file's name, and how a link's directory is named and pruned. Header-only
+//  and Foundation-only.
 //
 
 #ifndef LinkRules_h
@@ -24,11 +24,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The size the downloads of every link may reach before the oldest go back to
-// placeholders. Decimal, as the other download budgets are.
-static const NSInteger kVibeLinkDownloadBudgetBytes = 2000L * 1000 * 1000;
-
-// Why a link did not open. Each shell turns one into its link.error string.
+// Why a link did not open. An app turns each into a string of its own.
 // The names follow the string keys. Cancelled has none: the user's own
 // cancel shows nothing.
 typedef NS_ENUM(NSInteger, VibeLinkError) {
@@ -121,7 +117,7 @@ static inline BOOL VibeLinkHostIsLocal(NSString *_Nullable host) {
     return [name rangeOfString:@"."].location == NSNotFound;
 }
 
-// The address rule: None for an address Vibe fetches. https reaches any
+// The address rule: None for an address that is fetched. https reaches any
 // host. Plain http reaches only the local network, and is Insecure past it.
 // Another scheme, or no host, is Invalid. ATS applies its own checks after
 // this rule. The transfer checks every redirect too (VibeLinkRequestIsAllowed).
@@ -161,8 +157,8 @@ static inline BOOL VibeLinkTextIsBlank(NSString *_Nullable text) {
 
 // A share link to a file as the address that answers its bytes. Each host's
 // rules are in its own file (DropboxLinkRules.h, GoogleDriveLinkRules.h).
-// Every other URL comes back unchanged. docs/future/share-links.md has the
-// probes.
+// Every other URL comes back unchanged. Vibe's docs/future/share-links.md
+// has the probes.
 static inline NSURL *VibeLinkDirectDownloadURL(NSURL *url) {
     return VibeDropboxLinkDownloadURL(url) ?: VibeGoogleDriveLinkDownloadURL(url) ?: url;
 }
@@ -318,7 +314,7 @@ static inline NSString *VibeLinkLastPathName(NSURL *_Nullable url) {
     return name.stringByRemovingPercentEncoding ?: name;
 }
 
-// What the mac's header calls a link that failed: its last path component,
+// What an app calls a link that failed: its last path component,
 // else its host, else the text as typed, trimmed.
 static inline NSString *VibeLinkNameOfText(NSString *text) {
     NSURL *url = VibeLinkURLFromString(text);
@@ -398,7 +394,7 @@ static inline NSString *VibeLinkNormalizedURLString(NSURL *url) {
     return components.string ?: url.absoluteString;
 }
 
-// The link's directory under Links/: the first 16 hex digits of the SHA-1 of
+// The link's directory under the store's root: the first 16 hex digits of the SHA-1 of
 // its normalized URL.
 static inline NSString *VibeLinkDirectoryName(NSURL *url) {
     NSString *hex = [[VibeLinkNormalizedURLString(url) dataUsingEncoding:NSUTF8StringEncoding] sha1Hex];

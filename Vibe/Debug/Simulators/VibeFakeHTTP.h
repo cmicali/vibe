@@ -1,8 +1,8 @@
 //
 //  VibeFakeHTTP.h
-//  Vibe
+//  vibe-libs
 //
-//  A stand-in web server for Open URL: a directory on disk answers as
+//  A stand-in web server for an app's links: a directory on disk answers as
 //  https://fake.vibe.test/<path> and http://fake.local/<path>, over the
 //  client's own HTTP boundary (an NSURLProtocol on its sessions). It answers
 //  iCloud Drive's lookup too: https://www.icloud.com/iclouddrive/<name> is

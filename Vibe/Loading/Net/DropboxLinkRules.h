@@ -1,10 +1,9 @@
 //
 //  DropboxLinkRules.h
-//  Vibe
+//  vibe-libs
 //
-//  Open URL's Dropbox share links. LinkRules.h's VibeLinkDirectDownloadURL
-//  asks this file. No other link code knows Dropbox. Header-only and
-//  Foundation-only, so the macOS suite tests it.
+//  Dropbox share links. LinkRules.h's VibeLinkDirectDownloadURL asks this
+//  file. No other link code knows Dropbox. Header-only and Foundation-only.
 //
 //  What Dropbox answers a link, measured on a shared AIFF. dl=1 answers one
 //  302 to <id>.dl.dropboxusercontent.com. A range there gets a 206 with

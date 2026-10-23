@@ -1,10 +1,10 @@
 //
 //  GoogleDriveLinkRules.h
-//  Vibe
+//  vibe-libs
 //
-//  Open URL's Google Drive share links. LinkRules.h's
-//  VibeLinkDirectDownloadURL asks this file. No other link code knows Google
-//  Drive. Header-only and Foundation-only, so the macOS suite tests it.
+//  Google Drive share links. LinkRules.h's VibeLinkDirectDownloadURL asks
+//  this file. No other link code knows Google Drive. Header-only and
+//  Foundation-only.
 //
 //  What Google Drive answers a link, measured on a shared WAV. A range gets a
 //  206 with Content-Range. It sends Last-Modified and no ETag. Last-Modified

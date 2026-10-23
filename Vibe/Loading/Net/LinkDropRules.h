@@ -1,11 +1,10 @@
 //
 //  LinkDropRules.h
-//  Vibe
+//  vibe-libs
 //
-//  What a drop on the mac's window, or a paste on iOS, opens: which
-//  pasteboard types are read, which items are web links, how a .webloc is
-//  read, and the order a drop opens in. Header-only and Foundation-only, so
-//  the host-less suite tests it.
+//  What a drop on an app's window, or a paste, opens: which pasteboard
+//  types are read, which items are web links, how a .webloc is read, and
+//  the order a drop opens in. Header-only and Foundation-only.
 //
 
 #ifndef LinkDropRules_h
@@ -17,8 +16,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// The pasteboard types a drop on the mac's window, or a paste on iOS, is read
-// for. Finder writes a file URL. A browser's link or address-bar drag writes
+// The pasteboard types a drop on an app's window, or a paste, is read for. Finder writes a file URL. A browser's link or address-bar drag writes
 // a URL, and often the same link as text. Text from anywhere else may hold
 // one link.
 static NSString *const kVibeDropTypeFileURL = @"public.file-url";
@@ -29,7 +27,7 @@ static NSString *const kVibeDropTypeText = @"public.utf8-plain-text";
 static const NSUInteger kVibeLinkWeblocMaxBytes = 64 * 1024;
 
 // An http or https URL with a host. The address rule still decides whether
-// Vibe fetches it. Plain http to a public host is a link that fails as
+// it is fetched. Plain http to a public host is a link that fails as
 // insecure, before any request.
 static inline BOOL VibeLinkIsWebLink(NSURL *_Nullable url) {
     return VibeLinkURLAcceptance(url) != VibeLinkErrorInvalid;
@@ -41,7 +39,7 @@ static inline BOOL VibeLinkIsWebloc(NSURL *url) {
 
 // What a drop holds, in drop order. Each item is one pasteboard item's
 // strings by type. A file URL wins, then a URL, then text. A file is kept as
-// it came, since the shell pins its path. A URL or text that is no web link
+// it came, since the app pins its path. A URL or text that is no web link
 // adds nothing. So does text holding anything but one link.
 static inline NSArray<NSURL *> *VibeDropURLsOfItems(NSArray<NSDictionary<NSString *, NSString *> *> *items) {
     NSMutableArray<NSURL *> *urls = [NSMutableArray array];

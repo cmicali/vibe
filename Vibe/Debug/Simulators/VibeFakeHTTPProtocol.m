@@ -1,6 +1,6 @@
 //
 //  VibeFakeHTTPProtocol.m
-//  Vibe
+//  vibe-libs
 //
 
 #if DEBUG
@@ -78,7 +78,7 @@ static dispatch_queue_t VibeFakeHTTPDeliveryQueue(void) {
     static dispatch_queue_t queue;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        queue = dispatch_queue_create("com.commonwealthrecordings.Vibe.fake-http", DISPATCH_QUEUE_SERIAL);
+        queue = dispatch_queue_create("vibe-libs.sharelinks.fake-http", DISPATCH_QUEUE_SERIAL);
     });
     return queue;
 }

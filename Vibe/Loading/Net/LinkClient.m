@@ -1,6 +1,6 @@
 //
 //  LinkClient.m
-//  Vibe
+//  vibe-libs
 //
 
 #import "LinkClient.h"
@@ -11,7 +11,7 @@
 #import "ICloudLinkRules.h"
 #import "VibeMacros.h"
 
-NSErrorDomain const VibeLinkErrorDomain = @"com.commonwealthrecordings.Vibe.Link";
+NSErrorDomain const VibeLinkErrorDomain = @"vibe-libs.sharelinks";
 
 NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underlying) {
     NSMutableDictionary *info = [NSMutableDictionary dictionary];

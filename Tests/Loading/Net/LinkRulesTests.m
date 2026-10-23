@@ -745,10 +745,6 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertNil(VibeHTTPVersionFromHeaders(nil, nil));
 }
 
-- (void)testTheBudgetIsTwoGigabytes {
-    XCTAssertEqual(kVibeLinkDownloadBudgetBytes, 2000000000);
-}
-
 #pragma mark - Pruning
 
 - (void)testPruningTakesOldLinksNothingKeeps {
@@ -849,7 +845,7 @@ static const uint8_t kFLAC[] = {'f', 'L', 'a', 'C', 0, 0, 0, 34};
     XCTAssertEqual(VibeLinkErrorOfMissingSize(nil), VibeLinkErrorNoSize);
 }
 
-#pragma mark - What the shells open
+#pragma mark - What an app opens
 
 - (void)testABlankEntryOpensNothing {
     for (NSString *text in @[@"", @" ", @"\t", @"\n", @" \r\n\t ", @"\u00A0\u2003"]) {

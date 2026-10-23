@@ -1,6 +1,6 @@
 //
 //  RemotePlaceholderStore.h
-//  Vibe
+//  vibe-libs
 //
 //  Remote files kept as local placeholders under one root, so everything
 //  that plays, tags, waveforms, and caches a file works on them unchanged. A
@@ -13,7 +13,7 @@
 //
 //  A subclass says which remote file a placeholder stands for, and how its
 //  client reads the answers, through the hooks in
-//  RemotePlaceholderStoreInternal.h (DropboxMirror).
+//  RemotePlaceholderStoreInternal.h.
 //
 
 #import <Foundation/Foundation.h>

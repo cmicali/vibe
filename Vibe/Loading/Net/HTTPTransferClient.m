@@ -1,6 +1,6 @@
 //
 //  HTTPTransferClient.m
-//  Vibe
+//  vibe-libs
 //
 
 #import "HTTPTransferClientInternal.h"
@@ -12,7 +12,7 @@
 #import "HTTPTransferRules.h"
 #import "VibeMacros.h"
 
-NSErrorDomain const VibeHTTPErrorDomain = @"com.commonwealthrecordings.Vibe.HTTP";
+NSErrorDomain const VibeHTTPErrorDomain = @"vibe-libs.http";
 NSErrorUserInfoKey const VibeHTTPErrorStatusCodeKey = @"VibeHTTPErrorStatusCode";
 
 // A download whose connection dropped after its file was made resumes this
@@ -30,6 +30,8 @@ static const NSUInteger kErrorBodyMaxBytes = 64 * 1024;
 // The version a download's file holds bytes of, on the file itself, so the
 // next download of that destination continues it (downloadTarget:). The
 // name must not change: a part kept under it would no longer resume.
+// TRAP: never rename it. Parts already kept on disk carry this name, and
+// under another one they stop resuming.
 static const char *const kVibeHTTPVersionAttribute = "com.commonwealthrecordings.Vibe.rev";
 
 static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
@@ -133,7 +135,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
 - (NSOperationQueue *)serialQueueNamed:(NSString *)name {
     NSOperationQueue *queue = [[NSOperationQueue alloc] init];
     queue.maxConcurrentOperationCount = 1;
-    queue.name = [NSString stringWithFormat:@"com.commonwealthrecordings.Vibe.%@.%@",
+    queue.name = [NSString stringWithFormat:@"vibe-libs.http.%@.%@",
                   self.logName.lowercaseString, name];
     return queue;
 }
@@ -291,7 +293,7 @@ static NSString *_Nullable VibeHTTPVersionOfFile(NSURL *url) {
 // to come. One with none — waiting on the request hook, or on a retry's delay
 // after a task that already ended — settles here, at once: a cancel frees
 // the caller's lane now, never when the hook or the delay comes back
-// (Loading/AGENTS.md). Whichever step runs next sees the flag and closes the
+// (files/FileLoading/AGENTS.md). Whichever step runs next sees the flag and closes the
 // file.
 //
 // TRAP: the cancel never touches the file. The step that ended the last task

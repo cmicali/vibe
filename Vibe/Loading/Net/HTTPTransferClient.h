@@ -1,13 +1,13 @@
 //
 //  HTTPTransferClient.h
-//  Vibe
+//  vibe-libs
 //
 //  A remote file over HTTP: a download streamed into a file as its bytes
 //  arrive, a ranged read, and a probe of the first bytes. A resend continues
 //  a download rather than starting it over, and only for the same version.
 //  The defaults are plain HTTP: a GET of an NSURL target, with the version
 //  from the ETag or Last-Modified. A subclass changes them through the hooks
-//  in HTTPTransferClientInternal.h (DropboxClient).
+//  in HTTPTransferClientInternal.h, as a client of a web API does.
 //
 //  Thread-safe. Completions run on an arbitrary queue unless stated.
 //

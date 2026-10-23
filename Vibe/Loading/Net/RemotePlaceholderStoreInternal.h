@@ -1,6 +1,6 @@
 //
 //  RemotePlaceholderStoreInternal.h
-//  Vibe
+//  vibe-libs
 //
 //  The hooks a subclass overrides, and what a subclass and the tests reach
 //  past the public calls: the disk queue, the directory index, the downloads,

@@ -1,6 +1,6 @@
 //
 //  HTTPTransferClientInternal.h
-//  Vibe
+//  vibe-libs
 //
 //  The hooks a subclass overrides, and the seams the tests and the debug
 //  channel use. Every hook gets the transfer's own `state`, made empty with

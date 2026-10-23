@@ -1,6 +1,6 @@
 //
 //  VibeFakeHTTP.m
-//  Vibe
+//  vibe-libs
 //
 
 #if DEBUG

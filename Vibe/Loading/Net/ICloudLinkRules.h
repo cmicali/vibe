@@ -1,10 +1,9 @@
 //
 //  ICloudLinkRules.h
-//  Vibe
+//  vibe-libs
 //
-//  Open URL's iCloud Drive share links. LinkStore's LinkClient asks this file
-//  before each request to one. No other link code knows iCloud. Header-only
-//  and Foundation-only, so the macOS suite tests it.
+//  iCloud Drive share links. LinkClient asks this file before each request
+//  to one. No other link code knows iCloud. Header-only and Foundation-only.
 //
 //  What iCloud answers a link, measured on a shared 526 MB FLAC. The share
 //  page is a script, not the file, so nothing rewrites the link. A POST to

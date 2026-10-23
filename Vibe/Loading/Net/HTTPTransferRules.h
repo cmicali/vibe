@@ -1,10 +1,10 @@
 //
 //  HTTPTransferRules.h
-//  Vibe
+//  vibe-libs
 //
 //  The HTTP transfer's decisions that need no network: when to resend, and
 //  what a response's headers say about the file's size and version.
-//  Header-only and Foundation-only, so the macOS suite tests it.
+//  Header-only and Foundation-only.
 //
 
 #ifndef HTTPTransferRules_h

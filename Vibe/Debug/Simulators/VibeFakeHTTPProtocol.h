@@ -1,6 +1,6 @@
 //
 //  VibeFakeHTTPProtocol.h
-//  Vibe
+//  vibe-libs
 //
 //  The fake web server's serving engine, which the tests' HTTPStub shares.
 //  HTTPStub subclasses the protocol and scripts each answer. The Range rule,

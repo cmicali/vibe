@@ -1,6 +1,6 @@
 //
 //  LinkClient.h
-//  Vibe
+//  vibe-libs
 //
 
 #import <Foundation/Foundation.h>
@@ -12,8 +12,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // A link that did not open. The code is a VibeLinkError. A Server error
 // carries the status under VibeHTTPErrorStatusCodeKey. The error that caused
-// it, if any, is under NSUnderlyingErrorKey. Each shell shows
-// VibeLinkMessageForError's string (Common/StringRules.h).
+// it, if any, is under NSUnderlyingErrorKey. An app shows its own string for
+// each code.
 extern NSErrorDomain const VibeLinkErrorDomain;
 // A link error with that code, carrying underlying and its status.
 NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underlying);

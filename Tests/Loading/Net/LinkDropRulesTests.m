@@ -64,7 +64,7 @@ static NSData *Webloc(id plist, NSPropertyListFormat format) {
 }
 
 // Finder's file wins over its text. A file reference URL is kept as it came,
-// since the shell pins its path.
+// since the app pins its path.
 - (void)testAFileIsAFile {
     NSString *reference = @"file:///.file/id=6571367.2773272/";
     NSArray *items = @[FileItem(@"file:///Users/me/Music/a.flac"), FileItem(reference)];

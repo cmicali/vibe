@@ -782,6 +782,10 @@ static const NSTimeInterval kDay = 24 * 60 * 60;
 
 #pragma mark The budget
 
+- (void)testTheBudgetIsTwoGigabytes {
+    XCTAssertEqual(_store.downloadBudget, 2000000000);
+}
+
 - (void)testTheBudgetSendsTheOldestBackNeverTheNewest {
     _store.downloadBudget = 5000;
     [self settleDiskQueue];
