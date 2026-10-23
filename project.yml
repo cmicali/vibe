@@ -875,10 +875,9 @@ targets:
           # The styles: the theme, the zoom math, the renderers, the level
           # math, and the host-less morph engine.
           - "$(SRCROOT)/vibe-libs/waveform/WaveformStyles"
-          # The oracles, simulators and seams that the tests and their
-          # compiled production sources import.
+          # The oracles that the tests and their compiled production sources
+          # import.
           - "$(SRCROOT)/Vibe/Debug/Oracles"
-          - "$(SRCROOT)/Vibe/Debug/Seams"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
           - "$(SRCROOT)/Vibe/Mac/Convert"
           # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
