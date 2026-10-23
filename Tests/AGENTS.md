@@ -1,10 +1,10 @@
 # Unit tests
 
-This directory holds the tests of the three test targets, `VibeTests`, `VibeAudioTests`, and `VibeiOSTests`, and their shared helpers in `Support/`. It also holds two tools that are not test suites, `iOSDriver/` and `BenchComponents/`.
+This directory holds the tests of the three test targets, `VibeTests`, `VibeAudioTests`, and `VibeiOSTests`, and their shared helpers in `Support/`. It also holds `BenchComponents/`, a tool that is not a test suite.
 
 `make test` runs `VibeTests` (always Debug) and the cloud-runner oracle tests (`check-cloud-scenarios`). `make test-audio` runs `VibeAudioTests`, and `make test-ios` runs `VibeiOSTests` (both below). All three are defined in `project.yml`, so editing a source list means re-running `xcodegen generate`.
 
-`iOSDriver/` is **not** a test suite. It is the `vibe-debug` skill's touch driver, a resident XCUITest (`VibeiOSDriver`) started by `drive-ios.sh`, and `VibeTests`' `Tests` source entry excludes it. `BenchComponents/` is the `vibe-perf` skill's benchmark tool, excluded the same way. Its `--waveform` mode is the `vibe-waveform` skill's probe.
+The `vibe-debug` skill's touch driver is vibe-libs' `dev/iOSDriver`, a resident XCUITest. `VibeiOSDriver` compiles it, and `drive-ios.sh` starts it. `BenchComponents/` is the `vibe-perf` skill's benchmark tool, and `VibeTests`' `Tests` source entry excludes it. Its `--waveform` mode is the `vibe-waveform` skill's probe.
 
 **The directories mirror `Vibe/`.** A test lives in the directory of the code it tests: `Audio/`, `Loading/` (with `Net/` and `iOS/Dropbox/`), `Playlist/`, `Common/`, `Util/`, `Mac/`, and `iOS/`. A subsystem's platform half shares its directory. So `Playlist/` holds the drag rules. The FLAC conversion tests are in `Mac/`, beside the other mac shell tests. A test of a debug seam sits beside the tests of the class the seam opens. `Debug/` holds the tests of the debug fakes.
 

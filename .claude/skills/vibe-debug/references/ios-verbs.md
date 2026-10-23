@@ -4,7 +4,7 @@ The `debug-ios.sh` verbs iOS adds or answers differently, the `drive-ios.sh` ges
 
 ## The channel
 
-Same file protocol and one-JSON-object contract as the mac's, with **no CLI client**. The simulator app's container tmp is a plain host directory, so `debug-ios.sh` writes the command file and reads the reply. Exit codes match the mac client (0 ok, 1 no response, 2 command error). Action replies can lag pipeline work, so follow with `dump_state`. App side: `Vibe/Debug/iOS/DebugiOSEntry.m`, `DebugiOSVerbs.m` and `DebugDropboxVerbs.m` over `Vibe/Debug/Channel/DebugChannel.m`.
+Same file protocol and one-JSON-object contract as the mac's, with **no CLI client**. The simulator app's container tmp is a plain host directory, so `debug-ios.sh` writes the command file and reads the reply. Exit codes match the mac client (0 ok, 1 no response, 2 command error). Action replies can lag pipeline work, so follow with `dump_state`. App side: `Vibe/Debug/iOS/DebugiOSEntry.m`, `DebugiOSVerbs.m` and `DebugDropboxVerbs.m` over vibe-libs' `dev/DebugChannel/DebugChannel.m`.
 
 ```bash
 S=.claude/skills/vibe-debug/scripts/debug-ios.sh
@@ -77,7 +77,7 @@ xcrun simctl io "$UDID" screenshot shot.png                                   # 
 
 ## The touch driver
 
-`drive-ios.sh` runs gestures through the resident `VibeiOSDriver` XCUITest (`Tests/iOSDriver/`) over the same file protocol. It is the only touch path on iOS. Its header lists every gesture and its arguments.
+`drive-ios.sh` runs gestures through the resident `VibeiOSDriver` XCUITest (vibe-libs' `dev/iOSDriver/`) over the same file protocol. It passes the driver Vibe's bundle identifier, the silencing flags for a self-heal relaunch, and the scrubber's identifier for `pinch`. It is the only touch path on iOS. Its header lists every gesture and its arguments.
 
 - **Latency** is about 0.7 s per gesture. `start` takes about 10 s once the driver is built. XCTest reads only an app it launched or activated, so the driver activates the app on its first gesture and on `attach`. `launch-ios.sh` sends `attach` after every relaunch while a driver is up. TRAP: after a relaunch by anything else, send `drive-ios.sh attach`. Otherwise a gesture retries snapshots for 60 s and then relaunches the app itself, playlist gone and without the silencing flags.
 - **TRAP: `drive-ios.sh start` launches nothing.** It installs the built app when it differs, which kills a running one, and returns with no app up. Follow it with `launch-ios.sh`. State set after that (a selected tab, a fake Dropbox, a pushed screen) survives the first gesture.
@@ -85,7 +85,7 @@ xcrun simctl io "$UDID" screenshot shot.png                                   # 
 - `pinch scale velocity` finds the scrubber by accessibility identifier, since XCUITest has no coordinate multi-touch. It needs the card expanded.
 - `type "key"` drives the keyboard. The keyboard sits in its own window, so a tap aimed at a key hits the app behind it.
 - `springboard tap|press|drag|type|tap_label|tree …` targets the Home screen and widget gallery. Start with `VIBE_SIGN_SIM=1` for widget work.
-- The runner disables XCTest's per-event quiescence waits, which never settle under Vibe's display link. That reaches XCTest internals and degrades to slow-but-working if an Xcode update renames them (`Tests/iOSDriver/VibeiOSDriverTests.m`).
+- The runner disables XCTest's per-event quiescence waits, which never settle under Vibe's display link. That reaches XCTest internals and degrades to slow-but-working if an Xcode update renames them (vibe-libs' `dev/iOSDriver/VibeiOSDriverTests.m`).
 
 ## Staleness: `sim-install.sh`
 

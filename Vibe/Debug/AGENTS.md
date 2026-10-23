@@ -4,12 +4,11 @@ How a running app is driven and read from outside, on both platforms. **The verb
 
 ## Layout
 
-Each shared subdirectory matches a section below.
+Each shared subdirectory matches a section below. The transport is vibe-libs' `dev/DebugChannel`, whose doc is its authority.
 
-- **`Channel/`** is the transport.
 - **`Verbs/`** holds the verbs both platforms answer, one file per topic, and the protocol they are written against.
 - **`Oracles/`** holds the oracles.
-- **No shared `Seams/` remains.** A shared class's `+Debug` category moved to vibe-libs with the class, and sits beside it there. The next section says why seams exist. **A seam imports nothing from `Channel/` or `Verbs/`.** It belongs to the class it opens, and vibe-libs has no channel. The file loader's seams and the fake cloud moved first (vibe-libs' `files/FileLoading/AGENTS.md`). The FX fault seam, the meter's two seams, the file handle's, the metadata cache's and loader's, and the waveform cache's and loader's followed (vibe-libs' `audio/FX/AGENTS.md`, `audio/Meter/AGENTS.md`, `audio/Decode/AGENTS.md`, `media/Metadata/AGENTS.md`, and `waveform/WaveformLoading/AGENTS.md`). The mac waveform view's, the equalizer bars', and the Now Playing bridge's were the last (vibe-libs' `waveform/WaveformView/AGENTS.md`, `ui/Controls/AGENTS.md`, and `system/NowPlaying/AGENTS.md`). The fake web server moved with the link client (vibe-libs' `files/ShareLinks/AGENTS.md`). A parser a seam and the channel share lives in vibe-libs' `core/Common`, as `IntegerTokenRules.h` does.
+- **No shared `Seams/` remains.** A shared class's `+Debug` category moved to vibe-libs with the class, and sits beside it there. The next section says why seams exist. **A seam imports nothing from the channel or `Verbs/`.** It belongs to the class it opens, and no other vibe-libs piece depends on the channel. The file loader's seams and the fake cloud moved first (vibe-libs' `files/FileLoading/AGENTS.md`). The FX fault seam, the meter's two seams, the file handle's, the metadata cache's and loader's, and the waveform cache's and loader's followed (vibe-libs' `audio/FX/AGENTS.md`, `audio/Meter/AGENTS.md`, `audio/Decode/AGENTS.md`, `media/Metadata/AGENTS.md`, and `waveform/WaveformLoading/AGENTS.md`). The mac waveform view's, the equalizer bars', and the Now Playing bridge's were the last (vibe-libs' `waveform/WaveformView/AGENTS.md`, `ui/Controls/AGENTS.md`, and `system/NowPlaying/AGENTS.md`). The fake web server moved with the link client (vibe-libs' `files/ShareLinks/AGENTS.md`). A parser a seam and the channel share lives in vibe-libs' `core/Common`, as `IntegerTokenRules.h` does.
 
 `Mac/` and `iOS/` hold each platform's table and verbs. Each has its own `Seams/` for the `+Debug` categories over that shell's classes.
 
@@ -29,20 +28,18 @@ This is why a shipping header may not carry `#if DEBUG` (root `AGENTS.md`, Vocab
 
 ## The transport, and the two ends of it
 
-A command is a file. The client writes one, the app drains it, and the app writes a reply file back.
+A command is a file. The client writes one, the app drains it, and the app writes a reply file back. The transport is vibe-libs' `dev/DebugChannel`: the wire format (`DebugWireFormat`), the drain (`DebugChannel`), and the table's shape and the lookup over it (`DebugCommandDispatch`). Its doc holds the contract and the traps. Both apps compile it through `VibeLibsDebugChannel`. Its files wrap their bodies in `#if DEBUG`, as every file here does. What stays here is each end:
 
 | Piece | Owns |
 | --- | --- |
-| `DebugWireFormat.{h,m}` | The wire: the notification name, the command, response and screenshot paths, and the JSON reply serialization. Both apps' tables, the shared verbs and the mac CLI client must agree on it. |
-| `DebugChannel.{h,m}` | The platform-neutral drain: payload validation, response writing, the stale-file sweep and the wake-up listeners. It holds no verbs; the platform table supplies an executor block. |
-| `DebugCommandDispatch.{h,m}` | The table's shape and the lookup over it, so one lookup and one unknown-command reply serve both platforms. It never invokes a handler, since each platform's dispatcher supplies its own controller. |
+| `Mac/DebugMacEntry.m`, `iOS/DebugiOSEntry.m` | Each platform's executor, which the channel calls. It finds the controller, looks the verb up in the shared table and then its own, and answers the unknown-command reply. The mac's also gives its CLI client each verb's wait (`VibeCommandSpecForVerb`). |
 | `Mac/DebugClient.m` | The macOS CLI half. `main.m` routes `Vibe --debug-cmd …` here **before `NSApplicationMain`**, so the client is the same binary and never launches a second app. |
 
 iOS has no client. `debug-ios.sh` writes the command file straight into the simulator container's tmp, a plain host directory.
 
 ## A verb is written once unless it cannot be
 
-`Verbs/` holds every verb both platforms can answer. They are written against **`VibeDebugPlayerSurface`** (`DebugPlayerSurface.h`), the smallest protocol that serves them. `MainPlayerController` adopts it on macOS, and `RootViewController` on iOS, since that is the one object that sees the whole iOS app.
+`Verbs/` holds every verb both platforms can answer. They are written against **`VibeDebugPlayerSurface`** (`DebugPlayerSurface.h`), the smallest protocol that serves them. `VibeTransportCmd` builds a transport or toggle verb that replies with the surface's summary. `MainPlayerController` adopts it on macOS, and `RootViewController` on iOS, since that is the one object that sees the whole iOS app.
 
 The verbs are split by topic. `DebugCommonVerbs.m` holds the state and transport verbs and the shared table. The table adds each topic's verbs after its own. `DebugStallVerbs.m` holds the deliberate stalls: the `block_*` verbs, `hang_open` and `set_slow_volume`. `DebugAudioVerbs.m` holds the meter, decoder, resampler, render-counter, cache, timing, waveform and tempo-scan verbs. The scan's core is `DebugBPMScan.mm`, which the mac's CLI client also runs in its own process. `DebugLoadingVerbs.m` holds the cloud, row-loading, loading-indicator, loading-configuration and link verbs. It also drives the fake cloud and the fake HTTP server. Each platform's dispatcher looks a verb up in the shared table first, so a verb is registered once.
 
@@ -51,7 +48,7 @@ What is left per platform is what genuinely differs:
 - **`Mac/`**: the entry points and the dispatcher (`DebugMacEntry.{h,m}`), and the command table (`DebugMacVerbs.m`). The table adds four topic tables after its own verbs: `DebugThemeVerbs.m`, `DebugWindowVerbs.m`, `DebugOutputVerbs.m` and `DebugConvertVerbs.m` (with undo and redo). The AppKit-only helpers are `DebugInput.m` (direct playlist selection, named gesture probes and raw input), `DebugSyntheticDrags.m` (the synthetic drop and reorder delegates), `DebugScreenshot.m`, `DebugSettingsUI.m` (the structural Settings walker's verbs; its walk from a row to its controls is vibe-libs' seam `SettingsFormViews+Debug.h`, in `ui/SettingsWindow`), `DebugStateDump.m` and `DebugMacConsistency.m` (the mac half of `check_consistency`). `Mac/Seams/` holds the `+Debug` categories over the mac shell's classes, plus `MainPlayerController+DebugPlayerSurface`.
 - **`iOS/`**: the entry point and the dispatcher (`DebugiOSEntry.{h,m}`), the command table (`DebugiOSVerbs.m`), the Dropbox verbs it adds after its own (`DebugDropboxVerbs.m`, beside `VibeFakeDropbox`), the verbs that stand in for touches the channel cannot synthesize (`expand_player`, `minimize_player`, `select_tab`, and the favorites, search, route and waveform verbs), and the `+Debug` categories over the iOS shell in `iOS/Seams/`. All of them live here, not beside the classes they extend.
 
-**Gestures are not the channel's job on iOS.** No public API synthesizes a `UITouch` in-process. Taps and drags go through `drive-ios.sh` and the resident `VibeiOSDriver` XCUITest in `Tests/iOSDriver/`, which is not part of `VibeTests`.
+**Gestures are not the channel's job on iOS.** No public API synthesizes a `UITouch` in-process. Taps and drags go through `drive-ios.sh` and the resident `VibeiOSDriver` XCUITest. Its source is vibe-libs' `dev/iOSDriver`, whose doc is its authority. `drive-ios.sh` passes it Vibe's bundle identifier, the relaunch's audio-silencing flags, and the scrubber's identifier for pinches.
 
 ## Desktop input boundary
 
