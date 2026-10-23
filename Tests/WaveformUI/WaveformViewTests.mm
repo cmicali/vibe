@@ -3,9 +3,9 @@
 //  VibeTests
 //
 //  The mac waveform view as drawn: its layer tree rendered into a bitmap with
-//  no window server. The renderers' own geometry is vibe-libs' AudioWaveformTests'; this
-//  covers what the view adds over them: the theme it resolves, the playhead
-//  line, the three states, and the seek it reports.
+//  no window server. The renderers' own geometry is WaveformStyles'
+//  AudioWaveformTests'; this covers what the view adds over them: the theme it
+//  resolves, the playhead line, the three states, and the seek it reports.
 //
 
 #import <XCTest/XCTest.h>
@@ -14,11 +14,6 @@
 #import "WaveformViewInternal.h"
 #import "WaveformView+Loading.h"
 #import "WaveformTestSupport.h"
-#import "AppSettings.h"
-#import "AppSettings+Mac.h"
-#import "AppTheme.h"
-#import "Formatters.h"
-#import "WaveformTheme+Settings.h"
 
 // The morph eases on a 60 Hz timer. The tests draw its settled state.
 @interface WaveformView (TestSettle)
@@ -67,26 +62,25 @@ static NSColor *Opaque(NSColor *color) {
 @end
 
 @implementation WaveformViewTests {
-    NSDictionary *_savedTheme;
-    AppTheme *_theme;
+    // What the shell's provider maps onto a theme, as an app maps its store:
+    // the identifier, its custom pair, 3-Band's wells, and the line's color.
+    NSString *_themeIdentifier;
+    NSColor *_customPlayed;
+    NSColor *_customUnplayed;
+    NSArray<NSColor *> *_bandWells;
+    NSColor *_playheadColor;
     WaveformView *_view;
     RecordingWaveformDelegate *_delegate;
 }
 
 - (void)setUp {
     [super setUp];
-    _theme = AppSettings.sharedInstance.currentTheme;
-    _savedTheme = _theme.dictionaryRepresentation;
-    _theme.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
-    _theme.waveformPlayheadLine = NO;
-    _theme.waveformGradient = NO;
+    _themeIdentifier = SETTINGS_VALUE_WAVEFORM_THEME_MONO;
     _view = [[WaveformView alloc] initWithFrame:NSMakeRect(0, 0, kWidth, kHeight)];
     _view.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-    // The shell's provider: the theme record under test, mapped as the app
-    // maps it.
+    __weak WaveformViewTests *weakSelf = self;
     _view.themeProvider = ^WaveformTheme *(BOOL isDark, NSColor *artworkColor) {
-        return [WaveformTheme themeForAppTheme:AppSettings.sharedInstance.currentTheme isDark:isDark
-                                  artworkColor:artworkColor];
+        return [weakSelf themeIsDark:isDark artworkColor:artworkColor];
     };
     _view.centered = YES;
     _view.normalizesLevels = YES;
@@ -94,15 +88,19 @@ static NSColor *Opaque(NSColor *color) {
     _view.delegate = _delegate;
 }
 
-- (void)tearDown {
-    [_theme replaceWithRecord:_savedTheme];
-    [super tearDown];
+// The shell's provider over the state above, with a flat fill.
+- (WaveformTheme *)themeIsDark:(BOOL)isDark artworkColor:(NSColor *)artworkColor {
+    WaveformTheme *theme = [WaveformTheme themeForIdentifier:_themeIdentifier isDark:isDark artworkColor:artworkColor
+                                                customPlayed:_customPlayed customUnplayed:_customUnplayed];
+    theme.flatFill = YES;
+    if (_bandWells) {
+        theme.bandColors = [WaveformTheme bandColorsForWells:_bandWells shaded:NO isDark:isDark];
+    }
+    theme.playheadColor = _playheadColor;
+    return theme;
 }
 
 - (void)showStyle:(NSString *)style progress:(CGFloat)progress {
-    // The record's style too: the mapping hides the waveform color under
-    // the band styles.
-    _theme.waveformStyle = style;
     [_view setWaveformStyle:style];
     [_view prepareForWaveformLoad];
     [_view showWaveform:LoudWaveform()];
@@ -176,8 +174,7 @@ static NSColor *Opaque(NSColor *color) {
 }
 
 - (void)testAPlayheadLineDrawsEverythingPlayedAndMarksThePosition {
-    _theme.waveformPlayheadLine = YES;
-    [_theme setColor:NSColor.redColor forBase:kVibeThemeColorWaveformPlayhead dark:YES];
+    _playheadColor = NSColor.redColor;
     [self showStyle:@"detailed" progress:0.5];
     NSBitmapImageRep *rep = [self render];
     XCTAssertTrue(VibeColorsClose([self pixel:rep x:kWidth * 0.2], [self pixel:rep x:kWidth * 0.8], 0.02),
@@ -200,9 +197,9 @@ static NSColor *Opaque(NSColor *color) {
 #pragma mark - Theme
 
 - (void)testTheThemesColorsBeatTheStyle {
-    _theme.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
-    [_theme setColor:NSColor.blueColor forBase:kVibeThemeColorWaveformPlayed dark:YES];
-    [_theme setColor:[NSColor.redColor colorWithAlphaComponent:0.5] forBase:kVibeThemeColorWaveformUnplayed dark:YES];
+    _themeIdentifier = SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM;
+    _customPlayed = NSColor.blueColor;
+    _customUnplayed = [NSColor.redColor colorWithAlphaComponent:0.5];
     for (NSString *style in @[@"detailed", @"basic", @"cupertino", @"sonic_cirrus"]) {
         [self showStyle:style progress:0.5];
         NSBitmapImageRep *rep = [self render];
@@ -217,10 +214,7 @@ static NSColor *Opaque(NSColor *color) {
 
 // 3-Band's palette is the theme's band wells, not the style's own.
 - (void)testTheThemesBandWellsBeatThreeBandsPalette {
-    _theme.waveformShadeOverlaps = NO;
-    for (NSString *base in @[kVibeThemeColorWaveformLow, kVibeThemeColorWaveformMid, kVibeThemeColorWaveformHigh]) {
-        [_theme setColor:NSColor.greenColor forBase:base dark:YES];
-    }
+    _bandWells = @[NSColor.greenColor, NSColor.greenColor, NSColor.greenColor];
     [self showStyle:@"three_band" progress:0.5];
     NSColor *played = Opaque([self pixel:[self render] x:kWidth * 0.2]);
     XCTAssertGreaterThan(played.greenComponent, 0.9, @"%@", played);
@@ -230,7 +224,7 @@ static NSColor *Opaque(NSColor *color) {
 
 // Album Art keeps the played side at the base and colors what is to come.
 - (void)testTheAlbumArtColorRidesTheArtworkInstall {
-    _theme.waveformTheme = SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART;
+    _themeIdentifier = SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART;
     [self showStyle:@"detailed" progress:0.5];
     NSColor *noArt = Opaque([self pixel:[self render] x:kWidth * 0.8]);
     XCTAssertEqualWithAccuracy(noArt.redComponent, noArt.greenComponent, 0.02, @"no art is Mono's gray");
@@ -302,7 +296,8 @@ static NSColor *Opaque(NSColor *color) {
 - (void)testAccessibilityStepsReportASeekOnlyWithAWaveform {
     XCTAssertFalse([_view accessibilityPerformIncrement]);
     [self showStyle:@"detailed" progress:0.5];
-    XCTAssertEqualObjects(_view.accessibilityValue, [Formatters.sharedInstance percentString:0.5]);
+    XCTAssertEqualObjects(_view.accessibilityValue,
+                          [NSNumberFormatter localizedStringFromNumber:@0.5 numberStyle:NSNumberFormatterPercentStyle]);
     XCTAssertTrue([_view accessibilityPerformIncrement]);
     XCTAssertTrue([_view accessibilityPerformDecrement]);
     XCTAssertEqualObjects(_delegate.seeks, (@[@0.55f, @0.45f]));
