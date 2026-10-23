@@ -4,7 +4,7 @@
 
 **Waves 7 to 9 merged on 2026-10-22: #378 to #391 moved Player, the five media pieces, the four waveform pieces, Controls' indicators, `tools/strings`, and NowPlaying. Wave 10 merged on 2026-10-23: #393 to #397 moved DebugChannel and iOSDriver, HTTP, RemoteFiles, and ShareLinks, Updates and Sparkle, SandboxAccess, and AppOpening. Wave 11 merged on 2026-10-23: #399 moved the pitch fader and its panel, with vibe-libs #51. vibe-libs #50 met Phase 3's minimal consumer, with no change here. #400 took Phase 4's tag fields, with vibe-libs #52.**
 
-**Closing status, 2026-10-23: every planned move is done.** What remains is vibe-libs' own: the catalog scan, held for its design review, and Phase 5. Vibe changes again only when one of them lands.
+**Closing status, 2026-10-23: every planned move is done.** #405 took the catalog scan, with vibe-libs #56. What remains is vibe-libs' own Phase 5. Vibe changes again only when it lands.
 
 Everything in Vibe that another app could use moves to [vibe-libs](https://github.com/cmicali/vibe-libs), a public toolbox of small libraries for macOS and iOS apps. Vibe and another app each take only the pieces they want. **vibe-libs' [docs/plan.md](https://github.com/cmicali/vibe-libs/blob/main/docs/plan.md) is the authority** for the pieces, their dependency map, the build shape, the order of the moves, the performance proof, and what the other app needs when. This doc covers only what changes in Vibe.
 
@@ -106,7 +106,7 @@ The tests that pin the contracts of seams 13, 15, 17, and 22, and rule 4's versi
 | 22 | Metadata's holder protocol | The loader installed results through `AudioTrack (Internal)`. | `AudioTrack` adopts Metadata's protocol with the methods it has. (#358) The holder refuses only a successful answer of the same version (#367). |
 | 23 | The walk's file handler | FolderWalk noted cover-art candidates itself, through `FolderArtRules.h`. | The app installs the handler at launch, beside FolderWalk's other handlers. It returns folder art's cover rank for each filename. (#359) |
 
-Vibe's folder open becomes a caller of the catalog scan's walk, once the scan lands in vibe-libs' FolderScan. Its rows and its behavior do not change.
+Vibe's folder open is a caller of the catalog scan's walk, which landed in vibe-libs' FolderScan with #405. Its rows and its behavior did not change. `FileSearchIndex` is the scan's first caller. Its own directory walk went.
 
 ## What changes in this repo's tooling
 

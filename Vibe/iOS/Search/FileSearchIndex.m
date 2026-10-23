@@ -11,13 +11,10 @@
 #import "FileSearchIndexInternal.h"
 #import "FileSearchRules.h"
 #import "FolderWalk.h"
+#import "PlaylistEntry.h"
 
 // Bound memory when a granted root contains a large library.
 static const NSUInteger kMaxIndexedFiles = 20000;
-
-// Checked after each accepted file. Provider calls can delay a timed flush.
-static const NSUInteger kFlushBatchSize = 128;
-static const NSTimeInterval kFlushInterval = 0.2;
 
 @interface FileSearchHit ()
 - (instancetype)initWithURL:(NSURL *)url;
@@ -64,15 +61,15 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
     NSArray<NSURL *>           *_roots;
     NSMutableArray<IndexedSearchFile *> *_files;
     BOOL                        _built;
-    // Atomic: the walk queue reads it, main writes it.
-    _Atomic(uint64_t)           _buildGeneration;
+    // Main only. The token of the walk that fills _files, cancelled when the
+    // roots change. A delivery from any other walk is dropped.
+    NSProgress                 *_buildProgress;
     // Atomic: the filter queue reads it, main writes it.
     _Atomic(uint64_t)           _hitRequestGeneration;
-    dispatch_queue_t            _walkQueue;
     dispatch_queue_t            _filterQueue;
-    // Filter queue only. Within one build generation the index only appends,
-    // so an unchanged query carries its answer forward over the new suffix.
-    uint64_t                    _cachedFilterBuildGeneration;
+    // Filter queue only. Within one walk the index only appends, so an
+    // unchanged query carries its answer forward over the new suffix.
+    NSProgress                 *_cachedFilterBuild;
     NSString                   *_cachedFoldedQuery;
     NSSet<NSString *>          *_cachedExcludedPaths;
     NSUInteger                  _cachedFilterLimit;
@@ -88,12 +85,7 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
     if (self) {
         _roots = @[];
         _files = [NSMutableArray array];
-        atomic_init(&_buildGeneration, 1);
         atomic_init(&_hitRequestGeneration, 1);
-        // Lower scheduling priority than an open. Provider IPC remains uninterruptible.
-        dispatch_queue_attr_t attributes = dispatch_queue_attr_make_with_qos_class(
-                DISPATCH_QUEUE_SERIAL, QOS_CLASS_UTILITY, 0);
-        _walkQueue = dispatch_queue_create("FileSearchIndex", attributes);
         dispatch_queue_attr_t filterAttributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
         _filterQueue = dispatch_queue_create("FileSearchIndex.filter", filterAttributes);
@@ -108,7 +100,8 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
     if ([VibeComparablePaths(pruned) isEqualToArray:VibeComparablePaths(_roots)]) {
         return;
     }
-    atomic_fetch_add(&_buildGeneration, 1);
+    [_buildProgress cancel];
+    _buildProgress = nil;
     [self cancelPendingHitRequests];
     _roots = pruned;
     _files = [NSMutableArray array];
@@ -123,79 +116,40 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
         return;
     }
     _isBuilding = YES;
-    NSArray<NSURL *> *roots = _roots;
-    uint64_t generation = atomic_load(&_buildGeneration);
-    dispatch_async(_walkQueue, ^{
-        [self walkRoots:roots generation:generation];
-    });
-}
-
-// Walk queue only.
-- (void)walkRoots:(NSArray<NSURL *> *)roots generation:(uint64_t)generation {
+    NSProgress *progress = [NSProgress discreteProgressWithTotalUnitCount:-1];
+    _buildProgress = progress;
     NSSet<NSString *> *supported = [FolderWalk supportedExtensions];
-    NSMutableArray<IndexedSearchFile *> *batch = [NSMutableArray arrayWithCapacity:kFlushBatchSize];
-    NSTimeInterval lastFlush = CFAbsoluteTimeGetCurrent();
-    NSUInteger total = 0;
-    BOOL full = NO;
-
-    for (NSURL *root in roots) {
-        if (full || atomic_load(&_buildGeneration) != generation) {
-            break;
+    // The batches arrive one at a time on one worker.
+    __block NSUInteger total = 0;
+    [FolderWalk scanRoots:_roots readPolicy:VibeFolderScanReadPolicyNone progress:progress
+                    batch:^(NSArray<PlaylistEntry *> *entries) {
+        NSMutableArray<IndexedSearchFile *> *batch = [NSMutableArray arrayWithCapacity:entries.count];
+        for (PlaylistEntry *entry in entries) {
+            // A CUE sheet arrives as a file. Only audio is a hit.
+            if (total < kMaxIndexedFiles && [supported containsObject:entry.url.pathExtension.lowercaseString]) {
+                [batch addObject:[self indexedFileForURL:entry.url]];
+                total++;
+            }
         }
-        NSDirectoryEnumerator<NSURL *> *walk = [NSFileManager.defaultManager
-                     enumeratorAtURL:root
-                  includingPropertiesForKeys:@[NSURLIsDirectoryKey]
-                             options:NSDirectoryEnumerationSkipsHiddenFiles
-                                     | NSDirectoryEnumerationSkipsPackageDescendants
-                        errorHandler:^BOOL(NSURL *url, NSError *error) {
-            // One unreadable subfolder must not end the walk.
-            LogWarn(@"FileSearchIndex: skipping %@ (%@)", url.lastPathComponent, error);
-            return YES;
-        }];
-        for (NSURL *url in walk) {
-            if (atomic_load(&_buildGeneration) != generation) {
+        [self flushBatch:batch progress:progress];
+        if (total >= kMaxIndexedFiles && !progress.isCancelled) {
+            LogWarn(@"FileSearchIndex: stopped at the %lu-file cap; results are partial",
+                    (unsigned long)kMaxIndexedFiles);
+            [progress cancel];
+        }
+    } completion:^(NSArray<NSNumber *> *verdicts, NSArray<NSArray<NSError *> *> *failures) {
+        run_on_main_thread({
+            if (self->_buildProgress != progress) {
                 return;
             }
-            // Extension first: the directory test stats.
-            if (![supported containsObject:url.pathExtension.lowercaseString]) {
-                continue;
-            }
-            NSNumber *isDirectory = nil;
-            BOOL isDir = [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL]
-                    ? isDirectory.boolValue
-                    : url.hasDirectoryPath;
-            if (isDir) {
-                continue;
-            }
-            [batch addObject:[self indexedFileForURL:url]];
-            total++;
-            if (total >= kMaxIndexedFiles) {
-                LogWarn(@"FileSearchIndex: stopped at the %lu-file cap; results are partial",
-                        (unsigned long)kMaxIndexedFiles);
-                full = YES;
-                break;
-            }
-            NSTimeInterval now = CFAbsoluteTimeGetCurrent();
-            if (batch.count >= kFlushBatchSize || now - lastFlush >= kFlushInterval) {
-                [self flushBatch:batch generation:generation];
-                batch = [NSMutableArray arrayWithCapacity:kFlushBatchSize];
-                lastFlush = now;
-            }
-        }
-    }
-
-    [self flushBatch:batch generation:generation];
-    run_on_main_thread({
-        if (atomic_load(&self->_buildGeneration) != generation) {
-            return;
-        }
-        self->_isBuilding = NO;
-        self->_built = YES;
-        [self.delegate fileSearchIndexDidFinishBuilding:self];
-    });
+            self->_isBuilding = NO;
+            self->_built = YES;
+            [self.delegate fileSearchIndexDidFinishBuilding:self];
+        });
+    }];
 }
 
-// Walk queue, or a test seam on main.
+// The scan's worker, or a test seam on main.
 - (IndexedSearchFile *)indexedFileForURL:(NSURL *)url {
     IndexedSearchFile *file = [[IndexedSearchFile alloc] init];
     file.hit = [[FileSearchHit alloc] initWithURL:url];
@@ -206,13 +160,13 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
     return file;
 }
 
-// Walk queue only.
-- (void)flushBatch:(NSArray<IndexedSearchFile *> *)batch generation:(uint64_t)generation {
+// The scan's worker only.
+- (void)flushBatch:(NSArray<IndexedSearchFile *> *)batch progress:(NSProgress *)progress {
     if (batch.count == 0) {
         return;
     }
     run_on_main_thread({
-        if (atomic_load(&self->_buildGeneration) != generation) {
+        if (self->_buildProgress != progress) {
             return;
         }
         [self->_files addObjectsFromArray:batch];
@@ -227,7 +181,7 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
                            limit:(NSUInteger)limit
                       completion:(void (^)(NSArray<FileSearchHit *> *))completion {
     uint64_t generation = atomic_fetch_add(&_hitRequestGeneration, 1) + 1;
-    uint64_t buildGeneration = atomic_load(&_buildGeneration);
+    NSProgress *build = _buildProgress;
     NSArray<IndexedSearchFile *> *files = [_files copy];
     NSString *foldedQuery = VibeSearchFoldedText(query);
     NSSet<NSString *> *excludedSnapshot = [excludedPaths copy] ?: [NSSet set];
@@ -235,7 +189,7 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
         if (atomic_load(&self->_hitRequestGeneration) != generation) {
             return;
         }
-        BOOL canContinue = self->_cachedFilterBuildGeneration == buildGeneration
+        BOOL canContinue = self->_cachedFilterBuild == build
                 && self->_cachedFilterLimit == limit
                 && self->_cachedFilteredFileCount <= files.count
                 && [self->_cachedFoldedQuery isEqualToString:foldedQuery]
@@ -270,7 +224,7 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
             }
         }
         NSArray<FileSearchHit *> *result = [hits copy];
-        self->_cachedFilterBuildGeneration = buildGeneration;
+        self->_cachedFilterBuild = build;
         self->_cachedFoldedQuery = foldedQuery;
         self->_cachedExcludedPaths = excludedSnapshot;
         self->_cachedFilterLimit = limit;
