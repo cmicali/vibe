@@ -766,8 +766,6 @@ targets:
       - path: vibe-libs/ui/Controls/Mac/ScaledImageView.m
       - path: Vibe/Mac/Controls/ArtworkImageView.m          # the drawn views render into a bitmap, windowless
       - path: vibe-libs/ui/Controls/Mac/DrawnControls.m
-      - path: Vibe/Mac/Controls/PitchFaderView.m
-      - path: Vibe/Mac/Controls/PitchControlPanel.m
       - path: vibe-libs/ui/Controls/Mac/SymbolButton.m
       - path: Vibe/Mac/MainWindow/VolumeControlView.m
       - path: vibe-libs/waveform/WaveformView/Mac/WaveformView.mm

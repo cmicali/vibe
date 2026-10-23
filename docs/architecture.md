@@ -39,7 +39,7 @@ Vibe/
       Transport/       keys, skips, and FX toggles
       Convert/         the playlist side of Convert to FLAC
     Menu/              the menu bar
-    Controls/          the artwork view and the pitch controls
+    Controls/          the artwork view
     Settings/          the Settings window
       Themes/          the theme list and editor
     About/             the About window
@@ -102,7 +102,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### The macOS shell
 
-`Vibe/Mac/` is the macOS app shell, with one directory per piece. `App/` holds `AppDelegate` and the services it owns. Those are the open funnel over vibe-libs' `system/AppOpening`, the folder grants' store (`FolderAccessManager`, vibe-libs' `files/SandboxAccess`), Open URL (`OpenLinkWindowController`), updates through vibe-libs' `system/Updates` (`VibeUpdater`), and Save Debug Info (`DebugInfo`). `MainWindow/` is the player window. `MainPlayerController` coordinates it, and each of its categories owns one concern: `+Playlist`, `+Transport`, `+PlayerEvents`, `+Delivery`, `+Window`, `+Menus`, `+Settings`, `+NowPlaying`, and `+Convert`. `Menu/` builds the menu bar in code (`MainMenuBuilder`), over vibe-libs' `ui/Shortcuts`. `Controls/` holds the artwork view and the pitch controls, such as `PitchFaderView`. The other AppKit controls, such as `SymbolButton` and the drawn slider and switch, are vibe-libs' `ui/Controls`. `Settings/` is the Settings window (`SettingsWindowController`) and its panes. The generic window under it, with the sidebar, the pane base, and the form views, is vibe-libs' `ui/SettingsWindow`. The Keyboard Shortcuts pane is `ui/Shortcuts`' too. `Settings/Themes/` is the theme list and editor. `About/` is the About window. `Convert/` is Convert to FLAC (`AudioFileConverter`). Read next: `Vibe/Mac/App/AGENTS.md` and `Vibe/Mac/MainWindow/AGENTS.md`. The window's layout and chrome are in `Vibe/Mac/MainWindow/LAYOUT.md`.
+`Vibe/Mac/` is the macOS app shell, with one directory per piece. `App/` holds `AppDelegate` and the services it owns. Those are the open funnel over vibe-libs' `system/AppOpening`, the folder grants' store (`FolderAccessManager`, vibe-libs' `files/SandboxAccess`), Open URL (`OpenLinkWindowController`), updates through vibe-libs' `system/Updates` (`VibeUpdater`), and Save Debug Info (`DebugInfo`). `MainWindow/` is the player window. `MainPlayerController` coordinates it, and each of its categories owns one concern: `+Playlist`, `+Transport`, `+PlayerEvents`, `+Delivery`, `+Window`, `+Menus`, `+Settings`, `+NowPlaying`, and `+Convert`. `Menu/` builds the menu bar in code (`MainMenuBuilder`), over vibe-libs' `ui/Shortcuts`. `Controls/` holds the artwork view. The other AppKit controls, such as `SymbolButton`, the drawn slider and switch, and the pitch fader and its panel, are vibe-libs' `ui/Controls`. `Settings/` is the Settings window (`SettingsWindowController`) and its panes. The generic window under it, with the sidebar, the pane base, and the form views, is vibe-libs' `ui/SettingsWindow`. The Keyboard Shortcuts pane is `ui/Shortcuts`' too. `Settings/Themes/` is the theme list and editor. `About/` is the About window. `Convert/` is Convert to FLAC (`AudioFileConverter`). Read next: `Vibe/Mac/App/AGENTS.md` and `Vibe/Mac/MainWindow/AGENTS.md`. The window's layout and chrome are in `Vibe/Mac/MainWindow/LAYOUT.md`.
 
 ### The iOS shell
 
