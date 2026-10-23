@@ -343,6 +343,9 @@ static NSString *RealHome(void) {
         }
     }
     XCTAssertNotNil(targetPath);
+    if (!targetPath) {
+        return;
+    }
     XCTestExpectation *targetSettled = [self expectationWithDescription:@"target restore settled"];
     NSURL *targetFile = [NSURL fileURLWithPath:[targetPath stringByAppendingPathComponent:@"Album/file.mp3"]];
     [manager awaitRestoredAccessForURLs:@[targetFile] completion:^{
