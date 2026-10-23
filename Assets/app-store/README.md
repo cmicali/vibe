@@ -1,6 +1,6 @@
 # App Store assets
 
-Everything the App Store product pages show, per locale and per platform. `copy/` is the tracked source of truth. `screenshots/` is generated from it, and only the English set is tracked. The locales are the app's catalog languages (`Resources/Localizable.xcstrings`, listed by `scripts/strings/catalog-languages.sh`), mapped to App Store Connect's codes by `ascLocale` in `scripts/appstore/asc-upload/Sources/asc-upload/ASCUpload.swift`. A language with no App Store page maps to nil and is skipped (`bg` ships in-app only).
+Everything the App Store product pages show, per locale and per platform. `copy/` is the tracked source of truth. `screenshots/` is generated from it, and only the English set is tracked. The locales are the app's catalog languages (`Resources/Localizable.xcstrings`, listed by vibe-libs' `tools/strings/catalog-languages.sh`), mapped to App Store Connect's codes by `ascLocale` in `scripts/appstore/asc-upload/Sources/asc-upload/ASCUpload.swift`. A language with no App Store page maps to nil and is skipped (`bg` ships in-app only).
 
 Descriptions, keywords, promotional text and release notes belong to a platform's version. Screenshot captions are local inputs to the compositor. The three URL files stay shared at `copy/`. Support and marketing URLs upload to each version localization. The privacy URL uploads to app-info localizations.
 
