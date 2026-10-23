@@ -1,22 +1,3 @@
-* Új: az URL megnyitása lejátszik egy webes linket, vagy egy Dropbox, Google Drive vagy iCloud Drive megosztási linket, a kimásolt link pedig a Fájlok lapról is lejátszható
-* Új: widgetek hullámformával, nagy méretben, a zárolási képernyőre és teljes felületű borítóval, a Machez hasonló lejátszási lista, lejátszás és következő gombokkal
-* Új: a Spektrum hullámformastílus, Szakaszonként színezéssel, így a szám minden része egy színt tart meg
-* Új: a 3 sávos témák: Rekord Bin, Dengine és Egyéni színek
-* Új: a hullámforma egészen az egyes mintákig nagyítható
-* Új: Ogg Vorbis és szabad formátumú (free format) MP3-fájlok lejátszása
-* Új: albumborító a nem letöltött iCloud- és Dropbox-számokhoz
-* Új: Pufferelés… állapot, amíg egy szám lassú hálózati megosztásra vagy letöltésre vár
-* Új: a vibe témaszám, amely indításkor betöltődik, amíg el nem indítasz vagy meg nem nyitsz valamit
-* Változás: a hullámformastílusok új nevet kaptak: az Egyszerű mostantól Oszlopok, a Cupertino (egyszerű) mostantól Folyamatjelző, a négy Részletes stílus pedig egyetlen stílus lett típusbeállítással
-* Változás: az első számon az Előző szám újraindítja a számot
-* Változás: a lejátszófej vonala kissé áttetsző
-* Változás: a Cupertino téma csak a lejátszásgombok mögötti borítót sötétíti el, világosabb színátmenettel
-* Fejlesztés: a widget lejátszófeje, ugrásai és témája
-* Fejlesztés: a Fájlok lap a helyeket a Helyek alá csoportosítja
-* Fejlesztés: a Beállításokban A szám végén és az Időkijelzés helyben választható, a 3 sávos paletták pedig a színeikről kapták a nevüket
-* Fejlesztés: hálózati megosztás lejátszása: megszakadt kapcsolatnál a lejátszás „Megszakadt a kapcsolat” üzenettel szünetel, a lassú szerver már nem akasztja meg a számváltásokat, a hi-res számok pedig akadás nélkül szólnak
-* Fejlesztés: az MP3-, FLAC-, WAV- és AIFF-számok gyorsabban nyílnak meg
-* Javítás: a monó és MPEG-2 MP3-fájlok szünetmentes lejátszása
-* Javítás: azok az Opus-fájlok, amelyek fejléce hangerőt állít be, rossz szinten szóltak
-* Javítás: egy sérült CAF-fájl megakaszthatta a metaadatok beolvasását
-* Javítás: egy régebbi link megnyitása felülírhatott egy újabb fájlmegnyitást
+* Változás: az MP3, FLAC, WAV, AIFF és Ogg Vorbis fájlokat mindig a Vibe saját dekóderei játsszák le
+* Fejlesztés: a videót vagy Skeleton-adatfolyamot is tartalmazó Ogg Vorbis fájlok lejátszása
+* Javítás: a 320 kbps-os MP3-ak lassan nyíltak meg

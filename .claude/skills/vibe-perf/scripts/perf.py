@@ -84,16 +84,20 @@ def corpus():
 def features(src):
     """VibeBenchComponentsFeatures.h for a checkout: what its sources have, as VibeBenchComponents.h
     lists the questions. Every grafted checkout gets one, whatever its age."""
+    # A moved header answers from vibe-libs, or its benchmark loses the feature.
+    # An older ref keeps the waveform engine in Packages/WaveformCore.
     def find(name):
-        return next((src / 'Vibe').rglob(name), None)
+        roots = [src / 'Vibe', src / 'Packages', src / 'vibe-libs']
+        return next((path for root in roots if root.is_dir() for path in root.rglob(name)), None)
     handle, loader, levels = find('AudioFileHandle.h'), find('AudioWaveformLoader.h'), find('AudioLevelAnalyzer.h')
     waveform, three_band = find('AudioWaveform.h'), find('ThreeBandWaveformRenderer.h')
     resampler = find('AudioResampler.h')
     registry = find('WaveformRendererRegistry.h')
+    playlist = find('Playlist.h')
     renderer = find('WaveformRenderer.h') or find('AudioWaveformRenderer.h')
-    summary = next((src / 'Packages').rglob('WaveformSummary.hpp'), None) if (src / 'Packages').is_dir() else None
-    raster = next((src / 'Packages').rglob('WaveformRaster.hpp'), None) if (src / 'Packages').is_dir() else None
-    metadata = list((src / 'Vibe').rglob('AudioTrackMetadata*.h'))
+    summary, raster = find('WaveformSummary.hpp'), find('WaveformRaster.hpp')
+    metadata = [path for root in (src / 'Vibe', src / 'vibe-libs') if root.is_dir()
+                for path in root.rglob('AudioTrackMetadata*.h')]
     flags = {
         'VIBE_BENCH_COMPONENTS_FILE_HANDLE': handle is not None,
         'VIBE_BENCH_COMPONENTS_FILE_HANDLE_COMMON_FORMAT': handle is not None and re.search(
@@ -106,6 +110,8 @@ def features(src):
         'VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS': summary is not None or
             (waveform is not None and 'AudioWaveformBandSplit' in waveform.read_text()),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY': summary is not None,
+        'VIBE_BENCH_COMPONENTS_WAVEFORM_COMPLETE': summary is not None or
+            (waveform is not None and 'markComplete' in waveform.read_text()),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_RASTER': raster is not None,
         'VIBE_BENCH_COMPONENTS_WAVEFORM_MIX_ONLY': summary is not None and 'kMaxChannels' not in summary.read_text(),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_SPECTRUM': three_band is not None and 'SpectrumWaveformRenderer' in three_band.read_text(),
@@ -117,6 +123,8 @@ def features(src):
         'VIBE_BENCH_COMPONENTS_APPLE_MPEG': handle is not None and 'appleMPEGDecoder' in handle.read_text(),
         'VIBE_BENCH_COMPONENTS_WAVEFORM_WINDOW': loader is not None and 'NSUInteger cueStart' in loader.read_text(),
         'VIBE_BENCH_COMPONENTS_SPECTRUM_SECTIONS': three_band is not None and 'VibeSpectrumSections' in three_band.read_text(),
+        'VIBE_BENCH_COMPONENTS_WAVEFORM_OBSERVERS': find('AudioAnalysisObservers.h') is not None,
+        'VIBE_BENCH_COMPONENTS_PLAYLIST_KEYS': playlist is not None and 'initWithURLKey:' in playlist.read_text(),
     }
     lines = ['// Written by perf.py from this checkout\'s sources; see VibeBenchComponents.h.']
     lines += [f'#define {name} {int(value)}' for name, value in flags.items()]
@@ -397,6 +405,32 @@ PAGE_CHARTS = [
         ('m3u.resolve-10k', 'wall_s', 'M3U, 10,000 entries'),
         ('walk.10k-name', 'wall_s', 'Folder, 10,000 files'),
         ('playlist-edit.100k-head', 'wall_s', '20 edits, 100,000 rows')], 2),
+    # The styles keep one order across the drawing charts, so each keeps its color.
+    ('components-draw-simple', 'Redrawing while playing, simple styles', 'ms per frame', [
+        ('ui-waveform-draw.basic', 'cpu_per_unit', 'Bars'),
+        ('ui-waveform-draw.cupertino_basic', 'cpu_per_unit', 'Progress'),
+        ('ui-waveform-draw.cupertino', 'cpu_per_unit', 'Cupertino'),
+        ('ui-waveform-draw.wiggle_centered', 'cpu_per_unit', 'Wiggle')], 2),
+    ('components-draw-rich', 'Redrawing while playing, rich styles', 'ms per frame', [
+        ('ui-waveform-draw.oversampling_detailed_x4', 'cpu_per_unit', 'Detailed 4x'),
+        ('ui-waveform-draw.sonic_cirrus', 'cpu_per_unit', 'Sonic Cirrus'),
+        ('ui-waveform-draw.three_band', 'cpu_per_unit', '3-Band'),
+        ('ui-waveform-draw.spectrum', 'cpu_per_unit', 'Spectrum')], 2),
+    ('components-resize-simple', 'Resizing the window, simple styles', 'ms per frame', [
+        ('ui-waveform-resize-draw.basic', 'cpu_per_unit', 'Bars'),
+        ('ui-waveform-resize-draw.cupertino_basic', 'cpu_per_unit', 'Progress'),
+        ('ui-waveform-resize-draw.cupertino', 'cpu_per_unit', 'Cupertino'),
+        ('ui-waveform-resize-draw.wiggle_centered', 'cpu_per_unit', 'Wiggle')], 2),
+    ('components-resize-rich', 'Resizing the window, rich styles', 'ms per frame', [
+        ('ui-waveform-resize-draw.oversampling_detailed_x4', 'cpu_per_unit', 'Detailed 4x'),
+        ('ui-waveform-resize-draw.sonic_cirrus', 'cpu_per_unit', 'Sonic Cirrus'),
+        ('ui-waveform-resize-draw.three_band', 'cpu_per_unit', '3-Band'),
+        ('ui-waveform-resize-draw.spectrum', 'cpu_per_unit', 'Spectrum')], 2),
+    ('components-zoom', 'Scrolling and pinching the iOS scrubber', 'ms per frame', [
+        ('ui-waveform-zoom.detailed-scroll', 'cpu_per_unit', 'Detailed, scroll'),
+        ('ui-waveform-zoom.detailed-deep-scroll', 'cpu_per_unit', 'Detailed, scroll at full zoom'),
+        ('ui-waveform-zoom.detailed-pinch', 'cpu_per_unit', 'Detailed, pinch'),
+        ('ui-waveform-zoom.three-band-scroll', 'cpu_per_unit', '3-Band, scroll')], 2),
 ]
 
 

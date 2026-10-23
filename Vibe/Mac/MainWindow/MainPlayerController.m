@@ -242,7 +242,7 @@
 
 - (TrackDisplayState)displayStateForTrack:(AudioTrack *)track {
     return VibeResolveTrackDisplayState(track,
-                                        self.audioPlayer.currentTrack,
+                                        (AudioTrack *)self.audioPlayer.currentTrack,
                                         _erroredTrack,
                                         _emptyStateSuppressed,
                                         self.audioPlayer.isStopped,
@@ -345,7 +345,7 @@
     // A gapless promote publishes the new track's position before
     // didAutoAdvanceFromTrack: lands; a tick in that gap would draw the old
     // header at the new position. Loading still ticks: its player track is nil.
-    AudioTrack *playerTrack = self.audioPlayer.currentTrack;
+    AudioTrack *playerTrack = (AudioTrack *)self.audioPlayer.currentTrack;
     if (playerTrack && playerTrack != self.playlistController.currentTrack) {
         return;
     }

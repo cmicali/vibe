@@ -1,22 +1,3 @@
-* Novità: Apri URL riproduce un link web o un link di condivisione di Dropbox, Google Drive o iCloud Drive, e un link copiato si riproduce dalla scheda File
-* Novità: widget con forma d’onda, grandi, per la schermata di blocco e con copertina a tutto campo, con i pulsanti playlist, riproduci e successivo come sul Mac
-* Novità: lo stile di forma d’onda Spettro, con la colorazione Per sezione perché ogni parte di un brano mantenga un solo colore
-* Novità: i temi 3 bande: Rekord Bin, Dengine e Colori personalizzati
-* Novità: zoom della forma d’onda fino ai singoli campioni
-* Novità: riproduzione di Ogg Vorbis e di MP3 in formato libero (free format)
-* Novità: copertine per i brani di iCloud e Dropbox non scaricati
-* Novità: uno stato “Buffering in corso…” mentre un brano attende una condivisione di rete lenta o un download
-* Novità: il brano del tema vibe, che si carica all’avvio finché non riproduci o apri qualcosa
-* Modifica: gli stili di forma d’onda cambiano nome: Base ora è Barre, Cupertino base ora è Avanzamento e i quattro stili Dettagliato ora sono uno solo, con un’impostazione del tipo
-* Modifica: Brano precedente sul primo brano lo fa ripartire dall’inizio
-* Modifica: la linea della testina è leggermente trasparente
-* Modifica: il tema Cupertino scurisce solo la copertina dietro i pulsanti di riproduzione, con un gradiente più leggero
-* Miglioramento: la testina, i salti e il tema del widget
-* Miglioramento: la scheda File raggruppa i luoghi sotto Posizioni
-* Miglioramento: in Impostazioni, Alla fine del brano e Visualizzazione del tempo si scelgono sul posto e le tavolozze 3 bande prendono il nome dai loro colori
-* Miglioramento: riproduzione da condivisioni di rete: una connessione caduta mette in pausa con “Connessione persa”, un server lento non blocca più i cambi di brano e i brani hi-res si riproducono senza intoppi
-* Miglioramento: i brani MP3, FLAC, WAV e AIFF si aprono più velocemente
-* Correzione: la riproduzione senza pause degli MP3 mono e MPEG-2
-* Correzione: i file Opus il cui header imposta un volume venivano riprodotti al livello sbagliato
-* Correzione: un file CAF danneggiato poteva bloccare la scansione dei metadati
-* Correzione: l’apertura di un link meno recente poteva sostituire l’apertura più recente di un file
+* Modifica: i file MP3, FLAC, WAV, AIFF e Ogg Vorbis vengono sempre riprodotti con i decodificatori di Vibe
+* Miglioramento: la riproduzione dei file Ogg Vorbis che contengono anche video o un flusso Skeleton
+* Correzione: gli MP3 a 320 kbps si aprivano lentamente

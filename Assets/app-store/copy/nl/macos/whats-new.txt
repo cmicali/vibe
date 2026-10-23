@@ -1,27 +1,7 @@
-* Nieuw: ‘Open locatie…’ (⌘L) speelt een weblink af, of een deellink van Dropbox, Google Drive of iCloud Drive
-* Nieuw: de golfvormstijl Spectrum, met de kleuring ‘Per sectie’, zodat elk deel van een nummer één kleur houdt
-* Nieuw: de thema’s RGB, Dark Core, Kinda Blue en Sectioned, en het appsymbool van Dark Core, bijgedragen door JohnnyFireOne
-* Nieuw: ‘Verplaats naar prullenmand’ (⌘⌫) verwijdert het bestand van het geselecteerde of spelende nummer, met ‘Herstel’
-* Nieuw: ‘Voeg toe aan afspeellijst…’ (⇧⌘O), ‘Toon in Finder’ (⇧⌘R) en een menu Venster met ‘Minimaliseer’, ‘Vensterbreedte’, ‘Altijd op voorgrond’ en ‘Vergrendel vensterpositie’
-* Nieuw: een status ‘Bufferen…’ terwijl een nummer wacht op een trage netwerkshare of download
-* Nieuw: themakleuren voor de tekst van de spelende en geselecteerde rij en voor de equalizerbalkjes van de spelende rij, en de standaardhoezen ‘Transparant’, ‘Venster’, ‘Symbool’ en ‘Aangepaste kleur’
-* Nieuw: klik op de kop van het pitchpaneel om het bereik te wisselen tussen 8% en 16%
-* Nieuw: afspelen van free-format MP3
-* Nieuw: het vibe-themanummer, dat bij het opstarten wordt geladen tot je iets afspeelt of opent
-* Gewijzigd: de menu’s volgen de macOS-conventies, met ‘Wijzig’ > ‘Kopieer’, een submenu ‘Herhaal’ en de submenu’s ‘Spring terug’ en ‘Spring vooruit’, die elke afstand in maten of seconden tonen
-* Gewijzigd: de golfvormstijlen hebben nieuwe namen: ‘Eenvoudig’ heet nu ‘Balken’, ‘Cupertino (eenvoudig)’ heet nu ‘Voortgang’ en de vier ‘Gedetailleerd’-stijlen zijn er nu één met een instelling ‘Type’
-* Gewijzigd: ‘Vorig nummer’ op het eerste nummer start dat nummer opnieuw
-* Gewijzigd: de volumeschuifknop verschijnt bij de aanwijzer, met een thema-instelling voor wanneer hij wordt getoond
-* Gewijzigd: de afspeelkoplijn is iets doorzichtig en de equalizerbalkjes van de spelende rij zijn zwart in de lichte modus
-* Gewijzigd: het Cupertino-thema maakt alleen de hoes achter de afspeelknoppen donkerder, met een lichter verloop
-* Verbeterd: de pitchfader klinkt beter, met een eigen repitch-engine en vloeiende veranderingen
-* Verbeterd: bit-perfect uitvoer gebruikt de grootste bitdiepte van het apparaat, voor schonere volumewijzigingen en naadloos afspelen tussen 16- en 24-bits nummers
-* Verbeterd: afspelen via netwerkshares: een verbroken verbinding pauzeert met ‘Verbinding verbroken’, een trage server houdt nummerwissels niet meer op en hi-res nummers spelen soepel af
-* Verbeterd: MP3-, FLAC-, WAV- en AIFF-nummers openen sneller
-* Verbeterd: het venster Instellingen heeft duidelijkere namen, redenen onder uitgeschakelde rijen, een bevestiging voordat de standaardwaarden worden hersteld en een sprongbalk in de thema-editor
-* Opgelost: naadloos afspelen van mono- en MPEG-2-MP3’s
-* Opgelost: Opus-bestanden waarvan de header een volume instelt, speelden op het verkeerde niveau af
-* Opgelost: Ogg Vorbis-nummers verloren hun eerste 3 ms
-* Opgelost: een beschadigd CAF-bestand kon de metadatascan laten vastlopen
-* Opgelost: de aanwijzerlijn van de golfvorm raakte zoek boven het afgespeelde deel
-* Opgelost: in macOS 27 wisten themawissels de selectie in de afspeellijst en groeide het geheugengebruik bij elke geopende afspeellijst en elke themawissel
+* Nieuw: wijzig het volume door te scrollen met muis of trackpad, en met de pijltoetsen omhoog en omlaag (indien ingeschakeld)
+* Nieuw: ‘Kopieer’ en ‘Plak’ voor kleuren en lettertypen in het contextmenu van de thema-editor
+* Nieuw: het kleurstaal van elk thema in het menu ‘Weergave > Thema’
+* Gewijzigd: MP3-, FLAC-, WAV-, AIFF- en Ogg Vorbis-bestanden spelen altijd af met de eigen decoders van Vibe
+* Gewijzigd: de instellingen voor uiterlijk en gedrag van de volumeregelaar zijn van de thema’s naar ‘Instellingen > Uiterlijk’ verplaatst
+* Verbeterd: het afspelen van Ogg Vorbis-bestanden die ook video of een Skeleton-stream bevatten
+* Opgelost: MP3’s van 320 kbps openden traag

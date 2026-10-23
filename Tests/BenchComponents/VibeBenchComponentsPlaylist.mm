@@ -27,7 +27,17 @@ static void VibeBenchComponentsRegisterPlaylist(void) {
                                                             (unsigned long)(i / 1000), (unsigned long)(i / 12), (unsigned long)i];
                 [tracks addObject:[AudioTrack withURL:[NSURL fileURLWithPath:path isDirectory:NO]]];
             }
+#if VIBE_BENCH_COMPONENTS_PLAYLIST_KEYS
+            // Keyed as the shells key theirs, so the URL index is built and
+            // renumbered as in the app.
+            *playlist = [[Playlist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
+                return track.url;
+            } sourceKey:^NSString *(AudioTrack *track) {
+                return track.sourceKey;
+            }];
+#else
             *playlist = [[Playlist alloc] init];
+#endif
             [*playlist replaceAllWithTracks:tracks startingAtIndex:NSNotFound];
         }
         return 20;

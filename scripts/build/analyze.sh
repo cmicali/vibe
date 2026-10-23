@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 #
 # Run clang's static analyzer over BOTH app targets and fail on any finding
-# outside ThirdParty/ (vendored code is not restyled; project.yml turns the
-# analyzer off for its sources, and the filter below drops what its headers
-# still report through ours).
+# outside vibe-libs' third_party/ (vendored code is not restyled; each
+# template turns the analyzer off for its sources, and the filter below drops
+# what its headers still report through ours).
 #
 # Usage: scripts/build/analyze.sh [Debug|Release|AppStore] [macos|ios|all]
 #   configuration defaults to Debug (the schemes' analyze action); the leg to
@@ -74,7 +74,7 @@ analyze_scheme() {   # analyze_scheme <scheme> <log-suffix> [extra xcodebuild ar
     fi
 
     local findings
-    findings="$(grep -E '^/.*: (warning|error): .*\[[a-zA-Z]' "$log" | grep -v '/ThirdParty/' || true)"
+    findings="$(grep -E '^/.*: (warning|error): .*\[[a-zA-Z]' "$log" | grep -v -e '/third_party/' || true)"
     if [[ -n "$findings" ]]; then
         local count
         count="$(printf '%s\n' "$findings" | wc -l | tr -d ' ')"

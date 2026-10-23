@@ -15,6 +15,7 @@
 #import "LocationStoreInternal.h"
 #import "FilePaths.h"
 #import "FolderWalk.h"
+#import "PlaylistEntry.h"
 #import "PlaylistFile.h"
 #import "RecentsStore.h"
 #import <stdatomic.h>
@@ -467,7 +468,8 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             }
             if (listable) {
                 [self listFromDropboxIfMirrored:parent];
-                if ([self appendFresh:[FolderWalk rowsInDirectory:parent sortedBy:sort]
+                if ([self appendFresh:[AudioTrack rowsForEntries:[FolderWalk entriesInDirectory:parent
+                                                                                       sortedBy:sort]]
                                    to:tracks
                                  seen:seenKeys] > 0) {
                     if (started) {
@@ -496,15 +498,15 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             // Each folder the playlist names, as the mirror holds only what
             // something has listed.
             NSMutableOrderedSet<NSURL *> *entryFolders = [NSMutableOrderedSet orderedSet];
-            for (AudioTrack *row in [PlaylistFile rowsForPlaylistAtURL:url]) {
-                [entryFolders addObject:row.url.URLByDeletingLastPathComponent];
+            for (PlaylistEntry *entry in [PlaylistFile entriesForPlaylistAtURL:url]) {
+                [entryFolders addObject:entry.url.URLByDeletingLastPathComponent];
             }
             for (NSURL *folder in entryFolders) {
                 [self listFromDropboxIfMirrored:folder];
             }
         }
-        NSArray<AudioTrack *> *produced = isDir ? [FolderWalk rowsInDirectory:url sortedBy:sort]
-                                                : [FolderWalk rowsForFile:url];
+        NSArray<AudioTrack *> *produced = [AudioTrack rowsForEntries:isDir
+                ? [FolderWalk entriesInDirectory:url sortedBy:sort] : [FolderWalk entriesForFile:url]];
         if ([self appendFresh:produced to:tracks seen:seenKeys] == 0) {
             if (started) {
                 [held stopAccessingSecurityScopedResource];

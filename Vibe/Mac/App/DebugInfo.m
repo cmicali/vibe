@@ -23,7 +23,7 @@
 
 #if VIBE_DIRECT_DISTRIBUTION
 #import "AppDelegate.h"
-#import <Sparkle/Sparkle.h>
+#import "VibeUpdater.h"
 #endif
 #import <OSLog/OSLog.h>
 #import <sys/sysctl.h>
@@ -109,7 +109,7 @@ static id VibeJSONSafe(id value) {
 // What the updater will actually do, not just what is stored: a Debug build's
 // --update-feed and the Info.plist's defaults included.
 static NSDictionary *VibeUpdatesDictionary(void) {
-    SPUUpdater *updater = [(AppDelegate *)NSApp.delegate updaterController].updater;
+    SPUUpdater *updater = [(AppDelegate *)NSApp.delegate updater].controller.updater;
     if (!updater) {
         return @{@"running": @NO};
     }
@@ -194,7 +194,7 @@ static NSDictionary *VibePlayerDictionary(MainPlayerController *controller) {
             @"shortDelaySend": @(fx.shortDelaySendEnabled),
         };
     }
-    AudioTrack *track = player.currentTrack;
+    AudioTrack *track = (AudioTrack *)player.currentTrack;
     if (track) {
         AudioTrackMetadata *metadata = track.metadata;
         d[@"track"] = @{

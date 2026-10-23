@@ -1,27 +1,7 @@
-* Baru: Buka Lokasi… (⌘L) memutar tautan web, atau tautan berbagi Dropbox, Google Drive, atau iCloud Drive
-* Baru: gaya bentuk gelombang Spektrum, dengan pewarnaan Per bagian sehingga setiap bagian lagu tetap satu warna
-* Baru: tema RGB, Dark Core, Kinda Blue, dan Sectioned, serta ikon app Dark Core, kontribusi dari JohnnyFireOne
-* Baru: Pindahkan ke Tong Sampah (⌘⌫) menghapus file lagu yang dipilih atau sedang diputar, dan dapat diurungkan
-* Baru: Tambahkan ke Playlist… (⇧⌘O), Tampilkan di Finder (⇧⌘R), dan menu Jendela berisi Perkecil, Lebar Jendela, Selalu di Atas, dan Kunci Posisi Jendela
-* Baru: status Menyangga… saat lagu menunggu berbagi jaringan atau unduhan yang lambat
-* Baru: warna tema untuk teks baris yang diputar dan yang dipilih serta batang equalizer baris yang diputar, juga sampul bawaan Transparan, Jendela, Simbol, dan Warna kustom
-* Baru: klik header panel pitch untuk mengganti rentangnya antara 8% dan 16%
-* Baru: pemutaran MP3 free format
-* Baru: lagu tema vibe, yang dimuat saat peluncuran hingga Anda memutar atau membuka sesuatu
-* Perubahan: menu mengikuti konvensi macOS, dengan Edit > Salin, submenu Ulangi, serta submenu Lompat Mundur dan Lompat Maju yang menampilkan setiap jarak dalam birama atau detik
-* Perubahan: gaya bentuk gelombang berganti nama: Dasar kini menjadi Batang, Cupertino (dasar) kini menjadi Kemajuan, dan empat gaya Detail kini menjadi satu dengan pengaturan jenis
-* Perubahan: Trek Sebelumnya pada lagu pertama memulai lagu itu dari awal
-* Perubahan: penggeser volume muncul di dekat penunjuk, dengan pengaturan tema untuk kapan penggeser tampil
-* Perubahan: garis kepala pemutar sedikit tembus pandang, dan batang equalizer baris yang diputar berwarna hitam dalam mode terang
-* Perubahan: tema Cupertino hanya menggelapkan gambar sampul di belakang tombol pemutaran, dengan gradien yang lebih terang
-* Peningkatan: kontrol pitch terdengar lebih baik, dengan mesin repitch khusus dan perubahan yang mulus
-* Peningkatan: output bit-perfect memakai kedalaman bit terbesar perangkat, untuk perubahan volume yang lebih bersih dan pemutaran tanpa jeda antara lagu 16 dan 24-bit
-* Peningkatan: pemutaran dari berbagi jaringan: koneksi yang terputus menjeda pemutaran dengan “Koneksi terputus”, server yang lambat tidak lagi menghambat pergantian trek, dan lagu hi-res diputar dengan mulus
-* Peningkatan: lagu MP3, FLAC, WAV, dan AIFF terbuka lebih cepat
-* Peningkatan: jendela Pengaturan memiliki nama yang lebih jelas, alasan di bawah baris yang dinonaktifkan, konfirmasi sebelum memulihkan default, dan bilah lompat di editor tema
-* Perbaikan: pemutaran tanpa jeda MP3 mono dan MPEG-2
-* Perbaikan: file Opus yang header-nya mengatur volume diputar pada tingkat yang salah
-* Perbaikan: lagu Ogg Vorbis kehilangan 3 ms pertamanya
-* Perbaikan: file CAF yang rusak dapat menghentikan pemindaian metadata
-* Perbaikan: garis penunjuk pada bentuk gelombang hilang di atas bagian yang sudah diputar
-* Perbaikan: di macOS 27, pergantian tema menghapus pilihan daftar putar, dan memori bertambah setiap kali daftar putar dibuka dan tema diganti
+* Baru: ubah volume dengan menggulir mouse atau trackpad, dan dengan tombol panah atas dan bawah (jika diaktifkan)
+* Baru: “Salin” dan “Tempel” untuk warna dan font di menu klik kanan editor tema
+* Baru: contoh warna setiap tema di menu “Tampilan > Tema”
+* Perubahan: file MP3, FLAC, WAV, AIFF, dan Ogg Vorbis selalu diputar dengan dekoder milik Vibe sendiri
+* Perubahan: pengaturan tampilan dan perilaku penggeser volume dipindahkan dari tema ke “Pengaturan > Penampilan”
+* Peningkatan: pemutaran file Ogg Vorbis yang juga berisi video atau aliran Skeleton
+* Perbaikan: MP3 320 kbps lambat dibuka

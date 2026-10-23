@@ -1,27 +1,7 @@
-* Novità: Apri posizione… (⌘L) riproduce un link web o un link di condivisione di Dropbox, Google Drive o iCloud Drive
-* Novità: lo stile di forma d’onda Spettro, con la colorazione Per sezione perché ogni parte di un brano mantenga un solo colore
-* Novità: i temi RGB, Dark Core, Kinda Blue e Sectioned, e l’icona dell’app di Dark Core, creati da JohnnyFireOne
-* Novità: Sposta nel Cestino (⌘⌫) elimina il file del brano selezionato o in riproduzione, con la possibilità di annullare
-* Novità: Aggiungi alla playlist… (⇧⌘O), Mostra nel Finder (⇧⌘R) e un menu Finestra con Riduci nel Dock, Larghezza finestra, Sempre in primo piano e Blocca la posizione della finestra
-* Novità: uno stato “Buffering in corso…” mentre un brano attende una condivisione di rete lenta o un download
-* Novità: colori del tema per il testo delle righe in riproduzione e selezionata e per le barre dell’equalizzatore della riga in riproduzione, e le copertine predefinite Trasparente, Finestra, Simbolo e Colore personalizzato
-* Novità: fai clic sull’intestazione del pannello del pitch per alternare il suo intervallo tra 8% e 16%
-* Novità: riproduzione di MP3 in formato libero (free format)
-* Novità: il brano del tema vibe, che si carica all’avvio finché non riproduci o apri qualcosa
-* Modifica: i menu seguono le convenzioni di macOS, con Modifica > Copia, un sottomenu Ripeti e i sottomenu Indietro e Avanti, che mostrano ogni distanza in battute o secondi
-* Modifica: gli stili di forma d’onda cambiano nome: Base ora è Barre, Cupertino base ora è Avanzamento e i quattro stili Dettagliato ora sono uno solo, con un’impostazione del tipo
-* Modifica: Brano precedente sul primo brano lo fa ripartire dall’inizio
-* Modifica: il cursore del volume appare vicino al puntatore, con un’impostazione del tema che decide quando mostrarlo
-* Modifica: la linea della testina è leggermente trasparente e le barre dell’equalizzatore della riga in riproduzione sono nere in modalità chiara
-* Modifica: il tema Cupertino scurisce solo la copertina dietro i pulsanti di riproduzione, con un gradiente più leggero
-* Miglioramento: il controllo del pitch suona meglio, con un motore di repitch proprietario e cambi fluidi
-* Miglioramento: l’uscita bit-perfect usa la profondità di bit più ampia del dispositivo, per cambi di volume più puliti e una riproduzione senza pause tra brani a 16 e 24 bit
-* Miglioramento: riproduzione da condivisioni di rete: una connessione caduta mette in pausa con “Connessione persa”, un server lento non blocca più i cambi di brano e i brani hi-res si riproducono senza intoppi
-* Miglioramento: i brani MP3, FLAC, WAV e AIFF si aprono più velocemente
-* Miglioramento: la finestra Impostazioni ha nomi più chiari, i motivi sotto le righe disattivate, una conferma prima di ripristinare i valori predefiniti e una barra di navigazione nell’editor dei temi
-* Correzione: la riproduzione senza pause degli MP3 mono e MPEG-2
-* Correzione: i file Opus il cui header imposta un volume venivano riprodotti al livello sbagliato
-* Correzione: i brani Ogg Vorbis perdevano i primi 3 ms
-* Correzione: un file CAF danneggiato poteva bloccare la scansione dei metadati
-* Correzione: la linea che segue il puntatore sulla forma d’onda si perdeva sopra la parte già riprodotta
-* Correzione: su macOS 27 i cambi di tema cancellavano la selezione della playlist e la memoria cresceva a ogni apertura di playlist e cambio di tema
+* Novità: cambia il volume scorrendo con il mouse o il trackpad, e con i tasti freccia su e giù (se attivato)
+* Novità: “Copia” e “Incolla” per colori e font nel menu contestuale dell’editor dei temi
+* Novità: il campione di colore di ogni tema nel menu “Vista > Tema”
+* Modifica: i file MP3, FLAC, WAV, AIFF e Ogg Vorbis vengono sempre riprodotti con i decodificatori di Vibe
+* Modifica: le impostazioni di aspetto e comportamento del cursore del volume passano dai temi a “Impostazioni > Aspetto”
+* Miglioramento: la riproduzione dei file Ogg Vorbis che contengono anche video o un flusso Skeleton
+* Correzione: gli MP3 a 320 kbps si aprivano lentamente

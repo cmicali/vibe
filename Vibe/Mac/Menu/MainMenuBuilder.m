@@ -3,7 +3,7 @@
 //  Vibe
 //
 
-#import <Carbon/Carbon.h> // TIS and UCKeyTranslate: a key code's character under the current layout
+#import <Carbon/Carbon.h> // kTISNotifySelectedKeyboardInputSourceChanged
 #import "MainMenuBuilder.h"
 #import "AppDelegate.h"
 #import "AppSettings.h"
@@ -19,11 +19,12 @@
 #import "OpenRecentMenuController.h"
 #import "OutputDevicesMenuController.h"
 #import "SettingsRules.h"
-#import "ShortcutRules.h"
+#import "MenuShortcutRules.h"
+#import "ShortcutLayout.h"
 #import "VibeStrings.h"
 
 #if VIBE_DIRECT_DISTRIBUTION
-#import <Sparkle/Sparkle.h>
+#import "VibeUpdater.h"
 #endif
 
 // TRAP: macOS force-appends AutoFill, Start Dictation and Emoji & Symbols to
@@ -60,11 +61,6 @@ static NSMenuItem *Item(NSString *title, SEL action, id target, NSString *key,
     return item;
 }
 
-// Each key code's character under the current ASCII-capable layout, per
-// Carbon modifier state; empty until first needed and after an input source
-// change.
-static NSMutableDictionary<NSNumber *, NSDictionary<NSNumber *, NSString *> *> *sLayoutCharacters;
-
 static NSMenuItem *Submenu(NSMenu *parent, NSString *title) {
     NSMenuItem *item = [[NSMenuItem alloc] initWithTitle:title action:NULL keyEquivalent:@""];
     item.submenu = [[NSMenu alloc] initWithTitle:title];
@@ -100,6 +96,8 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
 + (void)installMainMenuWithAppDelegate:(AppDelegate *)appDelegate
                       playerController:(MainPlayerController *)player
               openRecentMenuController:(OpenRecentMenuController *)openRecentMenuController {
+    VibeShortcutSetKeyNames(STR_SETTINGS_SHORTCUTS_KEY_SPACE, STR_SETTINGS_SHORTCUTS_KEY_KEYPAD,
+                            STR_SETTINGS_SHORTCUTS_KEY_UNKNOWN, STR_SETTINGS_SHORTCUTS_UNASSIGNED);
     // Never drawn: the root menu's title isn't rendered anywhere.
     NSMenu *mainMenu = [[NSMenu alloc] initWithTitle:VibeNotLocalized(@"Main Menu")];
 
@@ -128,7 +126,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
                         object:nil
                          queue:NSOperationQueue.mainQueue
                     usingBlock:^(NSNotification *note) {
-        [sLayoutCharacters removeAllObjects];
+        VibeShortcutForgetLayout();
         [weakPlayer applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
     }];
 }
@@ -143,7 +141,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     // Compiled out of the Mac App Store build, never hidden: App Review
     // rejects an app that updates itself (guideline 2.4.5).
     AddItem(appMenu, STR_MENU_APP_CHECK_FOR_UPDATES, @selector(checkForUpdates:),
-            appDelegate.updaterController, @"", 0, @"menu_check_for_updates");
+            appDelegate.updater.controller, @"", 0, @"menu_check_for_updates");
 #endif
     // There is no Help menu: the app ships no help book, and this was its
     // one item.
@@ -201,7 +199,7 @@ static NSMenuItem *AddSeparator(NSMenu *parent) {
     editItem.representedObject = editMenuCleaner;
     editMenu.delegate = editMenuCleaner;
     AddItem(editMenu, STR_MENU_EDIT_UNDO, @selector(undo:), nil, @"z", NSEventModifierFlagCommand, kVibeMenuEditUndo);
-    // ⇧⌘Z rides in the capital letter, as ApplyShortcut explains.
+    // ⇧⌘Z rides in the capital letter, as VibeShortcutKeyEquivalent explains.
     AddItem(editMenu, STR_MENU_EDIT_REDO, @selector(redo:), nil, @"Z", NSEventModifierFlagCommand, kVibeMenuEditRedo);
     AddSeparator(editMenu).identifier = @"menu_edit_separator";
 
@@ -369,147 +367,19 @@ static NSMenuItem *ItemWithIdentifier(NSMenu *menu, NSString *identifier) {
     return nil;
 }
 
-// The keys a layout does not name: key equivalent, then the label drawn for it.
-static NSArray<NSString *> *SpecialKey(unsigned short keyCode) {
-    static NSDictionary<NSNumber *, NSArray<NSString *> *> *special;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSString *(^fn)(unichar) = ^NSString *(unichar c) { return [NSString stringWithCharacters:&c length:1]; };
-        NSMutableDictionary *keys = [@{
-            @(kVibeKeyCodeReturn): @[@"\r", VibeNotLocalized(@"↩")],
-            @48:  @[@"\t", VibeNotLocalized(@"⇥")],
-            @49:  @[@" ", STR_SETTINGS_SHORTCUTS_KEY_SPACE],
-            // NSBackspaceCharacter draws as ⌫; a real press delivers
-            // NSDeleteCharacter, which the monitor matches by key code.
-            @(kVibeKeyCodeDelete): @[fn(NSBackspaceCharacter), VibeNotLocalized(@"⌫")],
-            // Reserved, so only ever named in a refusal.
-            @(kVibeKeyCodeEscape):      @[@"\e", VibeNotLocalized(@"⎋")],
-            @(kVibeKeyCodeLeftArrow):   @[fn(NSLeftArrowFunctionKey), VibeNotLocalized(@"←")],
-            @(kVibeKeyCodeRightArrow):  @[fn(NSRightArrowFunctionKey), VibeNotLocalized(@"→")],
-            @(kVibeKeyCodeDownArrow):   @[fn(NSDownArrowFunctionKey), VibeNotLocalized(@"↓")],
-            @(kVibeKeyCodeUpArrow):     @[fn(NSUpArrowFunctionKey), VibeNotLocalized(@"↑")],
-            @(kVibeKeyCodeKeypadClear): @[fn(NSClearLineFunctionKey), VibeNotLocalized(@"⌧")],
-            @115: @[fn(NSHomeFunctionKey), VibeNotLocalized(@"↖")],
-            @119: @[fn(NSEndFunctionKey), VibeNotLocalized(@"↘")],
-            @116: @[fn(NSPageUpFunctionKey), VibeNotLocalized(@"⇞")],
-            @121: @[fn(NSPageDownFunctionKey), VibeNotLocalized(@"⇟")],
-        } mutableCopy];
-        // kVK_F1 … kVK_F20.
-        const unsigned short fKeys[] = {122, 120, 99, 118, 96, 97, 98, 100, 101, 109,
-                                        103, 111, 105, 107, 113, 106, 64, 79, 80, 90};
-        for (unichar n = 0; n < sizeof(fKeys) / sizeof(fKeys[0]); n++) {
-            keys[@(fKeys[n])] = @[fn(NSF1FunctionKey + n),
-                                  [NSString stringWithFormat:VibeNotLocalized(@"F%u"), (unsigned)(n + 1)]];
-        }
-        special = keys;
-    });
-    return special[@(keyCode)];
-}
-
-// Built from the ASCII-capable layout so a Greek or Cyrillic user's menus show
-// the Latin letters their Command shortcuts type. modifierKeyState is
-// UCKeyTranslate's: Carbon's modifier bits shifted down a byte.
-static NSDictionary<NSNumber *, NSString *> *LayoutCharacters(UInt32 modifierKeyState) {
-    NSDictionary<NSNumber *, NSString *> *cached = sLayoutCharacters[@(modifierKeyState)];
-    if (cached) {
-        return cached;
-    }
-    NSMutableDictionary<NSNumber *, NSString *> *characters = [NSMutableDictionary dictionary];
-    TISInputSourceRef source = TISCopyCurrentASCIICapableKeyboardLayoutInputSource();
-    CFDataRef data = source ? TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) : NULL;
-    if (!data) {
-        if (source) {
-            CFRelease(source);
-        }
-        source = TISCopyCurrentKeyboardLayoutInputSource();
-        data = source ? TISGetInputSourceProperty(source, kTISPropertyUnicodeKeyLayoutData) : NULL;
-    }
-    if (data) {
-        const UCKeyboardLayout *layout = (const UCKeyboardLayout *)CFDataGetBytePtr(data);
-        for (unsigned short keyCode = 0; keyCode < 128; keyCode++) {
-            UInt32 deadKeyState = 0;
-            UniChar buffer[4];
-            UniCharCount length = 0;
-            // No dead-key state: an accent key labels itself, not a pending accent.
-            OSStatus status = UCKeyTranslate(layout, keyCode, kUCKeyActionDisplay, modifierKeyState,
-                                             LMGetKbdType(), kUCKeyTranslateNoDeadKeysMask, &deadKeyState,
-                                             4, &length, buffer);
-            if (status != noErr || length != 1
-                    || [NSCharacterSet.controlCharacterSet characterIsMember:buffer[0]]
-                    || [NSCharacterSet.whitespaceAndNewlineCharacterSet characterIsMember:buffer[0]]) {
-                continue;
-            }
-            characters[@(keyCode)] = [NSString stringWithCharacters:buffer length:1];
-        }
-    }
-    if (source) {
-        CFRelease(source);
-    }
-    if (!sLayoutCharacters) {
-        sLayoutCharacters = [NSMutableDictionary dictionary];
-    }
-    sLayoutCharacters[@(modifierKeyState)] = characters;
-    return characters;
-}
-
-// The key's lowercase character in the layer its shortcut types in:
-// Command's when it has ⌘, since a layout such as Dvorak – QWERTY ⌘ puts
-// other letters there, and the press is the ⌘ letter the layer types.
-static NSString *_Nullable LayoutCharacter(unsigned short keyCode, NSEventModifierFlags modifiers) {
-    UInt32 state = (modifiers & NSEventModifierFlagCommand) ? (cmdKey >> 8) : 0;
-    return LayoutCharacters(state)[@(keyCode)].lowercaseString;
-}
-
-// The key that types character in that layer, kVibeShortcutKeyMask when no
-// key does. The lowest key code wins, so the answer is the same every time.
-static unsigned short LayoutKeyCode(unichar character, NSEventModifierFlags modifiers) {
-    for (unsigned short keyCode = 0; keyCode < 128; keyCode++) {
-        NSString *typed = LayoutCharacter(keyCode, modifiers);
-        if (typed.length == 1 && [typed characterAtIndex:0] == character) {
-            return keyCode;
-        }
-    }
-    return kVibeShortcutKeyMask;
-}
-
 static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
-    unsigned short key = VibeShortcutKey(shortcut);
-    NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
-    NSString *equivalent = nil;
-    if (shortcut != kVibeShortcutNone) {
-        equivalent = VibeShortcutIsCharacter(shortcut) ? [NSString stringWithCharacters:&key length:1]
-                : SpecialKey(key)[0] ?: LayoutCharacter(key, modifiers);
-    }
-    // A label the layout cannot name gets no equivalent; the monitor still
+    NSEventModifierFlags mask = 0;
+    NSString *equivalent = VibeShortcutKeyEquivalent(shortcut, &mask);
+    // A key the layout cannot name gets no equivalent; the monitor still
     // matches the key in the player window.
-    if (!equivalent) {
-        item.keyEquivalent = @"";
-        item.keyEquivalentModifierMask = 0;
-        return;
+    item.keyEquivalent = equivalent ?: @"";
+    item.keyEquivalentModifierMask = mask;
+    if (equivalent) {
+        // A key-code shortcut's character is already the layout's; AppKit
+        // must not localize it again. A character default localizes as any
+        // app's ⌘O.
+        item.allowsAutomaticKeyEquivalentLocalization = VibeShortcutIsCharacter(shortcut);
     }
-    // TRAP: a shifted key rides in the character Shift types ("C" with
-    // Command is ⇧⌘C, "!" is ⇧1 on US); the unshifted character with Shift
-    // in the mask draws right but never matches a real press. A letter takes
-    // its capital, another key its Shift layer's character; the special keys
-    // keep the flag.
-    if (modifiers & NSEventModifierFlagShift) {
-        NSString *shifted = nil;
-        if (![equivalent.uppercaseString isEqualToString:equivalent.lowercaseString]) {
-            shifted = equivalent.uppercaseString;
-        }
-        else if (!VibeShortcutIsCharacter(shortcut) && !SpecialKey(key)) {
-            shifted = LayoutCharacters(shiftKey >> 8)[@(key)];
-        }
-        if (shifted && ![shifted isEqualToString:equivalent]) {
-            equivalent = shifted;
-            modifiers &= ~NSEventModifierFlagShift;
-        }
-    }
-    item.keyEquivalent = equivalent;
-    item.keyEquivalentModifierMask = modifiers;
-    // A key-code shortcut's character is already the layout's; AppKit must
-    // not localize it again. A character default localizes as any app's ⌘O.
-    item.allowsAutomaticKeyEquivalentLocalization = VibeShortcutIsCharacter(shortcut);
 }
 
 // Cached, since the key monitor asks per keypress: the items it names are
@@ -530,38 +400,48 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
     return item;
 }
 
-+ (unichar)characterForKeyCode:(unsigned short)keyCode modifiers:(NSEventModifierFlags)modifiers {
-    NSString *character = LayoutCharacter(keyCode, modifiers);
-    return character.length == 1 ? [character characterAtIndex:0] : 0;
+static NSString *ShortcutLabel(NSMenuItem *item) {
+    NSString *identifier = item.identifier;
+    if ([identifier isEqualToString:kVibeMenuPlay]) {
+        return STR_SETTINGS_SHORTCUTS_PLAY_PAUSE;
+    }
+    if ([identifier isEqualToString:kVibeMenuConvertToFLAC]) {
+        return VibeConvertMenuTitle(NO);
+    }
+    NSString *title = VibeSkipMenuTitle(identifier, AppSettings.sharedInstance.skipBaseBars, YES) ?: item.title;
+    NSMenu *parent = item.menu.supermenu;
+    if (parent && parent != NSApp.mainMenu) {
+        NSInteger index = [parent indexOfItemWithSubmenu:item.menu];
+        if (index >= 0) {
+            return [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_SUBMENU_ITEM,
+                                              [parent itemAtIndex:index].title, title];
+        }
+    }
+    return title;
 }
 
-+ (nullable NSString *)labelForKeyCode:(unsigned short)keyCode modifiers:(NSEventModifierFlags)modifiers {
-    NSString *label = SpecialKey(keyCode)[1];
-    if (label) {
-        return label;
+static void CollectShortcutRows(NSMenu *menu, NSMutableArray<NSArray *> *rows) {
+    for (NSMenuItem *item in menu.itemArray) {
+        // Repeat is a submenu whose own item is the cycling command.
+        if (item.identifier && [VibeShortcutIdentifiers() containsObject:item.identifier]) {
+            [rows addObject:@[item.identifier, ShortcutLabel(item)]];
+        }
+        if (item.submenu) {
+            CollectShortcutRows(item.submenu, rows);
+        }
     }
-    label = LayoutCharacter(keyCode, modifiers).uppercaseString;
-    // The keypad's keys type what the main keyboard's do.
-    return label && VibeShortcutIsKeypadKey(keyCode)
-            ? [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_KEY_KEYPAD, label] : label;
 }
 
-+ (NSString *)displayStringForShortcut:(VibeShortcut)shortcut {
-    if (shortcut == kVibeShortcutNone) {
-        return STR_SETTINGS_SHORTCUTS_UNASSIGNED;
++ (NSArray<NSArray *> *)shortcutCommandRows {
+    NSMutableArray<NSArray *> *groups = [NSMutableArray array];
+    for (NSMenuItem *topLevel in NSApp.mainMenu.itemArray) {
+        NSMutableArray<NSArray *> *rows = [NSMutableArray array];
+        CollectShortcutRows(topLevel.submenu, rows);
+        if (rows.count) {
+            [groups addObject:@[topLevel.title, rows]];
+        }
     }
-    NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
-    NSMutableString *display = [NSMutableString string];
-    if (modifiers & NSEventModifierFlagControl) [display appendString:VibeNotLocalized(@"⌃")];
-    if (modifiers & NSEventModifierFlagOption)  [display appendString:VibeNotLocalized(@"⌥")];
-    if (modifiers & NSEventModifierFlagShift)   [display appendString:VibeNotLocalized(@"⇧")];
-    if (modifiers & NSEventModifierFlagCommand) [display appendString:VibeNotLocalized(@"⌘")];
-    unsigned short key = VibeShortcutKey(shortcut);
-    NSString *label = VibeShortcutIsCharacter(shortcut)
-            ? [NSString stringWithCharacters:&key length:1].uppercaseString
-            : [self labelForKeyCode:key modifiers:modifiers];
-    [display appendString:label ?: [NSString stringWithFormat:STR_SETTINGS_SHORTCUTS_KEY_UNKNOWN, (long)key]];
-    return display;
+    return groups;
 }
 
 + (void)applyShortcuts {
@@ -583,17 +463,17 @@ static void ApplyShortcut(NSMenuItem *item, VibeShortcut shortcut) {
 }
 
 + (VibeShortcut)carriedShortcutForIdentifier:(NSString *)identifier overrides:(NSDictionary *)overrides {
-    VibeShortcut shortcut = VibeShortcutEffective(identifier, overrides);
+    VibeShortcut shortcut = VibeShortcutEffective(VibeShortcutTable(), identifier, overrides);
     if (shortcut == kVibeShortcutNone) {
         return kVibeShortcutNone;
     }
     unsigned short key = VibeShortcutKey(shortcut);
     NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
     BOOL isCharacter = VibeShortcutIsCharacter(shortcut);
-    unsigned short layoutKeyCode = isCharacter ? LayoutKeyCode(key, modifiers) : kVibeShortcutKeyMask;
+    unsigned short layoutKeyCode = isCharacter ? VibeShortcutKeyCodeForCharacter(key, modifiers) : kVibeShortcutKeyMask;
     unichar layoutCharacter = isCharacter
-            ? 0 : [self characterForKeyCode:VibeShortcutCanonicalKeyCode(key) modifiers:modifiers];
-    return VibeShortcutForMenuItem(identifier, shortcut, layoutKeyCode, layoutCharacter, overrides);
+            ? 0 : VibeShortcutCharacterForKeyCode(VibeShortcutCanonicalKeyCode(key), modifiers);
+    return VibeShortcutForMenuItem(VibeShortcutTable(), identifier, shortcut, layoutKeyCode, layoutCharacter, overrides);
 }
 
 @end

@@ -284,7 +284,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 
 - (void)toggleConversion:(VibeSwitch *)sender {
     AppSettings.sharedInstance.convertEnabled = sender.state == NSControlStateValueOn;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectConvertMenu];
+    [self applyLiveEffects:VibeSettingsLiveEffectConvertMenu];
     [self refreshFromSettings];
 }
 
@@ -307,7 +307,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     AppSettings.sharedInstance.useFolderArt = [_albumArtPopUp.selectedItem.representedObject isEqual:kAlbumArtFolder];
     // TRAP: the resolver caches this setting and FolderArt is its only re-read;
     // without it the write is never observed.
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectFolderArt];
+    [self applyLiveEffects:VibeSettingsLiveEffectFolderArt];
 }
 
 - (void)addFolder:(id)sender {

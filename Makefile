@@ -212,7 +212,8 @@ test-summary:
 	scripts/checks/test-summary.sh $(RESULT_BUNDLE)
 
 # clang's static analyzer over both app targets; fails on any finding outside
-# ThirdParty/. Findings are configuration-dependent, and CI checks Release.
+# vibe-libs' third_party/. Findings are configuration-dependent, and CI checks
+# Release.
 analyze:
 	scripts/build/analyze.sh $(CONFIG)
 
@@ -388,14 +389,14 @@ appstore-capture-app-screenshots:
 # Re-extract UI strings into Resources/Localizable.xcstrings after touching any
 # UI string; nothing extracts ObjC strings at build time.
 strings:
-	scripts/strings/extract-strings.sh
+	vibe-libs/tools/strings/extract-strings.sh Resources/strings-config.sh
 
 # Fail if the catalog doesn't match the source.
 check-strings:
-	scripts/strings/extract-strings.sh --check
+	vibe-libs/tools/strings/extract-strings.sh Resources/strings-config.sh --check
 
-# Fail on a break of AGENTS.md's mechanical vocabulary rules or a doc line over
-# 1500 characters, all listed in the script.
+# Fail on a break of AGENTS.md's mechanical vocabulary rules, a doc line over
+# 1500 characters, or a merge conflict marker, all listed in the script.
 check-vocabulary:
 	scripts/checks/check-vocabulary.sh
 
@@ -407,4 +408,4 @@ check-layout:
 # Fail if any key is missing a catalog language; check-strings compares the
 # catalog to the source and cannot see coverage. Both release paths run this.
 check-translations:
-	scripts/checks/check-translations.sh
+	vibe-libs/tools/strings/check-translations.sh Resources/strings-config.sh

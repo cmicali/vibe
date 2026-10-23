@@ -59,7 +59,7 @@
 // Seeded from the tracks' common folder, so a folder's playlist lands beside
 // its music.
 - (IBAction)savePlaylist:(nullable id)sender {
-    NSURL *common = [PlaylistFile commonDirectoryForTracks:self.playlistController.playlist];
+    NSURL *common = [PlaylistFile commonDirectoryForEntries:[AudioTrack entriesForRows:self.playlistController.playlist]];
     NSSavePanel *panel = [NSSavePanel savePanel];
     panel.allowedContentTypes = @[UTTypeM3UPlaylist];
     panel.directoryURL = common;   // nil: the panel's own default
@@ -79,9 +79,9 @@
 
 - (BOOL)writePlaylistToURL:(NSURL *)url error:(NSError **)error {
     // Relative to the chosen file's folder, which the reader resolves against.
-    if (![PlaylistFile writeM3UForTracks:self.playlistController.playlist
-                     relativeToDirectory:url.URLByDeletingLastPathComponent
-                                   toURL:url error:error]) {
+    if (![PlaylistFile writeM3UForEntries:[AudioTrack entriesForRows:self.playlistController.playlist]
+                      relativeToDirectory:url.URLByDeletingLastPathComponent
+                                    toURL:url error:error]) {
         return NO;
     }
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:url];
@@ -438,7 +438,7 @@ static NSURL *VibeLastPlaylistURL(void) {
 - (NSDictionary *)debugLastPlaylistDictionary {
     return @{
         @"exists": @([NSFileManager.defaultManager fileExistsAtPath:VibeLastPlaylistURL().path]),
-        @"rows": @([PlaylistFile rowsInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]].count),
+        @"rows": @([PlaylistFile entriesInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]].count),
         @"currentIndex": @([NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey]),
     };
 }

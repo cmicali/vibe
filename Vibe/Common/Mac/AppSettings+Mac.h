@@ -156,7 +156,8 @@ static const double kVibeWaveformGainMaxDB = 12;
 - (void)setWindowPositionLocked:(BOOL)locked;
 
 
-// Normalized on read: an unknown value reads as drag_window.
+// Normalized on read: an unknown value reads as drag_window. A writer
+// requests VibeSettingsLiveEffectWaveformDrag.
 - (NSString *)waveformDragBehavior;
 - (void)setWaveformDragBehavior:(NSString *)behavior;
 
@@ -283,7 +284,7 @@ static const double kVibeWaveformGainMaxDB = 12;
 
 // NO skips key detection; re-enabling re-decodes as the shared analyzeBPM does.
 // Defaults off: detection is right about half the time on real dance music
-// (Audio/Analysis/AGENTS.md).
+// (vibe-libs/audio/Analysis/AGENTS.md).
 - (BOOL)analyzeKey;
 - (void)setAnalyzeKey:(BOOL)analyze;
 

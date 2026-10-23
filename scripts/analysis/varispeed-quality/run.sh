@@ -13,12 +13,12 @@
 # VS_T, VS_FC, VS_BETA and VS_P override the custom kernel (measure.c).
 #
 # Output: build/varispeed-quality/measure, rebuilt when its sources change.
-# r8brain builds with project.yml's flags for it.
+# r8brain builds with the flags of its vibe-libs template, VibeLibsR8brain.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 HERE="$ROOT/scripts/analysis/varispeed-quality"
-R8="$ROOT/Vibe/ThirdParty/r8brain"
+R8="$ROOT/vibe-libs/third_party/r8brain"
 OUT="$ROOT/build/varispeed-quality"
 R8FLAGS=(-O3 -DR8BSRC_DECL= -DR8B_PFFFT_DOUBLE=1 -DPFFFT_ENABLE_NEON=1 -w)
 

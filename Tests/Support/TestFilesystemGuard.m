@@ -10,6 +10,7 @@
 #include <signal.h>
 
 #if TARGET_OS_OSX
+#import "AudioError.h"
 #import "LinkStore.h"
 #endif
 
@@ -137,6 +138,8 @@ static void VibeRemoveOrphanedTestRoots(NSString *temporary) {
             imp_implementationWithBlock(^NSUserDefaults *(id self) { return defaults; }));
 
 #if TARGET_OS_OSX
+    // Host-less, no app pushes the player's error domain at launch.
+    VibeAudioErrorSetDomain(gToolDomain);
     // LinkStore.shared resolves the main bundle's Application Support, which
     // host-less is the XCTest tool's real ~/Library. Made on first use.
     NSURL *links = [NSURL fileURLWithPath:[gRoot stringByAppendingPathComponent:@"Links"] isDirectory:YES];

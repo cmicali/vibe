@@ -11,6 +11,7 @@
 #import "PlayerViewController+Pager.h"
 
 #import "AppSettings.h"
+#import "AudioAnalysisObservers.h"
 #import "AudioTrack.h"
 #import "AudioWaveformCache.h"
 #import "FXPadView.h"
@@ -98,15 +99,16 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
         [NSUserDefaults.standardUserDefaults setBool:YES forKey:kWaveformTempoBackfillKey];
     }
     // Asked once per request, so Settings > Playback lands on the next load
-    // with nothing to republish. No key: key detection is macOS-only. The
-    // bands for the card's style or the widget's, which bakes from the
-    // card's waveform; a nil widget style is the card's.
+    // with nothing to republish. No key observer: key detection is
+    // macOS-only. The bands for the card's style or the widget's, which bakes
+    // from the card's waveform; a nil widget style is the card's.
+    AudioWaveformObserver *tempo = AudioBPMAnalyzer.waveformObserver;
     _waveformCache.analysisProvider = ^VibeWaveformAnalysis{
         AppSettings *settings = AppSettings.sharedInstance;
         return (VibeWaveformAnalysis){
-            .bpm = settings.analyzeBPM,
             .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.waveformStyle]
                   || [WaveformRendererRegistry readsBandsForIdentifier:settings.widgetWaveformStyle],
+            .observers = settings.analyzeBPM ? @[tempo] : @[],
         };
     };
     _waveformBandsWanted = _waveformCache.analysisProvider().bands;
@@ -145,8 +147,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
         if (path) {
             [self configurePage:cell atIndex:(NSUInteger)path.item];
         }
-        [cell.waveformView syncWaveformStyle];
-        [cell.waveformView syncWaveformTheme];
+        [self applyWaveformSettingsToCell:cell];
     }
     [self repaintTimesOnVisiblePages];
 }

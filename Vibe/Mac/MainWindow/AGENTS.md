@@ -14,7 +14,7 @@ This directory holds the main window and its controller, `MainPlayerController`,
 - `+Delivery`: the metadata, waveform, tempo and key deliveries. Also the grant, folder-art and thumbnail notifications.
 - `+Window`: the content build, the resize, lock and occlusion rules, the window chrome and the waveform theme.
 - `+Menus`: menu validation and the View > Theme submenu.
-- `+Settings`: the live effects, the shortcut write path and the theme's fonts.
+- `+Settings`: the live effects, the shortcut write path, the theme's fonts and the waveform view's pushed settings (`applyWaveformSettings`).
 - `+NowPlaying`: the system's Now Playing info and remote commands.
 - `+Convert` (`Convert/`): Convert to FLAC's swap and its undo.
 
@@ -28,19 +28,27 @@ This directory holds the main window and its controller, `MainPlayerController`,
 
 ## Folder art invalidation
 
-`FolderArtResolver` (`Audio/Metadata/Artwork/FolderArt/`) is the feature. This controller owns invalidation and redraw.
+`FolderArtResolver` (vibe-libs' `media/Metadata`, Folder art) is the feature. This controller owns invalidation and redraw.
 
 - The `FolderArt` effect calls `refreshFolderArt`, which calls `folderArtSettingDidChange`. **The resolver caches the setting on the cell-draw path, so this effect is the only way a write is ever seen.** It keeps settled answers.
 - A grant change (`FolderAccessManagerDidChangeNotification`) is narrower. It is observed here because a grant can change with the Files pane gone. `invalidateDirectoriesSettledWithoutGrant` forgets the no-grant answers and re-arms known cover reads.
 - `folderArtDidResolve:` fires for "none" as well as a cover. It coalesces a reload of the visible rows over a short delay. The resolver is serial, so a per-turn gate would coalesce nothing.
 
-Neither may wipe everything (`Audio/Metadata/Artwork/FolderArt/AGENTS.md`).
+Neither may wipe everything (vibe-libs' `media/Metadata/AGENTS.md`, Folder art).
+
+## The waveform view
+
+The view is vibe-libs' `waveform/WaveformView`, and its `AGENTS.md` is the authority for it. **It is a pure rendering surface.** `MainPlayerController` owns the `AudioWaveformCache` and requests loads. It forwards deliveries through `TrackDisplayController`'s pass-throughs: `prepareForWaveformLoad` to reset, then `showWaveform:`.
+
+**`applyWaveformSettings` pushes everything the view draws from**: the theme's bar density, bar width and Centered, Normalize and gain, `dragSeeks`, and last the style. Launch and the WaveformStyle, WaveformLevels and WaveformDrag effects all run it. The theme resolves through the `themeProvider` block the window installs once (`Common/AGENTS.md`, The waveform theme). `dragSeeks` comes from `AppSettings.waveformDragBehavior`: `drag_window`, the default, or `seek`. A locked window declines every handoff the view makes (The window, below). Under `drag_window` a drag past the hysteresis then does nothing. A stationary click still seeks.
+
+The loading line shows at once for a provider's dataless file, and after the slow-open delay for any other (Display states, below). Its fill is `CloudTransferRegistry`'s fraction. `set_loading` on the debug channel drives both modes without a download.
 
 ## The UI tick
 
-`UIUpdateTimer` (`Vibe/Util/`) drives `updatePlaybackUI` only while playback wants updates and the window is not occluded. `windowDidChangeOcclusionState:` pushes the gate and refreshes once on reveal. The full `updateUI` runs on transport events and metadata deliveries. Its header work is one phase, `renderTrackPresentationForState:track:displayTrack:`, against one display-state decision. Rate and position updates stay separate, so they reload no artwork or rows. A same-track refresh reloads no row (`_lastReloadedTrack`). The gutter's three states reconcile on their own edges (`Playlist/Mac/AGENTS.md`).
+`UIUpdateTimer` (vibe-libs' `core/Common`) drives `updatePlaybackUI` only while playback wants updates and the window is not occluded. `windowDidChangeOcclusionState:` pushes the gate and refreshes once on reveal. The full `updateUI` runs on transport events and metadata deliveries. Its header work is one phase, `renderTrackPresentationForState:track:displayTrack:`, against one display-state decision. Rate and position updates stay separate, so they reload no artwork or rows. A same-track refresh reloads no row (`_lastReloadedTrack`). The gutter's three states reconcile on their own edges (`Playlist/Mac/AGENTS.md`).
 
-**The tick rate follows the playhead's on-screen speed.** `syncUITimerRate` feeds the waveform's `devicePixelWidth`, the duration and the varispeed rate to `VibeUIUpdateHzForPlayhead` (`Util/UIUpdateMath.h`, tested). **Every mover of an input must call the sync**: track start, transport events, fader ticks (`updateRateDependentUI`), `windowDidResize:` (live-drag frames included) and the cap setting. `check_consistency`'s `ui.update_rate_follows_inputs` catches a mover that forgot.
+**The tick rate follows the playhead's on-screen speed.** `syncUITimerRate` feeds the waveform's `devicePixelWidth`, the duration and the varispeed rate to `VibeUIUpdateHzForPlayhead` (vibe-libs' `core/Common/UIUpdateMath.h`, tested). **Every mover of an input must call the sync**: track start, transport events, fader ticks (`updateRateDependentUI`), `windowDidResize:` (live-drag frames included) and the cap setting. `check_consistency`'s `ui.update_rate_follows_inputs` catches a mover that forgot.
 
 **A start, resume or seek also aims one update just past the time label's next change** (`scheduleUpdateAtNextDisplayedSecond`). The rate is untouched. At 3 Hz the tick can land a third of a second late, and a stuck 0:00 reads as playback not starting.
 
@@ -61,7 +69,7 @@ Listening statistics follow `audioPlayer:didChangeOutputAudioActive:`, as the eq
 `AppSettings.reopenLastPlaylist` (off by default) mirrors the playlist to `Application Support/<bundle id>/LastPlaylist.m3u` at quit and reopens it at launch. `PlaylistFile+Session` owns the save and restore (`Playlist/Mac/AGENTS.md`).
 
 - `saveLastPlaylist` writes absolute paths and never touches Open Recent. The current row goes in the `VibeLastPlaylistCurrentIndex` defaults key. It is state, not a preference, so a reset leaves it. The mirror is deleted when the setting is off or the playlist is empty. Turning the setting off deletes it at once (`applyReopenLastPlaylist`).
-- `restoreLastPlaylist` lands **parked**, through `loadTracks:selectingIndex:startPaused:YES`. Every row comes back, readable or not, and a cue row keeps its window and names. The mirror is read through `PlaylistFile.rowsInM3UData:`, not the open funnel. Nothing is stat'd, not even a cue row's sheet, and no grant panel is raised.
+- `restoreLastPlaylist` lands **parked**, through `loadTracks:selectingIndex:startPaused:YES`. Every row comes back, readable or not, and a cue row keeps its window and names. The mirror is read through `PlaylistFile.entriesInM3UData:`, not the open funnel. Nothing is stat'd, not even a cue row's sheet, and no grant panel is raised.
 - When the restore finds nothing, `loadWelcomeTrack` parks the bundled `vibe-theme.mp3` until the user has played or opened something. `spendWelcomeTrack` sets `AppSettings.welcomeTrackSpent` from every open's token minting (`AppDelegate.beginOpenRequestAppending:fromURLs:`, files and Open URL… alike) and from the first start or resume that sounds, never from the park or the restore. Reopen is off by default, so a user who updates before doing either finds the track again after the relaunch. Only Factory reset clears it.
 
 `AppDelegate` calls these only after grants restore, and only when no launch-time open drained (`Mac/App/AGENTS.md`). Every quit must reach `applicationWillTerminate:` for the write, so the app does not opt into sudden termination.
@@ -102,16 +110,16 @@ The drag is `Playlist/Mac/AGENTS.md`'s. **`playlistOrderDidChangeHandler` is a r
 
 **All header rendering resolves through one `TrackDisplayState`.** Five states describe the playback: track, loading, empty, launch-grace and error. `displayState` decides them (`TrackDisplayRules.h`, tested). Now Playing, the delay's tempo and the play button read it. **The header draws `headerState`**: the display state, or Notice while one is held (`headerStateForState:`). `TrackDisplayController` draws it, holds no player or playlist state, and keeps only what it last drew.
 
-- **Loading**: the incoming tags and `--:--`. The waveform's loading line starts at `didBeginLoading:`. A provider's dataless verdict fires it at once. Other opens wait half a second (`kWaitIndicatorDelaySeconds`, `Audio/AGENTS.md`).
+- **Loading**: the incoming tags and `--:--`. The waveform's loading line starts at `didBeginLoading:`. A provider's dataless verdict fires it at once. Other opens wait half a second (`kWaitIndicatorDelaySeconds`, vibe-libs' `audio/Player/AGENTS.md`).
 - **Empty**: midline placeholder, `--:--` and the drop hint, at half strength. The launch grace suppresses it until `revealEmptyStateNamingPlaylist:`, so a launch-time open never flashes it. An open that found nothing playable keeps the playlist. When it named a playlist, the placeholder says "Could not open listed files" over the playlist's file name until the next load or Close.
 - **Error**: inline, with no modal and no auto-skip. `_erroredTrack` and `_errorStatus` mask the errored track. They are written only through `setErrorMaskForTrack:status:` and `clearErrorMask`. The track stays for a retry, and late deliveries are ignored while it is masked. The display state masks only a Stopped track. A track the player parked Paused with an error (a lost device, a device another app took, a refused resume) gets the same mark. `TrackDisplayController` then shows its status in place of the file info line until a resume or a new play clears it.
 - **Notice**: a link that failed to open shows in the Error look for 4 s (`showNotice:naming:`). Its short status goes on the artist line, over the link's name. It is a header state only, so a playing track plays on under it. While a notice shows, `TrackDisplayController` drops the track's strip and playhead writes, the waveform stays off, the times stay `--:--`, and the BPM line names no track. The delay's tempo still follows the playing track. The artwork is not covered. The notice ends after 4 s, at a newer open request or at Close. `_noticeGeneration` pairs it with its timer. The end runs `restoreCoveredHeader`, as the end of the drop shimmer does. `dump_state` reports it as `ui.headerState` `notice`, with `ui.notice` its status.
 
-**Buffering… stands in for the file info line while the player's `bufferingNoticeShown` is set**, once a hold outlasts `kWaitIndicatorDelaySeconds` (`Audio/AGENTS.md`). A spinner turns at the line's right end while it shows (`setCodecSpinnerShown:`, `LAYOUT.md`). `didChangeBufferingNotice:forTrack:` runs `updateUI`. A hold's own edges only republish Now Playing. A stall ends the notice. Its Connection lost then takes the line, as any parked error does. An error mask and a notice outrank it. It shows with file info off too. The waveform's loading indicator is not used. It would wipe the waveform and its click-seek. `dump_state` reports it as `ui.bufferingShown`.
+**Buffering… stands in for the file info line while the player's `bufferingNoticeShown` is set**, once a hold outlasts `kWaitIndicatorDelaySeconds` (vibe-libs' `audio/Player/AGENTS.md`). A spinner turns at the line's right end while it shows (`setCodecSpinnerShown:`, `LAYOUT.md`). `didChangeBufferingNotice:forTrack:` runs `updateUI`. A hold's own edges only republish Now Playing. A stall ends the notice. Its Connection lost then takes the line, as any parked error does. An error mask and a notice outrank it. It shows with file info off too. The waveform's loading indicator is not used. It would wipe the waveform and its click-seek. `dump_state` reports it as `ui.bufferingShown`.
 
 **Every write of the right time label goes through `renderRightTimeLabelWithDisplayPosition:duration:rate:`.** It delegates the rate, the remaining-time subtraction, the clamping and the whole-second string cache to `Formatters.durationStringForFileDuration:rate:elapsedDisplayTime:remaining:`. Both labels are wall-clock: file time over the varispeed rate. The label shows duration or minus-prefixed remaining, toggled by a click and stored in `AppSettings.showRemainingTime`. `VibeTrackTimeMayUpdate` keeps the placeholder states intact. The tick skips the label while the cached duration is 0, or the end-of-playlist park would read `-0:00`. `AppSettings.showTimeLabels` hides both labels and their click target. Updates still carry the position, so revealing them is immediate.
 
-**Now Playing** publishes the same wall-clock position and duration (`NowPlaying/AGENTS.md`). Its artwork reads without blocking: `cachedArt`, else the 128px `cachedThumbnail`, refreshed when the full art resolves.
+**Now Playing** publishes the same wall-clock position and duration through vibe-libs' `system/NowPlaying` (its `AGENTS.md`). `updateNowPlaying` pushes the displayed row's source key, title, artist, and one image. The image reads without blocking: `cachedArt`, else the 128px `cachedThumbnail`, refreshed when the full art resolves. With neither, it is the placeholder: the current theme's `defaultArtworkImageForAppearance:` for the main window's effective appearance. It is nil when the theme's default artwork is clear, window, a glyph, or a color. The shell resolves the side before the controller rasterizes it. So it honors Vibe's appearance setting, the Settings preview, and the single-mode theme pin. A theme or appearance change republishes when it changes the placeholder image. The mac always offers shuffle and repeat to the system's controls.
 
 ## The window
 

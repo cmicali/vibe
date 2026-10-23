@@ -5,7 +5,7 @@ description: Launch, drive, inspect, and visually verify the Vibe app — macOS,
 
 # Debugging and verifying Vibe
 
-All debug tooling compiles into **debug builds only** (`Vibe/Debug/`). `launch.sh` looks in `build/DerivedData`, where `make build` writes:
+All debug tooling compiles into **debug builds only** (`Vibe/Debug/`, over vibe-libs' `dev/DebugChannel`). `launch.sh` looks in `build/DerivedData`, where `make build` writes:
 
 ```bash
 make build CONFIG=Debug
@@ -46,10 +46,11 @@ Which run proves what:
 **Launching by hand.**
 
 - `open -a "$APP" <files> --args --no-audio-hw --silent`, with `--args` last since everything after it is argv. Direct exec takes argv natively: `"$V" --no-audio-hw --silent >/dev/null 2>&1 </dev/null &`. Redirect it so the app holds no pipe of yours.
-- **A Debug build starts no updater** unless launched with `--update-feed <url>`. To test updates, build two versions with a throwaway key and serve a feed on `localhost` (`Vibe/ThirdParty/AGENTS.md`, Sparkle).
+- **A Debug build starts no updater** unless launched with `--update-feed <url>`. To test updates, build two versions with a throwaway key and serve a feed on `localhost` (`Vibe/Mac/App/AGENTS.md`, Updates).
 - **Feed files with `open -a "$APP" <file>`.** The sandbox denies raw argv paths, so `"$V" <file>` fails. `--debug-cmd open <path>` grants nothing either: it reaches container paths and paths already granted this session. The same applies to `file_cache`, `file_drag_drop` and a `script <file>` argument.
 - TRAP: **check which binary answers before trusting any observation.** With Vibe running from Xcode, Launch Services routes `open -a` to that instance, and you test a stale build with no error. Check with `ps -o pid,command -p $(pgrep -x Vibe)`. With **two instances the channel is racy**, since either may consume a command file, so quit one first.
 - TRAP: **`launch.sh` quits every mac Vibe, including the user's own `/Applications/Vibe.app`.** Check `pgrep -x Vibe` and `ps -o command=` first. A Release instance never answers the channel. To verify beside it, direct-exec a Debug instance (`nohup <literal path>/Contents/MacOS/Vibe --silent --no-now-playing &`; the sandbox refuses a variable under `nohup`). Stage files under `~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/` and open them with `--debug-cmd open`. Both instances share the container's defaults, so restore every setting the run touches. Quit only your own with `--debug-cmd quit`. `make test-audio-loopback`, `make stress`, `make torture` and `device-flap.py` need exactly one instance. Say so rather than kill the user's.
+- **A comparison run that must not disturb the user's state gets a container of its own and quits through the channel.** Build it with its own `PRODUCT_BUNDLE_IDENTIFIER`, which gives it its own container and preferences as `scripts/bench/build-version.sh` does, and end it with `--debug-cmd quit`.
 - **Counting instances.** `pgrep -x Vibe` also matches the iOS simulator's app (`launch.sh` excludes `CoreSimulator`). A `--debug-cmd` client is the same binary, so exclude it: `ps -eo command | grep MacOS/Vibe | grep -v -- --debug-cmd`. With no app running each client call waits its full timeout. A loop waiting for the channel needs `VIBE_DEBUG_TIMEOUT=1` and a check that the app process still exists.
 - TRAP: **never `pkill` an instance Xcode is debugging.** The debugger traps SIGTERM and stops the process. It keeps its pid and answers nothing, so every later `--debug-cmd` burns its full timeout. `launch.sh` handles this (its header is the authority). By hand, send `--debug-cmd quit` first, which is also the only exit that runs `applicationWillTerminate:`. A leading `T` in `ps -o stat=` means stopped: continue it in Xcode.
 
@@ -136,7 +137,7 @@ Seven verbs of its own: `settings_open`, `dump_settings_ui`, `settings_click`, `
 
 ## Logs
 
-Stream with the command above. Verbose builds persist info, debug and warning messages at Default level. Settings > Advanced > Save Debug Info retrieves those logs. TRAP: a stream never ends by itself, so every one takes `--timeout` (`-T <num>[m|h|d]`). One left in the background outlives the session and keeps `diagnosticd` busy. A real phone has no unified-log stream, so debug builds take `--log-stderr`, which mirrors every `Log*` line to stderr for `devicectl` to relay (`references/screenshots-and-logs.md`). TRAP: the `--console` session owns the process. When its tunnel drops, the app dies with it and the error names RemoteXPC, not Vibe. Relaunch without `--console` if you only need the app up. Which build produced a log: `references/build-provenance.md`.
+Stream with the command above. Verbose builds persist info, debug and warning messages at Default level. Settings > Advanced > Save Debug Info retrieves those logs. TRAP: a stream never ends by itself, so every one takes `--timeout` (`-T <num>[m|h|d]`). One left in the background outlives the session and keeps `diagnosticd` busy. A real phone has no unified-log stream, so a debug build launches with `OS_ACTIVITY_DT_MODE=1`, which copies every `Log*` line to stderr for `devicectl` to relay (`references/screenshots-and-logs.md`). TRAP: the `--console` session owns the process. When its tunnel drops, the app dies with it and the error names RemoteXPC, not Vibe. Relaunch without `--console` if you only need the app up. Which build produced a log: `references/build-provenance.md`.
 
 ## iOS: the simulator loop
 
@@ -165,7 +166,7 @@ Build with `make build-ios CONFIG=Debug`. Every iOS verb, the driver's gestures,
 - **Dropbox needs no account in the simulator.** `set_fake_dropbox <host directory> [<transfer-seconds>]` makes that directory the account. `fake_dropbox_fault` scripts the streaming faults, and `scripts/dropbox-streaming.sh` runs every streaming scenario with JSON assertions (`references/ios-verbs.md`, "Streaming scenarios").
 - **TRAP: a folder added with `add_search_folder` is not security-scoped**, so the scope round trip goes unexercised. It is still persisted and restored at the next launch. Remove what a test adds, and check `dump_search` after a relaunch.
 - **TRAP: `tap_favorite_star`'s add is asynchronous.** `ok:true` means the handler ran. Poll `dump_favorites` for the row.
-- **Check `ui.waveformShown` after `expand_player`.** The scrubber draws its waveform in the turn it is handed one (`Vibe/WaveformUI/iOS/AGENTS.md`). `false` with a loaded track means no waveform reached the page.
+- **Check `ui.waveformShown` after `expand_player`.** The scrubber draws its waveform in the turn it is handed one (vibe-libs' `waveform/WaveformView/AGENTS.md`). `false` with a loaded track means no waveform reached the page.
 - **Logs stream from the host.** The simulator writes into the mac's unified log, and `simctl spawn … log stream` is refused. Use the same `/usr/bin/log stream` line as macOS.
 - **Simulator blind spots** (interruptions, route changes, background audio past lock, the lock-screen card) need a real device. Report them as unverified rather than driving a phone.
 
@@ -183,7 +184,7 @@ The **`vibe-stress` skill** (`make stress`, `make torture`) drives this channel 
 - `references/ios-verbs.md`: every `debug-ios.sh` verb, the touch driver, install staleness, per-session simulators and the build lock, iPad, streaming scenarios. Read when driving the simulator beyond `dump_state`.
 - `references/settings-window.md`: the settings verbs' replies, control naming, the kind table. Read when driving a Settings pane.
 - `references/equalizer-counters.md`: `dump_equalizer`'s schema and bounds, `set_equalizer_mode`. Read when judging the equalizer bars.
-- `references/screenshots-and-logs.md`: how the snapshot picks a window and what it cannot render, real capture and pixel probes, on-device `--log-stderr`. Read when a screenshot looks wrong or a log must come off a phone.
+- `references/screenshots-and-logs.md`: how the snapshot picks a window and what it cannot render, real capture and pixel probes, on-device logs through `OS_ACTIVITY_DT_MODE`. Read when a screenshot looks wrong or a log must come off a phone.
 - `references/test-audio.md`: the fixture table, `set_fake_cloud` and its prefetch trap, `scan_bpm`/`scan_key`, render tests and bit-perfect acceptance. Read before picking a file for a test.
 - `references/os-input.md`: CGEvents through the window server for hover, focus and drop targets. Read when an explicit gesture test needs OS input on an isolated test desktop.
 - `references/build-provenance.md`: the launch-time provenance block. Read when a log must be tied to a build.

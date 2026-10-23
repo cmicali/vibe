@@ -7,8 +7,9 @@
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
 #import "AudioTrack.h"
+#import "AudioTrackMetadata.h"
 #import "MainMenuBuilder.h"
-#import "PlaylistTestSupport.h"
+#import "PlaylistRowTestSupport.h"
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wincomplete-implementation"
@@ -26,6 +27,10 @@
 }
 @end
 #pragma clang diagnostic pop
+
+// PlaylistController observes it. The real definition is in the ObjC++ file.
+NSNotificationName const AudioTrackMetadataThumbnailDidLoadNotification =
+        @"AudioTrackMetadataThumbnailDidLoadNotification";
 
 static NSString *NameOf(AudioTrack *_Nullable track) {
     return track ? NamesOf(@[track]) : @"nil";

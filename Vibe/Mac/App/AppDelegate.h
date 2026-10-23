@@ -7,7 +7,7 @@
 
 @class MainPlayerController;
 @class SettingsWindowController;
-@class SPUStandardUpdaterController;
+@class VibeUpdater;
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 
@@ -26,10 +26,9 @@
 - (IBAction)showThemeSettings:(id)sender;
 - (IBAction)showSupportPage:(id)sender;
 #if VIBE_DIRECT_DISTRIBUTION
-// The target of Vibe > Check for Updates…, which validates it. nil in a Debug
-// build launched without --update-feed. The rest of the updater is
-// AppDelegate+Updates.
-@property (nonatomic, readonly) SPUStandardUpdaterController *updaterController;
+// Sparkle. Its controller is the target of Vibe > Check for Updates…. It is
+// unstarted in a Debug build launched without --update-feed.
+@property (nonatomic, readonly) VibeUpdater *updater;
 #endif
 
 // The target of the Open Recent menu items OpenRecentMenuController creates.

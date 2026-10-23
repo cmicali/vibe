@@ -4,6 +4,7 @@
 //
 
 #import "Formatters.h"
+#import "AudioTrackMetadata.h"
 #import "VibeStrings.h"
 #import "AppSettings.h"
 
@@ -163,6 +164,21 @@ enum { kDecimalMaxFractionDigits = 3 };
 
 - (NSString *)tempoLineWithBPM:(double)bpm keyText:(NSString *)keyText {
     return [self infoLineFromFields:@[bpm > 0 ? [self bpmString:bpm] : @"", keyText ?: @""]];
+}
+
+- (NSString *)fileInfoLineForMetadata:(AudioTrackMetadata *)metadata {
+    if (!metadata.fileType) {
+        return @"";
+    }
+    NSMutableArray<NSString *> *parts = [NSMutableArray arrayWithObject:metadata.fileType];
+    if (!metadata.isLossless && metadata.bitrate != nil) {
+        [parts addObject:[NSString stringWithFormat:STR_LABEL_BITRATE,
+                [self decimalString:metadata.bitrate.doubleValue fractionDigits:0]]];
+    }
+    if (metadata.sampleRate != nil) {
+        [parts addObject:[self sampleRateString:metadata.sampleRate.doubleValue]];
+    }
+    return [self infoLineFromFields:parts];
 }
 
 - (NSString *)decimalString:(double)value fractionDigits:(NSInteger)digits {

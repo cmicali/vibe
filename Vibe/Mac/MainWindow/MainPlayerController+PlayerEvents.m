@@ -17,7 +17,8 @@
 #import "ArtworkDisplayController.h"
 #import "AudioDevice.h"
 #import "AudioErrorRules.h"
-#import "AudioFileOpenRules.h"
+#import "StringRules.h"
+#import "FilePaths.h"
 #import "AudioDeviceManager.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
@@ -140,6 +141,7 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
 // Callers own didStartPlaying:'s identity guard: the playlist must already
 // point at the started track.
 - (void)performPerTrackRefreshForStartedTrack:(AudioTrack *)track {
+    [self adoptSettledDurationOfTrack:track];
     self.replayResumeTrack = nil; // the live position publishes from here
     // First, so a quick second Next finds the park. nil past the end drops
     // it. Its claim yields metadata-only dataless transfers.
@@ -171,6 +173,20 @@ openRequestIdentifier:(uint64_t)openRequestIdentifier {
         [self pauseUIUpdateTimer];
     } else {
         [self spendWelcomeTrack];
+    }
+}
+
+// A stream opened on an estimated length counted it.
+- (void)audioPlayer:(AudioPlayer *)audioPlayer didSettleDurationOfTrack:(AudioTrack *)track {
+    [self adoptSettledDurationOfTrack:track];
+}
+
+// The row's length is the window the player settled. The player only reads
+// its items, so the shell stores it. Only while the track still sounds,
+// since the player's duration is the sounding track's.
+- (void)adoptSettledDurationOfTrack:(AudioTrack *)track {
+    if (self.audioPlayer.currentTrack == track) {
+        track.duration = self.audioPlayer.duration;
     }
 }
 

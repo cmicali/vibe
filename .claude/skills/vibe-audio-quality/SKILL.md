@@ -18,7 +18,7 @@ python3 $S/corpus.py run fate --no-record  # check without touching the page's r
 python3 $S/corpus.py fetch mp3-iso         # only download
 ```
 
-A corpus downloads into `build/audio-quality/corpora/<name>/`. Only the files Vibe plays are kept, by the list in `Vibe/Common/PlayableExtensions.m`, beside the reference decodes. **Nothing downloaded is ever committed.** `make clean` deletes the downloads. The next run fetches them again.
+A corpus downloads into `build/audio-quality/corpora/<name>/`. Only the files Vibe plays are kept, by the list in `vibe-libs/audio/AudioTypes/PlayableExtensions.m`, beside the reference decodes. **Nothing downloaded is ever committed.** `make clean` deletes the downloads. The next run fetches them again.
 
 | Name | What it holds | What it checks |
 | --- | --- | --- |

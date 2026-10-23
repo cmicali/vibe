@@ -1,0 +1,285 @@
+//
+//  AudioTrack.m
+//  Vibe
+//
+
+#import "AudioTrack.h"
+#import "FilePaths.h"
+#import "AudioTrackMetadata.h"
+#import "CueWindowMath.h"
+#import "Formatters.h"
+#import "NSURL+FilenameTitle.h"
+#import "NSURL+Hash.h"
+#import "PlaylistEntry.h"
+#import "VibeStrings.h"
+
+#include <stdatomic.h>
+
+@interface AudioTrack ()
+@property(copy, readwrite) NSURL *url;
+@property(atomic, strong, nullable, readwrite) AudioTrackMetadata *metadata;
+// Atomic, so cacheKey's fast-path read cannot race the first store.
+@property (atomic, copy, nullable) NSString *memoizedCacheKey;
+@end
+
+@implementation AudioTrack {
+    NSTimeInterval _duration;
+    NSString *_durationString;
+    NSTimeInterval _durationStringDuration;
+    // Both fixed with the window: a row is minted, never re-pointed.
+    NSString *_sourceKey;
+    // A cue row's own name — its TITLE, else "Track n" — or nil.
+    NSString *_cueRowTitle;
+    // The NSURL.cacheKeyGeneration memoizedCacheKey was computed under;
+    // stored after it, so a reader matching it reads that key or a newer one.
+    _Atomic uint64_t _memoizedCacheKeyGeneration;
+}
+
+- (instancetype)initWithURL:(NSURL *)url {
+    self = [super init];
+    if (self) {
+        self.url = url;
+        _duration = -1;
+        _detectedKey = VibeMusicalKeyNone; // the zero-filled default is C major
+        _sourceKey = url.path ?: @"";
+    }
+    return self;
+}
+
++ (AudioTrack *)withURL:(NSURL *)url {
+    return [[AudioTrack alloc] initWithURL:url];
+}
+
+- (instancetype)initWithURL:(NSURL *)url cueStart:(NSUInteger)start cueEnd:(NSUInteger)end
+                      title:(NSString *)title performer:(NSString *)performer
+                      sheet:(NSURL *)sheet trackNumber:(NSInteger)trackNumber {
+    self = [self initWithURL:url];
+    if (self) {
+        _cueStart = start;
+        _cueEnd = end;
+        _cueTitle = [title copy];
+        _cuePerformer = [performer copy];
+        _cueSheetURL = [sheet copy];
+        _cueTrackNumber = trackNumber;
+        _sourceKey = [self keyByAppendingWindowTo:url.path] ?: @"";
+        // Its number, never the file's tag, which names the whole image and
+        // would title every row alike.
+        _cueRowTitle = _cueTitle.length > 0 ? _cueTitle
+                : (self.isWindowed && trackNumber > 0
+                        ? [NSString stringWithFormat:STR_LABEL_CUE_TRACK, (long)trackNumber] : nil);
+    }
+    return self;
+}
+
++ (NSArray<AudioTrack *> *)rowsForEntries:(NSArray<PlaylistEntry *> *)entries {
+    NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:entries.count];
+    for (PlaylistEntry *entry in entries) {
+        // A whole file skips the cue initializer, which would spell the path twice.
+        BOOL whole = !entry.isWindowed && !entry.cueSheetURL && !entry.cueTitle && !entry.cuePerformer
+                && entry.cueTrackNumber == 0;
+        [rows addObject:whole ? [AudioTrack withURL:entry.url]
+                : [[AudioTrack alloc] initWithURL:entry.url cueStart:entry.cueStart cueEnd:entry.cueEnd
+                                            title:entry.cueTitle performer:entry.cuePerformer
+                                            sheet:entry.cueSheetURL trackNumber:entry.cueTrackNumber]];
+    }
+    return rows;
+}
+
++ (NSArray<PlaylistEntry *> *)entriesForRows:(NSArray<AudioTrack *> *)rows {
+    NSMutableArray<PlaylistEntry *> *entries = [NSMutableArray arrayWithCapacity:rows.count];
+    for (AudioTrack *row in rows) {
+        [entries addObject:[[PlaylistEntry alloc] initWithURL:row.url cueStart:row.cueStart cueEnd:row.cueEnd
+                                                        title:row.cueTitle performer:row.cuePerformer
+                                                        sheet:row.cueSheetURL trackNumber:row.cueTrackNumber
+                                                     duration:row.duration displayTitle:row.displayTitle
+                                                displayArtist:row.displayArtist]];
+    }
+    return entries;
+}
+
+- (AudioTrack *)replacementAtURL:(NSURL *)url {
+    AudioTrack *track = [[AudioTrack alloc] initWithURL:url cueStart:_cueStart cueEnd:_cueEnd
+                                                  title:_cueTitle performer:_cuePerformer
+                                                  sheet:_cueSheetURL trackNumber:_cueTrackNumber];
+    track.duration = self.duration;
+    track.detectedBPM = self.detectedBPM;
+    track.detectedKey = self.detectedKey;
+    return track;
+}
+
+- (BOOL)isWindowed {
+    return _cueStart > 0 || _cueEnd > 0;
+}
+
+- (NSString *)sourceKey {
+    return _sourceKey;
+}
+
+- (NSString *)standardizedSourceKey {
+    return [self keyByAppendingWindowTo:VibeStandardizedAudioOpenPath(self.url)];
+}
+
+- (NSString *)keyByAppendingWindowTo:(NSString *)key {
+    return VibeKeyByAppendingCueWindow(key, _cueStart, _cueEnd);
+}
+
+- (BOOL)installMetadataIfUnresolved:(AudioTrackMetadata *)metadata {
+    @synchronized (self) {
+        AudioTrackMetadata *installed = self.metadata;
+        if (installed.parsedOK && (installed.cacheKey == metadata.cacheKey
+                || [installed.cacheKey isEqualToString:metadata.cacheKey])) {
+            return NO;
+        }
+        self.metadata = metadata;
+        return YES;
+    }
+}
+
+- (BOOL)deliverIfMetadataStillInstalled:(AudioTrackMetadata *)metadata
+                              usingBlock:(NS_NOESCAPE dispatch_block_t)delivery {
+    NSParameterAssert(delivery);
+    @synchronized (self) {
+        if (self.metadata != metadata) {
+            return NO;
+        }
+        delivery();
+        return YES;
+    }
+}
+
+- (nullable NSString *)cacheKey {
+    // Read before the stat, so a replacement landing during it stamps this
+    // key stale.
+    uint64_t generation = NSURL.cacheKeyGeneration;
+    NSString *key = atomic_load(&_memoizedCacheKeyGeneration) == generation ? self.memoizedCacheKey : nil;
+    if (!key) {
+        // Outside the monitor: the stat can block indefinitely on a hung
+        // mount or a dataless file, and would wedge every caller with it.
+        // Concurrent callers may compute twice; the first store wins.
+        key = [self.url cacheKey];
+        if (!key) {
+            // Probably transient: not memoized, so the next call retries.
+            return nil;
+        }
+        @synchronized (self) {
+            if (!self.memoizedCacheKey || atomic_load(&_memoizedCacheKeyGeneration) < generation) {
+                self.memoizedCacheKey = key;
+                atomic_store(&_memoizedCacheKeyGeneration, generation);
+            }
+            key = self.memoizedCacheKey;
+        }
+    }
+    return key;
+}
+
+- (NSString *)title {
+    if (_cueRowTitle) {
+        return _cueRowTitle;
+    }
+    if (self.metadata.title.length > 0) {
+        return self.metadata.title;
+    }
+    return self.url.filenameTitle ?: @"";
+}
+
+- (NSString *)artist {
+    if (_cuePerformer.length > 0) {
+        return _cuePerformer;
+    }
+    if (self.metadata.artist.length > 0) {
+        return self.metadata.artist;
+    }
+    else {
+        return @"";
+    }
+}
+
+- (VibeImage *)cachedArt {
+    return self.metadata.cachedArt;
+}
+
+- (VibeImage *)cachedThumbnail {
+    return self.metadata.cachedThumbnail;
+}
+
+- (AudioTrackMetadata *)rowTagMetadata {
+    return self.isWindowed ? nil : self.metadata;
+}
+
+- (float)bpm {
+    float tagged = self.rowTagMetadata.bpm;
+    return tagged > 0 ? tagged : self.detectedBPM;
+}
+
+- (VibeMusicalKey)key {
+    // A message to nil metadata would answer 0, which is C major.
+    AudioTrackMetadata *metadata = self.rowTagMetadata;
+    VibeMusicalKey tagged = metadata ? metadata.key : VibeMusicalKeyNone;
+    return tagged >= 0 ? tagged : self.detectedKey;
+}
+
+// The player's settled length, written on main by each shell's
+// adoptSettledDurationOfTrack:. Until then a windowed row answers its window,
+// and the last row the rest of its file.
+- (NSTimeInterval)duration {
+    NSTimeInterval duration;
+    @synchronized (self) {
+        duration = _duration;
+    }
+    if (duration >= 0) {
+        return duration;
+    }
+    if (_cueEnd > _cueStart) {
+        return (NSTimeInterval)(_cueEnd - _cueStart) / kVibeCDFramesPerSecond;
+    }
+    NSTimeInterval file = self.metadata.duration;
+    return _cueStart > 0 && file > 0 ? MAX(0, file - (NSTimeInterval)_cueStart / kVibeCDFramesPerSecond) : file;
+}
+
+- (void)setDuration:(NSTimeInterval)len {
+    @synchronized (self) {
+        _duration = len;
+    }
+}
+
+- (NSString *)durationString {
+    NSTimeInterval duration = self.duration;
+    if (duration <= 0) {
+        return @"";
+    }
+    // Main thread only: the monitor guards the memo pair, not Formatters,
+    // which is not documented thread-safe.
+    @synchronized (self) {
+        if (!_durationString || _durationStringDuration != duration) {
+            _durationString = [[Formatters sharedInstance] durationStringFromTimeInterval:duration];
+            _durationStringDuration = duration;
+        }
+        return _durationString;
+    }
+}
+
+- (BOOL)hasArtistAndTitle {
+    return self.artist.length > 0 && (_cueRowTitle || self.metadata.title.length > 0);
+}
+
+- (NSString *)displayTitle {
+    return self.hasArtistAndTitle ? self.title : self.singleLineTitle;
+}
+
+- (NSString *)displayArtist {
+    return self.hasArtistAndTitle ? self.artist : nil;
+}
+
+- (NSString *)singleLineTitle {
+    if (self.hasArtistAndTitle) {
+        // Positional specifiers: a translation may want the title first.
+        return [NSString stringWithFormat:STR_LABEL_TRACK_ARTIST_TITLE, self.artist, self.title];
+    }
+    else {
+        // No extension to strip: both fallbacks already did, and stripping a
+        // tagged title would mangle "Vol. 2".
+        return [self.title stringByReplacingOccurrencesOfString:@"_" withString:@" "];
+    }
+}
+
+@end

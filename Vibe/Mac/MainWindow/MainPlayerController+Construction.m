@@ -18,6 +18,7 @@
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "ArtworkDisplayController.h"
+#import "AudioAnalysisObservers.h"
 #import "AudioFileConverter.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
@@ -37,6 +38,7 @@
 #import "UIUpdateTimer.h"
 #import "UIUpdateMath.h"
 #import "WaveformRendererRegistry.h"
+#import "WaveformTheme+Settings.h"
 #import "WaveformView.h"
 
 @implementation MainPlayerController (Construction)
@@ -134,12 +136,20 @@
 - (void)wireCollaboratorHandlers {
     // Asked once per request, so a settings change lands on the next load.
     // The iOS card installs its own, tempo only.
+    AudioWaveformObserver *tempo = AudioBPMAnalyzer.waveformObserver;
+    AudioWaveformObserver *key = AudioKeyAnalyzer.waveformObserver;
     self.waveformCache.analysisProvider = ^VibeWaveformAnalysis{
         AppSettings *settings = AppSettings.sharedInstance;
+        NSMutableArray<AudioWaveformObserver *> *observers = [NSMutableArray arrayWithCapacity:2];
+        if (settings.analyzeBPM) {
+            [observers addObject:tempo];
+        }
+        if (settings.analyzeKey) {
+            [observers addObject:key];
+        }
         return (VibeWaveformAnalysis){
-            .bpm = settings.analyzeBPM,
-            .key = settings.analyzeKey,
             .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.currentTheme.waveformStyle],
+            .observers = observers,
         };
     };
     _waveformAnalysisWanted = self.waveformCache.analysisProvider();
@@ -211,10 +221,12 @@
     [self applyAppIcon];
 
     self.waveformView.delegate = self;
-    // The theme's style, never the loose waveformStyle key, which theme
-    // migration consumed on macOS. This creates the renderer, so
-    // prepareForWaveformLoad's fallback never runs.
-    self.waveformView.waveformStyle = AppSettings.sharedInstance.currentTheme.waveformStyle;
+    self.waveformView.themeProvider = ^WaveformTheme *(BOOL isDark, NSColor *artworkColor) {
+        return [WaveformTheme themeForAppTheme:AppSettings.sharedInstance.currentTheme isDark:isDark
+                                  artworkColor:artworkColor];
+    };
+    // Creates the renderer, so the first load finds one.
+    [self applyWaveformSettings];
 
     MainWindow *window = (MainWindow *)self.window;
     window.dropDelegate = self;

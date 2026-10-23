@@ -7,7 +7,6 @@
 
 #include <sys/stat.h>
 
-#import "AudioTrack.h"
 #import "HTTPTransferClientInternal.h"
 #import "FilePaths.h"
 #import "PlaceholderFiles.h"
@@ -15,24 +14,18 @@
 #import "RemotePlaceholderStoreInternal.h"
 #import "VibeStrings.h"
 
-NSErrorDomain const VibeLinkErrorDomain = @"com.commonwealthrecordings.Vibe.Link";
-
 // On every link directory: the link's record (recordOfLink:…). On the
 // directory, because a placeholder's attributes are as unreadable as its
 // bytes.
 static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.link";
+// The size the downloads of every link may reach before the oldest go back
+// to placeholders. Decimal, as the other download budgets are.
+static const long long kVibeLinkDownloadBudgetBytes = 2000LL * 1000 * 1000;
 // Enough for every signature VibeLinkAudioExtension knows.
 static const uint64_t kProbeBytes = 16;
 
 static NSString *_Nullable VibeLinkString(id value) {
     return [value isKindOfClass:NSString.class] ? value : nil;
-}
-
-NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underlying) {
-    NSMutableDictionary *info = [NSMutableDictionary dictionary];
-    info[NSUnderlyingErrorKey] = underlying;
-    info[VibeHTTPErrorStatusCodeKey] = underlying.userInfo[VibeHTTPErrorStatusCodeKey];
-    return [NSError errorWithDomain:VibeLinkErrorDomain code:code userInfo:info];
 }
 
 // The probe's failure as the link's. An iCloud lookup's refusal already is.
@@ -453,40 +446,9 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
     return file;
 }
 
-#pragma mark - Messages
-
-+ (NSString *)messageForError:(NSError *)error brief:(BOOL)brief {
-    if (![error.domain isEqualToString:VibeLinkErrorDomain]) {
-        return brief ? STR_LINK_STATUS_UNREACHABLE : STR_LINK_ERROR_UNREACHABLE;
-    }
-    switch ((VibeLinkError)error.code) {
-        case VibeLinkErrorInvalid:      return brief ? STR_LINK_STATUS_INVALID : STR_LINK_ERROR_INVALID;
-        case VibeLinkErrorInsecure:     return brief ? STR_LINK_STATUS_INSECURE : STR_LINK_ERROR_INSECURE;
-        case VibeLinkErrorLocalNetwork: return brief ? STR_LINK_STATUS_LOCAL_NETWORK : STR_LINK_ERROR_LOCAL_NETWORK;
-        case VibeLinkErrorNotFound:     return brief ? STR_LINK_STATUS_NOT_FOUND : STR_LINK_ERROR_NOT_FOUND;
-        case VibeLinkErrorDenied:       return brief ? STR_LINK_STATUS_DENIED : STR_LINK_ERROR_DENIED;
-        case VibeLinkErrorNotAudio:     return brief ? STR_LINK_STATUS_NOT_AUDIO : STR_LINK_ERROR_NOT_AUDIO;
-        case VibeLinkErrorNoSize:       return brief ? STR_LINK_STATUS_NO_SIZE : STR_LINK_ERROR_NO_SIZE;
-        case VibeLinkErrorLiveStream:   return brief ? STR_LINK_STATUS_LIVE_STREAM : STR_LINK_ERROR_LIVE_STREAM;
-        case VibeLinkErrorServer:
-            return [NSString stringWithFormat:brief ? STR_LINK_STATUS_SERVER : STR_LINK_ERROR_SERVER,
-                                              (long)[error.userInfo[VibeHTTPErrorStatusCodeKey] integerValue]];
-        case VibeLinkErrorICloudPrivate:
-            return brief ? STR_LINK_STATUS_ICLOUD_PRIVATE : STR_LINK_ERROR_ICLOUD_PRIVATE;
-        case VibeLinkErrorICloudFolder: return brief ? STR_LINK_STATUS_ICLOUD_FOLDER : STR_LINK_ERROR_ICLOUD_FOLDER;
-        case VibeLinkErrorICloudUnreadable:
-            return brief ? STR_LINK_STATUS_ICLOUD_UNREADABLE : STR_LINK_ERROR_ICLOUD_UNREADABLE;
-        case VibeLinkErrorCancelled:    return nil;
-        case VibeLinkErrorNone:
-        case VibeLinkErrorUnreachable:
-            break;
-    }
-    return brief ? STR_LINK_STATUS_UNREACHABLE : STR_LINK_ERROR_UNREACHABLE;
-}
-
 #pragma mark - Pruning
 
-- (void)pruneKeepingTracks:(NSArray<AudioTrack *> *)tracks recentURLs:(NSArray<NSURL *> *)recents {
+- (void)pruneKeepingTracks:(NSArray<id<VibePlayableItem>> *)tracks recentURLs:(NSArray<NSURL *> *)recents {
     dispatch_async(self.diskQueue, ^{
         NSArray<NSURL *> *directories = [NSFileManager.defaultManager contentsOfDirectoryAtURL:self.rootURL
                                                                     includingPropertiesForKeys:nil
@@ -508,7 +470,7 @@ static time_t VibeLinkModificationTime(NSDictionary *_Nullable metadata, NSTimeI
                 [keptNames addObject:components[depth]];
             }
         };
-        for (AudioTrack *track in tracks) {
+        for (id<VibePlayableItem> track in tracks) {
             keep(track.url);
         }
         for (NSURL *url in recents) {

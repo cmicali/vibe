@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 318" width="720" height="318" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif" role="img" aria-label="Scrolling and pinching the iOS scrubber">
+<style>.bg{fill:#fcfcfb}.t{fill:#0b0b0b}.m{fill:#52514e}.q{fill:#898781}.box{fill:#f0efec}.g{stroke:#e1e0d9}.a{stroke:#c3c2b7}.k{stroke:#b9b8b2}.ring{stroke:#fcfcfb}.s0{fill:#2a78d6;stroke:#2a78d6}.s1{fill:#eb6834;stroke:#eb6834}.s2{fill:#1baf7a;stroke:#1baf7a}.s3{fill:#eda100;stroke:#eda100}@media (prefers-color-scheme:dark){.bg{fill:#1a1a19}.t{fill:#f0efec}.m{fill:#c3c2b7}.q{fill:#898781}.box{fill:#262624}.g{stroke:#2c2c2a}.a{stroke:#383835}.k{stroke:#55554f}.ring{stroke:#1a1a19}.s0{fill:#3987e5;stroke:#3987e5}.s1{fill:#d95926;stroke:#d95926}.s2{fill:#199e70;stroke:#199e70}.s3{fill:#c98500;stroke:#c98500}}text{font-variant-numeric:tabular-nums}.ln{fill:none;stroke-linejoin:round;stroke-linecap:round}rect.s0,rect.s1,rect.s2,rect.s3,rect.s4,rect.s5,rect.s6,rect.s7,rect.sg{stroke:none}</style>
+<rect class="bg" width="720" height="318" rx="10"/>
+<text class="t" x="24.0" y="32.0" font-size="15" text-anchor="start" font-weight="600">Scrolling and pinching the iOS scrubber</text>
+<text class="m" x="24.0" y="50.0" font-size="12" text-anchor="start">Milliseconds of CPU per frame. Lower is better. The numbers in the key are 1.17&#x27;s.</text>
+<rect class="s0" x="24" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="44.0" y="68.0" font-size="12" text-anchor="start">Detailed, scroll</text>
+<text class="m" x="129.4" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.29</text>
+<rect class="s1" x="175.55999999999997" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="195.6" y="68.0" font-size="12" text-anchor="start">Detailed, scroll at full zoom</text>
+<text class="m" x="346.6" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.21</text>
+<rect class="s2" x="392.7599999999999" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="412.8" y="68.0" font-size="12" text-anchor="start">Detailed, pinch</text>
+<text class="m" x="497.0" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.13</text>
+<rect class="s3" x="543.1199999999999" y="63.0" width="14" height="4" rx="2"/>
+<text class="t" x="563.1" y="68.0" font-size="12" text-anchor="start">3-Band, scroll</text>
+<text class="m" x="642.8" y="68.0" font-size="12" text-anchor="start" font-weight="600">0.53</text>
+<line class="a" x1="52.0" y1="274.0" x2="696.0" y2="274.0" stroke-width="1"/>
+<text class="q" x="44.0" y="278.0" font-size="11" text-anchor="end">0.0</text>
+<line class="g" x1="52.0" y1="244.0" x2="696.0" y2="244.0" stroke-width="1"/>
+<text class="q" x="44.0" y="248.0" font-size="11" text-anchor="end">0.1</text>
+<line class="g" x1="52.0" y1="214.0" x2="696.0" y2="214.0" stroke-width="1"/>
+<text class="q" x="44.0" y="218.0" font-size="11" text-anchor="end">0.2</text>
+<line class="g" x1="52.0" y1="184.0" x2="696.0" y2="184.0" stroke-width="1"/>
+<text class="q" x="44.0" y="188.0" font-size="11" text-anchor="end">0.3</text>
+<line class="g" x1="52.0" y1="154.0" x2="696.0" y2="154.0" stroke-width="1"/>
+<text class="q" x="44.0" y="158.0" font-size="11" text-anchor="end">0.4</text>
+<line class="g" x1="52.0" y1="124.0" x2="696.0" y2="124.0" stroke-width="1"/>
+<text class="q" x="44.0" y="128.0" font-size="11" text-anchor="end">0.5</text>
+<line class="g" x1="52.0" y1="94.0" x2="696.0" y2="94.0" stroke-width="1"/>
+<text class="q" x="44.0" y="98.0" font-size="11" text-anchor="end">0.6</text>
+<text class="m" x="84.2" y="292.0" font-size="11" text-anchor="middle">1.8</text>
+<text class="m" x="148.6" y="292.0" font-size="11" text-anchor="middle">1.9</text>
+<text class="m" x="213.0" y="292.0" font-size="11" text-anchor="middle">1.10</text>
+<text class="m" x="277.4" y="292.0" font-size="11" text-anchor="middle">1.11</text>
+<text class="m" x="341.8" y="292.0" font-size="11" text-anchor="middle">1.12</text>
+<text class="m" x="406.2" y="292.0" font-size="11" text-anchor="middle">1.13</text>
+<text class="m" x="470.6" y="292.0" font-size="11" text-anchor="middle">1.14</text>
+<text class="m" x="535.0" y="292.0" font-size="11" text-anchor="middle">1.15</text>
+<text class="m" x="599.4" y="292.0" font-size="11" text-anchor="middle">1.16</text>
+<text class="t" x="663.8" y="292.0" font-size="11" text-anchor="middle" font-weight="600">1.17</text>
+<path class="ln s0" stroke-width="2" d="M599.4,188.0 L663.8,188.0"/>
+<circle class="s0 ring" cx="599.4" cy="188.0" r="3.5" stroke-width="2"><title>1.16, Detailed, scroll: 0.29</title></circle>
+<circle class="s0 ring" cx="663.8" cy="188.0" r="3.5" stroke-width="2"><title>1.17, Detailed, scroll: 0.29</title></circle>
+<path class="ln s1" stroke-width="2" d="M599.4,211.2 L663.8,210.9"/>
+<circle class="s1 ring" cx="599.4" cy="211.2" r="3.5" stroke-width="2"><title>1.16, Detailed, scroll at full zoom: 0.21</title></circle>
+<circle class="s1 ring" cx="663.8" cy="210.9" r="3.5" stroke-width="2"><title>1.17, Detailed, scroll at full zoom: 0.21</title></circle>
+<path class="ln s2" stroke-width="2" d="M599.4,234.9 L663.8,234.6"/>
+<circle class="s2 ring" cx="599.4" cy="234.9" r="3.5" stroke-width="2"><title>1.16, Detailed, pinch: 0.13</title></circle>
+<circle class="s2 ring" cx="663.8" cy="234.6" r="3.5" stroke-width="2"><title>1.17, Detailed, pinch: 0.13</title></circle>
+<path class="ln s3" stroke-width="2" d="M599.4,112.9 L663.8,113.5"/>
+<circle class="s3 ring" cx="599.4" cy="112.9" r="3.5" stroke-width="2"><title>1.16, 3-Band, scroll: 0.54</title></circle>
+<circle class="s3 ring" cx="663.8" cy="113.5" r="3.5" stroke-width="2"><title>1.17, 3-Band, scroll: 0.53</title></circle>
+</svg>

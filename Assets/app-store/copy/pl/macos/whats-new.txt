@@ -1,27 +1,7 @@
-* Nowość: Otwórz adres… (⌘L) odtwarza link internetowy lub link udostępniania z Dropboxa, Google Drive albo iCloud Drive
-* Nowość: styl kształtu fali Spektrum z kolorowaniem Według sekcji, dzięki któremu każda część utworu zachowuje jeden kolor
-* Nowość: motywy RGB, Dark Core, Kinda Blue i Sectioned oraz ikona aplikacji Dark Core, autorstwa JohnnyFireOne
-* Nowość: Przenieś do Kosza (⌘⌫) usuwa plik zaznaczonego lub odtwarzanego utworu, z opcją Cofnij
-* Nowość: Dodaj do playlisty… (⇧⌘O), Pokaż w Finderze (⇧⌘R) oraz menu Okno z poleceniami Zminimalizuj, Szerokość okna, Zawsze na wierzchu i Zablokuj położenie okna
-* Nowość: stan Buforowanie…, gdy utwór czeka na wolny udział sieciowy lub pobieranie
-* Nowość: kolory motywu dla tekstu odtwarzanego i zaznaczonego wiersza oraz słupków korektora odtwarzanego wiersza, a także domyślne okładki Przezroczyste, Okno, Symbol i Niestandardowy kolor
-* Nowość: kliknij nagłówek panelu pitch, aby przełączyć jego zakres między 8 % a 16 %
-* Nowość: odtwarzanie plików MP3 typu free format
-* Nowość: utwór motywu vibe, który wczytuje się przy uruchomieniu, dopóki czegoś nie odtworzysz lub nie otworzysz
-* Zmiana: menu są zgodne z konwencjami macOS: Edycja > Kopiuj, podmenu Powtarzanie oraz podmenu Przewiń do tyłu i Przewiń do przodu, które pokazują każdą odległość w taktach lub sekundach
-* Zmiana: style kształtu fali mają nowe nazwy: Prosty to teraz Słupki, Cupertino (prosty) to teraz Postęp, a cztery style Szczegółowy połączono w jeden z ustawieniem Typ
-* Zmiana: Poprzedni utwór na pierwszym utworze odtwarza go od początku
-* Zmiana: suwak głośności pojawia się blisko wskaźnika, a ustawienie motywu decyduje, kiedy jest widoczny
-* Zmiana: linia głowicy jest lekko przezroczysta, a słupki korektora odtwarzanego wiersza są czarne w trybie jasnym
-* Zmiana: motyw Cupertino przyciemnia tylko okładkę za przyciskami odtwarzania i ma jaśniejszy gradient
-* Ulepszenie: suwak pitch brzmi lepiej dzięki własnemu silnikowi zmiany wysokości dźwięku i płynnym zmianom
-* Ulepszenie: wyjście bit-perfect używa największej głębi bitowej urządzenia, co daje czystsze zmiany głośności i odtwarzanie bez przerw między utworami 16- i 24-bitowymi
-* Ulepszenie: odtwarzanie z udziałów sieciowych: zerwane połączenie wstrzymuje odtwarzanie z komunikatem „Utracono połączenie”, wolny serwer nie blokuje już zmiany utworów, a utwory hi-res odtwarzają się płynnie
-* Ulepszenie: utwory MP3, FLAC, WAV i AIFF otwierają się szybciej
-* Ulepszenie: okno Ustawień ma czytelniejsze nazwy, powody pod wyłączonymi wierszami, potwierdzenie przed przywróceniem ustawień domyślnych i pasek skoku w edytorze motywów
-* Poprawka: odtwarzanie bez przerw plików MP3 mono i MPEG-2
-* Poprawka: pliki Opus, których nagłówek ustawia głośność, grały na złym poziomie
-* Poprawka: utwory Ogg Vorbis traciły pierwsze 3 ms
-* Poprawka: uszkodzony plik CAF mógł zablokować skanowanie metadanych
-* Poprawka: linia wskaźnika na kształcie fali ginęła nad odtworzoną częścią
-* Poprawka: w macOS 27 zmiana motywu czyściła zaznaczenie w playliście, a pamięć rosła przy każdym otwarciu playlisty i każdej zmianie motywu
+* Nowość: zmiana głośności przewijaniem myszą lub gładzikiem oraz klawiszami strzałek w górę i w dół (gdy włączone)
+* Nowość: „Kopiuj” i „Wklej” dla kolorów i czcionek w menu kontekstowym edytora motywów
+* Nowość: próbka kolorów każdego motywu w menu „Widok > Motyw”
+* Zmiana: pliki MP3, FLAC, WAV, AIFF i Ogg Vorbis są zawsze odtwarzane własnymi dekoderami Vibe
+* Zmiana: ustawienia wyglądu i działania suwaka głośności przeniesiono z motywów do „Ustawienia > Wygląd”
+* Ulepszenie: odtwarzanie plików Ogg Vorbis, które zawierają też wideo lub strumień Skeleton
+* Poprawka: pliki MP3 320 kb/s otwierały się powoli

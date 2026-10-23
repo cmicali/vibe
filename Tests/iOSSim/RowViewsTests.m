@@ -4,7 +4,7 @@
 
 #import "IOSSimTestCase.h"
 
-#import "AudioFileOpenRules.h"
+#import "FilePaths.h"
 #import "AudioTrack.h"
 #import "CloudTransferRegistryInternal.h"
 #import "EqualizerIndicatorView.h"

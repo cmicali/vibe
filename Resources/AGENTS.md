@@ -6,6 +6,6 @@ This directory holds the files the apps bundle as resources: the built-in themes
 
 **TRAP: `Themes/` is a folder reference (`type: folder` in `project.yml`).** It is copied verbatim into the mac app and the test bundle, and a folder reference takes no excludes. Add nothing there that is not meant to ship: no `AGENTS.md`, no scratch files, no README. That is why this file and `Themes-README.md` sit one level up.
 
-The string catalogs live here. `Localizable.xcstrings` gets its keys, English text and comments from extraction. Edit translations in the catalog. Run `make strings` after touching `VibeStrings.h` or translations. `InfoPlist.xcstrings` and `ThemeNames.xcstrings` are hand-managed. The `vibe-strings` skill is the reference for all three.
+The string catalogs live here. `Localizable.xcstrings` gets its keys, English text and comments from extraction. Edit translations in the catalog. Run `make strings` after touching `VibeStrings.h` or translations. `InfoPlist.xcstrings` and `ThemeNames.xcstrings` are hand-managed. The `vibe-strings` skill is the reference for all three. `strings-config.sh` names the registry, the catalogs, and the widget's subset for the strings scripts. It is not bundled.
 
 The rest are app assets owned by their features: `Assets.xcassets`, `AppIcon.icon`, `PrivacyInfo.xcprivacy`, `VectorBalls.metal.txt` and `vibe-theme.mp3`, the welcome track.

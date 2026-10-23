@@ -16,18 +16,9 @@
 #import "LinkClient.h"
 #import "LinkRules.h"
 #import "RemotePlaceholderStore.h"
+#import "VibePlayableItem.h"
 
 NS_ASSUME_NONNULL_BEGIN
-
-@class AudioTrack;
-
-// A link that did not open. The code is a VibeLinkError. A Server error
-// carries the status under VibeHTTPErrorStatusCodeKey. The error that caused
-// it, if any, is under NSUnderlyingErrorKey. Each shell shows its
-// link.error string.
-extern NSErrorDomain const VibeLinkErrorDomain;
-// A link error with that code, carrying underlying and its status.
-NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underlying);
 
 @interface LinkStore : RemotePlaceholderStore
 
@@ -66,17 +57,11 @@ NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underlying);
 // cached xattr.
 - (nullable NSString *)hostOfLinkFileURL:(NSURL *)url;
 
-// What the shell shows for a failed open: the error's link.error string, or
-// its short link.status string when brief. A Server error names its status.
-// Any error outside the link domain reads as unreachable. A disk failure is
-// one. Nil for a cancel, which shows nothing.
-+ (nullable NSString *)messageForError:(nullable NSError *)error brief:(BOOL)brief;
-
 // Deletes each link not opened for 30 days that no track's file or recent
 // URL lies in. Once per launch, after the restore, so tracks are the
 // playlist's rows as the shell restored them. A saved playlist naming a
 // deleted link finds its entry missing. Off main, on the store's queue.
-- (void)pruneKeepingTracks:(NSArray<AudioTrack *> *)tracks recentURLs:(NSArray<NSURL *> *)recents;
+- (void)pruneKeepingTracks:(NSArray<id<VibePlayableItem>> *)tracks recentURLs:(NSArray<NSURL *> *)recents;
 
 @end
 

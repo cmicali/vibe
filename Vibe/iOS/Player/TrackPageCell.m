@@ -270,6 +270,7 @@ static NSAttributedString *SpinnerRoom(UIFont *font) {
 
         _waveformView = [[WaveformScrubberView alloc] initWithFrame:CGRectZero];
         _waveformView.translatesAutoresizingMaskIntoConstraints = NO;
+        _waveformView.accessibilityLabel = STR_A11Y_WAVEFORM;
         [content addSubview:_waveformView];
 
         _elapsedLabel = [self makeTimeLabel];

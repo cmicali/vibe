@@ -40,52 +40,51 @@ static const CGFloat kImageBadgeInset = 1.5;
     [self refreshFromSettings];
 }
 
-// Bound to one side of the pair at base. Alpha is part of every choice but an
-// opaque pair's (3-Band's bands): a fill's strength, a background's opacity, a
-// waveform side's resting level.
-- (NSColorWell *)wellForDark:(BOOL)isDark base:(NSString *)base effect:(VibeSettingsLiveEffect)effect {
-    NSColorWell *well = [[NSColorWell alloc] init];
-    well.target = self;
-    well.action = @selector(colorWellChanged:);
-    if (!_wellBindings) {
-        _wellBindings = [NSMapTable strongToStrongObjectsMapTable];
+// One row per themed color set: Dark/Light, the waveform's Played/Unplayed,
+// or 3-Band's Low/Mid/High. Well i is bound to bases[i] on the dark or light
+// side darkSides[i] names. Alpha is part of every choice but an opaque set's
+// (3-Band's bands): a fill's strength, a background's opacity, a waveform
+// side's resting level. A pick is continuous, as the panel streams; a paste
+// is one edit, so it forks a built-in and undoes in one step.
+- (SettingsColorRow *)colorRowForBases:(NSArray<NSString *> *)bases
+                             darkSides:(NSArray<NSNumber *> *)darkSides
+                              captions:(NSArray<NSString *> *)captions
+                                effect:(VibeSettingsLiveEffect)effect {
+    __weak __typeof(self) weakSelf = self;
+    SettingsColorRow *row = [SettingsColorRow rowWithCaptions:captions
+            supportsAlpha:![AppTheme storesOpaqueColorBase:bases.firstObject]
+            read:^NSColor *(NSUInteger index) {
+                return [AppSettings.sharedInstance.currentTheme displayColorForBase:bases[index]
+                                                                              dark:darkSides[index].boolValue];
+            }
+            write:^(NSUInteger index, NSColor *color) {
+                [AppSettings.sharedInstance.currentTheme setColor:color forBase:bases[index]
+                                                             dark:darkSides[index].boolValue];
+            }
+            changed:^(BOOL continuous) {
+                [weakSelf themeFieldDidChange:effect continuous:continuous];
+                if (!continuous) {
+                    [weakSelf refreshFromSettings];
+                }
+            }];
+    if (!_colorRows) {
+        _colorRows = [NSMutableArray array];
     }
-    [_wellBindings setObject:@{kWellBase: base, kWellEffect: @(effect), kWellDark: @(isDark)}
-                      forKey:well];
-    if (@available(macOS 14.0, *)) {
-        well.supportsAlpha = ![AppTheme storesOpaqueColorBase:base];
-    } else {
-        // Pre-14 wells follow the shared panel, which nothing else opens; an
-        // opaque pair stores its alpha opaque.
-        NSColorPanel.sharedColorPanel.showsAlpha = YES;
-    }
-    [well.widthAnchor constraintEqualToConstant:44].active = YES;
-    [well.heightAnchor constraintEqualToConstant:24].active = YES;
-    return well;
-}
-
-// [well caption] [well caption] … — one row per themed color set: Dark/Light,
-// the waveform's Played/Unplayed, or 3-Band's Low/Mid/High.
-- (NSStackView *)wells:(NSArray<NSView *> *)wells captions:(NSArray<NSString *> *)captions {
-    NSStackView *row = [NSStackView stackViewWithViews:@[]];
-    row.spacing = 6;
-    for (NSUInteger i = 0; i < wells.count; i++) {
-        NSTextField *label = [NSTextField labelWithString:captions[i]];
-        label.textColor = NSColor.secondaryLabelColor;
-        [row addArrangedSubview:wells[i]];
-        [row addArrangedSubview:label];
-        [row setCustomSpacing:16 afterView:label];
-    }
+    [_colorRows addObject:row];
     return row;
 }
 
 - (NSStackView *)captionedPairWithDark:(NSView *)dark light:(NSView *)light {
-    return [self wells:@[dark, light] captions:@[STR_SETTINGS_THEME_DARK, STR_SETTINGS_THEME_LIGHT]];
+    return [SettingsRowView captionedControls:@[dark, light]
+                                     captions:@[STR_SETTINGS_THEME_DARK, STR_SETTINGS_THEME_LIGHT]];
 }
 
 // An appearance-keyed pair: registered with the single-mode collapse.
 - (NSStackView *)darkLightPairWithDark:(NSView *)dark light:(NSView *)light {
-    NSStackView *pair = [self captionedPairWithDark:dark light:light];
+    return [self registerDarkLightPair:[self captionedPairWithDark:dark light:light]];
+}
+
+- (NSStackView *)registerDarkLightPair:(NSStackView *)pair {
     if (!_darkLightPairs) {
         _darkLightPairs = [NSMutableArray array];
     }
@@ -94,21 +93,22 @@ static const CGFloat kImageBadgeInset = 1.5;
 }
 
 - (NSStackView *)darkLightPairForBase:(NSString *)base effect:(VibeSettingsLiveEffect)effect {
-    return [self darkLightPairWithDark:[self wellForDark:YES base:base effect:effect]
-                                 light:[self wellForDark:NO base:base effect:effect]];
+    return [self registerDarkLightPair:[self colorRowForBases:@[base, base] darkSides:@[@YES, @NO]
+                                                     captions:@[STR_SETTINGS_THEME_DARK, STR_SETTINGS_THEME_LIGHT]
+                                                       effect:effect]];
 }
 
 // A transport button's pairs are art-keyed (kVibeThemeColorPlaylistButton),
 // so they never join the single-mode collapse.
 - (NSStackView *)artKeyedImagePairForDarkKey:(NSString *)darkKey lightKey:(NSString *)lightKey {
-    return [self wells:@[[self imageClusterForKey:darkKey], [self imageClusterForKey:lightKey]]
-              captions:@[STR_SETTINGS_THEME_ON_DARK_ART, STR_SETTINGS_THEME_ON_LIGHT_ART]];
+    return [SettingsRowView captionedControls:@[[self imageClusterForKey:darkKey], [self imageClusterForKey:lightKey]]
+                                     captions:@[STR_SETTINGS_THEME_ON_DARK_ART, STR_SETTINGS_THEME_ON_LIGHT_ART]];
 }
 
 - (NSStackView *)artKeyedColorPairForBase:(NSString *)base {
-    return [self wells:@[[self wellForDark:YES base:base effect:VibeSettingsLiveEffectTransportButtons],
-                         [self wellForDark:NO base:base effect:VibeSettingsLiveEffectTransportButtons]]
-              captions:@[STR_SETTINGS_THEME_ON_DARK_ART, STR_SETTINGS_THEME_ON_LIGHT_ART]];
+    return [self colorRowForBases:@[base, base] darkSides:@[@YES, @NO]
+                         captions:@[STR_SETTINGS_THEME_ON_DARK_ART, STR_SETTINGS_THEME_ON_LIGHT_ART]
+                           effect:VibeSettingsLiveEffectTransportButtons];
 }
 
 // A setting's own value or the theme's custom one, which reveals its controls.
@@ -526,11 +526,12 @@ static const CGFloat kImageBadgeInset = 1.5;
                                         effect:VibeSettingsLiveEffectWaveformTheme]];
     NSStackView *(^wellRow)(NSArray<NSString *> *, NSArray<NSString *> *, BOOL) =
             ^(NSArray<NSString *> *bases, NSArray<NSString *> *captions, BOOL dark) {
-        NSMutableArray<NSColorWell *> *wells = [NSMutableArray array];
-        for (NSString *base in bases) {
-            [wells addObject:[self wellForDark:dark base:base effect:VibeSettingsLiveEffectWaveformTheme]];
+        NSMutableArray<NSNumber *> *sides = [NSMutableArray array];
+        for (NSUInteger i = 0; i < bases.count; i++) {
+            [sides addObject:@(dark)];
         }
-        return [self wells:wells captions:captions];
+        return [self colorRowForBases:bases darkSides:sides captions:captions
+                               effect:VibeSettingsLiveEffectWaveformTheme];
     };
     NSArray<NSString *> *sides = @[kVibeThemeColorWaveformPlayed, kVibeThemeColorWaveformUnplayed];
     NSArray<NSString *> *sideCaptions = @[STR_SETTINGS_WAVEFORM_CUSTOM_PLAYED, STR_SETTINGS_WAVEFORM_CUSTOM_UNPLAYED];

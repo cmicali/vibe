@@ -30,12 +30,14 @@
 #import "FolderAccessManager.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
+#import "FolderArtRules.h"
 #import "LinkDropRules.h"
 #import "LinkStore.h"
+#import "StringRules.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if VIBE_DIRECT_DISTRIBUTION
-#import "AppDelegate+Updates.h"
+#import "VibeUpdater.h"
 #endif
 
 #if DEBUG
@@ -56,6 +58,21 @@
 // Long enough to absorb a split multi-file open, short enough that a
 // deliberate second open replaces rather than appends.
 static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
+
+#if VIBE_DIRECT_DISTRIBUTION
+// A Debug build starts the updater only with --update-feed, and checks only
+// the feed it names. So the debug channel, stress runs and screenshots never
+// raise an update dialog. nil keeps the Info.plist's feed.
+static NSString *DebugUpdateFeed(void) {
+#if DEBUG
+    NSArray<NSString *> *args = NSProcessInfo.processInfo.arguments;
+    NSUInteger index = [args indexOfObject:@"--update-feed"];
+    return index != NSNotFound && index + 1 < args.count ? args[index + 1] : nil;
+#else
+    return nil;
+#endif
+}
+#endif
 
 // Launch work the first window does not need runs half a second after it.
 // TRAP: dispatch_async is not enough. A main-queue block queued during launch
@@ -95,25 +112,40 @@ static void VibeAfterLaunch(dispatch_block_t block) {
 #pragma mark - Launch
 
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
+    // Before the player exists, so every play-path error carries the app's domain.
+    VibeAudioErrorSetDomain(NSBundle.mainBundle.bundleIdentifier);
     // Before the restore, which may name a link. From here a link's
     // placeholder is dataless, and opening it streams it.
     [LinkStore.shared installAsRemoteBackend];
+    // Folder art asks the app whether it is on and whether a folder's grant
+    // covers a directory, so the resolver reads no setting or grant itself.
+    [FolderArtResolver.sharedInstance setEnabledProvider:^BOOL{
+        return AppSettings.sharedInstance.useFolderArt;
+    } accessProvider:^BOOL(NSString *directory) {
+        return [FolderAccessManager.sharedInstance canReadInsideDirectory:directory];
+    }];
     // Installed before any open can run. The walk reports; acting on it
     // (the grant panel, folder art) belongs to the app layer.
     [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
         return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
     }];
+    // The walk ranks each file it lists by folder art's cover rank.
+    [FolderWalk setWalkedFileHandler:^NSUInteger(NSString *filename) {
+        return VibeFolderArtCandidateRank(filename);
+    }];
     [FolderWalk setWalkedDirectoriesHandler:^(NSSet<NSString *> *directories,
-                                             NSDictionary<NSString *, NSString *> *artFilenameByDirectory) {
+                                             NSDictionary<NSString *, NSString *> *keptFilenameByDirectory) {
         [FolderArtResolver.sharedInstance noteListedDirectories:directories
-                                     artFilenameByDirectory:artFilenameByDirectory];
+                                     artFilenameByDirectory:keptFilenameByDirectory];
     }];
     [FolderWalk setBulkOpenDirectoriesHandler:^(NSSet<NSString *> *directories) {
         [FolderArtResolver.sharedInstance preferListingForDirectories:directories];
     }];
 #if VIBE_DIRECT_DISTRIBUTION
     // Before the menu, whose Check for Updates… targets it.
-    _updaterController = [self makeUpdaterController];
+    _updater = [[VibeUpdater alloc] initWithFeedURLString:DebugUpdateFeed() betaUpdates:^BOOL {
+        return AppSettings.sharedInstance.receiveBetaUpdates;
+    }];
 #endif
     // Window state restoration runs before applicationDidFinishLaunching.
     self.mainPlayerController = [[MainPlayerController alloc] init];
@@ -160,7 +192,13 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     });
 
 #if VIBE_DIRECT_DISTRIBUTION
-    [self startUpdaterIfConfigured];
+#if DEBUG
+    if (DebugUpdateFeed()) {
+        [_updater start];
+    }
+#else
+    [_updater start];
+#endif
 #endif
 
     [self openCommandLineArguments];
@@ -329,7 +367,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
                         else {
                             firstError = firstError ?: error;
                             if (!status) {
-                                status = [LinkStore messageForError:error brief:YES];
+                                status = VibeLinkMessageForError(error, YES);
                                 failed = VibeLinkNameOfText(text);
                             }
                         }
@@ -427,13 +465,17 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     }
     // Bookmark while the open's sandbox grant is live.
     [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
-    // Read on main; the walk reads no setting itself.
+    // Read on main; the walk reads no setting itself. The rows are made on
+    // the expansion worker, off main.
     [FolderWalk expandAndFilterList:urls
                            sortedBy:AppSettings.sharedInstance.folderOpenSort
-                         completion:^(NSArray<AudioTrack *> *rows, NSUInteger folderCount) {
-        [OpenRequestCoordinator.sharedCoordinator finishRequest:token
-                                                           rows:rows
-                                                    folderCount:folderCount];
+                         completion:^(NSArray<PlaylistEntry *> *entries, NSUInteger folderCount) {
+        NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:entries];
+        run_on_main_thread({
+            [OpenRequestCoordinator.sharedCoordinator finishRequest:token
+                                                               rows:rows
+                                                        folderCount:folderCount];
+        });
     }];
 }
 

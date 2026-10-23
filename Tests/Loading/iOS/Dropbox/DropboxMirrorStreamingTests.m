@@ -1,5 +1,6 @@
 
 #import "DropboxMirrorTestCase.h"
+#import "TailWindowMath.h"
 
 // RemotePlaceholderStore's kStreamReadableBytes, which DropboxMirror inherits.
 static const uint64_t kReadableBytes = 256 * 1024;
@@ -554,8 +555,10 @@ static NSData *DecodeAll(AudioFileHandle *handle, NSError **error) {
 
 #pragma mark The tail window
 
-// A small format's window (AudioFileOpenRules.h).
-static const uint64_t kWindowBytes = 128 * 1024;
+// A small format's window, at any size that keeps one.
+static uint64_t SmallFormatWindowBytes(void) {
+    return VibeAudioFileTailWindowBytes(@"flac", UINT64_MAX);
+}
 
 // Every ranged read that completes calls this after its completion returns,
 // while it is set: when a tail read's answer has reached the mirror.
@@ -626,7 +629,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
 // the whole file's.
 - (void)testAStreamReadsItsTailOnceAndAnMP3OpensOnTheHeadAndTheWindow {
     NSData *bytes = VibeMP3WithInfoFrame(4200, YES);
-    XCTAssertGreaterThan(bytes.length, 2 * kWindowBytes);
+    XCTAssertGreaterThan(bytes.length, 2 * SmallFormatWindowBytes());
     NSURL *sources = [_root URLByAppendingPathComponent:@"sources" isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:sources withIntermediateDirectories:YES attributes:nil error:NULL];
     NSURL *local = [sources URLByAppendingPathComponent:@"long.mp3"];
@@ -647,7 +650,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     CloudFileAvailability *availability = [self awaitAvailability];
     XCTAssertTrue([self eventually:^BOOL { return [self tailReads].count == 1; }]);
     NSURLRequest *tailRead = [self tailReads].firstObject;
-    uint64_t windowOffset = bytes.length - kWindowBytes;
+    uint64_t windowOffset = bytes.length - SmallFormatWindowBytes();
     XCTAssertEqualObjects([tailRead valueForHTTPHeaderField:@"Range"],
                           ([NSString stringWithFormat:@"bytes=%llu-%llu", windowOffset, (uint64_t)bytes.length - 1]));
     XCTAssertTrue([[tailRead valueForHTTPHeaderField:@"Dropbox-API-Arg"] containsString:@"id:/music/long.mp3"]);
@@ -657,7 +660,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     XCTAssertTrue([self await:readable]);
     XCTAssertEqual(availability.windowLength, 0u);
     dispatch_semaphore_signal(tailGate);
-    XCTAssertTrue([self eventually:^BOOL { return availability.windowLength == kWindowBytes; }]);
+    XCTAssertTrue([self eventually:^BOOL { return availability.windowLength == SmallFormatWindowBytes(); }]);
 
     // Opened on the head and the window, nothing more released.
     dispatch_semaphore_t opened = dispatch_semaphore_create(0);
@@ -700,7 +703,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
 // for the download, and the fetch completes with every byte.
 - (void)testAFailedOrStalledTailReadLeavesTheTransferWhole {
     for (NSNumber *stall in @[@NO, @YES]) {
-        NSData *bytes = PatternBytes((NSUInteger)(2 * kWindowBytes + 1));
+        NSData *bytes = PatternBytes((NSUInteger)(2 * SmallFormatWindowBytes() + 1));
         _chunkGate = dispatch_semaphore_create(0);
         NSURL *track = [self tailedTrack:bytes name:stall.boolValue ? @"stalled.flac" : @"failed.flac" chunk:256 * 1024
                                     tail:^DropboxStubResponse(NSURLRequest *request) {
@@ -827,21 +830,21 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
         XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:nil];
         XCTAssertTrue([self eventually:^BOOL { return [self tailReads].count == 1; }], @"%@", label);
         NSURLRequest *tailRead = [self tailReads].firstObject;
-        XCTAssertEqualObjects([tailRead valueForHTTPHeaderField:@"Range"],
-                              ([NSString stringWithFormat:@"bytes=%llu-%llu", listed - kWindowBytes, listed - 1]), @"%@", label);
+        NSString *range = [NSString stringWithFormat:@"bytes=%llu-%llu", listed - SmallFormatWindowBytes(), listed - 1];
+        XCTAssertEqualObjects([tailRead valueForHTTPHeaderField:@"Range"], range, @"%@", label);
         XCTAssertTrue([[tailRead valueForHTTPHeaderField:@"Dropbox-API-Arg"] containsString:
                        [@"id:/music/" stringByAppendingString:name]], @"%@: by the download's id", label);
         CloudFileAvailability *availability = [self awaitAvailability];
         uint64_t windowAtFirstNote = [[self notes].firstObject[3] unsignedLongLongValue];
         if (tailFirst) {
-            XCTAssertEqual(windowAtFirstNote, kept ? kWindowBytes : 0u, @"%@: settled as the stream was made", label);
+            XCTAssertEqual(windowAtFirstNote, kept ? SmallFormatWindowBytes() : 0u, @"%@: settled as the stream was made", label);
         }
         else {
             XCTAssertEqual(windowAtFirstNote, 0u, @"%@", label);
             dispatch_semaphore_signal(tailGate);
             XCTAssertTrue([self await:landed], @"%@", label);
         }
-        XCTAssertEqual(availability.windowLength, kept ? kWindowBytes : 0u, @"%@", label);
+        XCTAssertEqual(availability.windowLength, kept ? SmallFormatWindowBytes() : 0u, @"%@", label);
         if (kept) {
             uint8_t probe[16];
             uint64_t copied = 0;
@@ -874,7 +877,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     [self recordAvailabilities];
     XCTestExpectation *fetched = [self fetch:track materializer:[CloudFileMaterializer new] onReadable:nil];
     CloudFileAvailability *availability = [self awaitAvailability];
-    XCTAssertTrue([self eventually:^BOOL { return availability.windowLength == kWindowBytes; }]);
+    XCTAssertTrue([self eventually:^BOOL { return availability.windowLength == SmallFormatWindowBytes(); }]);
     XCTAssertEqual([self tailReads].count, 1u);
 
     // The parse's first read, 384 KB from the head, waits for the download.
@@ -935,7 +938,7 @@ static void ObserveRangedReads(dispatch_block_t _Nullable observer) {
     _listings[@"/music"] = @[VibeFileEntry(@"/Music", @"row.wav", listedBytes, kStamp)];
     [self refresh:@"/Music"];
     _coordinator = [[AudioFileMaterializationCoordinator alloc] init];
-    _openToken = [_coordinator openURL:track purpose:VibeAudioFileOpenPurposePlayback
+    _openToken = [_coordinator openURL:track purpose:VibeAudioFileOpenPurposePlayback opener:VibeTestFileOpener
                       completionQueue:dispatch_get_main_queue() onDataless:nil
                            completion:^(AudioFileHandle *file, NSError *error, NSTimeInterval elapsed) {
         self->_delivered = file;

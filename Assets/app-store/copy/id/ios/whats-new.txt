@@ -1,22 +1,3 @@
-* Baru: Buka URL memutar tautan web, atau tautan berbagi Dropbox, Google Drive, atau iCloud Drive, dan tautan yang disalin dapat diputar dari tab File
-* Baru: widget bentuk gelombang, besar, Layar Terkunci, dan gambar sampul penuh, dengan tombol daftar putar, putar, dan berikutnya seperti di Mac
-* Baru: gaya bentuk gelombang Spektrum, dengan pewarnaan Per bagian sehingga setiap bagian lagu tetap satu warna
-* Baru: tema 3 Pita: Rekord Bin, Dengine, dan Warna kustom
-* Baru: perbesar bentuk gelombang hingga ke tingkat sampel
-* Baru: pemutaran Ogg Vorbis dan MP3 free format
-* Baru: sampul album untuk lagu iCloud dan Dropbox yang belum diunduh
-* Baru: status Menyangga… saat lagu menunggu berbagi jaringan atau unduhan yang lambat
-* Baru: lagu tema vibe, yang dimuat saat peluncuran hingga Anda memutar atau membuka sesuatu
-* Perubahan: gaya bentuk gelombang berganti nama: Dasar kini menjadi Batang, Cupertino (dasar) kini menjadi Kemajuan, dan empat gaya Detail kini menjadi satu dengan pengaturan jenis
-* Perubahan: Trek Sebelumnya pada lagu pertama memulai lagu itu dari awal
-* Perubahan: garis kepala pemutar sedikit tembus pandang
-* Perubahan: tema Cupertino hanya menggelapkan gambar sampul di belakang tombol pemutaran, dengan gradien yang lebih terang
-* Peningkatan: kepala pemutar, lompatan, dan tema widget
-* Peningkatan: tab File mengelompokkan tempat di bawah Lokasi
-* Peningkatan: di Pengaturan, Saat trek berakhir dan Tampilan waktu dipilih langsung di tempat, dan palet 3 Pita dinamai sesuai warnanya
-* Peningkatan: pemutaran dari berbagi jaringan: koneksi yang terputus menjeda pemutaran dengan “Koneksi terputus”, server yang lambat tidak lagi menghambat pergantian trek, dan lagu hi-res diputar dengan mulus
-* Peningkatan: lagu MP3, FLAC, WAV, dan AIFF terbuka lebih cepat
-* Perbaikan: pemutaran tanpa jeda MP3 mono dan MPEG-2
-* Perbaikan: file Opus yang header-nya mengatur volume diputar pada tingkat yang salah
-* Perbaikan: file CAF yang rusak dapat menghentikan pemindaian metadata
-* Perbaikan: pembukaan tautan yang lebih lama dapat menggantikan pembukaan file yang lebih baru
+* Perubahan: file MP3, FLAC, WAV, AIFF, dan Ogg Vorbis selalu diputar dengan dekoder milik Vibe sendiri
+* Peningkatan: pemutaran file Ogg Vorbis yang juga berisi video atau aliran Skeleton
+* Perbaikan: MP3 320 kbps lambat dibuka

@@ -4,7 +4,7 @@
 
 #import "AudioPlayerRenderTestCase.h"
 #import "AudioFileMaterializationCoordinator.h"
-#import "AudioFileOpenRules.h"
+#import "TailWindowMath.h"
 #import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
 #import "LinkStore.h"

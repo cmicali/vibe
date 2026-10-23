@@ -1,6 +1,6 @@
 ---
 name: vibe-waveform
-description: Look at a real track's waveform the way the app draws it, without the app. The probe decodes a file with the production waveform loader and draws it with the production renderer, laid out as the iOS scrubber lays it out, at any time and zoom, in any style, palette and appearance. It writes a PNG, and prints Spectrum's sections, the mix and band levels behind each pixel, and the progressive deliveries of a streaming load. It builds at any git ref, so one command draws main and the working tree one above the other. Use when a waveform looks wrong in a screenshot (a kick's shape, a color edge, a jump while loading), before and after any change under Vibe/WaveformUI or Packages/WaveformCore, to show a look change to the user, or to put pictures in a PR.
+description: Look at a real track's waveform the way the app draws it, without the app. The probe decodes a file with the production waveform loader and draws it with the production renderer, laid out as the iOS scrubber lays it out, at any time and zoom, in any style, palette and appearance. It writes a PNG, and prints Spectrum's sections, the mix and band levels behind each pixel, and the progressive deliveries of a streaming load. It builds at any git ref, so one command draws main and the working tree one above the other. Use when a waveform looks wrong in a screenshot (a kick's shape, a color edge, a jump while loading), before and after any change under vibe-libs' waveform/Waveform, waveform/WaveformStyles or waveform/WaveformView, to show a look change to the user, or to put pictures in a PR.
 ---
 
 # Looking at a waveform
@@ -30,7 +30,7 @@ The first build of a ref takes a few minutes. A commit's binary is kept under `b
 ## What it prints
 
 - `--sections` lists Spectrum's sections over the whole track: each one's start in seconds and the low, mid and high share of its mix. A wrong color edge is usually visible here before it is visible in a picture.
-- `--levels STEP` lists, every STEP seconds across the view, the mix's peaks and loudest window and each band's loudest window. These are the numbers every height is drawn from (`Vibe/WaveformUI/Renderers/AGENTS.md`, Level mapping). A shape question, such as a round kick, is settled here. Compare the peaks, which jump at a hit, with the loudest windows, which build.
+- `--levels STEP` lists, every STEP seconds across the view, the mix's peaks and loudest window and each band's loudest window. These are the numbers every height is drawn from (vibe-libs' `waveform/WaveformStyles/AGENTS.md`, Level mapping). A shape question, such as a round kick, is settled here. Compare the peaks, which jump at a hit, with the loudest windows, which build.
 - `--deliveries DIR` replays a streaming load: a snapshot every `--every` seconds of audio (default 10), each drawn settled as `DIR/NNN.png`, the complete waveform last. `compare` also tiles each side's into `DIR/base.png` and `DIR/head.png`. A Mac decodes a local file before the loader's first 0.1 s delivery, so the replay stands in for a phone's or a stream's pace. It draws targets, not the morph's ease between them.
 
 ## Traps

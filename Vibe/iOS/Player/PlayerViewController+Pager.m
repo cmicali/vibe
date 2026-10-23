@@ -18,7 +18,9 @@
 #import "Formatters.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
+#import "WaveformRendererRegistry.h"
 #import "WaveformScrubberView.h"
+#import "WaveformTheme+Settings.h"
 #import "PlaceholderFiles.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
@@ -37,6 +39,24 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 @implementation PlayerViewController (Pager)
 
 #pragma mark - Per-page waveforms
+
+// The playhead line is the style's default until the switch is touched
+// (Settings/AGENTS.md), decided here as the widget decides its own.
+- (void)applyWaveformSettingsToCell:(TrackPageCell *)cell {
+    AppSettings *settings = AppSettings.sharedInstance;
+    WaveformScrubberView *view = cell.waveformView;
+    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:settings.waveformStyle];
+    // A global block, so the assignment costs nothing.
+    view.themeProvider = ^WaveformTheme *(BOOL isDark, UIColor *artworkColor) {
+        return [WaveformTheme themeForSettings:AppSettings.sharedInstance widget:NO isDark:isDark
+                                  artworkColor:artworkColor];
+    };
+    view.centered = [settings waveformCenteredForWidget:NO];
+    view.drawsPlayheadLine = [WaveformRendererRegistry
+            drawsPlayheadLineForIdentifier:style chosen:[settings waveformPlayheadLineForWidget:NO]];
+    [view syncWaveformStyle:style];
+    [view syncWaveformTheme];
+}
 
 - (TrackPageCell *)cellAtIndex:(NSUInteger)index {
     return (TrackPageCell *)[_pagesView cellForItemAtIndexPath:
@@ -231,8 +251,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
     // Every time: a recycled cell keeps whatever it was last shown at. Each
     // no-ops when it already matches.
     [self applyWaveformZoomToCell:page];
-    [page.waveformView syncWaveformStyle];
-    [page.waveformView syncWaveformTheme];
+    [self applyWaveformSettingsToCell:page];
 
     [self applyPlaybackLoadingToCell:page atIndex:index];
     [self hydrateWaveformInCell:page atIndex:index];
@@ -285,7 +304,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
                       artist:(showError ? errorText : (track.displayArtist ?: @""))
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
-                    fileInfo:(showsInfo ? track.metadata.fileInfoLine : nil)
+                    fileInfo:(showsInfo ? [Formatters.sharedInstance fileInfoLineForMetadata:track.metadata] : nil)
                    tempoInfo:(showsInfo ? [self tempoInfoLineForTrack:track] : nil)
                    buffering:(current && !showError && _playback.bufferingNoticeShown)
                          art:[self artworkForPageAtIndex:index]];

@@ -16,6 +16,7 @@
 #import "VibeWidgetState.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme.h"
+#import "WaveformTheme+Settings.h"
 
 // Allow the title and the later waveform bake to request separate reloads.
 static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC / 4;

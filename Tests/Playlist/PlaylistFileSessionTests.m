@@ -4,13 +4,12 @@
 //
 
 #import <XCTest/XCTest.h>
-#import "PlaylistFileTestCase.h"
 #import "PlaylistFile.h"
 #import "PlaylistFile+Session.h"
 #import "AudioTrack.h"
 #import "TestFilesystemGuard.h"
 
-@interface PlaylistFileSessionTests : PlaylistFileTestCase
+@interface PlaylistFileSessionTests : XCTestCase
 @end
 
 @implementation PlaylistFileSessionTests
@@ -117,6 +116,13 @@
 }
 
 #pragma mark - Cue rows in the session
+
+static AudioTrack *CueRowAt(NSString *path, NSUInteger start, NSUInteger end, NSString *title,
+                            NSString *performer, NSString *sheet, NSInteger number) {
+    return [[AudioTrack alloc] initWithURL:[NSURL fileURLWithPath:path] cueStart:start cueEnd:end
+                                     title:title performer:performer sheet:[NSURL fileURLWithPath:sheet]
+                               trackNumber:number];
+}
 
 static void AssertSameRow(AudioTrack *restored, AudioTrack *saved) {
     XCTAssertEqualObjects(restored.url.path, saved.url.path);

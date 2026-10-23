@@ -1,8 +1,8 @@
 #!/bin/bash
 # Enforces the layout rule stated in AGENTS.md: every directory directly under
-# Vibe/ except Mac/, iOS/ and ThirdParty/ is a shared subsystem listed in both
-# targets, and within any subsystem Mac/ and iOS/ are the only platform
-# markers.
+# Vibe/ except Mac/ and iOS/ is a shared subsystem listed in both targets, and
+# within any subsystem Mac/ and iOS/ are the only platform markers. Every
+# vendored library is a vibe-libs piece.
 #
 # Seven assertions. The first three read project.yml, which settles which
 # SOURCES compile; the fourth reads the imports, which settles which HEADERS may
@@ -79,13 +79,6 @@ targets="Vibe VibeiOS"
 # Every exclude a source entry may carry. Anything else — a feature-named
 # exclude — means the tree stopped being the membership rule.
 allowed_always='**/.DS_Store **/*.md Mac/** iOS/**'
-# The two PIN caches, r8brain's C entry points and FFT, dr_mp3's, dr_flac's
-# and dr_wav's implementation units, and libogg's and libvorbis's C files are
-# excluded only to be re-added with per-file compilerFlags, not membership
-# decisions; the .inc filter tables are #included by r8brain's headers, never
-# bundled. Sparkle is prebuilt, excluded only to be re-added as the macOS
-# target's framework.
-allowed_thirdparty='Sparkle/** **/*.xcprivacy **/*.txt **/LICENSE.MPL **/*.inc **/PINDiskCache.m **/PINMemoryCache.m **/r8bsrc.cpp **/pffft_double.c **/dr_mp3.c **/dr_flac.c **/dr_wav.c ogg/** vorbis/**'
 
 info_dir_for() {
     local t="$1" p
@@ -113,7 +106,6 @@ for t in $targets; do
         [ "$target" = "$t" ] || continue
         [ "$path" = "INFO" ] && continue
         allowed="$allowed_always"
-        case "$path" in *ThirdParty*) allowed="$allowed $allowed_thirdparty" ;; esac
         [ "$path" = "$shell_dir" ] && allowed="$allowed **/Info.plist"
         IFS=',' read -r -a items <<< "$excl"
         for e in "${items[@]:-}"; do
@@ -139,7 +131,6 @@ done <<< "$ios_paths"
 shared=$(comm -12 <(echo "$vibe_paths" | sort) <(echo "$ios_paths" | sort) | grep '^Vibe/[^/]*$' || true)
 while IFS= read -r p; do
     [ -z "$p" ] && continue
-    case "$p" in *ThirdParty*) continue ;; esac
     has_word 'iOS/**' "$(excludes_for Vibe "$p" | tr ',' ' ')" \
         || fail "Vibe: shared entry '$p' must exclude 'iOS/**'"
     has_word 'Mac/**' "$(excludes_for VibeiOS "$p" | tr ',' ' ')" \
@@ -149,7 +140,7 @@ done <<< "$shared"
 # 3. Top-level coverage. A NEW DIRECTORY NEEDS A NEW ENTRY — nothing globs it in.
 for d in Vibe/*/; do
     d="${d%/}"
-    case "$d" in Vibe/Mac|Vibe/iOS|Vibe/ThirdParty) continue ;; esac
+    case "$d" in Vibe/Mac|Vibe/iOS) continue ;; esac
     has_word "$d" "$(echo "$vibe_paths" | tr '\n' ' ')" \
         || fail "Vibe: '$d' exists on disk but is not a source path — every shared subsystem is in both targets"
     has_word "$d" "$(echo "$ios_paths" | tr '\n' ' ')" \
@@ -172,12 +163,15 @@ echo "$ios_paths" | grep -q '^Vibe/iOS' \
 # 4. Imports. A shared file NAMING a header the other target never compiles
 #    still builds, because the headermap maps every header by basename, and a
 #    constant- or static-inline-only header does not even fail to link. So the
-#    basename is the key.
+#    basename is the key. A vibe-libs piece's Mac/ and iOS/ halves count as
+#    that platform's tree, since the app targets compile them in.
 basenames_under() {   # basenames_under <Mac|iOS>
-    find Vibe -name '*.h' -path "*/$1/*" ! -path '*/ThirdParty/*' -exec basename {} \; | sort -u
+    find Vibe vibe-libs -name '*.h' -path "*/$1/*" ! -path '*/third_party/*' \
+        ! -path 'vibe-libs/build/*' -exec basename {} \; | sort -u
 }
 basenames_outside() {
-    find Vibe -name '*.h' ! -path "*/$1/*" ! -path '*/ThirdParty/*' -exec basename {} \; | sort -u
+    find Vibe vibe-libs -name '*.h' ! -path "*/$1/*" ! -path '*/third_party/*' \
+        ! -path 'vibe-libs/build/*' -exec basename {} \; | sort -u
 }
 
 for platform in Mac iOS; do
@@ -189,7 +183,7 @@ for platform in Mac iOS; do
     printf '%s\n' "$exclusive" > "$names_file"
     # TARGET_OS_OSX (either polarity) is the one sanctioned reach across. The
     # guard is tracked by depth so a nested #if does not end it early.
-    hits=$(find Vibe ! -path "*/$platform/*" ! -path '*/ThirdParty/*' \
+    hits=$(find Vibe ! -path "*/$platform/*" \
                 \( -name '*.m' -o -name '*.mm' -o -name '*.h' \) -print0 \
         | xargs -0 -I{} awk -v names="$names_file" -v file="{}" '
             BEGIN { while ((getline n < names) > 0) if (n != "") want[n] = 1 }
@@ -204,7 +198,7 @@ for platform in Mac iOS; do
             }' {})
     rm -f "$names_file"
     if [ -n "$hits" ]; then
-        fail "a source outside Vibe/**/$platform/ imports a header only that tree has, unguarded — wrap it in #if TARGET_OS_OSX or move the header:"
+        fail "a source outside Vibe/**/$platform/ imports a header only the $platform/ trees have, unguarded — wrap it in #if TARGET_OS_OSX or move the header:"
         echo "$hits" >&2
     fi
 done
@@ -238,6 +232,9 @@ fi
 #    reached for a class the target never compiles cannot be sent to, so it
 #    is not required (AudioPlayer+Debug.h also declares the voice bus's
 #    category, which VibeTests uses without the player).
+#    A vibe-libs piece keeps each seam beside its class, so a +Debug header
+#    there counts too. Its vendored code is left out. Its tests are read for
+#    their imports, since a test target may compile one of its test files.
 #    Sources of a test target: its own entries plus its templates', with
 #    directory entries expanded.
 sources_for() {   # sources_for <target or template>
@@ -267,12 +264,14 @@ sources_for() {   # sources_for <target or template>
 }
 
 # Every "<file>\t<imported basename>" edge, and every header's path by basename.
-import_edges=$(grep -rHo '^[[:space:]]*#[[:space:]]*import[[:space:]]*"[^"]*"' Vibe Tests \
+libs_pieces=$(find vibe-libs -mindepth 1 -maxdepth 1 -type d \
+                   ! -name Tests ! -name third_party ! -name docs ! -name scripts ! -name '.*' ! -name build)
+import_edges=$(grep -rHo '^[[:space:]]*#[[:space:]]*import[[:space:]]*"[^"]*"' Vibe Tests $libs_pieces vibe-libs/Tests \
                     --include='*.h' --include='*.m' --include='*.mm' \
-               | grep -v '/ThirdParty/' \
                | awk '{ f = $0; sub(/:.*$/, "", f); h = $0; sub(/^[^"]*"/, "", h); sub(/".*$/, "", h); sub(/^.*\//, "", h); print f "\t" h }')
-header_paths=$(find Vibe Tests -name '*.h' ! -path '*/ThirdParty/*' | awk -F/ '{ print $NF "\t" $0 }')
-seam_impls=$(find Vibe/Debug -path '*/Seams/*' \( -name '*+Debug*.m' -o -name '*+Debug*.mm' \) \
+header_paths=$(find Vibe Tests $libs_pieces vibe-libs/Tests -name '*.h' | awk -F/ '{ print $NF "\t" $0 }')
+seam_impls=$( { find Vibe/Debug -path '*/Seams/*' \( -name '*+Debug*.m' -o -name '*+Debug*.mm' \)
+                find $libs_pieces \( -name '*+Debug*.m' -o -name '*+Debug*.mm' \); } \
              | sed -E 's/.*\///; s/\.mm?$//')
 
 for t in VibeTests VibeAudioTests; do
@@ -292,7 +291,7 @@ for t in VibeTests VibeAudioTests; do
                     for (j = 1; j <= k; j++) {
                         p = ps[j]; if (p == "" || (p in seen)) continue
                         seen[p] = 1; queue[++tail] = p
-                        if (p ~ /\/Seams\/[^\/]*\+Debug[^\/]*\.h$/) {
+                        if (p ~ /\/Seams\/[^\/]*\+Debug[^\/]*\.h$/ || p ~ /^vibe-libs\/.*\+Debug[^\/]*\.h$/) {
                             s = p; sub(/.*\//, "", s); sub(/\.h$/, "", s)
                             c = s; sub(/\+Debug.*$/, "", c)
                             if ((s in impl) && !(s in stem) && (c in stem)) miss[s] = miss[s] " " f

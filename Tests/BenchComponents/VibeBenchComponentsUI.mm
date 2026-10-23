@@ -16,7 +16,9 @@
 #import "AppSettings+Mac.h"
 #import "AppTheme.h"
 #import "AudioTrack.h"
-#import "AudioTrackInternal.h"
+#if __has_include("AudioTrackInternal.h")
+#import "AudioTrackInternal.h" // where installMetadataIfUnresolved: lived before the holder protocol
+#endif
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataInternal.h"
 #import "CloudTransferRegistry.h"
@@ -186,7 +188,7 @@ static void VibeBenchComponentsRegisterTick(void) {
         }
     });
 
-    // The codec line's two numbers, as fileInfoLine asks them in turn: a
+    // The codec line's two numbers, as fileInfoLineForMetadata: asks them in turn: a
     // thousand lines.
     VibeBenchComponentsAdd("ui-format", "file-info-numbers", "line", []() -> double {
         Formatters *formatters = Formatters.sharedInstance;

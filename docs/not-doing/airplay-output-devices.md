@@ -13,4 +13,4 @@ A separate AirPlay sender would add another audio transport. The system route al
 - Probe a routed AirPlay device first. Check whether it can be pinned and whether its identity survives a route change.
 - `AudioDevice.transportType` already supplies the label in Settings > Audio Output. A failed transport read must remain optional in `enumerateOutputDevicesAcceptingPartial:`.
 - The Output menu and Settings device table are separate builders. Check both.
-- Device binding runs on the output unit's serial queue. Vibe cannot cancel a stalled HAL call (`Vibe/Audio/Mac/Devices/AGENTS.md`).
+- Device binding runs on the output unit's serial queue. Vibe cannot cancel a stalled HAL call (vibe-libs' `audio/Player/AGENTS.md`).

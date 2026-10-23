@@ -185,8 +185,8 @@ Sparkle reads the feed only from vibeplayer.app.
 The Function counts only Sparkle's requests. It knows them by Sparkle's
 User-Agent, `Vibe/<version> Sparkle/<version>`. The User-Agent also names the
 version of a build that sends no parameters. The app adds the other columns as
-query parameters (`feedParametersForUpdater:` in
-`Vibe/Mac/App/AppDelegate+Updates.m`). It writes no IP address and no
+query parameters (`feedParametersForUpdater:` in vibe-libs'
+`system/Updates/Mac/VibeUpdater.m`). It writes no IP address and no
 identifier.
 
 | Column | Value | Source |

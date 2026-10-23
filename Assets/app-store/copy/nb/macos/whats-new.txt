@@ -1,27 +1,7 @@
-* Nytt: Åpne adresse… (⌘L) spiller av en nettlenke eller en delingslenke fra Dropbox, Google Drive eller iCloud Drive
-* Nytt: bølgeformstilen Spektrum, med fargelegging Etter seksjon, slik at hver del av en sang beholder én farge
-* Nytt: temaene RGB, Dark Core, Kinda Blue og Sectioned, og appsymbolet til Dark Core, laget av JohnnyFireOne
-* Nytt: Flytt til papirkurven (⌘⌫) sletter filen til den valgte sangen eller sangen som spilles av, med Angre
-* Nytt: Legg til i spilleliste… (⇧⌘O), Vis i Finder (⇧⌘R) og en Vindu-meny med Minimer, Vindusbredde, Alltid øverst og Lås vinduets plassering
-* Nytt: statusen Bufrer… mens en sang venter på en treg nettverksdeling eller nedlasting
-* Nytt: temafarger for teksten i raden som spilles av og den valgte raden og for equalizerstolpene i raden som spilles av, og standardomslagene Gjennomsiktig, Vindu, Symbol og Tilpasset farge
-* Nytt: klikk på overskriften i pitchpanelet for å bytte området mellom 8 % og 16 %
-* Nytt: avspilling av MP3 i fritt format
-* Nytt: vibe-temasporet, som lastes inn ved oppstart til du spiller av eller åpner noe
-* Endret: menyene følger macOS-konvensjonene, med Rediger > Kopier, en Gjenta-undermeny og undermenyene Hopp bakover og Hopp fremover, som viser hver avstand i takter eller sekunder
-* Endret: bølgeformstilene har fått nye navn: Enkel heter nå Søyler, Cupertino (enkel) heter nå Fremdrift, og de fire Detaljert-stilene er nå én stil med en Type-innstilling
-* Endret: Forrige spor på den første sangen starter den på nytt
-* Endret: volumskyveknappen vises nær pekeren, med en temainnstilling for når den vises
-* Endret: linjen for avspillingshodet er litt gjennomsiktig, og equalizerstolpene i raden som spilles av, er svarte i lys modus
-* Endret: Cupertino-temaet gjør bare omslaget bak avspillingsknappene mørkere, med en lysere overgang
-* Forbedret: pitchfaderen låter bedre, med en egen repitch-motor og jevne endringer
-* Forbedret: bit-perfect-utdata bruker enhetens største bitdybde, for renere volumendringer og sømløs avspilling mellom 16- og 24-biters sanger
-* Forbedret: avspilling fra nettverksdelinger: et brudd i forbindelsen setter avspillingen på pause med «Forbindelsen ble brutt», en treg server stopper ikke lenger sporbytter, og hi-res-sanger spilles jevnt
-* Forbedret: MP3-, FLAC-, WAV- og AIFF-sanger åpnes raskere
-* Forbedret: Innstillinger-vinduet har tydeligere navn, begrunnelser under deaktiverte rader, en bekreftelse før du tilbakestiller til standard og en hopplinje i temaredigeringen
-* Rettet: sømløs avspilling av mono- og MPEG-2-MP3-filer
-* Rettet: Opus-filer der headeren angir et volum, ble spilt av med feil nivå
-* Rettet: Ogg Vorbis-sanger mistet de første 3 ms
-* Rettet: en skadet CAF-fil kunne stoppe metadataskanningen
-* Rettet: pekerlinjen i bølgeformen forsvant over den avspilte delen
-* Rettet: i macOS 27 fjernet temabytter markeringen i spillelisten, og minnebruken økte for hver åpning av en spilleliste og hvert temabytte
+* Nytt: endre volumet ved å rulle med mus eller styreflate og med pil opp og pil ned (når det er slått på)
+* Nytt: «Kopier» og «Lim inn» for farger og skrifter i temaredigeringens høyreklikkmeny
+* Nytt: fargeprøven til hvert tema i menyen «Vis > Tema»
+* Endret: MP3-, FLAC-, WAV-, AIFF- og Ogg Vorbis-filer spilles alltid av med Vibes egne dekodere
+* Endret: innstillingene for volumglidebryterens utseende og oppførsel er flyttet fra temaer til «Innstillinger > Utseende»
+* Forbedret: avspilling av Ogg Vorbis-filer som også inneholder video eller en Skeleton-strøm
+* Rettet: MP3-filer på 320 kbps åpnet sakte

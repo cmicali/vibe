@@ -1,6 +1,6 @@
 #import "IOSSimTestCase.h"
 
-#import "AudioTrackInternal.h"
+#import "AudioTrack.h"
 #import "PlaybackController.h"
 #import "Playlist.h"
 

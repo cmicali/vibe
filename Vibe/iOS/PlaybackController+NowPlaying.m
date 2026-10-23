@@ -48,15 +48,18 @@ static UIImage *VibeNowPlayingPlaceholderArt(void) {
     NSTimeInterval duration = VibePlayerScreenDuration(playerDuration, track.duration);
     // A buffering hold is Playing at rate 0, so the lock screen's clock holds
     // with the audio.
-    [_nowPlaying updateWithTrack:track
-                  placeholderArt:VibeNowPlayingPlaceholderArt()
-                        position:position
-                        duration:duration
-                           state:state
-                            rate:_player.isBuffering ? 0.0 : 1.0
-                         hasNext:_playlist.hasNextTrack
-                     hasPrevious:VibePlaybackPreviousIsAvailable(_playlist.hasPreviousTrack,
-                                                                 _playlist.currentTrack != nil, _player.isStopped)];
+    UIImage *placeholder = VibeNowPlayingPlaceholderArt();
+    [_nowPlaying updateWithSourceKey:track.sourceKey
+                               title:track.displayTitle
+                              artist:track.displayArtist
+                             artwork:track.cachedArt ?: track.cachedThumbnail ?: placeholder
+                            position:position
+                            duration:duration
+                               state:state
+                                rate:_player.isBuffering ? 0.0 : 1.0
+                             hasNext:_playlist.hasNextTrack
+                         hasPrevious:VibePlaybackPreviousIsAvailable(_playlist.hasPreviousTrack,
+                                                                     _playlist.currentTrack != nil, _player.isStopped)];
     [_widgetPublisher updateWithTrack:track
                              position:position
                              duration:duration

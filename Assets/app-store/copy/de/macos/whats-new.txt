@@ -1,27 +1,7 @@
-* Neu: „Adresse öffnen…“ (⌘L) spielt einen Weblink oder einen Freigabelink von Dropbox, Google Drive oder iCloud Drive ab
-* Neu: der Wellenform-Stil Spektrum, mit der Färbung „Nach Abschnitt“, bei der jeder Teil eines Titels eine Farbe behält
-* Neu: die Themen RGB, Dark Core, Kinda Blue und Sectioned sowie das App-Symbol von Dark Core, beigesteuert von JohnnyFireOne
-* Neu: „In den Papierkorb legen“ (⌘⌫) löscht die Datei des ausgewählten oder laufenden Titels, mit „Widerrufen“
-* Neu: „Zur Wiedergabeliste hinzufügen…“ (⇧⌘O), „Im Finder zeigen“ (⇧⌘R) und ein Menü „Fenster“ mit „Im Dock ablegen“, „Fensterbreite“, „Immer im Vordergrund“ und „Fensterposition sperren“
-* Neu: der Status „Puffern…“, während ein Titel auf eine langsame Netzwerkfreigabe oder einen Download wartet
-* Neu: Themenfarben für den Text der laufenden und der ausgewählten Zeilen und für die Equalizer-Balken der laufenden Zeile sowie die Standardcover „Transparent“, „Fenster“, „Symbol“ und „Eigene Farbe“
-* Neu: klicke auf die Kopfzeile des Tempo-Panels, um seinen Bereich zwischen 8 % und 16 % zu wechseln
-* Neu: Wiedergabe von MP3 im Free-Format
-* Neu: der Titelsong „vibe“, der beim Start geladen wird, bis du etwas abspielst oder öffnest
-* Geändert: die Menüs folgen den Konventionen von macOS, mit „Bearbeiten > Kopieren“, einem Untermenü „Wiederholen“ und den Untermenüs „Zurückspringen“ und „Vorspringen“, die jede Distanz in Takten oder Sekunden zeigen
-* Geändert: die Wellenform-Stile heißen anders: Einfach heißt jetzt Balken, Cupertino (einfach) heißt jetzt Fortschritt, und die vier Stile Detailliert sind einer mit der Einstellung „Typ“
-* Geändert: „Vorheriger Titel“ startet den ersten Titel neu
-* Geändert: der Lautstärkeregler erscheint in der Nähe des Zeigers, mit einer Themen-Einstellung dafür, wann er sich zeigt
-* Geändert: die Linie an der Abspielposition ist leicht durchscheinend, und die Equalizer-Balken der laufenden Zeile sind im hellen Modus schwarz
-* Geändert: das Thema Cupertino dunkelt nur noch das Cover hinter den Wiedergabetasten ab, mit einem helleren Verlauf
-* Verbessert: der Tempo-Fader klingt besser, mit einer eigenen Repitch-Engine und sanften Änderungen
-* Verbessert: die bitgenaue Ausgabe nutzt die größte Bittiefe des Geräts, für sauberere Lautstärkeänderungen und lückenlose Wiedergabe zwischen 16- und 24-Bit-Titeln
-* Verbessert: Wiedergabe von Netzwerkfreigaben: eine abgebrochene Verbindung pausiert mit „Verbindung verloren“, ein langsamer Server hält Titelwechsel nicht mehr auf, und Hi-Res-Titel laufen flüssig
-* Verbessert: MP3-, FLAC-, WAV- und AIFF-Titel öffnen schneller
-* Verbessert: das Einstellungsfenster hat klarere Namen, Gründe unter deaktivierten Zeilen, eine Bestätigung vor dem Wiederherstellen der Standardwerte und eine Sprungleiste im Themen-Editor
-* Behoben: lückenlose Wiedergabe von Mono- und MPEG-2-MP3s
-* Behoben: Opus-Dateien, deren Header eine Lautstärke festlegt, wurden mit falschem Pegel abgespielt
-* Behoben: Ogg-Vorbis-Titeln fehlten die ersten 3 ms
-* Behoben: eine beschädigte CAF-Datei konnte den Metadaten-Scan blockieren
-* Behoben: die Hover-Linie der Wellenform ging über dem abgespielten Teil verloren
-* Behoben: unter macOS 27 hoben Themenwechsel die Auswahl in der Wiedergabeliste auf, und der Speicher wuchs bei jedem Öffnen einer Wiedergabeliste und jedem Themenwechsel
+* Neu: die Lautstärke lässt sich per Maus- oder Trackpad-Scrollen und mit den Pfeiltasten nach oben und unten ändern (wenn aktiviert)
+* Neu: „Kopieren“ und „Einsetzen“ für Farben und Schriften im Kontextmenü des Themen-Editors
+* Neu: das Farbmuster jedes Themas im Menü „Darstellung > Thema“
+* Geändert: MP3-, FLAC-, WAV-, AIFF- und Ogg-Vorbis-Dateien werden immer mit Vibes eigenen Decodern abgespielt
+* Geändert: die Einstellungen für Aussehen und Verhalten des Lautstärkereglers sind von den Themen nach „Einstellungen > Erscheinungsbild“ umgezogen
+* Verbessert: die Wiedergabe von Ogg-Vorbis-Dateien, die auch Video oder einen Skeleton-Stream enthalten
+* Behoben: 320-kbit/s-MP3s wurden langsam geöffnet

@@ -19,8 +19,10 @@
 #import "AudioPlayer.h"
 #import "AudioPlayer+BitPerfect.h"
 #import "WaveformView.h"
-#import "Fonts.h"
+#import "Fonts+Theme.h"
 #import "MainMenuBuilder.h"
+#import "MenuShortcutRules.h"
+#import "ShortcutLayout.h"
 #import "PlaylistTableView.h"
 #import "MainPlayerContentView.h"
 #import "PitchControlPanel.h"
@@ -33,29 +35,40 @@
     [Fonts applyThemeFonts:AppSettings.sharedInstance.currentTheme];
 }
 
+// The style last: its set is the one draw. The theme's style, never the
+// loose waveformStyle key, which theme migration consumed on macOS.
+- (void)applyWaveformSettings {
+    AppSettings *settings = AppSettings.sharedInstance;
+    AppTheme *theme = settings.currentTheme;
+    WaveformView *view = self.waveformView;
+    view.barDensity = theme.waveformBarDensity;
+    view.barWidthScale = theme.waveformBarWidth;
+    view.centered = theme.waveformCentered;
+    view.normalizesLevels = settings.waveformNormalize;
+    view.gainDB = (float)settings.waveformGainDB;
+    view.dragSeeks = [settings.waveformDragBehavior isEqualToString:SETTINGS_VALUE_WAVEFORM_DRAG_SEEK];
+    view.waveformStyle = theme.waveformStyle;
+}
+
 - (VibeShortcutAssignment)assignShortcut:(VibeShortcut)shortcut toCommand:(NSString *)identifier
                                    loser:(NSString **)loser {
     unichar character = 0;
     if (shortcut != kVibeShortcutNone) {
         unsigned short keyCode = VibeShortcutCanonicalKeyCode(VibeShortcutKey(shortcut));
         NSEventModifierFlags modifiers = VibeShortcutModifiers(shortcut);
-        character = [MainMenuBuilder characterForKeyCode:keyCode modifiers:modifiers];
+        character = VibeShortcutCharacterForKeyCode(keyCode, modifiers);
         if (VibeShortcutIsReserved(keyCode, character, modifiers)) {
             return VibeShortcutAssignmentReserved;
         }
-        if (![MainMenuBuilder labelForKeyCode:keyCode modifiers:modifiers]) {
+        if (!VibeShortcutKeyLabel(keyCode, modifiers)) {
             return VibeShortcutAssignmentUnusable;
         }
     }
     AppSettings *settings = AppSettings.sharedInstance;
-    settings.shortcutOverrides = VibeShortcutOverridesByAssigning(settings.shortcutOverrides, identifier,
+    settings.shortcutOverrides = VibeShortcutOverridesByAssigning(VibeShortcutTable(), settings.shortcutOverrides, identifier,
                                                                   shortcut, character, loser);
     [self applySettingsLiveEffects:VibeSettingsLiveEffectShortcuts];
     return VibeShortcutAssignmentStored;
-}
-
-- (void)resetShortcuts {
-    [self setShortcutOverrides:@{}];
 }
 
 - (void)setShortcutOverrides:(NSDictionary<NSString *, NSNumber *> *)overrides {
@@ -64,9 +77,9 @@
 }
 
 - (void)applyOpenShortcutHint {
-    VibeShortcut open = VibeShortcutEffective(kVibeMenuOpen, AppSettings.sharedInstance.shortcutOverrides);
+    VibeShortcut open = VibeShortcutEffective(VibeShortcutTable(), kVibeMenuOpen, AppSettings.sharedInstance.shortcutOverrides);
     [self.playerContentView setOpenShortcut:open == kVibeShortcutNone
-            ? nil : [MainMenuBuilder displayStringForShortcut:open]];
+            ? nil : VibeShortcutDisplayString(open)];
 }
 
 - (void)applySettingsLiveEffects:(VibeSettingsLiveEffect)effects {
@@ -155,24 +168,24 @@
         [self.playlistTableView applyColumnVisibility];
         [self.playlistController reloadAllTracks];
     }
-    if (effects & VibeSettingsLiveEffectWaveformStyle) {
-        self.waveformView.waveformStyle = settings.currentTheme.waveformStyle;
+    if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectWaveformLevels
+                   | VibeSettingsLiveEffectWaveformDrag)) {
+        [self applyWaveformSettings];
     }
     if (effects & (VibeSettingsLiveEffectWaveformStyle | VibeSettingsLiveEffectTrackAnalysis)) {
         // The track on screen was likely decoded without what is now asked
         // for (the bands, a tempo, a key); its entry misses and decodes again.
         VibeWaveformAnalysis wanted = self.waveformCache.analysisProvider();
         AudioTrack *track = self.playlistController.currentTrack;
-        if (!VibeWaveformAnalysisCovers(_waveformAnalysisWanted, wanted) && track && [self displayState] == TrackDisplayStateTrack) {
+        BOOL covered = VibeWaveformAnalysisCovers(_waveformAnalysisWanted.bands,
+                                                  VibeWaveformObserverIdentifiers(_waveformAnalysisWanted), wanted);
+        if (!covered && track && [self displayState] == TrackDisplayStateTrack) {
             [self.waveformCache loadWaveformForTrack:track];
         }
         _waveformAnalysisWanted = wanted;
     }
     if (effects & VibeSettingsLiveEffectWaveformTheme) {
         [self refreshWaveformTheme];
-    }
-    if (effects & VibeSettingsLiveEffectWaveformLevels) {
-        [self.waveformView refreshWaveformLevels];
     }
     if (effects & VibeSettingsLiveEffectWindowTint) {
         [self refreshWindowTint];

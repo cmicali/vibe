@@ -24,7 +24,7 @@ The workflow: paste a link into a form on vibeplayer.app. The link is a Dropbox 
 **Classification, in the function:**
 
 - **Dropbox.** A `dropbox.com` file link (`/scl/fi/`, `/s/`). Classify by host and take the name from the link's path, since Dropbox answers `application/binary` and names the file `unspecified`. Folder links are refused. A folder is [Dropbox shared links](dropbox-shared-links.md)' work.
-- **Direct.** An `https` URL whose `HEAD` answers an audio content type, or whose path ends in a playable extension (`Common/PlayableExtensions`).
+- **Direct.** An `https` URL whose `HEAD` answers an audio content type, or whose path ends in a playable extension (`PlayableExtensions`, in vibe-libs' `audio/AudioTypes`).
 - **iCloud Drive.** A `www.icloud.com/iclouddrive/<id>` file shared with anyone who has the link. Folder shares and invited-only shares are refused.
 - **SoundCloud.** A `soundcloud.com` track URL. The function reads the title and art from SoundCloud's oEmbed endpoint, which needs no key.
 
@@ -60,7 +60,7 @@ A second iOS target, `VibeClip`, built from the shared subsystems and one screen
 
 ## Implementation constraints
 
-Use the current host-specific rules in `Vibe/Loading/Net/`. They own share-link rewriting, naming and error classification. Recheck provider behavior before building the service.
+Use the current host-specific rules in vibe-libs' `files/ShareLinks`. They own share-link rewriting, naming and error classification. Recheck provider behavior before building the service.
 
 Keep Pages Functions in `Assets/Web/functions/`. wrangler compiles that directory and does not upload it. GitHub Pages runs no Functions. Verify the KV binding and token permissions in each Cloudflare environment. Serve the AASA file as JSON without a redirect and check it through Apple's CDN on the production domain.
 

@@ -1,22 +1,3 @@
-* Mới: Mở URL phát một liên kết web, hoặc liên kết chia sẻ từ Dropbox, Google Drive hay iCloud Drive, và liên kết đã sao chép có thể phát từ tab Tệp
-* Mới: các tiện ích dạng sóng, lớn, Màn hình khóa và ảnh bìa tràn viền, với các nút danh sách phát, phát và bài tiếp theo như trên máy Mac
-* Mới: kiểu dạng sóng Phổ, với cách tô màu Theo đoạn để mỗi phần của bài hát giữ một màu
-* Mới: các chủ đề 3 dải: Rekord Bin, Dengine và màu tùy chỉnh
-* Mới: phóng to dạng sóng đến tận từng mẫu
-* Mới: phát Ogg Vorbis và MP3 free-format
-* Mới: ảnh bìa album cho các bài trên iCloud và Dropbox chưa được tải xuống
-* Mới: trạng thái Đang tải bộ đệm… khi một bài chờ thư mục chia sẻ mạng chậm hoặc chờ tải xuống
-* Mới: bài nhạc chủ đề vibe, được tải khi khởi động cho đến khi bạn phát hoặc mở một thứ gì đó
-* Thay đổi: các kiểu dạng sóng được đổi tên: Cơ bản giờ là Thanh, Cupertino (cơ bản) giờ là Tiến trình, và bốn kiểu Chi tiết gộp thành một kiểu có tùy chọn Loại
-* Thay đổi: nhấn Bản nhạc trước ở bài đầu tiên sẽ phát lại bài đó từ đầu
-* Thay đổi: đường đầu phát hơi trong suốt
-* Thay đổi: chủ đề Cupertino chỉ làm tối ảnh bìa phía sau các nút phát, với dải chuyển màu nhạt hơn
-* Cải thiện: đầu phát, chuyển bài và chủ đề của tiện ích
-* Cải thiện: tab Tệp nhóm các nơi lưu trữ trong mục Vị trí
-* Cải thiện: trong Cài đặt, Khi kết thúc bản nhạc và Hiển thị thời gian được chọn ngay tại chỗ, và các bảng màu 3 dải được đặt tên theo màu của chúng
-* Cải thiện: phát từ thư mục chia sẻ mạng: kết nối bị ngắt sẽ tạm dừng với thông báo “Mất kết nối”, máy chủ chậm không còn làm đứng việc chuyển bài, và các bài hi-res phát mượt mà
-* Cải thiện: các bài MP3, FLAC, WAV và AIFF mở nhanh hơn
-* Sửa lỗi: phát liền mạch các tệp MP3 mono và MPEG-2
-* Sửa lỗi: tệp Opus có header đặt âm lượng bị phát sai mức
-* Sửa lỗi: tệp CAF bị hỏng có thể làm đứng quá trình quét siêu dữ liệu
-* Sửa lỗi: thao tác mở liên kết cũ hơn có thể thay thế thao tác mở tệp mới hơn
+* Thay đổi: tệp MP3, FLAC, WAV, AIFF và Ogg Vorbis luôn được phát bằng bộ giải mã riêng của Vibe
+* Cải thiện: phát tệp Ogg Vorbis có kèm video hoặc luồng Skeleton
+* Sửa lỗi: tệp MP3 320 kbps mở chậm

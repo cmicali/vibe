@@ -21,7 +21,7 @@
 
 #if VIBE_DIRECT_DISTRIBUTION
 #import "AppDelegate.h"
-#import <Sparkle/Sparkle.h>
+#import "VibeUpdater.h"
 #endif
 
 static const CGFloat kAdvancedPopUpWidth = 200;
@@ -48,6 +48,15 @@ static const CGFloat kAdvancedPopUpWidth = 200;
     BOOL _audioPathShown;
     NSUInteger _versionClicks;
     NSTimeInterval _lastVersionClick;
+}
+
+- (instancetype)initWithPlayerController:(MainPlayerController *)playerController
+                             effectsSink:(void (^)(NSUInteger))sink {
+    self = [super initWithEffectsSink:sink];
+    if (self) {
+        _playerController = playerController;
+    }
+    return self;
 }
 
 - (void)loadView {
@@ -525,7 +534,7 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 #if VIBE_DIRECT_DISTRIBUTION
     // Sparkle's check settings went with the rest, and it reschedules only
     // when told.
-    [[(AppDelegate *)NSApp.delegate updaterController].updater resetUpdateCycle];
+    [[(AppDelegate *)NSApp.delegate updater].controller.updater resetUpdateCycle];
 #endif
     // TRAP: reset cleared the saved device UID while the player keeps the old
     // binding, so mode writes would miss. selectOutputDevice: holds the mode
@@ -547,12 +556,12 @@ static NSString *VibeFlagForLanguage(NSString *language) {
 
 - (void)refreshRateChanged:(id)sender {
     AppSettings.sharedInstance.uiUpdateHzCap = _refreshRatePopUp.selectedTag;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectUIUpdateRate];
+    [self applyLiveEffects:VibeSettingsLiveEffectUIUpdateRate];
 }
 
 - (void)allowBitPerfectAnyDeviceChanged:(id)sender {
     AppSettings.sharedInstance.allowBitPerfectOnAnyDevice = _allowBitPerfectAnyDeviceSwitch.state == NSControlStateValueOn;
-    [self.playerController applySettingsLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
+    [self applyLiveEffects:VibeSettingsLiveEffectBitPerfectApply];
 }
 
 #pragma mark - Cache

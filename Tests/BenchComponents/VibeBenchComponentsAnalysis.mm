@@ -14,9 +14,43 @@
 #import "AudioWaveformLoader.h"
 #import "AudioBPMAnalyzer.h"
 #import "AudioKeyAnalyzer.h"
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_OBSERVERS
+#import "AudioAnalysisObservers.h"
+#endif
 
 #include <algorithm>
 #include <memory>
+
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS && VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE
+// The tempo, the key and the bands, each on or off, in the version's shape.
+static VibeWaveformAnalysis VibeBenchComponentsAnalysis(BOOL bpm, BOOL key, BOOL bands) {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_OBSERVERS
+    NSMutableArray<AudioWaveformObserver *> *observers = [NSMutableArray array];
+    if (bpm) [observers addObject:AudioBPMAnalyzer.waveformObserver];
+    if (key) [observers addObject:AudioKeyAnalyzer.waveformObserver];
+    return (VibeWaveformAnalysis){.bands = bands, .observers = observers};
+#else
+    return (VibeWaveformAnalysis){.bpm = bpm, .key = key, .bands = bands};
+#endif
+}
+#endif
+
+// A loaded waveform's tempo and key, 0 and -1 when none, in the version's shape.
+static float VibeBenchComponentsTempo(CodableAudioWaveform *waveform) {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_OBSERVERS
+    return [AudioBPMAnalyzer tempoInResults:waveform.results];
+#else
+    return waveform.bpm;
+#endif
+}
+
+static long VibeBenchComponentsKey(CodableAudioWaveform *waveform) {
+#if VIBE_BENCH_COMPONENTS_WAVEFORM_OBSERVERS
+    return (long)[AudioKeyAnalyzer keyInResults:waveform.results];
+#else
+    return (long)waveform.key;
+#endif
+}
 
 // MARK: - Benchmarks: the waveform pass and analysis
 
@@ -37,9 +71,9 @@ static void VibeBenchComponentsRegisterWaveform(void) {
             }, [file, analysis]() {
                 AudioWaveformLoader *loader = VibeBenchComponentsWaveformLoader(analysis == 1 || analysis == 4);
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_BANDS && VIBE_BENCH_COMPONENTS_ANALYSIS_VALUE
-                if (analysis == 2) loader.analysis = (VibeWaveformAnalysis){.bands = YES};
-                if (analysis == 3) loader.analysis = (VibeWaveformAnalysis){.bpm = YES};
-                if (analysis == 4) loader.analysis = (VibeWaveformAnalysis){.bpm = YES, .key = YES, .bands = YES};
+                if (analysis == 2) loader.analysis = VibeBenchComponentsAnalysis(NO, NO, YES);
+                if (analysis == 3) loader.analysis = VibeBenchComponentsAnalysis(YES, NO, NO);
+                if (analysis == 4) loader.analysis = VibeBenchComponentsAnalysis(YES, YES, YES);
 #endif
                 CodableAudioWaveform *result = [loader load:file->path];
                 VibeBenchComponentsRequire(result != nil && loader.isComplete, "waveform load failed");
@@ -199,7 +233,8 @@ static int VibeBenchComponentsAnalyzeTree(NSString *root) {
             AudioWaveformLoader *loader = VibeBenchComponentsWaveformLoader(YES);
             CodableAudioWaveform *result = [loader load:paths[i]];
             NSString *line = [NSString stringWithFormat:@"%@\t%.9g\t%ld", paths[i].lastPathComponent,
-                              result ? result.bpm : -1.0f, result ? (long)result.key : -2L];
+                              result ? VibeBenchComponentsTempo(result) : -1.0f,
+                              result ? VibeBenchComponentsKey(result) : -2L];
             @synchronized (lines) {
                 lines[i] = line;
             }

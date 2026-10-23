@@ -1,22 +1,3 @@
-* New: Open URL plays a web link, or a Dropbox, Google Drive, or iCloud Drive share link, and a copied link plays from the Files tab
-* New: waveform, large, Lock Screen, and full-bleed artwork widgets, with the mac's playlist, play, and next buttons
-* New: the Spectrum waveform style, with By section coloring so each part of a song keeps one color
-* New: the 3-Band themes: Rekord Bin, Dengine, and Custom colors
-* New: zoom the waveform all the way down to the samples
-* New: Ogg Vorbis and free-format MP3 playback
-* New: album art for iCloud and Dropbox songs that aren't downloaded
-* New: a Buffering… status while a song waits for a slow network share or download
-* New: the vibe theme track, which loads on launch until you play or open something
-* Changed: the waveform styles are renamed: Basic is now Bars, Cupertino Basic is now Progress, and the four Detailed styles are one with a type setting
-* Changed: Previous on the first song restarts it
-* Changed: the playhead line is slightly see-through
-* Changed: the Cupertino theme darkens only the cover art behind the playback buttons, with a lighter gradient
-* Improved: the widget's playhead, skips, and theme
-* Improved: the Files tab groups places under Locations
-* Improved: in Settings, On track end and Time display choose in place, and the 3-Band palettes are named by their colors
-* Improved: network share playback: a dropped connection pauses with "Connection lost", a slow server no longer stalls track changes, and hi-res songs play smoothly
-* Improved: MP3, FLAC, WAV, and AIFF songs open faster
-* Fixed: gapless playback of mono and MPEG-2 MP3s
-* Fixed: Opus files whose header sets a volume played at the wrong level
-* Fixed: a corrupt CAF file could stall the metadata scan
-* Fixed: an older link open could replace a newer file open
+* Changed MP3, FLAC, WAV, AIFF and Ogg Vorbis files to always play with Vibe's own decoders
+* Improved playback of Ogg Vorbis files that also carry video or a Skeleton stream
+* Fixed 320 kbps MP3s opening slowly
