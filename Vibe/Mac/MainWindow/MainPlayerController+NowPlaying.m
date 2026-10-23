@@ -49,17 +49,20 @@
     // Frozen in the Loading gap, which maps to Playing over a placeholder. A
     // buffering hold is Playing at rate 0 too. The system clock then holds
     // with the audio.
-    [self.nowPlayingController updateWithTrack:track
-                                placeholderArt:[AppSettings.sharedInstance.currentTheme
-                                                       defaultArtworkImageForAppearance:self.window.effectiveAppearance]
-                                      position:position
-                                      duration:duration
-                                         state:state
-                                          rate:(loadingGap || self.audioPlayer.isBuffering) ? 0.0 : 1.0
-                                       hasNext:self.playlistController.hasNextTrack
-                                   hasPrevious:VibePlaybackPreviousIsAvailable(self.playlistController.hasPreviousTrack,
-                                                                               self.playlistController.currentTrack != nil,
-                                                                               self.audioPlayer.isStopped)];
+    NSImage *placeholder = [AppSettings.sharedInstance.currentTheme
+                                   defaultArtworkImageForAppearance:self.window.effectiveAppearance];
+    [self.nowPlayingController updateWithSourceKey:track.sourceKey
+                                             title:track.displayTitle
+                                            artist:track.displayArtist
+                                           artwork:track.cachedArt ?: track.cachedThumbnail ?: placeholder
+                                          position:position
+                                          duration:duration
+                                             state:state
+                                              rate:(loadingGap || self.audioPlayer.isBuffering) ? 0.0 : 1.0
+                                           hasNext:self.playlistController.hasNextTrack
+                                       hasPrevious:VibePlaybackPreviousIsAvailable(self.playlistController.hasPreviousTrack,
+                                                                                   self.playlistController.currentTrack != nil,
+                                                                                   self.audioPlayer.isStopped)];
 }
 
 #pragma mark - NowPlayingControllerDelegate (system media keys / Control Center)

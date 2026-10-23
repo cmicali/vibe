@@ -637,8 +637,10 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
             commandAvailability:^(BOOL next, BOOL previous) {}];
     __block NSImage *placeholder = nil;
     void (^publish)(void) = ^{
-        [publisher updateWithTrack:track placeholderArt:placeholder position:0 duration:30
-                             state:NowPlayingPlaybackStatePlaying rate:1 hasNext:NO hasPrevious:NO];
+        // As the shells push the row's values.
+        [publisher updateWithSourceKey:track.sourceKey title:track.displayTitle artist:track.displayArtist
+                               artwork:track.cachedArt ?: track.cachedThumbnail ?: placeholder position:0 duration:30
+                                 state:NowPlayingPlaybackStatePlaying rate:1 hasNext:NO hasPrevious:NO];
     };
     publish();
     metadata.title = @"New title";

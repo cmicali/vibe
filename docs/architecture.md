@@ -27,7 +27,6 @@ Vibe/
     iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
   Playlist/            the playlist row
     Mac/               the playlist table and the last-playlist store (macOS)
-  NowPlaying/          the system's Now Playing info and remote commands
   Util/                Vibe's helpers with no feature
     Mac/ and iOS/      the AppKit and UIKit categories
   Debug/               the debug command channel, compiled into Debug builds only
@@ -96,7 +95,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### NowPlaying
 
-`Vibe/NowPlaying/NowPlayingController` publishes the playing track to the system and takes remote commands back. The lock screen, Control Center, CarPlay, AirPods, and the Mac's media keys all go through it. It owns no playback state. `MainPlayerController+NowPlaying` drives it on macOS, and `PlaybackController+NowPlaying` on iOS. Read next: `Vibe/NowPlaying/AGENTS.md`.
+`NowPlayingController`, vibe-libs' `system/NowPlaying`, publishes the playing track to the system and takes remote commands back. The lock screen, Control Center, CarPlay, AirPods, and the Mac's media keys all go through it. It owns no playback state. `MainPlayerController+NowPlaying` drives it on macOS, and `PlaybackController+NowPlaying` on iOS. Each pushes its row's values. Read next: `vibe-libs/system/NowPlaying/AGENTS.md`.
 
 ### Util
 
@@ -306,7 +305,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | The iOS now-playing card | `iOS/Player/AGENTS.md`, `vibe-libs/waveform/WaveformView/AGENTS.md` | `iOS/Player/PlayerViewController.m` |
 | The iOS Files tab, Favorites, Search, or settings | the `AGENTS.md` in `iOS/Files/`, `iOS/Search/`, or `iOS/Settings/` | that directory |
 | The widget | `VibeWidget/AGENTS.md`, `iOS/Widget/AGENTS.md` | `iOS/Widget/WidgetPublisher.m` |
-| The lock screen and media keys | `NowPlaying/AGENTS.md` | `NowPlaying/NowPlayingController.m` |
+| The lock screen and media keys | `vibe-libs/system/NowPlaying/AGENTS.md` | `vibe-libs/system/NowPlaying/NowPlayingController.m` |
 | A debug command | the `vibe-debug` skill, `Debug/AGENTS.md` | `Debug/Verbs/`, `Debug/Mac/`, `Debug/iOS/` |
 | Tests | `Tests/AGENTS.md` | the `Tests/` directory that matches the code |
 | Performance | the `vibe-perf` skill, [performance.md](performance.md) | `Tests/BenchComponents/` |
