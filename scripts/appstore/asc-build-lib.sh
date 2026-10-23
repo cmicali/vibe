@@ -16,7 +16,9 @@ asc_require_xcodegen() {
 # Before the archive: an untranslated key found after archive and notarize
 # costs the whole cycle.
 asc_require_translations() {
-    "$(dirname "${BASH_SOURCE[0]}")/../checks/check-translations.sh"
+    local root
+    root="$(dirname "${BASH_SOURCE[0]}")/../.."
+    "$root/vibe-libs/tools/strings/check-translations.sh" "$root/Resources/strings-config.sh"
 }
 
 # Archive $ASC_CONFIGURATION into $ARCHIVE, under the hardened runtime that a
