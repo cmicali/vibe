@@ -1,6 +1,6 @@
 #!/bin/bash
 # Touch the iOS app on this session's simulator through the resident
-# VibeiOSDriver XCUITest (Tests/iOSDriver), the only sanctioned touch synthesis
+# VibeiOSDriver XCUITest (vibe-libs/dev/iOSDriver), the only sanctioned touch synthesis
 # on iOS. Coordinates are app-window POINTS, top-left origin: screenshot pixels
 # divided by the scale dump_screenshot reports.
 #
@@ -95,7 +95,14 @@ start)
     # still open, and a piped `start` never returns.
     # -collect-test-diagnostics never: otherwise the teardown after `stop`
     # runs `simctl diagnose` for minutes.
+    # The driver knows no app. It takes the app, the self-heal's relaunch
+    # arguments, and the pinched view's identifier from here. The arguments
+    # are launch-ios.sh's audio-silencing pair. The identifier is the
+    # scrubber's (vibe-libs' WaveformScrubberView.mm).
     TEST_RUNNER_VIBE_DRIVER_DIR="$TMP" \
+    TEST_RUNNER_VIBE_DRIVER_APP=com.commonwealthrecordings.Vibe \
+    TEST_RUNNER_VIBE_DRIVER_RELAUNCH_ARGS="--no-audio-hw --silent" \
+    TEST_RUNNER_VIBE_DRIVER_PINCH_ELEMENT=waveform-scrubber \
         nohup xcodebuild test -project Vibe.xcodeproj -scheme VibeiOSDriver \
             -destination "id=$UDID" -derivedDataPath build/DerivedData \
             -collect-test-diagnostics never \

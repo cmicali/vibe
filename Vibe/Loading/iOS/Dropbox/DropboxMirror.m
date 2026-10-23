@@ -488,6 +488,16 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
     return self.accountURL;
 }
 
+// A playlist file is downloaded whole, to be read, and is no download the
+// budget evicts.
+- (NSArray<NSDictionary *> *)downloadsUnder:(NSURL *)root {
+    NSMutableArray<NSDictionary *> *downloads = [[super downloadsUnder:root] mutableCopy];
+    [downloads filterUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSDictionary *download, NSDictionary *bindings) {
+        return ![PlaylistFile isPlaylistExtension:[download[@"url"] pathExtension].lowercaseString];
+    }]];
+    return downloads;
+}
+
 // Any thread; posted on main. Every reader of a row's downloaded state hears
 // it — Search's marks, a mirrored folder on screen, the size in Settings —
 // whichever way the bytes came or went.

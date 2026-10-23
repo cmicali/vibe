@@ -60,7 +60,7 @@ A second iOS target, `VibeClip`, built from the shared subsystems and one screen
 
 ## Implementation constraints
 
-Use the current host-specific rules in `Vibe/Loading/Net/`. They own share-link rewriting, naming and error classification. Recheck provider behavior before building the service.
+Use the current host-specific rules in vibe-libs' `files/ShareLinks`. They own share-link rewriting, naming and error classification. Recheck provider behavior before building the service.
 
 Keep Pages Functions outside the static tree. GitHub Pages serves only static files. Verify the KV binding and token permissions in each Cloudflare environment. Serve the AASA file as JSON without a redirect and check it through Apple's CDN on the production domain.
 
