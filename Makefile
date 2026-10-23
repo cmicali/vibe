@@ -408,4 +408,4 @@ check-layout:
 # Fail if any key is missing a catalog language; check-strings compares the
 # catalog to the source and cannot see coverage. Both release paths run this.
 check-translations:
-	scripts/checks/check-translations.sh
+	scripts/strings/check-translations.sh

@@ -63,7 +63,7 @@ jobs:
       # Report missing translations here. Release scripts make them fatal.
       - name: Report untranslated keys
         if: ${{ !cancelled() }}
-        run: scripts/checks/check-translations.sh --github
+        run: scripts/strings/check-translations.sh --github
 
   # Four macOS jobs on a pull request. The free plan runs five macOS jobs at
   # once, and a pull request's run often overlaps its merge's run. Text-only

@@ -18,9 +18,9 @@
 # other source lists the languages, and that loss is deliberate, not drift.
 #
 # Usage:
-#   scripts/checks/check-translations.sh            fail on any missing translation
+#   scripts/strings/check-translations.sh           fail on any missing translation
 #                                                   (or: make check-translations)
-#   scripts/checks/check-translations.sh --github   missing languages warn instead of failing
+#   scripts/strings/check-translations.sh --github  missing languages warn instead of failing
 
 set -euo pipefail
 
