@@ -1,6 +1,6 @@
 # Custom-drawn controls (macOS)
 
-AppKit controls drawn with CALayers or in `drawRect:`. A control belongs here when it is genuinely AppKit: it has hover and press states a touch control lacks, or it is an `NSControl` subclass. **A control both apps draw the *same* way goes in the shared `Vibe/Controls/` instead**, such as `EqualizerIndicatorView`. **A control that reads no setting, string, or type of Vibe's belongs in vibe-libs' `ui/Controls`.**
+AppKit controls drawn with CALayers or in `drawRect:`. A control belongs here when it is genuinely AppKit: it has hover and press states a touch control lacks, or it is an `NSControl` subclass. **A control both apps draw the *same* way is a shared file of vibe-libs' `ui/Controls`**, such as `EqualizerIndicatorView`. **A control that reads no setting, string, or type of Vibe's belongs in vibe-libs' `ui/Controls`.**
 
 This directory holds `ArtworkImageView` and the pitch controls. The symbol button, the drawn slider and switch, the detent slider, `CrossfadingImageView`, `ScaledImageView`, and `VibeLinkLabel` are in vibe-libs' `ui/Controls`. Its `AGENTS.md` describes them. Read it before adding a control here. Its TRAP on AppKit's SwiftUI control hosts applies to every control in this directory too.
 

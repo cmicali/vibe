@@ -2,7 +2,7 @@
 
 This directory holds the now-playing card: `PlayerViewController`, its track pager, and the pages (`TrackPageCell`). It also holds each page's FX pad and output-route indicator. `PageWaveformCoordinator` hands each page its waveform.
 
-The scrubber itself is `WaveformUI/iOS/AGENTS.md`. The shell is `../AGENTS.md`.
+The scrubber itself is vibe-libs' `waveform/WaveformView` (its `AGENTS.md`, iOS/). The shell is `../AGENTS.md`. **The card owns what the scrubber reads no store for.** `applyWaveformSettingsToCell:` pushes the style, `centered`, `drawsPlayheadLine` and the `themeProvider` block on every configure and on a settings change. `TrackPageCell` sets each page's `artworkThemeColor` as it installs the page's art. The card answers `needsDetailBlocks:` through its cache, for the page bound to playback only. A neighbor page is refused, and asks again when it next draws as the current page. A cursor change calls `cancelInteraction` on held scrubbers. The model's `playbackLoading` keeps the shimmer through a slow open, including one with no transfer. Settlement or a cursor change clears it.
 
 ## PlayerViewController
 
@@ -14,7 +14,7 @@ The track pager and the chrome over it. It observes `PlaybackController` and own
 
 **`TrackPagerView` declines its pan for touches inside a loaded `WaveformScrubberView`.** TRAP: requiring the scrubber's pan to fail is not enough. At a content edge UIKit never begins the scrubber's pan, and the pager turns the page. An unloaded scrubber disables its pan, and the pager must accept that surface, or the loading strip is a swipe dead zone. **Two fingers are a waveform zoom, never a swipe**: the pager's pan is capped at one touch and requires the scrubber's pinch to fail.
 
-**TRAP: the pager hold's release is matched against the view that took it, not the bound page.** A scrub, a pinch and an FX pad under a finger each take the hold (`setPagerHeld:byView:`). Its holders are a set (`_pagerHoldViews`), and the pager is free only when the last lifts. A track ending mid-drag rebinds the chrome to the next page while the finger is still on the outgoing one. Filtering the lift on the binding drops it, and the pager stays unswipeable. Why the pager must be held still is `WaveformUI/iOS/AGENTS.md`.
+**TRAP: the pager hold's release is matched against the view that took it, not the bound page.** A scrub, a pinch and an FX pad under a finger each take the hold (`setPagerHeld:byView:`). Its holders are a set (`_pagerHoldViews`), and the pager is free only when the last lifts. A track ending mid-drag rebinds the chrome to the next page while the finger is still on the outgoing one. Filtering the lift on the binding drops it, and the pager stays unswipeable. Why the pager must be held still is vibe-libs' `waveform/WaveformView/AGENTS.md`.
 
 **TRAP: dequeue is not the last word** (`willDisplayCell:`). A prefetched page is configured off screen and misses deliveries, since `refreshPageAtIndex:` reaches only live cells. So `willDisplayCell:` configures the page again, re-applies zoom and style, and the slow-open shimmer. **A page that is not the current track rests at the start**: `willDisplayCell:` writes its waveform progress to 0 beside its resting times. Nothing else writes a page once the chrome leaves it.
 
@@ -24,7 +24,7 @@ The track pager and the chrome over it. It observes `PlaybackController` and own
 
 **The playhead display link runs the waveform's position on at real time** (`VibePlayheadShownPosition`, `PlayerScreenRules.h`). The player's position moves a render buffer at a time, about 23 ms. At deep zoom that is 2 pt, so a waveform written the player's position on each frame judders. Each frame pulls the shown position a tenth of the way to the player's. A miss past 0.15 s, from a seek, a stall or a track change, jumps to it. Pausing the link starts the next frame from the player's.
 
-**The waveform zoom is one value for the whole pager.** `+Delivery`'s `didChangeVisibleFraction:` stores it in `VibeiOSWaveformZoom`, and every `willDisplayCell:` re-applies it. What is stored is the user's request, never what a view drew (`WaveformUI/iOS/AGENTS.md`).
+**The waveform zoom is one value for the whole pager.** `+Delivery`'s `didChangeVisibleFraction:` stores it in `VibeiOSWaveformZoom`, and every `willDisplayCell:` re-applies it. What is stored is the user's request, never what a view drew (vibe-libs' `waveform/WaveformView/AGENTS.md`).
 
 ## Output route
 
@@ -83,7 +83,7 @@ Waveform bookkeeping between `AudioWaveformCache` and the cells. The cache has o
 
 **Cached neighbors are prepared before a swipe.** `fetchNeighborWaveforms` issues cache-only reads of the adjacent pages: when the cursor moves, when the hold releases, and after an append. The current page's request waits for its dataless probe. A neighbor's read can therefore start first, on a lane of its own. Misses start no decode, and nothing remembers a miss. Replies match the retained request token, so a cancelled read cannot land in a later request for the same track. Replacement, pruning and reset cancel pending reads. Cache keys require file attributes. The cache-only reader computes them on a separate bounded preview lane and starts no decode.
 
-**Snapshots are kept two pages out, against a fetch radius of one**, so the departed page's snapshot survives for the swipe back. `hydrateWaveformInCell:` lays the arriving cell out, so its scrubber draws at its own width, then hands it its snapshot unanimated. The scrubber draws it in the same turn (`WaveformUI/iOS/AGENTS.md`), so a neighbor needs no preparing. Partial deliveries leave neighbors alone.
+**Snapshots are kept two pages out, against a fetch radius of one**, so the departed page's snapshot survives for the swipe back. `hydrateWaveformInCell:` lays the arriving cell out, so its scrubber draws at its own width, then hands it its snapshot unanimated. The scrubber draws it in the same turn (vibe-libs' `waveform/WaveformView/AGENTS.md`), so a neighbor needs no preparing. Partial deliveries leave neighbors alone.
 
 **The slow-open state is the model's `currentOpenSlow`.** Every edge re-applies it to the visible pages (`applyPlaybackLoadingToVisiblePages`), and `willDisplayCell:` to each arriving page, so no page keeps a stale shimmer. The playback open hydrates the destination rather than clearing it. A track change cancels held scrubs and pinches, keeping the pixels and dropping the pending seek.
 
