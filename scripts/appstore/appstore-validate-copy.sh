@@ -109,7 +109,7 @@ done
 
 # Capture first: a process substitution's exit status is never checked, so a
 # failing catalog-languages.sh would yield zero iterations and a vacuous OK.
-LANGS="$("$ROOT/scripts/strings/catalog-languages.sh")"
+LANGS="$("$ROOT/vibe-libs/tools/strings/catalog-languages.sh" "$ROOT/Resources/strings-config.sh")"
 [ -n "$LANGS" ] || { echo "appstore-validate-copy: catalog-languages.sh returned no languages" >&2; exit 1; }
 
 # A language per background job: each caption measure is a process that
