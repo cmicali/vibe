@@ -5,6 +5,7 @@
 
 #import <Cocoa/Cocoa.h>
 
+@class FolderAccessManager;
 @class MainPlayerController;
 @class SettingsWindowController;
 @class SPUStandardUpdaterController;
@@ -14,6 +15,8 @@
 @property (nonatomic, strong) MainPlayerController *mainPlayerController;
 // nil until Settings is first shown.
 @property (nonatomic, readonly) SettingsWindowController *settingsWindowController;
+// The folder grants' store, made at init and kept for the process.
+@property (nonatomic, readonly) FolderAccessManager *folderAccessManager;
 
 - (IBAction)openDocument:(id)sender;
 // File > Add to Playlist…: Open's panel, appending what it opens.

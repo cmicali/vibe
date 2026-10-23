@@ -34,7 +34,12 @@ typedef NS_ENUM(NSInteger, VibeGrantedFolderState) {
 
 @interface FolderAccessManager : NSObject
 
-+ (instancetype)sharedInstance;
+// Reads the grants stored under key in defaults, and writes them back there.
+// An app makes one at launch and keeps it.
+- (instancetype)initWithDefaults:(NSUserDefaults *)defaults
+                             key:(NSString *)key NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
++ (instancetype)new NS_UNAVAILABLE;
 
 // The granted folders, in the order they were added. Main thread.
 @property (nonatomic, readonly) NSArray<VibeGrantedFolder *> *grantedFolders;

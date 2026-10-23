@@ -33,8 +33,8 @@
     NSMutableDictionary<NSData *, dispatch_semaphore_t> *_restorationGates;
 }
 
-- (instancetype)init {
-    self = [super init];
+- (instancetype)initWithDefaults:(NSUserDefaults *)defaults key:(NSString *)key {
+    self = [super initWithDefaults:defaults key:key];
     if (self) {
         _restorationStateLock = [NSLock new];
         _restorationGate = dispatch_semaphore_create(0);
@@ -145,12 +145,23 @@
 @interface FolderAccessCoverageTests : XCTestCase
 @end
 
+// The grants each manager stores, in a suite of the test's own.
+static NSString *const kGrantsKey = @"grants";
+
 @implementation FolderAccessCoverageTests {
     NSArray<NSString *> *_granted;
+    NSString *_suiteName;
+    NSUserDefaults *_defaults;
 }
 
 - (void)setUp {
     _granted = @[@"/Users/someone/Albums", @"/Volumes/Backup/Music"];
+    _suiteName = [@"FolderAccessCoverageTests." stringByAppendingString:NSUUID.UUID.UUIDString];
+    _defaults = [[NSUserDefaults alloc] initWithSuiteName:_suiteName];
+}
+
+- (void)tearDown {
+    [_defaults removePersistentDomainForName:_suiteName];
 }
 
 - (void)testExactAndDescendantPathsAreCovered {
@@ -239,22 +250,13 @@ static NSString *RealHome(void) {
 }
 
 - (void)testStoredBookmarkDoesNotAuthorizeUntilItsScopeStarts {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    NSString *key = @"VibeGrantedFolders";
-    id previous = [defaults objectForKey:key];
-    [self addTeardownBlock:^{
-        if (previous) {
-            [defaults setObject:previous forKey:key];
-        }
-        else {
-            [defaults removeObjectForKey:key];
-        }
-    }];
+    NSUserDefaults *defaults = _defaults;
+    NSString *key = kGrantsKey;
     NSString *path = @"/Users/someone/Downloads/Stored Grant";
     [defaults setObject:@[@{@"path": path, @"bookmark": [@"invalid" dataUsingEncoding:NSUTF8StringEncoding]}]
                   forKey:key];
 
-    FolderAccessManager *manager = [[FolderAccessManager alloc] init];
+    FolderAccessManager *manager = [[FolderAccessManager alloc] initWithDefaults:defaults key:key];
     XCTAssertEqualObjects([manager.grantedFolders valueForKey:@"path"], (@[path]));
     XCTAssertFalse([manager canReadInsideDirectory:path]);
     // Nothing has been tried yet, so the row is pending rather than failed.
@@ -273,22 +275,13 @@ static NSString *RealHome(void) {
 // A grant is also unresolvable while its volume is merely unplugged, so a
 // failed restore must not drop the row.
 - (void)testFailedRestoreKeepsTheRowAndReportsItUnavailable {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    NSString *key = @"VibeGrantedFolders";
-    id previous = [defaults objectForKey:key];
-    [self addTeardownBlock:^{
-        if (previous) {
-            [defaults setObject:previous forKey:key];
-        }
-        else {
-            [defaults removeObjectForKey:key];
-        }
-    }];
+    NSUserDefaults *defaults = _defaults;
+    NSString *key = kGrantsKey;
     NSString *path = @"/Users/someone/Music Archive";
     [defaults setObject:@[@{@"path": path, @"bookmark": [@"invalid" dataUsingEncoding:NSUTF8StringEncoding]}]
                   forKey:key];
 
-    FolderAccessManager *manager = [[FolderAccessManager alloc] init];
+    FolderAccessManager *manager = [[FolderAccessManager alloc] initWithDefaults:defaults key:key];
     // Past the guard, the completion means the resolve failed, not that the
     // shipping deadline gave up on it.
     manager.restoreDeadline = VIBE_TEST_GATE_TIMEOUT;
@@ -305,17 +298,8 @@ static NSString *RealHome(void) {
 }
 
 - (void)testRestorationIsBoundedAndPromotesAGrantNeededByAnOpen {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    NSString *key = @"VibeGrantedFolders";
-    id previous = [defaults objectForKey:key];
-    [self addTeardownBlock:^{
-        if (previous) {
-            [defaults setObject:previous forKey:key];
-        }
-        else {
-            [defaults removeObjectForKey:key];
-        }
-    }];
+    NSUserDefaults *defaults = _defaults;
+    NSString *key = kGrantsKey;
 
     NSUInteger concurrencyLimit = (NSUInteger)VibeFolderAccessRestoreConcurrencyLimit;
     NSUInteger utilityWorkerCount = concurrencyLimit - 1;
@@ -329,7 +313,7 @@ static NSString *RealHome(void) {
     }
     [defaults setObject:stored forKey:key];
 
-    BlockingFolderAccessManager *manager = [BlockingFolderAccessManager new];
+    BlockingFolderAccessManager *manager = [[BlockingFolderAccessManager alloc] initWithDefaults:defaults key:key];
     XCTestExpectation *initialWorkers = [self expectationWithDescription:@"bounded workers started"];
     initialWorkers.expectedFulfillmentCount = utilityWorkerCount;
     XCTestExpectation *nextWorker = [self expectationWithDescription:@"prioritized worker started"];
@@ -379,17 +363,8 @@ static NSString *RealHome(void) {
 }
 
 - (void)testNestedOpenPromotesSpecificGrantAndIgnoresStillRestoringParent {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    NSString *key = @"VibeGrantedFolders";
-    id previous = [defaults objectForKey:key];
-    [self addTeardownBlock:^{
-        if (previous) {
-            [defaults setObject:previous forKey:key];
-        }
-        else {
-            [defaults removeObjectForKey:key];
-        }
-    }];
+    NSUserDefaults *defaults = _defaults;
+    NSString *key = kGrantsKey;
 
     NSUInteger utilityWorkerCount =
             (NSUInteger)VibeFolderAccessRestoreConcurrencyLimit - 1;
@@ -408,7 +383,7 @@ static NSString *RealHome(void) {
                          @"bookmark": [@"child" dataUsingEncoding:NSUTF8StringEncoding] }];
     [defaults setObject:stored forKey:key];
 
-    BlockingFolderAccessManager *manager = [BlockingFolderAccessManager new];
+    BlockingFolderAccessManager *manager = [[BlockingFolderAccessManager alloc] initWithDefaults:defaults key:key];
     manager.immediatelySuccessfulPaths = [NSSet setWithObject:childPath];
     XCTestExpectation *initialWorkers =
             [self expectationWithDescription:@"utility workers blocked"];
@@ -451,17 +426,8 @@ static NSString *RealHome(void) {
 }
 
 - (void)testRemovedQueuedChildDoesNotTakeUrgentLaneFromCoveringParent {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    NSString *key = @"VibeGrantedFolders";
-    id previous = [defaults objectForKey:key];
-    [self addTeardownBlock:^{
-        if (previous) {
-            [defaults setObject:previous forKey:key];
-        }
-        else {
-            [defaults removeObjectForKey:key];
-        }
-    }];
+    NSUserDefaults *defaults = _defaults;
+    NSString *key = kGrantsKey;
 
     NSUInteger utilityWorkerCount =
             (NSUInteger)VibeFolderAccessRestoreConcurrencyLimit - 1;
@@ -480,7 +446,7 @@ static NSString *RealHome(void) {
                          @"bookmark": [@"child" dataUsingEncoding:NSUTF8StringEncoding] }];
     [defaults setObject:stored forKey:key];
 
-    BlockingFolderAccessManager *manager = [BlockingFolderAccessManager new];
+    BlockingFolderAccessManager *manager = [[BlockingFolderAccessManager alloc] initWithDefaults:defaults key:key];
     manager.immediatelySuccessfulPaths = [NSSet setWithObject:parentPath];
     XCTestExpectation *initialWorkers =
             [self expectationWithDescription:@"utility workers blocked"];
@@ -531,17 +497,8 @@ static NSString *RealHome(void) {
 }
 
 - (void)testRemovingAlreadyPromotedChildWithdrawsItsUrgentAdmission {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    NSString *key = @"VibeGrantedFolders";
-    id previous = [defaults objectForKey:key];
-    [self addTeardownBlock:^{
-        if (previous) {
-            [defaults setObject:previous forKey:key];
-        }
-        else {
-            [defaults removeObjectForKey:key];
-        }
-    }];
+    NSUserDefaults *defaults = _defaults;
+    NSString *key = kGrantsKey;
 
     NSUInteger utilityWorkerCount =
             (NSUInteger)VibeFolderAccessRestoreConcurrencyLimit - 1;
@@ -564,7 +521,7 @@ static NSString *RealHome(void) {
     [stored addObject:@{ @"path": childPath, @"bookmark": childBookmark }];
     [defaults setObject:stored forKey:key];
 
-    BlockingFolderAccessManager *manager = [BlockingFolderAccessManager new];
+    BlockingFolderAccessManager *manager = [[BlockingFolderAccessManager alloc] initWithDefaults:defaults key:key];
     manager.immediatelySuccessfulBookmarks = [NSSet setWithObject:parentBookmark];
     manager.dedicatedGateBookmarks = [NSSet setWithObjects:urgentBlockerBookmark,
                                                                childBookmark, nil];
@@ -638,17 +595,8 @@ static NSString *RealHome(void) {
 }
 
 - (void)testRemovingOneDuplicateStillWaitsForTheSurvivingRestoration {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    NSString *key = @"VibeGrantedFolders";
-    id previous = [defaults objectForKey:key];
-    [self addTeardownBlock:^{
-        if (previous) {
-            [defaults setObject:previous forKey:key];
-        }
-        else {
-            [defaults removeObjectForKey:key];
-        }
-    }];
+    NSUserDefaults *defaults = _defaults;
+    NSString *key = kGrantsKey;
 
     NSUInteger utilityWorkerCount =
             (NSUInteger)VibeFolderAccessRestoreConcurrencyLimit - 1;
@@ -666,7 +614,7 @@ static NSString *RealHome(void) {
     [stored addObject:@{ @"path": duplicatePath, @"bookmark": survivingBookmark }];
     [defaults setObject:stored forKey:key];
 
-    BlockingFolderAccessManager *manager = [BlockingFolderAccessManager new];
+    BlockingFolderAccessManager *manager = [[BlockingFolderAccessManager alloc] initWithDefaults:defaults key:key];
     manager.immediatelySuccessfulBookmarks = [NSSet setWithObject:survivingBookmark];
     XCTestExpectation *initialWorkers =
             [self expectationWithDescription:@"utility workers blocked"];
@@ -709,17 +657,8 @@ static NSString *RealHome(void) {
 }
 
 - (void)testDuplicateBookmarksRestoreTheirOwnRows {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    NSString *key = @"VibeGrantedFolders";
-    id previous = [defaults objectForKey:key];
-    [self addTeardownBlock:^{
-        if (previous) {
-            [defaults setObject:previous forKey:key];
-        }
-        else {
-            [defaults removeObjectForKey:key];
-        }
-    }];
+    NSUserDefaults *defaults = _defaults;
+    NSString *key = kGrantsKey;
 
     NSString *path = @"/Volumes/Identical Duplicate";
     NSData *bookmark = [@"identical-duplicate" dataUsingEncoding:NSUTF8StringEncoding];
@@ -727,7 +666,7 @@ static NSString *RealHome(void) {
                           @{ @"path": path, @"bookmark": bookmark }]
                   forKey:key];
 
-    BlockingFolderAccessManager *manager = [BlockingFolderAccessManager new];
+    BlockingFolderAccessManager *manager = [[BlockingFolderAccessManager alloc] initWithDefaults:defaults key:key];
     manager.immediatelySuccessfulBookmarks = [NSSet setWithObject:bookmark];
     XCTestExpectation *allSettled = [self expectationWithDescription:@"duplicates settled"];
     [manager restoreGrantedAccessWithCompletion:^{
@@ -742,17 +681,8 @@ static NSString *RealHome(void) {
 }
 
 - (void)testReactivatedAliasIsNotOverwrittenByItsOldRestoration {
-    NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
-    NSString *key = @"VibeGrantedFolders";
-    id previous = [defaults objectForKey:key];
-    [self addTeardownBlock:^{
-        if (previous) {
-            [defaults setObject:previous forKey:key];
-        }
-        else {
-            [defaults removeObjectForKey:key];
-        }
-    }];
+    NSUserDefaults *defaults = _defaults;
+    NSString *key = kGrantsKey;
 
     NSUInteger utilityWorkerCount =
             (NSUInteger)VibeFolderAccessRestoreConcurrencyLimit - 1;
@@ -769,7 +699,7 @@ static NSString *RealHome(void) {
     [stored addObject:@{ @"path": oldPath, @"bookmark": bookmark }];
     [defaults setObject:stored forKey:key];
 
-    BlockingFolderAccessManager *manager = [BlockingFolderAccessManager new];
+    BlockingFolderAccessManager *manager = [[BlockingFolderAccessManager alloc] initWithDefaults:defaults key:key];
     manager.immediatelySuccessfulBookmarks = [NSSet setWithObject:bookmark];
     XCTestExpectation *initialWorkers =
             [self expectationWithDescription:@"utility workers blocked"];

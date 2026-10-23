@@ -14,7 +14,6 @@
 
 NSNotificationName const FolderAccessManagerDidChangeNotification = @"FolderAccessManagerDidChangeNotification";
 
-static NSString *const kGrantedFoldersDefaultsKey = @"VibeGrantedFolders";
 static NSString *const kEntryPathKey = @"path";
 static NSString *const kEntryBookmarkKey = @"bookmark";
 // Runtime-only, never persisted: the URL whose security scope is started.
@@ -86,6 +85,8 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
 @end
 
 @implementation FolderAccessManager {
+    NSUserDefaults *_defaults;
+    NSString *_defaultsKey;
     // Main thread only; background work takes snapshots and merges back.
     NSMutableArray<NSMutableDictionary *> *_entries;
     NSMutableArray<VibeRestorationWaiter *> *_restorationWaiters;
@@ -97,18 +98,11 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
     BOOL _changeNotificationPending;
 }
 
-+ (instancetype)sharedInstance {
-    static FolderAccessManager *instance;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        instance = [[FolderAccessManager alloc] init];
-    });
-    return instance;
-}
-
-- (instancetype)init {
+- (instancetype)initWithDefaults:(NSUserDefaults *)defaults key:(NSString *)key {
     self = [super init];
     if (self) {
+        _defaults = defaults;
+        _defaultsKey = [key copy];
         _entries = [NSMutableArray array];
         _restorationWaiters = [NSMutableArray array];
         _restorationQueue = [NSOperationQueue new];
@@ -123,7 +117,7 @@ const NSInteger VibeFolderAccessRestoreConcurrencyLimit = 4;
         _pendingRestorations = [NSMutableArray array];
         // Shared by the launch drain and every per-open wait.
         _restoreDeadline = 2.0;
-        NSArray *stored = [NSUserDefaults.standardUserDefaults arrayForKey:kGrantedFoldersDefaultsKey];
+        NSArray *stored = [_defaults arrayForKey:_defaultsKey];
         for (NSDictionary *entry in stored) {
             NSString *path = entry[kEntryPathKey];
             NSData *bookmark = entry[kEntryBookmarkKey];
@@ -628,7 +622,7 @@ static BOOL VibeURLIsCoveredByPath(NSURL *url, NSString *grantedPath) {
     for (NSDictionary *entry in _entries) {
         [stored addObject:@{kEntryPathKey: entry[kEntryPathKey], kEntryBookmarkKey: entry[kEntryBookmarkKey]}];
     }
-    [NSUserDefaults.standardUserDefaults setObject:stored forKey:kGrantedFoldersDefaultsKey];
+    [_defaults setObject:stored forKey:_defaultsKey];
 }
 
 // Restoration settles one bookmark at a time and observers do real work

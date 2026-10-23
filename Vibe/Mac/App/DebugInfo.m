@@ -232,7 +232,7 @@ static NSArray *VibeWindowsArray(void) {
 
 NSDictionary<NSString *, id> *VibeDebugInfoSnapshot(MainPlayerController *controller) {
     NSMutableArray *folders = [NSMutableArray array];
-    for (VibeGrantedFolder *folder in FolderAccessManager.sharedInstance.grantedFolders) {
+    for (VibeGrantedFolder *folder in ((AppDelegate *)NSApp.delegate).folderAccessManager.grantedFolders) {
         [folders addObject:@{@"path": folder.path ?: @"", @"state": VibeGrantedFolderStateName(folder.state)}];
     }
     AppStats *stats = AppStats.sharedInstance;
