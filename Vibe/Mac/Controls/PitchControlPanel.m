@@ -6,10 +6,6 @@
 #import "PitchControlPanel.h"
 #import "PitchFaderView.h"
 #import "Fonts.h"
-#import "Formatters.h"
-#import "AppSettings.h" // the right-edge corners follow the themed window radius
-#import "AppSettings+Mac.h"
-#import "VibeStrings.h"
 
 const CGFloat kPitchPanelWidth = 96;
 
@@ -39,7 +35,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
-        _titleLabel = [NSTextField labelWithString:STR_LABEL_PITCH];
+        _titleLabel = [NSTextField labelWithString:@""];
         _titleLabel.font = [Fonts font:10 bold:YES];
         _titleLabel.textColor = [NSColor colorWithWhite:0.55 alpha:1];
         _titleLabel.alignment = NSTextAlignmentCenter;
@@ -124,7 +120,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     // not mask, and drawing past the left edge bleeds a dark strip over the
     // body.
     NSRect b = self.bounds;
-    CGFloat r = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
+    CGFloat r = _cornerRadius;
     NSBezierPath *background = [NSBezierPath bezierPath];
     [background moveToPoint:NSMakePoint(NSMinX(b), NSMinY(b))];
     [background lineToPoint:NSMakePoint(NSMaxX(b) - r, NSMinY(b))];
@@ -143,6 +139,33 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
     // A hairline seam against the main content, like a joined deck panel.
     [[NSColor colorWithWhite:0 alpha:0.8] setFill];
     NSRectFillUsingOperation(NSMakeRect(0, 0, 1, self.bounds.size.height), NSCompositingOperationSourceOver);
+}
+
+- (NSString *)title {
+    return _titleLabel.stringValue;
+}
+
+- (void)setTitle:(NSString *)title {
+    _titleLabel.stringValue = title;
+}
+
+- (NSString *)faderAccessibilityLabel {
+    return _faderView.accessibilityLabel;
+}
+
+- (void)setFaderAccessibilityLabel:(NSString *)faderAccessibilityLabel {
+    _faderView.accessibilityLabel = faderAccessibilityLabel;
+}
+
+- (void)setPitchFormatter:(NSString *(^)(double))pitchFormatter {
+    _pitchFormatter = [pitchFormatter copy];
+    _faderView.accessibilityValueFormatter = _pitchFormatter;
+    [self updateReadout];
+}
+
+- (void)setCornerRadius:(CGFloat)cornerRadius {
+    _cornerRadius = cornerRadius;
+    self.needsDisplay = YES;
 }
 
 - (float)maxPitch {
@@ -166,7 +189,7 @@ static const CGFloat kHeaderFadeEndHeight   = 340;
 - (void)updateReadout {
     float pitch = _faderView.pitch;
     // The formatter owns the sign, the decimal separator and the % placement.
-    _readoutField.stringValue = [[Formatters sharedInstance] signedPercentString:pitch];
+    _readoutField.stringValue = _pitchFormatter ? _pitchFormatter(pitch) : @"";
     _readoutField.textColor = (pitch == 0)
             ? VibeQuartzLockGreen(1)
             : [NSColor colorWithWhite:0.85 alpha:1];

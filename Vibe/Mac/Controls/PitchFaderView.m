@@ -5,8 +5,6 @@
 
 #import "PitchFaderView.h"
 #import "Fonts.h"
-#import "Formatters.h"
-#import "VibeStrings.h"
 
 static const CGFloat kSlotWidth       = 6;
 static const CGFloat kKnobWidth       = 40;
@@ -157,7 +155,7 @@ static const float   kDefaultMaxPitch = 8;
 
         // Engraved instrument scale, not prose — Latin digits in every locale.
         if (value % labelStep == 0 && value != 0) {
-            NSString *label = [NSString stringWithFormat:VibeNotLocalized(@"%d"), abs(value)];
+            NSString *label = [NSString stringWithFormat:@"%d", abs(value)];
             NSSize size = [label sizeWithAttributes:labelAttributes];
             CGFloat x = centerX - tickInnerX - kTickLength - kLabelGap - size.width;
             [label drawAtPoint:NSMakePoint(x, y - size.height / 2) withAttributes:labelAttributes];
@@ -165,12 +163,12 @@ static const float   kDefaultMaxPitch = 8;
     }
 
     // Scale glyphs, not prose, like the digits.
-    NSString *minus = VibeNotLocalized(@"−");
+    NSString *minus = @"−";
     NSSize minusSize = [minus sizeWithAttributes:signAttributes];
     [minus drawAtPoint:NSMakePoint(centerX + tickInnerX + kTickLength + kLabelGap,
                                    [self yForPitch:-_maxPitch] - minusSize.height / 2)
         withAttributes:signAttributes];
-    NSString *plus = VibeNotLocalized(@"+");
+    NSString *plus = @"+";
     NSSize plusSize = [plus sizeWithAttributes:signAttributes];
     [plus drawAtPoint:NSMakePoint(centerX + tickInnerX + kTickLength + kLabelGap,
                                   [self yForPitch:_maxPitch] - plusSize.height / 2)
@@ -334,12 +332,8 @@ static const float kPitchAccessibilityStep = 0.5f;
     return NSAccessibilitySliderRole;
 }
 
-- (NSString *)accessibilityLabel {
-    return STR_A11Y_PITCH_FADER;
-}
-
 - (id)accessibilityValue {
-    return [Formatters.sharedInstance signedPercentString:_pitch];
+    return _accessibilityValueFormatter ? _accessibilityValueFormatter(_pitch) : @(_pitch);
 }
 
 - (BOOL)accessibilityPerformIncrement {

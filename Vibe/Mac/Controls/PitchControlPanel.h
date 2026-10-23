@@ -24,16 +24,29 @@ extern const CGFloat kPitchPanelWidth;
 
 // The strip on the window's right edge: a title, a live readout and the fader.
 // Setting .pitch updates both without firing the delegate. A click on the
-// title or the readout reports didClickHeader:.
+// title or the readout reports didClickHeader:. The app pushes the text, the
+// formatter and the corner radius. It reads none of the app's settings.
 @interface PitchControlPanel : NSView
 
 @property (nullable, weak) id<PitchControlPanelDelegate> delegate;
 
 @property (nonatomic) float pitch;
 
-// Percent; the fader rescales and re-clamps. Keep in sync with
-// AudioPlayer.maxPitch.
+// Percent; the fader rescales and re-clamps.
 @property (nonatomic) float maxPitch;
+
+// The legend above the readout.
+@property (nonatomic, copy) NSString *title;
+
+// The fader's VoiceOver label.
+@property (nonatomic, copy, nullable) NSString *faderAccessibilityLabel;
+
+// The readout and the fader's spoken value, from the pitch in percent. With
+// none, the readout is empty.
+@property (nonatomic, copy, nullable) NSString *(^pitchFormatter)(double pitch);
+
+// The right-edge corners' radius, the window's own.
+@property (nonatomic) CGFloat cornerRadius;
 
 @end
 

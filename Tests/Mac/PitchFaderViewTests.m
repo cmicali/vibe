@@ -3,12 +3,14 @@
 //  VibeTests
 //
 //  The pitch fader drawn into a bitmap, and its gestures, with no window
-//  server. The window is deferred and never ordered front.
+//  server. The window is deferred and never ordered front. Then what the app
+//  pushes into the fader and its panel.
 //
 
 #import <XCTest/XCTest.h>
 
 #import "DrawnViewTestSupport.h"
+#import "PitchControlPanel.h"
 #import "PitchFaderView.h"
 
 @interface RecordingFaderDelegate : NSObject <PitchFaderViewDelegate>
@@ -178,6 +180,58 @@ static const CGFloat kTravelBottom = kHeight - 13;
     _fader.pitch = -0.5f;
     XCTAssertTrue([_fader accessibilityPerformIncrement]);
     XCTAssertEqual(_fader.pitch, 0, @"half a percent lands on exactly zero");
+}
+
+#pragma mark - What the app pushes
+
+static NSString *SignedPercent(double pitch) {
+    return [NSString stringWithFormat:@"%+.1f%%", pitch];
+}
+
+- (void)testTheAppNamesTheFaderAndFormatsItsValue {
+    _fader.pitch = 2.5f;
+    XCTAssertEqualObjects(_fader.accessibilityValue, @2.5, @"with no formatter, the bare value");
+    _fader.accessibilityLabel = @"Pitch";
+    _fader.accessibilityValueFormatter = ^NSString *(double value) {
+        return SignedPercent(value);
+    };
+    XCTAssertEqualObjects(_fader.accessibilityLabel, @"Pitch");
+    XCTAssertEqualObjects(_fader.accessibilityValue, @"+2.5%");
+}
+
+- (void)testThePanelPushesItsTextToTheFaderAndTheReadout {
+    PitchControlPanel *panel = [[PitchControlPanel alloc] initWithFrame:NSMakeRect(0, 0, kPitchPanelWidth, 400)];
+    panel.title = @"PITCH";
+    panel.faderAccessibilityLabel = @"Pitch";
+    panel.pitchFormatter = ^NSString *(double pitch) {
+        return SignedPercent(pitch);
+    };
+    panel.pitch = -1.5f;
+    PitchFaderView *fader = nil;
+    NSMutableArray<NSString *> *texts = [NSMutableArray array];
+    for (NSView *view in panel.subviews) {
+        if ([view isKindOfClass:PitchFaderView.class]) {
+            fader = (PitchFaderView *)view;
+        }
+        else if ([view isKindOfClass:NSTextField.class]) {
+            [texts addObject:((NSTextField *)view).stringValue];
+        }
+    }
+    XCTAssertEqualObjects(panel.title, @"PITCH");
+    XCTAssertEqualObjects(texts, (@[@"PITCH", @"-1.5%"]), @"the title, then the readout");
+    XCTAssertEqualObjects(fader.accessibilityLabel, @"Pitch");
+    XCTAssertEqualObjects(fader.accessibilityValue, @"-1.5%", @"the spoken value is the readout");
+}
+
+- (void)testThePanelRoundsItsRightCornersByThePushedRadius {
+    PitchControlPanel *panel = [[PitchControlPanel alloc] initWithFrame:NSMakeRect(0, 0, kPitchPanelWidth, 400)];
+    NSColor *square = VibePixel(VibeRenderView(panel), NO, kPitchPanelWidth - 1, 399);
+    XCTAssertGreaterThan(square.alphaComponent, 0.9);
+    panel.cornerRadius = 16;
+    NSBitmapImageRep *rep = VibeRenderView(panel);
+    XCTAssertLessThan(VibePixel(rep, NO, kPitchPanelWidth - 1, 399).alphaComponent, 0.1, @"top right");
+    XCTAssertLessThan(VibePixel(rep, NO, kPitchPanelWidth - 1, 0).alphaComponent, 0.1, @"bottom right");
+    XCTAssertGreaterThan(VibePixel(rep, NO, 2, 399).alphaComponent, 0.9, @"the left edge stays square");
 }
 
 @end

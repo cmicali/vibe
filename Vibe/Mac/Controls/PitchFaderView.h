@@ -19,7 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 // A Technics-style fader: minus at the top, plus at the bottom, a detent at 0
-// and a quartz-lock LED. Hardware-styled, the same in both appearances.
+// and a quartz-lock LED. Hardware-styled, the same in both appearances. A
+// VoiceOver slider: the app sets its accessibilityLabel.
 @interface PitchFaderView : NSView
 
 @property (nullable, weak) id<PitchFaderViewDelegate> delegate;
@@ -28,6 +29,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) float pitch;
 
 @property (nonatomic) float maxPitch; // default 8
+
+// The spoken value, from the pitch in percent: the app installs its own signed
+// percent formatter. With none, VoiceOver reads the bare value.
+@property (nonatomic, copy, nullable) NSString *(^accessibilityValueFormatter)(double value);
 
 @end
 
