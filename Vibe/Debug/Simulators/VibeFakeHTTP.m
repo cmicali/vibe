@@ -46,7 +46,7 @@ static BOOL VibeFakeHTTPFaultIsOnce(NSString *kind, NSNumber *once) {
     if ([kind isEqualToString:@"stall"] || [kind isEqualToString:@"rate"]) {
         return NO;
     }
-    return once ? once.boolValue : [kind isEqualToString:@"drop"] || [kind isEqualToString:@"etag-change"];
+    return once != nil ? once.boolValue : [kind isEqualToString:@"drop"] || [kind isEqualToString:@"etag-change"];
 }
 
 static BOOL VibeFakeHTTPIsLookupHost(NSString *host) {

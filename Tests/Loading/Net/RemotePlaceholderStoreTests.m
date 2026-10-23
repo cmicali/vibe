@@ -28,6 +28,16 @@ static BOOL IsPlaceholder(NSURL *url) {
     return S_ISREG(st.st_mode) && VibeFileModeIsRemotePlaceholder(st.st_mode);
 }
 
+// A root that failed to resolve. The analyzer sees a root, since it would
+// flag the nil the test passes on purpose.
+static NSURL *NoRoot(void) {
+#ifdef __clang_analyzer__
+    return [NSURL fileURLWithPath:@"/"];
+#else
+    return nil;
+#endif
+}
+
 @interface TestPlaceholderStore : RemotePlaceholderStore
 // File name → the URL it stands for.
 @property (atomic, copy) NSDictionary<NSString *, NSURL *> *targets;
@@ -563,8 +573,7 @@ typedef struct {
 - (void)testAStoreWithNoRootLeavesTheOtherBackendsInstalled {
     NSURL *url = [self placeholder:@"a.flac" bytes:PatternBytes(4096)];
     [_store installAsRemoteBackend];
-    NSURL *noRoot = nil;
-    TestPlaceholderStore *rootless = [[TestPlaceholderStore alloc] initWithClient:_client rootURL:noRoot
+    TestPlaceholderStore *rootless = [[TestPlaceholderStore alloc] initWithClient:_client rootURL:NoRoot()
                                                                     indexAttribute:kIndexAttribute
                                                                     downloadBudget:1LL << 40];
     [rootless installAsRemoteBackend];
