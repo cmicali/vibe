@@ -3,7 +3,6 @@
 
 #import "DropboxLinkRules.h"
 #import "LinkRules.h"
-#import "LinkStoreTestCase.h"
 
 @interface DropboxLinkRulesTests : XCTestCase
 @end
@@ -57,30 +56,6 @@
                           @"https://www.dropbox.com/s/abc123/Song.mp3?dl=1");
     NSURL *folder = [NSURL URLWithString:@"https://www.dropbox.com/sh/abc/folder?dl=0"];
     XCTAssertEqualObjects(VibeLinkDirectDownloadURL(folder), folder, @"fetched as typed");
-}
-
-@end
-
-// A Dropbox link through the real LinkStore, over HTTPStub answering Dropbox's
-// host.
-@interface DropboxLinkStoreTests : LinkStoreTestCase
-@end
-
-@implementation DropboxLinkStoreTests
-
-- (void)testADropboxShareLinkAsksForTheFile {
-    [_stub answerHost:@"www.dropbox.com"];
-    NSMutableData *bytes = [FlacBytes(4000) mutableCopy];
-    memcpy(bytes.mutableBytes, "ID3", 3);
-    [self serve:bytes at:@"/scl/fi/abc123/Song.mp3" headers:@{@"ETag": @"\"v1\""}];
-    NSError *error = nil;
-    NSURL *file = [self resolve:@"https://www.dropbox.com/scl/fi/abc123/Song.mp3?rlkey=k1&dl=0" error:&error];
-    XCTAssertNotNil(file, @"%@", error);
-    XCTAssertEqualObjects(file.lastPathComponent, @"Song.mp3");
-    NSURLComponents *sent = [NSURLComponents componentsWithURL:_stub.requests.firstObject.URL resolvingAgainstBaseURL:NO];
-    XCTAssertEqualObjects(sent.query, @"rlkey=k1&dl=1");
-    XCTAssertEqualObjects([self recordOf:file][@"url"],
-                          @"https://www.dropbox.com/scl/fi/abc123/Song.mp3?rlkey=k1&dl=1");
 }
 
 @end

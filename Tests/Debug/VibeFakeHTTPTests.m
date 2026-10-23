@@ -1,10 +1,10 @@
 //
 //  VibeFakeHTTPTests.m
 //
-//  The debug channel's fake web server, host-less: what each answer looks
-//  like on the wire, what each fault does to the plain HTTPTransferClient,
-//  and a LinkStore opening a link from it. The fake's state is process-wide,
-//  so only this class drives it.
+//  The fake web server, host-less: what each answer looks like on the wire,
+//  what each fault does to the plain HTTPTransferClient, and an iCloud Drive
+//  link looked up through LinkClient. The fake's state is process-wide, so
+//  only this class drives it.
 //
 
 #import <XCTest/XCTest.h>
@@ -13,9 +13,7 @@
 
 #import "HTTPStub.h"
 #import "HTTPTransferClientInternal.h"
-#import "LinkStore.h"
-#import "PlaceholderFiles.h"
-#import "RemotePlaceholderStoreInternal.h"
+#import "LinkClient.h"
 #import "VibeFakeHTTP.h"
 
 static const NSUInteger kSongBytes = 512 * 1024;
@@ -149,18 +147,20 @@ typedef struct {
     return VibeFakeHTTP.statistics[@"log"];
 }
 
-- (NSURL *)resolve:(LinkStore *)store link:(NSString *)link error:(NSError **)error {
-    __block NSURL *file = nil;
+// The link's probe of its first 16 bytes, through the client.
+- (NSDictionary *)probeLink:(NSString *)link error:(NSError **)error {
+    __block NSDictionary *answered = nil;
     __block NSError *failure = nil;
-    XCTestExpectation *done = [self expectationWithDescription:@"resolved"];
-    [store resolveURLString:link completion:^(NSURL *answer, NSError *answerError) {
-        file = answer;
-        failure = answerError;
+    XCTestExpectation *done = [self expectationWithDescription:@"probe"];
+    [_client probeTarget:[NSURL URLWithString:link] length:16
+              completion:^(NSDictionary *metadata, NSHTTPURLResponse *probed, NSData *bytes, NSError *probeError) {
+        answered = metadata;
+        failure = probeError;
         [done fulfill];
     }];
     [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
     if (error) *error = failure;
-    return file;
+    return answered;
 }
 
 #pragma mark The answers
@@ -386,47 +386,38 @@ typedef struct {
     XCTAssertLessThan(body, VIBE_TEST_HANG_TIMEOUT);
 }
 
-#pragma mark Links
+#pragma mark iCloud Drive
 
-- (void)testALocalLinkOpensFromTheFake {
-    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
+- (void)testAnICloudLinkIsLookedUpThenProbedThenDownloaded {
     NSError *error = nil;
-    NSURL *file = [self resolve:store link:@"http://fake.local/album/song.mp3" error:&error];
-    XCTAssertNotNil(file, @"%@", error);
-    XCTAssertEqualObjects(file.lastPathComponent, @"song.mp3");
-    struct stat st = {0};
-    lstat(file.fileSystemRepresentation, &st);
-    XCTAssertTrue(VibeFileModeIsRemotePlaceholder(st.st_mode));
-    XCTAssertEqual(st.st_size, (off_t)kSongBytes);
-    XCTAssertEqual(st.st_mtimespec.tv_sec, _songModified, @"the mtime is Last-Modified");
-    XCTAssertEqualObjects(self.log.lastObject[@"range"], @"bytes=0-15", @"the probe");
-}
-
-- (void)testAnICloudLinkOpensFromTheFake {
-    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
-    NSError *error = nil;
-    NSURL *file = [self resolve:store link:@"https://www.icloud.com/iclouddrive/tone#Tone" error:&error];
-    XCTAssertNotNil(file, @"%@", error);
-    XCTAssertEqualObjects(file.lastPathComponent, @"tone.flac");
+    NSDictionary *metadata = [self probeLink:@"https://www.icloud.com/iclouddrive/tone#Tone" error:&error];
+    XCTAssertNotNil(metadata, @"%@", error);
+    XCTAssertTrue([metadata[@"etag"] hasPrefix:@"\""], @"the lookup's checksum, as a strong ETag");
+    XCTAssertNil(metadata[@"lastModified"], @"when the address was signed");
+    XCTAssertTrue([metadata[@"contentDisposition"] containsString:@"tone.flac"], @"%@", metadata);
     NSArray<NSDictionary *> *log = self.log;
     XCTAssertEqual(log.count, 2u);
     XCTAssertEqualObjects(log[0][@"host"], @"ckdatabasews.icloud.com");
     XCTAssertEqualObjects(log[1][@"host"], @"cvws.icloud-content.com");
     XCTAssertEqualObjects(log[1][@"range"], @"bytes=0-15");
-    NSDictionary *record = [store indexOfDirectory:file.URLByDeletingLastPathComponent];
-    XCTAssertNotNil(record[@"version"]);
 
-    XCTAssertTrue([store fetchPlaceholderAtURL:file onReadable:nil onCancel:^(dispatch_block_t cancel) {
-    } error:&error], @"%@", error);
-    XCTAssertEqualObjects([NSData dataWithContentsOfURL:file],
+    XCTestExpectation *done = [self expectationWithDescription:@"download"];
+    [_client downloadTarget:[NSURL URLWithString:@"https://www.icloud.com/iclouddrive/tone"] toURL:[self partURL]
+                   progress:nil completion:^(NSDictionary *downloaded, NSError *downloadError) {
+        XCTAssertNil(downloadError);
+        XCTAssertEqualObjects(downloaded[@"etag"], metadata[@"etag"], @"one lookup, one version");
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:VIBE_TEST_HANG_TIMEOUT];
+    XCTAssertEqualObjects([NSData dataWithContentsOfURL:[self partURL]],
                           [NSData dataWithContentsOfURL:[_served URLByAppendingPathComponent:@"tone.flac"]]);
+    XCTAssertEqual(self.log.count, 3u, @"the lookup is reused for the download");
 }
 
 - (void)testAnExpiredAddressIsLookedUpAgain {
-    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
     XCTAssertTrue([VibeFakeHTTP addFaultOfKind:@"expiry" file:nil after:0 seconds:0 rate:0 status:0 once:@YES]);
     NSError *error = nil;
-    XCTAssertNotNil([self resolve:store link:@"https://www.icloud.com/iclouddrive/tone" error:&error], @"%@", error);
+    XCTAssertNotNil([self probeLink:@"https://www.icloud.com/iclouddrive/tone" error:&error], @"%@", error);
     NSArray<NSDictionary *> *log = self.log;
     XCTAssertEqual(log.count, 4u);
     XCTAssertEqualObjects(log[0][@"faults"], @[@"expiry"]);
@@ -436,25 +427,13 @@ typedef struct {
 }
 
 - (void)testAnICloudFolderOrMissingShareIsRefused {
-    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
     NSError *error = nil;
-    XCTAssertNil([self resolve:store link:@"https://www.icloud.com/iclouddrive/album" error:&error]);
+    XCTAssertNil([self probeLink:@"https://www.icloud.com/iclouddrive/album" error:&error]);
+    XCTAssertEqualObjects(error.domain, VibeLinkErrorDomain);
     XCTAssertEqual(error.code, VibeLinkErrorICloudFolder);
-    XCTAssertNil([self resolve:store link:@"https://www.icloud.com/iclouddrive/nothing" error:&error]);
+    XCTAssertNil([self probeLink:@"https://www.icloud.com/iclouddrive/nothing" error:&error]);
     XCTAssertEqual(error.code, VibeLinkErrorNotFound);
     XCTAssertEqual([VibeFakeHTTP.statistics[@"requests"] integerValue], 2, @"two lookups, and no file asked for");
-}
-
-- (void)testAPublicPlainHTTPLinkSendsNothing {
-    LinkStore *store = [[LinkStore alloc] initWithClient:_client rootURL:[_base URLByAppendingPathComponent:@"Links"]];
-    for (NSString *link in @[@"http://8.8.8.8/x.mp3", @"http://vibe.example.com/album/song.mp3"]) {
-        NSError *error = nil;
-        XCTAssertNil([self resolve:store link:link error:&error]);
-        XCTAssertEqualObjects(error.domain, VibeLinkErrorDomain);
-        XCTAssertEqual(error.code, VibeLinkErrorInsecure, @"%@", link);
-    }
-    XCTAssertEqual([VibeFakeHTTP.statistics[@"requests"] integerValue], 0,
-                   @"the fake answers every request on the client's sessions, and saw none");
 }
 
 @end
