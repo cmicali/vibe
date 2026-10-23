@@ -1,6 +1,6 @@
 //
 //  DebugChannel.m
-//  Vibe
+//  vibe-libs
 //
 
 #import "DebugChannel.h"
@@ -9,6 +9,7 @@
 
 #import <notify.h>
 #import "DebugWireFormat.h"
+#import "VibeMacros.h"
 
 static VibeDebugChannelExecutor gExecutor;
 
@@ -94,9 +95,9 @@ static void VibeHandleOneDebugCommandFile(NSString *path) {
 // notify_post coalesces back-to-back posts, so one wake-up drains every
 // pending command file.
 static void VibeHandleDebugCommandFiles(void) {
-    // A command can spin the main run loop (VibeMakeWindowKeyForInjection),
-    // which services this handler: without the guard a second client's command
-    // would run reentrantly inside the first. The deferred pass re-drains once
+    // A command can spin the main run loop, which services this handler:
+    // without the guard a second client's command would run reentrantly
+    // inside the first. The deferred pass re-drains once
     // the outer command finishes. Main thread.
     static BOOL draining = NO;
     static BOOL deferred = NO;

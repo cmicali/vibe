@@ -1,25 +1,25 @@
 //
 //  DebugCommandDispatch.h
-//  Vibe
+//  vibe-libs
 //
 //  The command table's shape and the lookup over it, so one verb lookup and
-//  one unknown-command reply serve both platforms. It never invokes a handler:
-//  each platform's dispatcher supplies its own controller, and the call
-//  belongs where that is known.
+//  one unknown-command reply serve every table. It never invokes a handler:
+//  the app's dispatcher supplies its own controller, and the call belongs
+//  where that is known.
+//
+//  Compiled in every configuration. The .m wraps its body in #if DEBUG, so a
+//  release build has none of it, and a call from release code fails to link.
 //
 
-#if DEBUG
-
 #import <Foundation/Foundation.h>
-#import "DebugPlayerSurface.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
 // Returns the JSON reply, or nil when the command replies asynchronously
 // through VibeWriteDebugResponse. controller is id because each table names
-// its own type (the surface for shared verbs, the shell's controller for a
-// platform's); a block literal keeps its parameter type, so the body is still
-// checked. Never nil: each dispatcher answers "app not fully launched" first.
+// its own type; a block literal keeps its parameter type, so the body is
+// still checked. Never nil: the dispatcher answers an error first when the
+// app has no controller yet.
 typedef NSString *_Nullable (^VibeDebugCommandHandler)(NSArray<NSString *> *tokens,
                                                        NSString *commandId,
                                                        id controller);
@@ -28,10 +28,6 @@ typedef NSString *_Nullable (^VibeDebugCommandHandler)(NSArray<NSString *> *toke
 // verb's reply, in seconds, where 0 means the default.
 NSDictionary *VibeDebugCmd(NSString *usage, NSTimeInterval clientTimeout,
                            VibeDebugCommandHandler handler);
-
-// A transport or toggle verb: runs action, then replies with the surface's
-// debugActionSummary, so every one answers in the same shape.
-NSDictionary *VibeTransportCmd(NSString *usage, void (^action)(id controller));
 
 NSString *VibeDebugVerbFromUsage(NSString *usage);
 
@@ -64,5 +60,3 @@ NSString *_Nullable VibeExistingFileArgument(NSArray<NSString *> *tokens,
                                              NSString *_Nullable *_Nonnull errorJSON);
 
 NS_ASSUME_NONNULL_END
-
-#endif

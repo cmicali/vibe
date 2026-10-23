@@ -1,16 +1,16 @@
 //
 //  DebugWireFormat.h
-//  Vibe
+//  vibe-libs
+//
+//  Compiled in every configuration. The .m wraps its body in #if DEBUG, so a
+//  release build has none of it, and a call from release code fails to link.
 //
 
 #import <Foundation/Foundation.h>
-#import "IntegerTokenRules.h"   // VibeParseNonnegativeInteger
-
-#if DEBUG
 
 // The channel's wire format: the notification name, the per-command file
-// paths and the JSON reply serialization. Both apps' tables, the shared verbs
-// and the mac CLI client must agree on it, so it is neither app's to own.
+// paths and the JSON reply serialization. The app's tables and its client
+// must agree on it, so the channel owns it.
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,12 +30,6 @@ BOOL VibeParseDouble(NSString *token, double *out);
 // A byte count, with a K or M suffix for KiB or MiB.
 BOOL VibeParseByteCount(NSString *token, uint64_t *bytes);
 
-// The mac table's spec for verb (Mac/DebugMacEntry.m). The client reads its
-// clientTimeout, so its wait derives from the table the app dispatches with.
-NSDictionary *VibeCommandSpecForVerb(NSString *verb);
-
 #ifdef __cplusplus
 }
-#endif
-
 #endif

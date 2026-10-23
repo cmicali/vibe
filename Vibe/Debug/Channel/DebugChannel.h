@@ -1,18 +1,18 @@
 //
 //  DebugChannel.h
-//  Vibe
+//  vibe-libs
+//
+//  Compiled in every configuration. The .m wraps its body in #if DEBUG, so a
+//  release build has none of it, and a call from release code fails to link.
 //
 
 #import <Foundation/Foundation.h>
-
-#if DEBUG
 
 NS_ASSUME_NONNULL_BEGIN
 
 // The platform-neutral half of the debug command channel: the command-file
 // drain, payload validation, response writing, the stale-file sweep and the
-// wake-up listeners. The platform dispatchers (Mac/DebugMacEntry.m,
-// iOS/DebugiOSEntry.m) supply the executor. The platform tables own every
+// wake-up listeners. The app supplies the executor, and its tables own every
 // verb.
 
 #ifdef __cplusplus
@@ -42,5 +42,3 @@ void VibeWriteDebugResponse(NSString *commandId, NSString *response);
 #endif
 
 NS_ASSUME_NONNULL_END
-
-#endif

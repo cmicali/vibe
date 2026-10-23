@@ -1,6 +1,6 @@
 //
 //  DebugCommandDispatch.m
-//  Vibe
+//  vibe-libs
 //
 
 #import "DebugCommandDispatch.h"
@@ -12,14 +12,6 @@
 NSDictionary *VibeDebugCmd(NSString *usage, NSTimeInterval clientTimeout,
                            VibeDebugCommandHandler handler) {
     return @{@"usage": usage, @"clientTimeout": @(clientTimeout), @"handler": [handler copy]};
-}
-
-NSDictionary *VibeTransportCmd(NSString *usage, void (^action)(id controller)) {
-    return VibeDebugCmd(usage, 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                              id<VibeDebugPlayerSurface> surface) {
-        action(surface);
-        return VibeJSONString(surface.debugActionSummary);
-    });
 }
 
 NSString *VibeDebugVerbFromUsage(NSString *usage) {
