@@ -4,27 +4,28 @@
 //
 //  Orders the asynchronously expanded batches of every open funnel. A
 //  replacing request supersedes every unfinished older one; appends in the
-//  surviving burst deliver in submission order. ONE coordinator, because
-//  there is one playlist: a drop must not be overwritten by an older, slower
-//  open from another funnel. Main thread only.
+//  surviving burst deliver in submission order. Use one coordinator for each
+//  list the opens land in, so a drop is not overwritten by an older, slower
+//  open from another funnel. The rows are the caller's own objects, handed
+//  back as they came. Main thread only.
 //
 
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class AudioTrack;
 @class OpenRequestToken;
 
 // Runs on main when this request's turn comes up.
-typedef void (^OpenRequestDelivery)(NSArray<AudioTrack *> *rows, NSUInteger folderCount, BOOL append);
+typedef void (^OpenRequestDelivery)(NSArray *rows, NSUInteger folderCount, BOOL append);
 
 @interface OpenRequestCoordinator : NSObject
 
-// -init makes an independent one, for tests.
+// The app's one coordinator. -init makes an independent one.
 + (instancetype)sharedCoordinator;
 
-// Closing the playlist supersedes pending walks and buffered append results.
+// Supersedes every pending request and buffered result. Call it before
+// clearing the list the opens land in, so a late result cannot refill it.
 - (void)invalidate;
 
 // append == NO starts a new generation and invalidates every older token.
@@ -37,7 +38,7 @@ typedef void (^OpenRequestDelivery)(NSArray<AudioTrack *> *rows, NSUInteger fold
 // May arrive out of order. Results buffer until every earlier one in their
 // generation has arrived, or the straggler deadline gives up on it.
 - (void)finishRequest:(OpenRequestToken *)token
-                 rows:(NSArray<AudioTrack *> *)rows
+                 rows:(NSArray *)rows
           folderCount:(NSUInteger)folderCount;
 
 // A held request is never given up on. Its owner is still deciding what it

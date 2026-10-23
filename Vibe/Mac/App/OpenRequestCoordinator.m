@@ -21,7 +21,7 @@ static const NSTimeInterval kStragglerDeadline = 10.0;
 
 @interface OpenRequestResult : NSObject
 @property (strong) OpenRequestToken *token;
-@property (copy) NSArray<AudioTrack *> *rows;
+@property (copy) NSArray *rows;
 @property NSUInteger folderCount;
 @end
 
@@ -97,7 +97,7 @@ static const NSTimeInterval kStragglerDeadline = 10.0;
 }
 
 - (void)finishRequest:(OpenRequestToken *)token
-                 rows:(NSArray<AudioTrack *> *)rows
+                 rows:(NSArray *)rows
           folderCount:(NSUInteger)folderCount {
     NSAssert(NSThread.isMainThread, @"OpenRequestCoordinator is main-thread only");
     if (![self isRequestCurrent:token] || token.sequence < _nextDeliverySequence

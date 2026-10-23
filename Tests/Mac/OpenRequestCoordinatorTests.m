@@ -5,7 +5,6 @@
 
 #import <XCTest/XCTest.h>
 
-#import "AudioTrack.h"
 #import "OpenRequestCoordinator.h"
 
 @interface OpenRequestCoordinatorTests : XCTestCase
@@ -41,18 +40,19 @@
 - (OpenRequestToken *)beginAppending:(BOOL)append tagged:(NSString *)tag {
     NSMutableArray<NSString *> *deliveries = _deliveries;
     return [_coordinator beginRequestAppending:append
-                                      delivery:^(NSArray<AudioTrack *> *rows, NSUInteger folders, BOOL appending) {
+                                      delivery:^(NSArray *rows, NSUInteger folders, BOOL appending) {
         [deliveries addObject:[NSString stringWithFormat:@"%@:%@:%lu:%lu", tag,
                 appending ? @"append" : @"replace",
                 (unsigned long)rows.count, (unsigned long)folders]];
     }];
 }
 
-static NSArray<AudioTrack *> *OpenRows(NSUInteger count) {
-    NSMutableArray<AudioTrack *> *rows = [NSMutableArray array];
+// The coordinator never reads a row, so any object stands in for one.
+static NSArray<NSURL *> *OpenRows(NSUInteger count) {
+    NSMutableArray<NSURL *> *rows = [NSMutableArray array];
     for (NSUInteger i = 0; i < count; i++) {
-        [rows addObject:[AudioTrack withURL:[NSURL fileURLWithPath:
-                [NSString stringWithFormat:@"/private/tmp/open-%lu.mp3", (unsigned long)i]]]];
+        [rows addObject:[NSURL fileURLWithPath:
+                [NSString stringWithFormat:@"/private/tmp/open-%lu.mp3", (unsigned long)i]]];
     }
     return rows;
 }
