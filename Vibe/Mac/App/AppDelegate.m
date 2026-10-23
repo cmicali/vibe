@@ -34,6 +34,7 @@
 #import "LinkDropRules.h"
 #import "LinkStore.h"
 #import "StringRules.h"
+#import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if VIBE_DIRECT_DISTRIBUTION
@@ -58,6 +59,9 @@
 // Long enough to absorb a split multi-file open, short enough that a
 // deliberate second open replaces rather than appends.
 static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
+
+// TRAP: a shipped key. Another spelling forgets every grant.
+static NSString *const kGrantedFoldersDefaultsKey = @"VibeGrantedFolders";
 
 #if VIBE_DIRECT_DISTRIBUTION
 // A Debug build starts the updater only with --update-feed, and checks only
@@ -104,6 +108,8 @@ static void VibeAfterLaunch(dispatch_block_t block) {
                                    [weakSelf openURLs:urls appending:append];
                                }];
         _linkOpenCancels = [NSMutableArray array];
+        _folderAccessManager = [[FolderAccessManager alloc] initWithDefaults:NSUserDefaults.standardUserDefaults
+                                                                         key:kGrantedFoldersDefaultsKey];
         LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
     }
     return self;
@@ -117,17 +123,22 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     // Before the restore, which may name a link. From here a link's
     // placeholder is dataless, and opening it streams it.
     [LinkStore.shared installAsRemoteBackend];
+    FolderAccessManager *folderAccess = self.folderAccessManager;
     // Folder art asks the app whether it is on and whether a folder's grant
     // covers a directory, so the resolver reads no setting or grant itself.
     [FolderArtResolver.sharedInstance setEnabledProvider:^BOOL{
         return AppSettings.sharedInstance.useFolderArt;
     } accessProvider:^BOOL(NSString *directory) {
-        return [FolderAccessManager.sharedInstance canReadInsideDirectory:directory];
+        return [folderAccess canReadInsideDirectory:directory];
     }];
     // Installed before any open can run. The walk reports; acting on it
     // (the grant panel, folder art) belongs to the app layer.
     [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
-        return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
+        NSString *message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE,
+                                                       VibeAppName(), playlistURL.lastPathComponent];
+        return [folderAccess requestAccessForPlaylistFolder:playlistURL
+                                                    message:message
+                                                     prompt:STR_PLAYLIST_GRANT_BUTTON];
     }];
     // The walk ranks each file it lists by folder art's cover rank.
     [FolderWalk setWalkedFileHandler:^NSUInteger(NSString *filename) {
@@ -205,7 +216,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
 
     // A launch-time open may need a restored grant, so the coalescer's queue
     // drains only once the grants are back (bounded).
-    [[FolderAccessManager sharedInstance] restoreGrantedAccessWithCompletion:^{
+    [self.folderAccessManager restoreGrantedAccessWithCompletion:^{
         // A launch-time open outranks the remembered playlist, and the restore
         // is not an open (Mac/App/AGENTS.md).
         [self->_openBurstCoalescer finishLaunchRestoring:^BOOL{
@@ -292,7 +303,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
 
 - (void)openFiles:(NSArray<NSURL *> *)urls token:(OpenRequestToken *)token {
     __weak AppDelegate *weakSelf = self;
-    [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
+    [self.folderAccessManager awaitRestoredAccessForURLs:urls completion:^{
         [weakSelf openURLsWithRestoredAccess:urls token:token];
     }];
 }
@@ -464,7 +475,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
         return;
     }
     // Bookmark while the open's sandbox grant is live.
-    [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
+    [self.folderAccessManager noteOpenedURLs:urls];
     // Read on main; the walk reads no setting itself. The rows are made on
     // the expansion worker, off main.
     [FolderWalk expandAndFilterList:urls

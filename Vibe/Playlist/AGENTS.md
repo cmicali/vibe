@@ -47,7 +47,7 @@ The walk is vibe-libs' `media/FolderScan`. Its `AGENTS.md` holds its rules: the 
 **Vibe makes its rows from the walk's entries** (The row, above). `expandAndFilterList:sortedBy:completion:` completes on its worker, so the caller makes its rows there and then goes to main.
 
 **The mac installs the walk's handlers at launch** (`AppDelegate`). iOS installs none.
-- The playlist folder grant is `Mac/App/`'s `FolderAccessManager+GrantPanel`.
+- The playlist folder grant is vibe-libs' `files/SandboxAccess` grant panel, which the mac's app delegate installs as the walk's handler (`Mac/App/AGENTS.md`).
 - The walked-file rank is folder art's cover rank (`FolderArtRules.h`).
 - The walked folders and a bulk open's loose folders go to the folder-art resolver, which then pays for no listing of its own (vibe-libs' `media/Metadata`, Folder art).
 

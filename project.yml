@@ -144,8 +144,9 @@ targets:
     type: application
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources.
-    # SettingsWindow, Shortcuts, and Updates are macOS only, so VibeiOS never
-    # lists them. Updates lists Sparkle, which links and embeds the framework. The vendored libraries carry their own flags. Metadata's parse
+    # SettingsWindow, Shortcuts, SandboxAccess, and Updates are macOS only, so
+    # VibeiOS never lists them. Updates lists Sparkle, which links and embeds the
+    # framework. The vendored libraries carry their own flags. Metadata's parse
     # reads TagLib's own types, and the FLAC converter writes tags through
     # TagLib, so both apps list TagLib's template beside Tags' and Metadata's.
     #
@@ -157,8 +158,9 @@ targets:
                 VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts,
-                VibeLibsNowPlaying, VibeLibsUpdates, VibeLibsDebugChannel, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata,
-                VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsSandboxAccess, VibeLibsNowPlaying, VibeLibsUpdates, VibeLibsDebugChannel, VibeLibsVorbis,
+                VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
+                VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -847,6 +849,7 @@ targets:
           - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
+          - "$(SRCROOT)/vibe-libs/files/SandboxAccess/Mac"
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/vibe-libs/media/PlayQueue"
           - "$(SRCROOT)/vibe-libs/media/Playlists"
@@ -1030,7 +1033,6 @@ targetTemplates:
       - path: Vibe/Common/Mac/Theme/AppTheme.m
       - path: vibe-libs/core/Graphics/PlatformColor.m
       - path: vibe-libs/core/Graphics/PlatformImage.m
-      - path: Vibe/Mac/App/FolderAccessManager.m
       - path: vibe-libs/core/Graphics/Mac/NSImage+Util.m
       - path: vibe-libs/core/Graphics/Mac/NSView+DarkMode.m
 

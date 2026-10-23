@@ -4,6 +4,7 @@
 //
 
 #import "DebugInfo.h"
+#import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AppStats.h"
@@ -22,7 +23,6 @@
 #import "PlaylistController.h"
 
 #if VIBE_DIRECT_DISTRIBUTION
-#import "AppDelegate.h"
 #import "VibeUpdater.h"
 #endif
 #import <OSLog/OSLog.h>
@@ -232,7 +232,7 @@ static NSArray *VibeWindowsArray(void) {
 
 NSDictionary<NSString *, id> *VibeDebugInfoSnapshot(MainPlayerController *controller) {
     NSMutableArray *folders = [NSMutableArray array];
-    for (VibeGrantedFolder *folder in FolderAccessManager.sharedInstance.grantedFolders) {
+    for (VibeGrantedFolder *folder in ((AppDelegate *)NSApp.delegate).folderAccessManager.grantedFolders) {
         [folders addObject:@{@"path": folder.path ?: @"", @"state": VibeGrantedFolderStateName(folder.state)}];
     }
     AppStats *stats = AppStats.sharedInstance;

@@ -4,6 +4,7 @@
 //
 
 #import "SettingsFilesViewController.h"
+#import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "FolderAccessManager.h"
@@ -35,6 +36,8 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 @end
 
 @interface SettingsFilesViewController () <NSTableViewDataSource, NSTableViewDelegate>
+// The app delegate's.
+@property (nonatomic, readonly) FolderAccessManager *folderAccessManager;
 @end
 
 @implementation SettingsFilesViewController {
@@ -149,7 +152,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 }
 
 - (void)refreshFromSettings {
-    _folders = FolderAccessManager.sharedInstance.grantedFolders;
+    _folders = self.folderAccessManager.grantedFolders;
     [_tableView reloadData];
     [self updateRemoveButton];
     [self rebuildCommonFolderMenu];
@@ -280,6 +283,10 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     return FolderAccessManager.realHomeDirectory;
 }
 
+- (FolderAccessManager *)folderAccessManager {
+    return ((AppDelegate *)NSApp.delegate).folderAccessManager;
+}
+
 #pragma mark - Actions
 
 - (void)toggleConversion:(VibeSwitch *)sender {
@@ -317,7 +324,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     panel.allowsMultipleSelection = YES;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result == NSModalResponseOK) {
-            [FolderAccessManager.sharedInstance noteOpenedURLs:panel.URLs];
+            [self.folderAccessManager noteOpenedURLs:panel.URLs];
         }
     }];
 }
@@ -337,7 +344,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     panel.prompt = STR_PLAYLIST_GRANT_BUTTON;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result == NSModalResponseOK) {
-            [FolderAccessManager.sharedInstance noteOpenedURLs:panel.URLs];
+            [self.folderAccessManager noteOpenedURLs:panel.URLs];
         }
     }];
 }
@@ -345,7 +352,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 - (void)removeFolder:(id)sender {
     NSIndexSet *rows = _tableView.selectedRowIndexes;
     if (rows.count > 0) {
-        [FolderAccessManager.sharedInstance removeFoldersAtIndexes:rows];
+        [self.folderAccessManager removeFoldersAtIndexes:rows];
     }
 }
 
@@ -431,7 +438,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
         [urls addObject:path ? [NSURL fileURLWithPath:path isDirectory:YES] : url];
     }
     // The drag carries the sandbox grant the bookmark is made from.
-    [FolderAccessManager.sharedInstance noteOpenedURLs:urls];
+    [self.folderAccessManager noteOpenedURLs:urls];
     return YES;
 }
 
