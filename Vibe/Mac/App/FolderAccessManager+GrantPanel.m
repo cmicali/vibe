@@ -4,7 +4,6 @@
 //
 
 #import "FolderAccessManager+GrantPanel.h"
-#import "VibeStrings.h"
 #import <AppKit/AppKit.h>
 
 @implementation FolderAccessManager (GrantPanel)
@@ -12,7 +11,9 @@
 // The expansion worker waits for main to run the panel. Main never waits on
 // that worker. A private gate prevents stacked prompts without locking the
 // manager that main may need.
-- (BOOL)requestAccessForPlaylistFolder:(NSURL *)playlistURL {
+- (BOOL)requestAccessForPlaylistFolder:(NSURL *)playlistURL
+                               message:(NSString *)message
+                                prompt:(NSString *)prompt {
     NSAssert(!NSThread.isMainThread, @"the playlist grant blocks on the main thread");
     static dispatch_semaphore_t grantGate;
     static dispatch_once_t onceToken;
@@ -27,9 +28,8 @@
         panel.canChooseDirectories = YES;
         panel.allowsMultipleSelection = NO;
         panel.directoryURL = playlistURL.URLByDeletingLastPathComponent;
-        panel.message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE,
-                                                   VibeAppName(), playlistURL.lastPathComponent];
-        panel.prompt = STR_PLAYLIST_GRANT_BUTTON;
+        panel.message = message;
+        panel.prompt = prompt;
         // Reading panel.URL is what attaches the sandbox extension.
         granted = [panel runModal] == NSModalResponseOK && panel.URL != nil;
         if (granted) {

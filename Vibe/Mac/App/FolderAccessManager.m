@@ -7,7 +7,6 @@
 #import "FilePaths.h"
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderAccessRules.h"
-#import "VibeStrings.h"
 
 #import <AppKit/AppKit.h>
 

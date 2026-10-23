@@ -14,8 +14,11 @@ NS_ASSUME_NONNULL_BEGIN
 @interface FolderAccessManager (GrantPanel)
 
 // Blocks the calling expansion worker until the picker closes. Never call it
-// on main: it deadlocks.
-- (BOOL)requestAccessForPlaylistFolder:(NSURL *)playlistURL;
+// on main: it deadlocks. The app passes the panel's message and its button's
+// title, localized.
+- (BOOL)requestAccessForPlaylistFolder:(NSURL *)playlistURL
+                               message:(NSString *)message
+                                prompt:(NSString *)prompt;
 
 @end
 

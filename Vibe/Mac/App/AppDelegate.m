@@ -34,6 +34,7 @@
 #import "LinkDropRules.h"
 #import "LinkStore.h"
 #import "StringRules.h"
+#import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if VIBE_DIRECT_DISTRIBUTION
@@ -112,7 +113,11 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     // Installed before any open can run. The walk reports; acting on it
     // (the grant panel, folder art) belongs to the app layer.
     [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
-        return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
+        NSString *message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE,
+                                                       VibeAppName(), playlistURL.lastPathComponent];
+        return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL
+                                                                            message:message
+                                                                             prompt:STR_PLAYLIST_GRANT_BUTTON];
     }];
     // The walk ranks each file it lists by folder art's cover rank.
     [FolderWalk setWalkedFileHandler:^NSUInteger(NSString *filename) {
