@@ -143,8 +143,8 @@ targets:
   Vibe:
     type: application
     platform: macOS
-    # vibe-libs' pieces, compiled in as this target's own sources. Controls,
-    # SettingsWindow, and Shortcuts are macOS only, so VibeiOS never lists
+    # vibe-libs' pieces, compiled in as this target's own sources.
+    # SettingsWindow and Shortcuts are macOS only, so VibeiOS never lists
     # them. The vendored libraries carry their own flags. Metadata's parse
     # reads TagLib's own types, and the FLAC converter writes tags through
     # TagLib, so both apps list TagLib's template beside Tags' and Metadata's.
@@ -154,8 +154,9 @@ targets:
     # holds TagLib's own vorbis/vorbisfile.h.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
                 VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
-                VibeLibsWaveformStyles, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
-                VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis,
+                VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
+                VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts,
+                VibeLibsVorbis,
                 VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
                 VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
@@ -177,10 +178,6 @@ targets:
       - path: Vibe/NowPlaying
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Util
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/WaveformUI
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/Controls
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Playlist
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
@@ -454,9 +451,9 @@ targets:
     # see the Vibe target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
                 VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
-                VibeLibsWaveformStyles, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
-                VibeLibsFolderScan, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache,
-                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
+                VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata,
+                VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -475,11 +472,7 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Util
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
-      - path: Vibe/Controls
-        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Playlist
-        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
-      - path: Vibe/WaveformUI
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Debug
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
@@ -770,17 +763,17 @@ targets:
       - path: Vibe/Playlist/Mac/PlaylistCoverImageView.m
       - path: vibe-libs/core/Graphics/Mac/Fonts.m
       - path: Vibe/Common/Mac/Theme/Fonts+Theme.m
-      - path: Vibe/Controls/EqualizerIndicatorView.m
-      - path: Vibe/Controls/LoadingIndicatorView.m
-      - path: Vibe/Controls/LoadingIndicator.m
+      - path: vibe-libs/ui/Controls/EqualizerIndicatorView.m
+      - path: vibe-libs/ui/Controls/LoadingIndicatorView.m
+      - path: vibe-libs/ui/Controls/LoadingIndicator.m
       - path: vibe-libs/ui/Controls/Mac/ScaledImageView.m
       - path: Vibe/Mac/Controls/ArtworkImageView.m          # the drawn views render into a bitmap, windowless
       - path: vibe-libs/ui/Controls/Mac/DrawnControls.m
       - path: Vibe/Mac/Controls/PitchFaderView.m
       - path: vibe-libs/ui/Controls/Mac/SymbolButton.m
       - path: Vibe/Mac/MainWindow/VolumeControlView.m
-      - path: Vibe/WaveformUI/Mac/WaveformView.mm
-      - path: Vibe/WaveformUI/Mac/WaveformView+Loading.mm
+      - path: vibe-libs/waveform/WaveformView/Mac/WaveformView.mm
+      - path: vibe-libs/waveform/WaveformView/Mac/WaveformView+Loading.mm
       - path: Vibe/Util/Mac/NSDraggingImageComponent+Util.m
       - path: Vibe/Util/Mac/NSTextField+Label.m
       - path: vibe-libs/core/Common/VibeWeakProxy.m
@@ -874,10 +867,10 @@ targets:
           - "$(SRCROOT)/vibe-libs/media/Tags"
           - "$(SRCROOT)/vibe-libs/waveform/WaveformLoading"
           - "$(SRCROOT)/vibe-libs/audio/FX"
-          # Header-only activity/animation seams shared by both controls.
-          - "$(SRCROOT)/Vibe/Controls"
+          # The indicators' header-only activity and animation rules.
+          - "$(SRCROOT)/vibe-libs/ui/Controls"
           # The views' accessibility contract.
-          - "$(SRCROOT)/Vibe/WaveformUI"
+          - "$(SRCROOT)/vibe-libs/waveform/WaveformView"
           # The styles: the theme, the zoom math, the renderers, the level
           # math, and the host-less morph engine.
           - "$(SRCROOT)/vibe-libs/waveform/WaveformStyles"
