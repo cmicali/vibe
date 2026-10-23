@@ -8,6 +8,7 @@
 #import "WaveformRendererRegistry.h"
 #import "NSView+DarkMode.h"
 #import "WaveformAccessibility.h"
+#import "VibeMacros.h"
 
 // A press that travels further than this is a drag, not a click.
 static const CGFloat kWaveformDragHysteresis = 4;

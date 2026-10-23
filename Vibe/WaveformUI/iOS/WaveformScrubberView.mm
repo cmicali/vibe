@@ -8,6 +8,7 @@
 #import "WaveformZoomMath.h"
 #import "UIView+DarkMode.h"
 #import "WaveformAccessibility.h"
+#import "VibeMacros.h"
 
 // Names the element the XCUITest driver pinches (XCUITest has no
 // coordinate-based multi-touch); spelled the same in

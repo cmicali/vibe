@@ -7,6 +7,7 @@
 //
 
 #import "LoadingIndicator.h"
+#import "HelperMacros.h"
 
 #if TARGET_OS_OSX
 #import <AppKit/AppKit.h>
