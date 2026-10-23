@@ -118,8 +118,17 @@ def ffmpeg(*args, limit=60):
 
 
 def resolve(ref):
-    """The commit a ref names."""
-    return subprocess.run(['git', '-C', str(ROOT), 'rev-parse', '--verify', ref + '^{commit}'],
+    """The commit a ref names. A bare branch name that origin also has names
+    origin's branch, fetched first. The checkout is shared, so its own main
+    is often stale. `heads/<branch>` names the local branch."""
+    git = ['git', '-C', str(ROOT)]
+    full = subprocess.run(git + ['rev-parse', '--symbolic-full-name', ref], capture_output=True, text=True).stdout.strip()
+    if full == f'refs/heads/{ref}' and not subprocess.run(
+            git + ['show-ref', '--verify', '--quiet', f'refs/remotes/origin/{ref}']).returncode:
+        fetched = not subprocess.run(git + ['fetch', '--quiet', 'origin', ref], capture_output=True).returncode
+        print(f'{ref}: origin/{ref}{"" if fetched else ", not fetched"}', flush=True)
+        ref = f'origin/{ref}'
+    return subprocess.run(git + ['rev-parse', '--verify', ref + '^{commit}'],
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
