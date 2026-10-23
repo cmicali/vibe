@@ -7,7 +7,7 @@
 Concurrent agents build and run the macOS Debug app from one checkout. Every build has the same executable name, bundle id and sandbox container.
 
 - Every quit path reaches every instance. `launch.sh` quits through a channel any instance may answer, then signals every non-simulator `pgrep -x Vibe` pid.
-- One container means one channel. `VibeSweepStaleChannelFiles` (`DebugChannel.m`) deletes every `vibe-command-*`, `vibe-response-*` and `vibe-screenshot-*` file at launch. That destroys another agent's in-flight commands.
+- One container means one channel. `VibeSweepStaleChannelFiles` (vibe-libs' `dev/DebugChannel/DebugChannel.m`) deletes every `vibe-command-*`, `vibe-response-*` and `vibe-screenshot-*` file at launch. That destroys another agent's in-flight commands.
 - One container means shared `NSUserDefaults`, PINCaches and folder-access bookmarks. These corrupt an agent's test silently.
 
 Goal: each agent's Debug build gets its own executable, bundle id and container. Agents then cannot see, kill or interrogate each other. Release and App Store builds stay untouched. An unslotted build behaves exactly as today. `sim-udid.sh` separates iOS simulators by checkout and `CLAUDE_CODE_SESSION_ID`. Sessions without that variable still share the checkout's default simulator unless they set `VIBE_SIM_NAME` or `VIBE_SIM_UDID`.
@@ -53,8 +53,8 @@ It exports `VIBE_SLOT`, `VIBE_PRODUCT`, `VIBE_BUNDLE_ID`, `VIBE_DERIVED_DATA`, `
 - `generate-git-info.sh` writes a temp file, then moves it.
 
 **Channel.**
-- `kVibeDebugCommandNotification` (`DebugWireFormat.{h,m}`) becomes `VibeDebugCommandNotificationName()` and `VibeDebugScreenshotNotificationName()`. Both are formatted from `NSBundle.mainBundle.bundleIdentifier`. App and client are one binary, so both derive the same name.
-- Callers to change: `VibeInstallDebugCommandChannel`, the `notify_post` in `DebugClient.m`, the literal in `VibeInstallDebugScreenshotHook`, and the comments in `DebugMacEntry.h` and `DebugChannel.h`.
+- `kVibeDebugCommandNotification` (vibe-libs' `dev/DebugChannel/DebugWireFormat.{h,m}`) becomes `VibeDebugCommandNotificationName()` and `VibeDebugScreenshotNotificationName()`. Both are formatted from `NSBundle.mainBundle.bundleIdentifier`. App and client are one binary, so both derive the same name.
+- Callers to change: `VibeInstallDebugCommandChannel`, the `notify_post` in `DebugClient.m`, the literal in `VibeInstallDebugScreenshotHook`, and the comments in `DebugMacEntry.h` and `DebugChannel.h`. The channel's half is vibe-libs', so it lands there first.
 - `dump_build` (`DebugCommonVerbs.m`) adds the bundle id, executable and resolved channel. Do not add a second instance report to `dump_state`.
 - `VibeLogBuildProvenance` also logs the bundle id.
 
