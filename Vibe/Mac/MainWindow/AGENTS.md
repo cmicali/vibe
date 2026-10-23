@@ -36,6 +36,14 @@ This directory holds the main window and its controller, `MainPlayerController`,
 
 Neither may wipe everything (vibe-libs' `media/Metadata/AGENTS.md`, Folder art).
 
+## The waveform view
+
+The view is vibe-libs' `waveform/WaveformView`, and its `AGENTS.md` is the authority for it. **It is a pure rendering surface.** `MainPlayerController` owns the `AudioWaveformCache` and requests loads. It forwards deliveries through `TrackDisplayController`'s pass-throughs: `prepareForWaveformLoad` to reset, then `showWaveform:`.
+
+**`applyWaveformSettings` pushes everything the view draws from**: the theme's bar density, bar width and Centered, Normalize and gain, `dragSeeks`, and last the style. Launch and the WaveformStyle, WaveformLevels and WaveformDrag effects all run it. The theme resolves through the `themeProvider` block the window installs once (`Common/AGENTS.md`, The waveform theme). `dragSeeks` comes from `AppSettings.waveformDragBehavior`: `drag_window`, the default, or `seek`. A locked window declines every handoff the view makes (The window, below). Under `drag_window` a drag past the hysteresis then does nothing. A stationary click still seeks.
+
+The loading line shows at once for a provider's dataless file, and after the slow-open delay for any other (Display states, below). Its fill is `CloudTransferRegistry`'s fraction. `set_loading` on the debug channel drives both modes without a download.
+
 ## The UI tick
 
 `UIUpdateTimer` (vibe-libs' `core/Common`) drives `updatePlaybackUI` only while playback wants updates and the window is not occluded. `windowDidChangeOcclusionState:` pushes the gate and refreshes once on reveal. The full `updateUI` runs on transport events and metadata deliveries. Its header work is one phase, `renderTrackPresentationForState:track:displayTrack:`, against one display-state decision. Rate and position updates stay separate, so they reload no artwork or rows. A same-track refresh reloads no row (`_lastReloadedTrack`). The gutter's three states reconcile on their own edges (`Playlist/Mac/AGENTS.md`).

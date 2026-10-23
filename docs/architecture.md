@@ -27,10 +27,6 @@ Vibe/
     iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
   Playlist/            the playlist row
     Mac/               the playlist table and the last-playlist store (macOS)
-  Controls/            controls both apps draw the same way: equalizer bars, loading indicator
-  WaveformUI/          the waveform views and Vibe's mapping onto the theme
-    Mac/               WaveformView (macOS)
-    iOS/               WaveformScrubberView (iOS)
   Util/                Vibe's helpers with no feature
     Mac/ and iOS/      the AppKit and UIKit categories
   Debug/               the debug command channel, compiled into Debug builds only
@@ -101,14 +97,6 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 `NowPlayingController`, vibe-libs' `system/NowPlaying`, publishes the playing track to the system and takes remote commands back. The lock screen, Control Center, CarPlay, AirPods, and the Mac's media keys all go through it. It owns no playback state. `MainPlayerController+NowPlaying` drives it on macOS, and `PlaybackController+NowPlaying` on iOS. Each pushes its row's values. Read next: `vibe-libs/system/NowPlaying/AGENTS.md`.
 
-### Controls
-
-`Vibe/Controls/` holds the controls both apps draw the same way. `EqualizerIndicatorView` is the bars that mark the playing row. It reads levels through an `EqualizerLevelSource`. It polls only while audio plays and the row can be seen. `LoadingIndicator` draws the loading bar and shimmer on the waveform. `LoadingIndicatorView` draws the small loading pill in a row's number gutter. Read next: `Vibe/Controls/AGENTS.md`.
-
-### WaveformUI
-
-`Vibe/WaveformUI/` draws waveforms. vibe-libs' `waveform/WaveformLoading` makes the data, and this directory draws it. The styles are vibe-libs' `waveform/WaveformStyles`. There `WaveformTheme` is the one place a theme identifier becomes waveform colors, `WaveformRendererRegistry` maps a style's identifier to its renderer, and `WaveformMorphEngine` eases the bars from one shape to the next. `Mac/WaveformView` is the macOS view across the window. `iOS/WaveformScrubberView` is the iOS scrubber, with the play position fixed at the center. Read next: `Vibe/WaveformUI/AGENTS.md`, then vibe-libs' `waveform/WaveformStyles/AGENTS.md` or the doc in `Mac/` or `iOS/`.
-
 ### Util
 
 `Vibe/Util/` is code with no feature. If you can name the feature a file serves, it belongs in that feature's directory instead. `Formatters` builds the info lines. `Mac/` and `iOS/` hold the AppKit and UIKit categories. The helpers another app could use are in vibe-libs' `core/Common`. `FilePaths` there compares paths by spelling, without touching the disk (`VibeComparablePath`). `NSURL+Hash`'s `cacheKey` keys the metadata and waveform caches. `StallWatch` samples stuck threads for the beta logs. Read next: `Vibe/Util/AGENTS.md`.
@@ -123,7 +111,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### The iOS shell
 
-`Vibe/iOS/` is the iPhone and iPad app shell. The playlist starts from a folder, file, or playlist file and can hold additions. `PlaybackController` is the model. It owns the `AudioPlayer`, the `Playlist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Player/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The iOS halves of shared subsystems live with those subsystems, such as `Loading/iOS/Dropbox/` and `WaveformUI/iOS/`. Read next: `Vibe/iOS/AGENTS.md`.
+`Vibe/iOS/` is the iPhone and iPad app shell. The playlist starts from a folder, file, or playlist file and can hold additions. `PlaybackController` is the model. It owns the `AudioPlayer`, the `Playlist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Player/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The iOS halves of shared subsystems live with those subsystems, such as `Loading/iOS/Dropbox/`. The scrubber is vibe-libs' `waveform/WaveformView`. Read next: `Vibe/iOS/AGENTS.md`.
 
 ### The widget
 
@@ -137,7 +125,9 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 `audio/OutputDevices` holds the mac's output devices and HAL reads, and the iOS audio session and its route rules. `audio/FX` holds `AudioFX`, the DJ effects on the master bus: a low-kill filter, a reverb, and two tempo-synced delays. `audio/Meter` holds `AudioLevelMeter`, which reads the final output inside the render and feeds the equalizer bars.
 
-`waveform/Waveform` holds the waveform engine: the summary, its reads, the zoom steps, the raster, and the archive. Its engine is C++. Beside it, in Objective-C++, are the `AudioWaveform` name, the mono mix, and the cache entry, `CodableAudioWaveform`. `waveform/WaveformLoading` decodes a file into a summary, with the observers on the same pass, and caches it. `waveform/WaveformStyles` holds the waveform styles: the renderers, the registry, the morph engine, the level math, the theme, and the zoom math. `audio/Player` holds the playback engine, its mac device and bit-perfect half, its iOS route recovery, and the manual render pump. `files/FileLoading` holds the file-open path, from a path to a readable file, with its debug seams and the fake cloud. `files/DiskCache` holds the bounded disk cache that the metadata and waveform caches build on. `ui/Controls` holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. `ui/Shortcuts` holds the shortcut encoding, the keyboard layout, and the Keyboard Shortcuts pane. Every vendored library but Sparkle is a piece under `third_party/` too. Controls, SettingsWindow, and Shortcuts are macOS only. Only the mac app lists them.
+`waveform/Waveform` holds the waveform engine: the summary, its reads, the zoom steps, the raster, and the archive. Its engine is C++. Beside it, in Objective-C++, are the `AudioWaveform` name, the mono mix, and the cache entry, `CodableAudioWaveform`. `waveform/WaveformLoading` decodes a file into a summary, with the observers on the same pass, and caches it. `waveform/WaveformStyles` holds the waveform styles: the renderers, the registry, the morph engine, the level math, the theme, and the zoom math. `waveform/WaveformView` holds the views that host them: the mac's `WaveformView` across the window, and the iOS `WaveformScrubberView`, with the play position fixed at the center. Each resolves its theme through a block its shell installs, and Vibe's mapping onto the theme is `Common/WaveformTheme+Settings`.
+
+`audio/Player` holds the playback engine, its mac device and bit-perfect half, its iOS route recovery, and the manual render pump. `files/FileLoading` holds the file-open path, from a path to a readable file, with its debug seams and the fake cloud. `files/DiskCache` holds the bounded disk cache that the metadata and waveform caches build on. `ui/Controls` holds the controls both apps draw the same way: `EqualizerIndicatorView`, the bars that mark the playing row, which read levels through an `EqualizerLevelSource` and poll only while audio plays and the row can be seen, and `LoadingIndicator`, the loading bar and shimmer on the waveform, with `LoadingIndicatorView`, the loading pill in a row's number gutter. Its `Mac/` half holds the mac's symbol button, drawn controls, image views, link label, and window resize timing. `ui/SettingsWindow` holds the mac's generic settings window and form views. `ui/Shortcuts` holds the shortcut encoding, the keyboard layout, and the Keyboard Shortcuts pane. Every vendored library but Sparkle is a piece under `third_party/` too. SettingsWindow and Shortcuts are macOS only. Only the mac app lists them. The iOS app lists Controls for its shared files.
 
 **The tempo and key analyzers ride the waveform's decode pass as observers**, so neither reads the file a second time. They are `AudioBPMAnalyzer` and `AudioKeyAnalyzer`, in `audio/Analysis`. The app's `Playlist/AudioAnalysisObservers.h` joins them to the decode, and each shell attaches them. Key detection runs on macOS only. Doc: `Playlist/AGENTS.md`.
 
@@ -298,8 +288,8 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | Cover images beside the files | `vibe-libs/media/Metadata/AGENTS.md` (Folder art), `Audio/AGENTS.md` | `vibe-libs/media/Metadata/Artwork/FolderArt/FolderArtResolver.m` |
 | Tempo or key detection | `vibe-libs/audio/Analysis/AGENTS.md`, `Playlist/AGENTS.md` (Tempo and key) | `vibe-libs/audio/Analysis/AudioBPMAnalyzer.mm`, `vibe-libs/audio/Analysis/AudioKeyAnalyzer.mm`, `Playlist/AudioAnalysisObservers.m` |
 | Waveform data or its cache | `vibe-libs/waveform/WaveformLoading/AGENTS.md`, `vibe-libs/waveform/Waveform/AGENTS.md`, `Audio/AGENTS.md` | `vibe-libs/waveform/WaveformLoading/AudioWaveformLoader.mm` |
-| How a waveform looks, or a new style | `WaveformUI/AGENTS.md`, `vibe-libs/waveform/WaveformStyles/AGENTS.md` | `vibe-libs/waveform/WaveformStyles/WaveformRendererRegistry.mm` |
-| The equalizer bars | `Controls/AGENTS.md`, `vibe-libs/audio/Meter/AGENTS.md` | `Controls/EqualizerIndicatorView.m` |
+| How a waveform looks, or a new style | `vibe-libs/waveform/WaveformStyles/AGENTS.md`, `vibe-libs/waveform/WaveformView/AGENTS.md`, `Common/AGENTS.md` (The waveform theme) | `vibe-libs/waveform/WaveformStyles/WaveformRendererRegistry.mm` |
+| The equalizer bars | `vibe-libs/ui/Controls/AGENTS.md`, `vibe-libs/audio/Meter/AGENTS.md` | `vibe-libs/ui/Controls/EqualizerIndicatorView.m` |
 | How files open on macOS | `Mac/App/AGENTS.md` | `Mac/App/AppDelegate.m` |
 | The folder walk, its sort order, CUE or M3U | `vibe-libs/media/FolderScan/AGENTS.md`, `vibe-libs/media/Playlists/AGENTS.md` | `vibe-libs/media/FolderScan/FolderWalk.m`, `vibe-libs/media/Playlists/PlaylistFile.m`, `vibe-libs/media/Playlists/PlaylistFile+CUE.m` |
 | The macOS player window | `Mac/MainWindow/AGENTS.md`, `Mac/MainWindow/LAYOUT.md` | `Mac/MainWindow/MainPlayerController.m` |
@@ -312,7 +302,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | Sandbox folder grants on macOS | `Mac/App/AGENTS.md` (Sandbox grants) | `Mac/App/FolderAccessManager.m` |
 | Updates through Sparkle | `Mac/App/AGENTS.md` (Updates) | `Mac/App/AppDelegate+Updates.m` |
 | The iOS model and opening folders | `iOS/AGENTS.md` | `iOS/PlaybackController.m`, `iOS/FolderSession.m` |
-| The iOS now-playing card | `iOS/Player/AGENTS.md`, `WaveformUI/iOS/AGENTS.md` | `iOS/Player/PlayerViewController.m` |
+| The iOS now-playing card | `iOS/Player/AGENTS.md`, `vibe-libs/waveform/WaveformView/AGENTS.md` | `iOS/Player/PlayerViewController.m` |
 | The iOS Files tab, Favorites, Search, or settings | the `AGENTS.md` in `iOS/Files/`, `iOS/Search/`, or `iOS/Settings/` | that directory |
 | The widget | `VibeWidget/AGENTS.md`, `iOS/Widget/AGENTS.md` | `iOS/Widget/WidgetPublisher.m` |
 | The lock screen and media keys | `vibe-libs/system/NowPlaying/AGENTS.md` | `vibe-libs/system/NowPlaying/NowPlayingController.m` |

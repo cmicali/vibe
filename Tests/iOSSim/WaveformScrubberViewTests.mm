@@ -239,7 +239,7 @@ static CodableAudioWaveform *CompleteWaveform(void) {
 }
 
 // The request is kept as asked. What is drawn stops at the track's floor, so
-// a longer track can deepen it again (WaveformUI/iOS/AGENTS.md).
+// a longer track can deepen it again (vibe-libs' waveform/WaveformView/AGENTS.md).
 - (void)testAZoomPastTheFloorDrawsAtTheFloorAndKeepsTheRequest {
     [self showAndDraw:CompleteWaveform()];
     CGFloat floor = self.floor;
