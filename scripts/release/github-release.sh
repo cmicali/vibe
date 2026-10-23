@@ -45,7 +45,7 @@ ARM64_ZIP="$BUILD_DIR/arm64/Vibe.zip"
 NOTES="Assets/app-store/copy/en/macos/whats-new.txt"
 UNIVERSAL_FEED="Assets/Web/appcast.xml"
 ARM64_FEED="Assets/Web/appcast-arm64.xml"
-SPARKLE_BIN="Vibe/ThirdParty/Sparkle/bin"
+SPARKLE_BIN="vibe-libs/third_party/Sparkle/bin"
 
 # shellcheck source=scripts/appstore/asc-build-lib.sh
 source scripts/appstore/asc-build-lib.sh

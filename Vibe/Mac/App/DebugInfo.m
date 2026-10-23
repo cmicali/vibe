@@ -4,6 +4,7 @@
 //
 
 #import "DebugInfo.h"
+#import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AppStats.h"
@@ -22,8 +23,7 @@
 #import "PlaylistController.h"
 
 #if VIBE_DIRECT_DISTRIBUTION
-#import "AppDelegate.h"
-#import <Sparkle/Sparkle.h>
+#import "VibeUpdater.h"
 #endif
 #import <OSLog/OSLog.h>
 #import <sys/sysctl.h>
@@ -109,7 +109,7 @@ static id VibeJSONSafe(id value) {
 // What the updater will actually do, not just what is stored: a Debug build's
 // --update-feed and the Info.plist's defaults included.
 static NSDictionary *VibeUpdatesDictionary(void) {
-    SPUUpdater *updater = [(AppDelegate *)NSApp.delegate updaterController].updater;
+    SPUUpdater *updater = [(AppDelegate *)NSApp.delegate updater].controller.updater;
     if (!updater) {
         return @{@"running": @NO};
     }
@@ -232,7 +232,7 @@ static NSArray *VibeWindowsArray(void) {
 
 NSDictionary<NSString *, id> *VibeDebugInfoSnapshot(MainPlayerController *controller) {
     NSMutableArray *folders = [NSMutableArray array];
-    for (VibeGrantedFolder *folder in FolderAccessManager.sharedInstance.grantedFolders) {
+    for (VibeGrantedFolder *folder in ((AppDelegate *)NSApp.delegate).folderAccessManager.grantedFolders) {
         [folders addObject:@{@"path": folder.path ?: @"", @"state": VibeGrantedFolderStateName(folder.state)}];
     }
     AppStats *stats = AppStats.sharedInstance;
