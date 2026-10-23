@@ -1,6 +1,6 @@
 #!/bin/bash
 # Touch the iOS app on this session's simulator through the resident
-# VibeiOSDriver XCUITest (Tests/iOSDriver), the only sanctioned touch synthesis
+# VibeiOSDriver XCUITest (vibe-libs/dev/iOSDriver), the only sanctioned touch synthesis
 # on iOS. Coordinates are app-window POINTS, top-left origin: screenshot pixels
 # divided by the scale dump_screenshot reports.
 #
