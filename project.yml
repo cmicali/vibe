@@ -144,11 +144,12 @@ targets:
     type: application
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources.
-    # SettingsWindow, Shortcuts, SandboxAccess, and Updates are macOS only, so
-    # VibeiOS never lists them. Updates lists Sparkle, which links and embeds the
-    # framework. The vendored libraries carry their own flags. Metadata's parse
-    # reads TagLib's own types, and the FLAC converter writes tags through
-    # TagLib, so both apps list TagLib's template beside Tags' and Metadata's.
+    # SettingsWindow, Shortcuts, AppOpening, SandboxAccess, and Updates are
+    # macOS only, so VibeiOS never lists them. Updates lists Sparkle, which
+    # links and embeds the framework. The vendored libraries carry their own
+    # flags. Metadata's parse reads TagLib's own types, and the FLAC converter
+    # writes tags through TagLib, so both apps list TagLib's template beside
+    # Tags' and Metadata's.
     #
     # TRAP: VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, and
     # VibeLibsTaglib. Header search paths follow this order, and taglib/ogg
@@ -158,7 +159,7 @@ targets:
                 VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts,
-                VibeLibsSandboxAccess, VibeLibsNowPlaying, VibeLibsUpdates, VibeLibsDebugChannel, VibeLibsVorbis,
+                VibeLibsAppOpening, VibeLibsSandboxAccess, VibeLibsNowPlaying, VibeLibsUpdates, VibeLibsDebugChannel, VibeLibsVorbis,
                 VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
                 VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
@@ -744,8 +745,7 @@ targets:
       - path: vibe-libs/system/NowPlaying/NowPlayingController.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: vibe-libs/ui/Controls/Mac/CrossfadingImageView.m
-      - path: Vibe/Mac/App/OpenBurstCoalescer.m
-      - path: Vibe/Mac/App/OpenRequestCoordinator.m
+      - path: vibe-libs/system/AppOpening/Mac/OpenRequestCoordinator.m   # +Playlist's close invalidates it
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
       - path: Vibe/Mac/MainWindow/MainPlayerController.m   # injected constructor; ShellTestFakes stand in for the rest
       - path: Vibe/Mac/MainWindow/MainPlayerController+Playlist.m
