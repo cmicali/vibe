@@ -9,7 +9,15 @@
 
 #import "HTTPTransferClientInternal.h"
 #import "ICloudLinkRules.h"
-#import "LinkStore.h"
+
+NSErrorDomain const VibeLinkErrorDomain = @"com.commonwealthrecordings.Vibe.Link";
+
+NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underlying) {
+    NSMutableDictionary *info = [NSMutableDictionary dictionary];
+    info[NSUnderlyingErrorKey] = underlying;
+    info[VibeHTTPErrorStatusCodeKey] = underlying.userInfo[VibeHTTPErrorStatusCodeKey];
+    return [NSError errorWithDomain:VibeLinkErrorDomain code:code userInfo:info];
+}
 
 // A transfer's state: the lookup its attempt was sent with, and whether a
 // refused address was looked up again. A transfer does that once.

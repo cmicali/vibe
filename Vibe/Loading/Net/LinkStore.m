@@ -14,8 +14,6 @@
 #import "RemotePlaceholderStoreInternal.h"
 #import "VibeStrings.h"
 
-NSErrorDomain const VibeLinkErrorDomain = @"com.commonwealthrecordings.Vibe.Link";
-
 // On every link directory: the link's record (recordOfLink:…). On the
 // directory, because a placeholder's attributes are as unreadable as its
 // bytes.
@@ -25,13 +23,6 @@ static const uint64_t kProbeBytes = 16;
 
 static NSString *_Nullable VibeLinkString(id value) {
     return [value isKindOfClass:NSString.class] ? value : nil;
-}
-
-NSError *VibeLinkMakeError(VibeLinkError code, NSError *_Nullable underlying) {
-    NSMutableDictionary *info = [NSMutableDictionary dictionary];
-    info[NSUnderlyingErrorKey] = underlying;
-    info[VibeHTTPErrorStatusCodeKey] = underlying.userInfo[VibeHTTPErrorStatusCodeKey];
-    return [NSError errorWithDomain:VibeLinkErrorDomain code:code userInfo:info];
 }
 
 // The probe's failure as the link's. An iCloud lookup's refusal already is.

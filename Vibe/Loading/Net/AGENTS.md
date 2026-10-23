@@ -108,7 +108,7 @@ Files the app fetches itself over HTTP, rather than through a file provider. Bot
 
 **The user can cancel a resolve.** `resolveURLString:completion:` returns a block that cancels, on main. A resolve not yet completed then completes before the block returns, with `VibeLinkErrorCancelled`, and nothing lands after it. Past the completion the block does nothing. The disk queue decides which of the answer, the deadline, and the cancel came first. The other two then do nothing. A cancel before the answer writes no record and no placeholder. `VibeLinkMessageForError` (`Common/StringRules.h`) answers nil for a cancel, so neither shell shows anything.
 
-**A failure is a `VibeLinkErrorDomain` error whose code is a `VibeLinkError`** (`LinkStore.h`). The `VibeLinkErrorOf…` functions in `LinkRules.h` choose the code.
+**A failure is a `VibeLinkErrorDomain` error whose code is a `VibeLinkError`** (`LinkClient.h`). The `VibeLinkErrorOf…` functions in `LinkRules.h` choose the code.
 - A refused address fails with the address rule's own answer.
 - A status of 401 or 403 is denied, and 404 or 410 is not found. Any other status is the server's failure, a 2xx other than 200 or 206 included. The status rides under `VibeHTTPErrorStatusCodeKey`.
 - A request with no response is insecure when App Transport Security refused it. A cancel shows nothing (`VibeLinkErrorCancelled`). Any other failure is the local network's when the host is local, and unreachable otherwise. A denied local-network permission fails as the local network's.
