@@ -389,11 +389,11 @@ appstore-capture-app-screenshots:
 # Re-extract UI strings into Resources/Localizable.xcstrings after touching any
 # UI string; nothing extracts ObjC strings at build time.
 strings:
-	scripts/strings/extract-strings.sh
+	scripts/strings/extract-strings.sh Resources/strings-config.sh
 
 # Fail if the catalog doesn't match the source.
 check-strings:
-	scripts/strings/extract-strings.sh --check
+	scripts/strings/extract-strings.sh Resources/strings-config.sh --check
 
 # Fail on a break of AGENTS.md's mechanical vocabulary rules, a doc line over
 # 1500 characters, or a merge conflict marker, all listed in the script.
@@ -408,4 +408,4 @@ check-layout:
 # Fail if any key is missing a catalog language; check-strings compares the
 # catalog to the source and cannot see coverage. Both release paths run this.
 check-translations:
-	scripts/strings/check-translations.sh
+	scripts/strings/check-translations.sh Resources/strings-config.sh

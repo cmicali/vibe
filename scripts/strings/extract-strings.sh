@@ -1,10 +1,11 @@
 #!/bin/bash
 #
-# Extracts NSLocalizedString keys from the first-party Objective-C sources into
-# Resources/Localizable.xcstrings.
+# Extracts NSLocalizedString keys from an app's first-party Objective-C
+# sources into its catalog. The app's config file names the registry, the
+# catalog, and the sources (AGENTS.md).
 #
-#   scripts/strings/extract-strings.sh            update the catalog in place
-#   scripts/strings/extract-strings.sh --check    fail if the catalog is out of date
+#   extract-strings.sh <config>            update the catalog in place
+#   extract-strings.sh <config> --check    fail if the catalog is out of date
 #
 # NOT a build phase, deliberately: the build has no String Catalog extraction
 # for Objective-C (clang emits .stringsdata for Swift only; the only xcstrings
@@ -13,9 +14,12 @@
 
 set -euo pipefail
 
-REPO_ROOT="${SRCROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
-CATALOG="$REPO_ROOT/Resources/Localizable.xcstrings"
-REGISTRY="$REPO_ROOT/Vibe/Common/VibeStrings.h"
+[ $# -ge 1 ] || { echo "usage: $(basename "$0") <config> [--check]" >&2; exit 2; }
+# shellcheck source=/dev/null
+source "$1"
+ROOT="$(cd "$(dirname "$1")/$STRINGS_ROOT" && pwd)"
+CATALOG="$ROOT/$STRINGS_CATALOG"
+REGISTRY="$ROOT/$STRINGS_REGISTRY"
 
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
@@ -26,17 +30,18 @@ trap 'rm -rf "$WORK"' EXIT
 # xcstringstool matches localization macros by name AND arity, and the
 # three-argument NSLS(key, value, comment) fits no stock shape, even with
 # `-s NSLS`: extraction silently yields zero keys. So extract from `clang -E` of
-# a throwaway TU referencing every STR_*, which is exact and fails loudly on a
-# malformed entry where a regex over the header would quietly mis-parse.
+# a throwaway TU referencing every registry macro, which is exact and fails
+# loudly on a malformed entry where a regex over the header would quietly
+# mis-parse.
 {
     printf '#import "%s"\n' "$REGISTRY"
     printf 'static id vibe_registry_[] = {\n'
-    grep -oE '^#define[[:space:]]+STR_[A-Za-z0-9_]+' "$REGISTRY" | awk '{print $2 ","}'
+    grep -oE "^#define[[:space:]]+${STRINGS_MACROS}[A-Za-z0-9_]+" "$REGISTRY" | awk '{print $2 ","}'
     printf '};\n'
 } > "$WORK/registry.m"
 
-if ! grep -q 'STR_' "$WORK/registry.m"; then
-    echo "error: no STR_* macros found in $REGISTRY" >&2
+if ! grep -q "$STRINGS_MACROS" "$WORK/registry.m"; then
+    echo "error: no ${STRINGS_MACROS}* macros found in $REGISTRY" >&2
     exit 1
 fi
 
@@ -49,13 +54,22 @@ xcrun clang -E -P -x objective-c -DVIBE_STRINGS_EXTRACTION=1 "$WORK/registry.m" 
 # 2. Extract.
 #
 # Every other first-party source is swept too, so a stray inline
-# NSLocalizedString cannot hide; VibeStrings.h itself would only warn
-# "non-literal key". Debug/ is never localized. (No mapfile: bash 3.2.)
+# NSLocalizedString cannot hide; the registry itself would only warn
+# "non-literal key". (No mapfile: bash 3.2. There an empty array under set -u
+# is an error, hence the ${a[@]+...} spelling.)
+ROOTS=()
+for dir in "${STRINGS_SOURCES[@]}"; do
+    ROOTS+=("$ROOT/$dir")
+done
+SKIP=()
+for pattern in ${STRINGS_SKIP[@]+"${STRINGS_SKIP[@]}"}; do
+    SKIP+=(-not -path "$pattern")
+done
 SOURCES=("$WORK/registry-expanded.m")
 while IFS= read -r -d '' file; do
     SOURCES+=("$file")
-done < <(find "$REPO_ROOT/Vibe" \( -name '*.m' -o -name '*.mm' -o -name '*.h' \) \
-             -not -path '*/ThirdParty/*' -not -path '*/Debug/*' \
+done < <(find "${ROOTS[@]}" \( -name '*.m' -o -name '*.mm' -o -name '*.h' \) \
+             ${SKIP[@]+"${SKIP[@]}"} \
              -not -path "$REGISTRY" -print0 | sort -z)
 
 # The genstrings-compatible mode: NSLocalizedString and its siblings.
@@ -139,24 +153,31 @@ normalize() {
 }
 
 # ---------------------------------------------------------------------------
-# The widget's subset. The extension resolves strings against its own bundle
-# (the TRAP in Vibe/iOS/Widget/VibeWidgetIntents.swift), so
-# VibeWidget/Localizable.xcstrings carries the widget.* keys, DERIVED here and
-# never authored; the same basename keeps the table name. Not a
-# check-translations catalog, since every key would report twice. A widget
+# The subset, when the config names one. An app extension resolves strings
+# against its own bundle, so its catalog carries the keys under one prefix,
+# DERIVED here and never authored; the same basename keeps the table name. Not
+# a check-translations catalog, since every key would report twice. A subset
 # source reaching for any other key would fall back to English silently, so
 # the prefix is checked.
-WIDGET_CATALOG="$REPO_ROOT/VibeWidget/Localizable.xcstrings"
-widget_subset() {
-    jq --indent 2 '.strings |= with_entries(select(.key | startswith("widget.")))' "$1" > "$2"
+SUBSET="${STRINGS_SUBSET:-}"
+subset() {
+    jq --indent 2 --arg keys "$STRINGS_SUBSET_KEYS" \
+        '.strings |= with_entries(select(.key | startswith($keys)))' "$1" > "$2"
 }
-STRAY=$(grep -rhoE 'STR_[A-Z_]+|LocalizedStringResource\("[^"]+"' \
-            "$REPO_ROOT/VibeWidget" "$REPO_ROOT/Vibe/iOS/Widget" \
-        | sort -u | grep -vE '^STR_WIDGET_|^LocalizedStringResource\("widget\.' || true)
-if [ -n "$STRAY" ]; then
-    echo "error: widget sources reference keys outside widget.*, which the widget's own catalog does not carry:" >&2
-    echo "$STRAY" | sed 's/^/  /' >&2
-    exit 1
+if [ -n "$SUBSET" ]; then
+    SUBSET_CATALOG="$ROOT/$STRINGS_SUBSET_CATALOG"
+    SUBSET_ROOTS=()
+    for dir in "${STRINGS_SUBSET_SOURCES[@]}"; do
+        SUBSET_ROOTS+=("$ROOT/$dir")
+    done
+    KEYS_PATTERN=$(printf '%s' "$STRINGS_SUBSET_KEYS" | sed 's/\./\\./g')
+    STRAY=$(grep -rhoE "${STRINGS_MACROS}[A-Z_]+|LocalizedStringResource\\(\"[^\"]+\"" "${SUBSET_ROOTS[@]}" \
+            | sort -u | grep -vE "^${STRINGS_SUBSET_MACROS}|^LocalizedStringResource\\(\"${KEYS_PATTERN}" || true)
+    if [ -n "$STRAY" ]; then
+        echo "error: $SUBSET sources reference keys outside ${STRINGS_SUBSET_KEYS}*, which the $SUBSET's own catalog does not carry:" >&2
+        echo "$STRAY" | sed 's/^/  /' >&2
+        exit 1
+    fi
 fi
 
 # Keep translations compatible with the arguments at each call site.
@@ -178,7 +199,7 @@ check_specifiers() {
     fi
 }
 
-if [ "${1:-}" = "--check" ]; then
+if [ "${2:-}" = "--check" ]; then
     # The copy MUST keep the catalog's basename, which names its table: under
     # any other name sync sees an empty table and strips every key.
     mkdir -p "$WORK/check"
@@ -188,13 +209,15 @@ if [ "${1:-}" = "--check" ]; then
     xcrun xcstringstool sync "$COPY" --stringsdata "$WORK"/*.stringsdata
     normalize "$COPY"
     if ! diff -u "$CATALOG" "$COPY"; then
-        echo "error: Localizable.xcstrings is out of date — run: make strings" >&2
+        echo "error: $(basename "$CATALOG") is out of date — run: $STRINGS_UPDATE" >&2
         exit 1
     fi
-    widget_subset "$COPY" "$WORK/check/widget.xcstrings"
-    if ! diff -u "$WIDGET_CATALOG" "$WORK/check/widget.xcstrings"; then
-        echo "error: VibeWidget/Localizable.xcstrings is out of date — run: make strings" >&2
-        exit 1
+    if [ -n "$SUBSET" ]; then
+        subset "$COPY" "$WORK/check/subset.xcstrings"
+        if ! diff -u "$SUBSET_CATALOG" "$WORK/check/subset.xcstrings"; then
+            echo "error: $STRINGS_SUBSET_CATALOG is out of date — run: $STRINGS_UPDATE" >&2
+            exit 1
+        fi
     fi
     check_specifiers "$CATALOG"
     echo "🔊 string catalogs are in sync"
@@ -202,7 +225,11 @@ else
     unshield "$CATALOG"
     xcrun xcstringstool sync "$CATALOG" --stringsdata "$WORK"/*.stringsdata
     normalize "$CATALOG"
-    widget_subset "$CATALOG" "$WIDGET_CATALOG"
+    SUMMARY="$(jq '.strings | length' "$CATALOG") keys in $(basename "$CATALOG")"
+    if [ -n "$SUBSET" ]; then
+        subset "$CATALOG" "$SUBSET_CATALOG"
+        SUMMARY="$SUMMARY, $(jq '.strings | length' "$SUBSET_CATALOG") of them in the $SUBSET's"
+    fi
     check_specifiers "$CATALOG"
-    echo "🔊 $(jq '.strings | length' "$CATALOG") keys in Localizable.xcstrings, $(jq '.strings | length' "$WIDGET_CATALOG") of them in the widget's"
+    echo "🔊 $SUMMARY"
 fi

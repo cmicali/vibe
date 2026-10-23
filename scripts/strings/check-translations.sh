@@ -1,12 +1,12 @@
 #!/bin/bash
 #
-# Fail if any key in any catalog (CATALOGS below) is missing a catalog
-# language. Both release paths run it.
+# Fail if any key in any catalog (the config's STRINGS_CATALOGS) is missing a
+# catalog language. Both of Vibe's release paths run it.
 #
-# Nothing else catches this. `make check-strings` only asks whether the catalog
-# matches the source, and sync never writes a language other than en; the
-# build's `xcstringstool compile` exits 0 on a partial key, which then renders
-# English in that locale.
+# Nothing else catches this. `extract-strings.sh --check` only asks whether the
+# catalog matches the source, and sync never writes a language other than en;
+# the build's `xcstringstool compile` exits 0 on a partial key, which then
+# renders English in that locale.
 # InfoPlist.xcstrings is the easy one to forget: a missing document-type name
 # shows in English only in the Finder.
 #
@@ -18,23 +18,29 @@
 # other source lists the languages, and that loss is deliberate, not drift.
 #
 # Usage:
-#   scripts/strings/check-translations.sh           fail on any missing translation
-#                                                   (or: make check-translations)
-#   scripts/strings/check-translations.sh --github  missing languages warn instead of failing
+#   check-translations.sh <config>           fail on any missing translation
+#   check-translations.sh <config> --github  missing languages warn instead of failing
 
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CATALOGS=("$ROOT/Resources/Localizable.xcstrings" "$ROOT/Resources/InfoPlist.xcstrings" "$ROOT/Resources/ThemeNames.xcstrings")
+[ $# -ge 1 ] || { echo "usage: $(basename "$0") <config> [--github]" >&2; exit 2; }
+CONFIG="$1"
+# shellcheck source=/dev/null
+source "$CONFIG"
+ROOT="$(cd "$(dirname "$CONFIG")/$STRINGS_ROOT" && pwd)"
+CATALOGS=()
+for c in "${STRINGS_CATALOGS[@]}"; do
+    CATALOGS+=("$ROOT/$c")
+done
 
 GITHUB_MODE=0
-case "${1:-}" in
+case "${2:-}" in
     --github) GITHUB_MODE=1 ;;
     "") ;;
-    *) echo "usage: $(basename "$0") [--github]" >&2; exit 2 ;;
+    *) echo "usage: $(basename "$0") <config> [--github]" >&2; exit 2 ;;
 esac
 
-LANGS=$("$ROOT/scripts/strings/catalog-languages.sh" | jq -Rn '[inputs]')
+LANGS=$("$(dirname "${BASH_SOURCE[0]}")/catalog-languages.sh" "$CONFIG" | jq -Rn '[inputs]')
 LANG_COUNT=$(jq -r 'length' <<<"$LANGS")
 
 # One pass over every catalog, rendered two ways below, so the CI annotations
@@ -73,13 +79,13 @@ if [[ -n "$LIST" ]]; then
 
     echo "error: untranslated catalog keys" >&2
     echo "$LIST" >&2
-    cat >&2 <<'MSG'
+    cat >&2 <<MSG
 
   These ship rendering English in the locales listed. Translate them into the
   catalog (localizations.<lang>.stringUnit = {"state": "translated", …}), then
-  run `make strings` to re-serialize canonically.
-  The vibe-strings skill has the register, quote and terminology conventions.
+  run \`$STRINGS_UPDATE\` to re-serialize canonically.
 MSG
+    [[ -z "${STRINGS_GUIDE:-}" ]] || echo "  $STRINGS_GUIDE" >&2
     exit 1
 fi
 

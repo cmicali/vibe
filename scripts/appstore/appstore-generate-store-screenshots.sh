@@ -24,7 +24,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 COMPOSE="$ROOT/scripts/appstore/compose-app-store-overlay.swift"
-LANGS="$ROOT/scripts/strings/catalog-languages.sh"
+langs() { "$ROOT/scripts/strings/catalog-languages.sh" "$ROOT/Resources/strings-config.sh"; }
 
 # Compile the compositor once: `swift file.swift` recompiles per run. Exported,
 # so --all's children reuse it.
@@ -67,7 +67,7 @@ if [ "${1:-}" = --all ]; then
     REST=("$@")
     # Capture first: a process substitution's exit status is never checked, so
     # a failing catalog-languages.sh would silently generate nothing.
-    ALL_LANGS="$("$LANGS")"
+    ALL_LANGS="$(langs)"
     [ -n "$ALL_LANGS" ] || { echo "catalog-languages.sh returned no languages" >&2; exit 1; }
     # An inherited OUT_DIR would send every language to one directory, so it
     # becomes the base of a per-language one.
@@ -89,9 +89,9 @@ esac
 case "$PLATFORM" in macos|ios) ;; *) echo "--platform must be macos or ios" >&2; exit 64 ;; esac
 
 L="${1:-en}"
-if ! "$LANGS" | grep -qx "$L"; then
+if ! langs | grep -qx "$L"; then
     echo "unknown language '$L' — catalog languages:" >&2
-    "$LANGS" | tr '\n' ' ' >&2
+    langs | tr '\n' ' ' >&2
     echo >&2
     exit 64
 fi
