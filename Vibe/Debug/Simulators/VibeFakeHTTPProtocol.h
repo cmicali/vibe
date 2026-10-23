@@ -8,8 +8,6 @@
 //  here alone. VibeFakeHTTP.h is the directory that answers.
 //
 
-#if DEBUG
-
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -71,5 +69,3 @@ NSData *_Nullable VibeFakeHTTPBodyOfRequest(NSURLRequest *request);
 @end
 
 NS_ASSUME_NONNULL_END
-
-#endif

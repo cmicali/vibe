@@ -15,8 +15,6 @@
 //  shares. This file holds the directory, its faults, and its log.
 //
 
-#if DEBUG
-
 #import <Foundation/Foundation.h>
 
 @class HTTPTransferClient;
@@ -103,5 +101,3 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
-
-#endif

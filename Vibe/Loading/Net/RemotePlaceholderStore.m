@@ -16,6 +16,7 @@
 #import "HTTPTransferClientInternal.h"
 #import "FilePaths.h"
 #import "PlaceholderFiles.h"
+#import "VibeMacros.h"
 
 // A ranged read slower than this is given up, so a stalled request cannot
 // hold a parse worker; the parse fails and a later scan retries it.

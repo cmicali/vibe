@@ -9,6 +9,7 @@
 
 #import "HTTPTransferClientInternal.h"
 #import "ICloudLinkRules.h"
+#import "VibeMacros.h"
 
 NSErrorDomain const VibeLinkErrorDomain = @"com.commonwealthrecordings.Vibe.Link";
 

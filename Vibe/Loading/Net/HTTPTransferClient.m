@@ -10,6 +10,7 @@
 #include <sys/xattr.h>
 
 #import "HTTPTransferRules.h"
+#import "VibeMacros.h"
 
 NSErrorDomain const VibeHTTPErrorDomain = @"com.commonwealthrecordings.Vibe.HTTP";
 NSErrorUserInfoKey const VibeHTTPErrorStatusCodeKey = @"VibeHTTPErrorStatusCode";
