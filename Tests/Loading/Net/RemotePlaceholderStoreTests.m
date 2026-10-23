@@ -48,6 +48,15 @@ static BOOL IsPlaceholder(NSURL *url) {
     return self.readsByRange;
 }
 
+// A CUE sheet is kept whole, as a subclass keeps the playlists it reads.
+- (NSArray<NSDictionary *> *)downloadsUnder:(NSURL *)root {
+    NSMutableArray<NSDictionary *> *downloads = [[super downloadsUnder:root] mutableCopy];
+    [downloads filterUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSDictionary *download, NSDictionary *bindings) {
+        return ![[download[@"url"] pathExtension] isEqualToString:@"cue"];
+    }]];
+    return downloads;
+}
+
 - (void)downloadsDidChangeWithTotal:(long long)total {
     @synchronized (self) {
         if (!_totals) {
@@ -490,7 +499,7 @@ typedef struct {
     XCTAssertEqualObjects(_store.reportedTotals.lastObject, @3);
 }
 
-- (void)testRemovingDownloadsLeavesPlaceholdersAndPlaylists {
+- (void)testRemovingDownloadsLeavesPlaceholdersAndWhatTheSubclassKeeps {
     NSURL *one = [self placeholder:@"one.flac" bytes:[NSData dataWithBytes:"11111" length:5]];
     XCTAssertTrue([self fetch:one]);
     NSURL *sheet = [_album URLByAppendingPathComponent:@"one.cue"];

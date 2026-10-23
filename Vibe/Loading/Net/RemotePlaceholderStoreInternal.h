@@ -59,9 +59,6 @@ NS_ASSUME_NONNULL_BEGIN
 // asking the server. Test seam.
 @property (nonatomic) NSTimeInterval streamedTagWait;
 
-// Every downloaded song under root, oldest download first, each as {url,
-// size, modified, downloaded}. A playlist file is not one. The disk queue.
-- (NSArray<NSDictionary *> *)downloadsUnder:(NSURL *)root;
 // Sends the oldest downloads back to placeholders until the rest fit the
 // budget, never `keep`. Answers what the downloads take afterwards. The disk
 // queue.
@@ -90,6 +87,11 @@ NS_ASSUME_NONNULL_BEGIN
 // Where the downloads the budget counts live, nil for none. The default is
 // rootURL.
 - (nullable NSURL *)budgetRootURL;
+// Every downloaded file under root, oldest download first, each as {url,
+// size, modified, downloaded}: what the budget counts and evicts. The
+// default is every regular file that is no placeholder. A subclass drops a
+// file it keeps whole, such as a playlist it reads. The disk queue.
+- (NSArray<NSDictionary *> *)downloadsUnder:(NSURL *)root;
 // The downloads now take `total` bytes: a fetch landed, the budget changed,
 // or Remove Downloads settled. Any thread. The default does nothing.
 - (void)downloadsDidChangeWithTotal:(long long)total;

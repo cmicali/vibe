@@ -16,7 +16,6 @@
 #import "HTTPTransferClientInternal.h"
 #import "FilePaths.h"
 #import "PlaceholderFiles.h"
-#import "PlaylistFile.h"
 
 // A ranged read slower than this is given up, so a stalled request cannot
 // hold a parse worker; the parse fails and a later scan retries it.
@@ -274,8 +273,7 @@ static NSError *VibePOSIXError(void) {
     for (NSURL *url in walk) {
         struct stat st;
         if (lstat(url.fileSystemRepresentation, &st) != 0 || !S_ISREG(st.st_mode)
-                || VibeFileModeIsRemotePlaceholder(st.st_mode)
-                || [PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]) {
+                || VibeFileModeIsRemotePlaceholder(st.st_mode)) {
             continue;
         }
         [downloads addObject:@{@"url": url, @"size": @(st.st_size), @"modified": @(st.st_mtimespec.tv_sec),
