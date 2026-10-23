@@ -4,6 +4,7 @@
 //
 
 #import "DebugInfo.h"
+#import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "AppStats.h"
@@ -22,7 +23,6 @@
 #import "PlaylistController.h"
 
 #if VIBE_DIRECT_DISTRIBUTION
-#import "AppDelegate.h"
 #import "VibeUpdater.h"
 #endif
 #import <OSLog/OSLog.h>
