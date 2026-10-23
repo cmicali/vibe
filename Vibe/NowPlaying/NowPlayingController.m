@@ -5,6 +5,8 @@
 
 #import "NowPlayingController.h"
 #import "NowPlayingRules.h"
+#import "HelperMacros.h"
+#import "VibeMacros.h"
 #import <MediaPlayer/MediaPlayer.h>
 
 _Static_assert(VibeRepeatModeOff == (NSInteger)MPRepeatTypeOff, "VibeRepeatMode casts to MPRepeatType");

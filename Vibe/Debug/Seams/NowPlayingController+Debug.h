@@ -5,8 +5,6 @@
 //  Implemented beside the controller, whose publish state is private to it.
 //
 
-#if DEBUG
-
 #import "NowPlayingController.h"
 
 NS_ASSUME_NONNULL_BEGIN
@@ -20,5 +18,3 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
-
-#endif
