@@ -155,9 +155,9 @@ targets:
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
                 VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
-                VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsVorbis,
-                VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
-                VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts, VibeLibsNowPlaying,
+                VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain,
+                VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -173,8 +173,6 @@ targets:
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Loading
-        excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
-      - path: Vibe/NowPlaying
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
       - path: Vibe/Util
         excludes: ["**/.DS_Store", "**/*.md", "iOS/**"]
@@ -455,8 +453,8 @@ targets:
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
                 VibeLibsFileLoading, VibeLibsDecode, VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue, VibeLibsPlaylists,
-                VibeLibsFolderScan, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache,
-                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsFolderScan, VibeLibsNowPlaying, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib,
+                VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -470,8 +468,6 @@ targets:
       - path: Vibe/Common
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Loading
-        excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
-      - path: Vibe/NowPlaying
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
       - path: Vibe/Util
         excludes: ["**/.DS_Store", "**/*.md", "Mac/**"]
@@ -751,7 +747,7 @@ targets:
       - path: Vibe/Mac/Convert/AudioFileConverter.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Sandbox.m
       - path: Vibe/Mac/Convert/AudioFileConverter+Disposal.m
-      - path: Vibe/NowPlaying/NowPlayingController.m
+      - path: vibe-libs/system/NowPlaying/NowPlayingController.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: vibe-libs/ui/Controls/Mac/CrossfadingImageView.m
       - path: Vibe/Mac/App/OpenBurstCoalescer.m
@@ -846,7 +842,7 @@ targets:
         HEADER_SEARCH_PATHS:
           - "$(inherited)"
           - "$(SRCROOT)/Vibe/Common"
-          - "$(SRCROOT)/Vibe/NowPlaying"
+          - "$(SRCROOT)/vibe-libs/system/NowPlaying"
           - "$(SRCROOT)/vibe-libs/files/FileLoading"
           - "$(SRCROOT)/vibe-libs/files/FileLoading/Claim"
           - "$(SRCROOT)/vibe-libs/files/FileLoading/Transfer"
