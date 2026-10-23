@@ -33,7 +33,6 @@ Vibe/
     Channel/           the transport: command and reply files
     Verbs/             the commands both apps answer
     Oracles/           consistency checks and health counts
-    Seams/             debug-only categories over shared classes
     Mac/ and iOS/      each app's command table, its own verbs, and its seams
   Mac/                 the macOS app shell
     App/               AppDelegate, the open funnel, sandbox grants, Open URL, updates
@@ -102,7 +101,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### Debug
 
-`Vibe/Debug/` is the debug command channel. It lets a script drive and inspect a running Debug build of either app. On macOS the command is `Vibe --debug-cmd <command>`. For the simulator it is the `vibe-debug` skill's `debug-ios.sh`. Nearly every file is wrapped in `#if DEBUG`. A Release build compiles them to empty objects. `Channel/` is the transport. `Verbs/` holds the commands both apps answer. `Oracles/` holds the consistency checks. `Simulators/` holds a stand-in for an HTTP host. vibe-libs' `audio/Player` holds the manual render pump the audio tests use in place of a device. vibe-libs' `files/FileLoading` holds the stand-in for a cloud provider. `Seams/` holds the `+Debug` categories that open a shipping class to the channel and the tests. Read next: the `vibe-debug` skill to use the channel, and `Vibe/Debug/AGENTS.md` to change it.
+`Vibe/Debug/` is the debug command channel. It lets a script drive and inspect a running Debug build of either app. On macOS the command is `Vibe --debug-cmd <command>`. For the simulator it is the `vibe-debug` skill's `debug-ios.sh`. Nearly every file is wrapped in `#if DEBUG`. A Release build compiles them to empty objects. `Channel/` is the transport. `Verbs/` holds the commands both apps answer. `Oracles/` holds the consistency checks. `Simulators/` holds a stand-in for an HTTP host. vibe-libs' `audio/Player` holds the manual render pump the audio tests use in place of a device. vibe-libs' `files/FileLoading` holds the stand-in for a cloud provider. Each app's `Mac/Seams/` or `iOS/Seams/` holds the `+Debug` categories that open a shell class to the channel and the tests. A shared class's category sits beside it in vibe-libs. Read next: the `vibe-debug` skill to use the channel, and `Vibe/Debug/AGENTS.md` to change it.
 
 ### The macOS shell
 
