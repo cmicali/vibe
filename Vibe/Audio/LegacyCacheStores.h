@@ -6,7 +6,7 @@
 //
 
 #import <Foundation/Foundation.h>
-#import "AudioTrackMetadataCache+Debug.h"
+#import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 
 NS_ASSUME_NONNULL_BEGIN
