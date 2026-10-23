@@ -23,7 +23,7 @@ Vibe/
       Theme/           AppTheme, the theme record, and the theme store
   Audio/               how Vibe hosts vibe-libs' player, and the audio features beside it
   Loading/             the app's own transfers: HTTP, links, and Dropbox
-    Net/               the app's own HTTP: transfers, placeholders, and Open URL's links
+    Net/               Open URL's link store
     iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
   Playlist/            the playlist row
     Mac/               the playlist table and the last-playlist store (macOS)
@@ -33,7 +33,6 @@ Vibe/
     Channel/           the transport: command and reply files
     Verbs/             the commands both apps answer
     Oracles/           consistency checks and health counts
-    Simulators/        a stand-in for an HTTP host
     Seams/             debug-only categories over shared classes
     Mac/ and iOS/      each app's command table, its own verbs, and its seams
   Mac/                 the macOS app shell
@@ -281,7 +280,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | Cloud downloads, their order, the loading bar | `vibe-libs/files/FileLoading/AGENTS.md`, [file-loading-spec.md](file-loading-spec.md) | `vibe-libs/files/FileLoading/Claim/AudioFileMaterializationCoordinator.m` |
 | Playing a file that is still downloading | `vibe-libs/files/FileLoading/AGENTS.md` (CloudFileAvailability) | `vibe-libs/files/FileLoading/Transfer/CloudFileAvailability.m` |
 | Files on a network share | `vibe-libs/files/FileLoading/AGENTS.md` (The network-mount read-ahead) | `vibe-libs/files/FileLoading/Transfer/NetworkReadAhead.m` |
-| Open URL and links | `Loading/Net/AGENTS.md`, `Mac/App/AGENTS.md` | `Loading/Net/LinkStore.m` |
+| Open URL and links | `Loading/Net/AGENTS.md`, vibe-libs' `files/ShareLinks/AGENTS.md`, `Mac/App/AGENTS.md` | `Loading/Net/LinkStore.m` |
 | Dropbox on iOS | `Loading/iOS/Dropbox/AGENTS.md` | `Loading/iOS/Dropbox/DropboxMirror.m` |
 | Tags, the metadata cache, or the scan | `vibe-libs/media/Metadata/AGENTS.md`, `vibe-libs/media/Tags/AGENTS.md` | `vibe-libs/media/Metadata/AudioTrackMetadataLoader.m`, `vibe-libs/media/Tags/TagLibAudioFile.mm` |
 | Artwork and row thumbnails | `vibe-libs/media/Metadata/AGENTS.md` | `vibe-libs/media/Metadata/Artwork/AudioTrackArtwork.m` |
