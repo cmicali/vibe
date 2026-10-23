@@ -212,8 +212,8 @@ test-summary:
 	scripts/checks/test-summary.sh $(RESULT_BUNDLE)
 
 # clang's static analyzer over both app targets; fails on any finding outside
-# ThirdParty/ and vibe-libs' third_party/. Findings are configuration-dependent,
-# and CI checks Release.
+# vibe-libs' third_party/. Findings are configuration-dependent, and CI checks
+# Release.
 analyze:
 	scripts/build/analyze.sh $(CONFIG)
 
