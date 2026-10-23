@@ -43,11 +43,12 @@
 }
 
 + (NSArray<NSURL *> *)fileURLsInArguments:(NSArray<NSString *> *)arguments
-                           existingPath:(BOOL (^)(NSString *))exists {
+                             valueOptions:(NSSet<NSString *> *)valueOptions
+                             existingPath:(BOOL (^)(NSString *))exists {
     NSMutableArray<NSURL *> *urls = NSMutableArray.array;
     for (NSUInteger i = 1; i < arguments.count; i++) {
         NSString *argument = arguments[i];
-        if ([argument isEqualToString:@"--debug-cmd"]) { i++; continue; }
+        if ([valueOptions containsObject:argument]) { i++; continue; }
         if ([argument hasPrefix:@"-"]) continue;
         NSString *path = argument.stringByExpandingTildeInPath;
         if (exists(path)) [urls addObject:[NSURL fileURLWithPath:path]];

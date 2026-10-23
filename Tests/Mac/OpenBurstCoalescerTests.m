@@ -165,19 +165,22 @@ static NSArray<NSURL *> *URLBatch(NSUInteger count) {
     XCTAssertEqualObjects(_drains, @[@"replace 1"]);
 }
 
-- (void)testCLISelectionSkipsFlagsAndDebugPayloadBeforeProbingPaths {
+- (void)testCLISelectionSkipsFlagsAndOptionValuesBeforeProbingPaths {
     NSMutableArray *probes = [NSMutableArray array];
     NSArray *urls = [OpenBurstCoalescer fileURLsInArguments:
-            @[@"Vibe", @"--debug-cmd", @"/debug-payload.mp3", @"-flag", @"/missing.mp3", @"/a.mp3", @"/a.mp3", @"~/b.mp3"]
+            @[@"App", @"--command", @"/command-value.mp3", @"-flag", @"/missing.mp3", @"/a.mp3", @"/a.mp3", @"~/b.mp3"]
+            valueOptions:[NSSet setWithObject:@"--command"]
             existingPath:^BOOL(NSString *path) { [probes addObject:path]; return ![path isEqual:@"/missing.mp3"]; }];
     NSString *expanded = [@"~/b.mp3" stringByExpandingTildeInPath];
     XCTAssertEqualObjects(probes, (@[@"/missing.mp3", @"/a.mp3", @"/a.mp3", expanded]));
     XCTAssertEqualObjects([urls valueForKey:@"path"], (@[@"/a.mp3", @"/a.mp3", expanded]));
 }
 
-- (void)testEmptyArgumentsAndDanglingDebugFlagProduceNoOpens {
-    for (NSArray *args in @[@[], @[@"Vibe"], @[@"Vibe", @"--debug-cmd"]]) {
-        XCTAssertEqual([OpenBurstCoalescer fileURLsInArguments:args existingPath:^BOOL(NSString *path) {
+- (void)testEmptyArgumentsAndDanglingValueOptionProduceNoOpens {
+    for (NSArray *args in @[@[], @[@"App"], @[@"App", @"--command"]]) {
+        XCTAssertEqual([OpenBurstCoalescer fileURLsInArguments:args
+                                                  valueOptions:[NSSet setWithObject:@"--command"]
+                                                  existingPath:^BOOL(NSString *path) {
             XCTFail(@"No path should be probed: %@", path); return YES;
         }].count, 0u);
     }

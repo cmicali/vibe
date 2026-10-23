@@ -30,9 +30,12 @@ typedef void (^OpenBurstSink)(NSArray<NSURL *> *urls, BOOL append);
 // After grant restoration: an explicit queued open wins, then the saved
 // session, then empty state. Restoration itself never arms an open burst.
 - (void)finishLaunchRestoring:(BOOL (^)(void))restore revealEmpty:(dispatch_block_t)revealEmpty;
+// The paths among a process's arguments, after its name. A dash-prefixed
+// argument is skipped, and so is the value after each of valueOptions.
 // exists runs on the caller's worker, never during the main-thread drain.
 + (NSArray<NSURL *> *)fileURLsInArguments:(NSArray<NSString *> *)arguments
-                           existingPath:(BOOL (^)(NSString *path))exists;
+                             valueOptions:(NSSet<NSString *> *)valueOptions
+                             existingPath:(BOOL (^)(NSString *path))exists;
 
 // A system open event: part of the current burst, or the start of a new one.
 - (void)openBurstURLs:(NSArray<NSURL *> *)urls;

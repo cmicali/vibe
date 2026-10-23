@@ -214,7 +214,10 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     // Off main: a stat can block for an automounter timeout. The survivors
     // race the launch drain; openBurstURLs: queues before start either way.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSArray<NSURL *> *urls = [OpenBurstCoalescer fileURLsInArguments:args existingPath:^BOOL(NSString *path) {
+        // The debug channel's command is the argument after its flag.
+        NSArray<NSURL *> *urls = [OpenBurstCoalescer fileURLsInArguments:args
+                                                            valueOptions:[NSSet setWithObject:@"--debug-cmd"]
+                                                            existingPath:^BOOL(NSString *path) {
             return [NSFileManager.defaultManager fileExistsAtPath:path];
         }];
         if (urls.count == 0) {
