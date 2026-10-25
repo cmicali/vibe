@@ -6,11 +6,13 @@
 #import "VibeiOSAppDelegate.h"
 #import "AppSettings.h"
 #import "AudioError.h"
+#import "AudioTrackMetadataCache.h"
+#import "AudioWaveformCache.h"
 #import "DropboxMirror.h"
-#import "LegacyCacheStores.h"
 #import "LinkStore.h"
 #import "LocationStore.h"
 #import "NSBundle+BuildInfo.h"
+#import "PINCache+VibeAudioCache.h"
 #if DEBUG
 #import "DebugiOSEntry.h"
 #endif
@@ -39,7 +41,9 @@
 #if DEBUG
     VibeiOSInstallDebugCommandHook();
 #endif
-    VibeRemoveLegacyCacheStoresOffMain();
+    [PINCache removeOtherAudioCacheVersionsKeeping:@[AudioTrackMetadataCache.cacheName, AudioWaveformCache.cacheName]
+                                          rootPath:nil
+                                        completion:nil];
     [self copyWelcomeTrackIfFirstLaunch];
     return YES;
 }
