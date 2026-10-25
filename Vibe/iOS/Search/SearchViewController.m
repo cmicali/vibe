@@ -414,7 +414,7 @@ static const NSUInteger kMaxFileResults = 200;
     NSMutableSet<NSString *> *dropboxPaths = [NSMutableSet set];
     DropboxMirror *mirror = DropboxMirror.shared;
     for (AudioTrack *track in tracks) {
-        NSString *path = track.url.path;
+        NSString *path = VibeComparablePath(track.url.path);
         if (path) {
             [paths addObject:path];
         }
