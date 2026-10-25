@@ -16,7 +16,7 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 
 - **Declick** (`AppSettings.declick`, Settings > Audio Output, default on) is `AudioPlayer.declick`, through `VibeSettingsLiveEffectDeclick` on the mac.
 - **The crossfade** is Settings > Playback's slider, which shows the 10 ms declick minimum as off.
-- **The volume** moves only with the mac's Volume control. iOS uses the system volume. The debug `--silent` is the volume stage's target of 0.
+- **The volume** moves only with the mac's Volume control. iOS uses the system volume. A debug launch's `--silent` is the volume stage's target of 0. The app delegate sets it through the player's seam before the player exists (`Debug/AGENTS.md`).
 - **The pitch fader** is the mac's. Its varispeed is hosted only on macOS.
 - **FX** follows the shared `audioFXEnabled`. The mac's five toggles and the iOS pad's levels are cleared synchronously when a bypass is submitted (`clearFXIntent`), and the mac redraws the cleared flags once through `updateFXIndicators`. The mac's keys write the toggles, and the iOS pad writes the numbers. Telling a tap from a hold is `TransportKeyMonitor`'s job. The pad's axes are vibe-libs' `AudioFXMath.h`.
 - **Bit-perfect and exclusive output** are Settings > Audio's, through `setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:`. Advanced's `allowBitPerfectOnAnyDevice` is `allowAnyDevice`. `AppSettings` remembers only enabled modes, per device UID, and answers `audioPlayer:outputModesForDeviceUID:bitPerfectOutput:exclusiveOutput:`. A carry of modes to the same model on another port is persisted on main through `AppSettings.carryOutputModesFromDeviceUID:toDeviceUID:`.

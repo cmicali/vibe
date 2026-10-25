@@ -43,6 +43,7 @@
 #endif
 
 #if DEBUG
+#import "DebugCommonVerbs.h"
 #import "DebugMacEntry.h"
 #import "OpenBurstCoalescer+Debug.h"
 #import "OpenLinkWindowController+Debug.h"
@@ -121,6 +122,11 @@ static void VibeAfterLaunch(dispatch_block_t block) {
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
     // Before the player exists, so every play-path error carries the app's domain.
     VibeAudioErrorSetDomain(NSBundle.mainBundle.bundleIdentifier);
+#if DEBUG
+    // Before the player exists too, which reads its debug output when it
+    // makes it.
+    VibeDebugApplyLaunchFlags();
+#endif
     // Before the restore, which may name a link. From here a link's
     // placeholder is dataless, and opening it streams it.
     [LinkStore.shared installAsRemoteBackend];
