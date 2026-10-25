@@ -110,8 +110,13 @@ static void VibeAfterLaunch(dispatch_block_t block) {
                                    [weakSelf openURLs:urls appending:append];
                                }];
         _linkOpenCancels = [NSMutableArray array];
-        _folderAccessManager = [[FolderAccessManager alloc] initWithDefaults:NSUserDefaults.standardUserDefaults
-                                                                         key:kGrantedFoldersDefaultsKey];
+        // The music read-write entitlement grants ~/Music, so it needs no
+        // bookmark. The real home, since the sandbox's is the container.
+        NSString *music = [FolderAccessManager.realHomeDirectory stringByAppendingPathComponent:@"Music"];
+        _folderAccessManager = [[FolderAccessManager alloc]
+                initWithDefaults:NSUserDefaults.standardUserDefaults
+                             key:kGrantedFoldersDefaultsKey
+                 entitledFolders:@[[NSURL fileURLWithPath:music isDirectory:YES]]];
         LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
     }
     return self;
