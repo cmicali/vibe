@@ -141,12 +141,15 @@ static const CGFloat kHeight = 120;
 }
 
 // A loud, varied envelope; complete, as an archive is. Long enough that the
-// default zoom and half of it are both drawable.
-static CodableAudioWaveform *CompleteWaveform(void) {
-    auto waveform = std::make_unique<AudioWaveform>(64, false, 44100);
+// default zoom and half of it are both drawable. With bands, for the styles
+// that draw them.
+static CodableAudioWaveform *CompleteWaveform(bool bands = false) {
+    auto waveform = std::make_unique<AudioWaveform>(64, bands, 44100);
     for (size_t i = 0; i < 4096; i++) {
         float level = 0.3f + 0.6f * (float)fabs(sin((double)i / 9.0));
-        waveform->appendBin(-level, level, level * level * 64, nullptr, 64);
+        double squares = level * level * 64;
+        double bandSquares[3] = {squares * 0.5, squares * 0.3, squares * 0.2};
+        waveform->appendBin(-level, level, squares, bands ? bandSquares : nullptr, 64);
     }
     waveform->markComplete();
     return [[CodableAudioWaveform alloc] initWithWaveform:std::move(waveform)];
@@ -208,6 +211,23 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     for (NSNumber *progress in @[@0.1, @0.5, @0.9]) {
         _view.progress = progress.doubleValue;
         XCTAssertGreaterThan(self.renderedTint.coverage, 0.2, @"nothing under the playhead at %@", progress);
+    }
+}
+
+// Every registered style draws through the scrubber. The probe's pictures
+// show how each one looks. This reads the registry, so a new style is
+// checked here with no edit. The waveform has bands, or the band styles
+// would draw only their baseline.
+- (void)testEveryRegisteredStyleDraws {
+    [self showAndDraw:CompleteWaveform(true)];
+    _view.progress = 0.5;
+    NSArray<NSString *> *identifiers =
+            [WaveformRendererRegistry.availableIdentifiers sortedArrayUsingSelector:@selector(compare:)];
+    XCTAssertGreaterThan(identifiers.count, 2u);
+    for (NSString *identifier in identifiers) {
+        [_view syncWaveformStyle:identifier];
+        [_view layoutIfNeeded];
+        XCTAssertGreaterThan(self.renderedTint.coverage, 0.05, @"%@ drew next to nothing", identifier);
     }
 }
 

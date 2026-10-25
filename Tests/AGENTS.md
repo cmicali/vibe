@@ -104,7 +104,7 @@ The pump proves the software path, **not** DAC samples, hardware negotiation, ex
 
 **No second player.** `FakePlayback` (`IOSSimTestCase.h`) is a duck-typed `PlaybackController`. The screens read its properties. A test sets `screenState` and sends a `PlaybackObserver` event (`notify:`). Any other selector `PlaybackController` declares is recorded in `calls` and answers zero. Tracks carry the duck-typed `FakeTrackMetadata` from `Support/`, which `VibeTests` uses too. `IOSSimTestCase` gives each test a window of its own on the host's scene. It puts back every setting a test wrote.
 
-**What belongs here is what needs UIKit**: view and controller lifecycles, cells, layers, trait changes, gestures driven through their handlers, and table data sources. Assert state, not pixels. The scrubber's bitmaps are read back from the layer tree and checked for coverage and tint, never compared. A decision that needs no view belongs in a `*Rules.h` seam and `VibeTests`. Taps, drags, and layout on a running app belong to the touch driver (`vibe-debug`).
+**What belongs here is what needs UIKit**: view and controller lifecycles, cells, layers, trait changes, gestures driven through their handlers, and table data sources. Assert state, not pixels. The scrubber's bitmaps are read back from the layer tree and checked for coverage and tint, never compared. Every style the registry lists draws once through the scrubber, so a new style is checked with no edit. A decision that needs no view belongs in a `*Rules.h` seam and `VibeTests`. Taps, drags, and layout on a running app belong to the touch driver (`vibe-debug`).
 
 ## Rules that are easy to get wrong
 
