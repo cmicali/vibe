@@ -27,6 +27,8 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 
 **The shells show what the player decides.** `bufferingNoticeShown` puts Buffering… in place of the file info line (`Mac/MainWindow/AGENTS.md`). A hold edge moves the Now Playing clock, and a notice edge redraws the header. `VibeAudioErrorDeviceInUse` is shown on the parked track's info line. The bit-perfect report's edge redraws the header's lock and the Settings caption.
 
+**`PlaybackShellRules.h` is how both shells' transport reads the player** (`PlaybackShellRulesTests`): when Previous is available, when a seek's settlement is current, and when the deferred metadata sweep runs. On the first row, Previous restarts the loaded track. The settlement rule the player keeps for itself is vibe-libs' `PlaybackDeliveryRules.h`.
+
 **The mac's device manager has three observers**: `AudioPlayer`, `OutputDevicesMenuController`, and `SettingsAudioOutputViewController`. The Output menu's checkmark follows `currentlyRequestedAudioDeviceId` (`Mac/Menu/AGENTS.md`). The delegate's `didChangeOutputDevice:` persists the choice. The player's side of Save Debug Info is `bitPerfectReportDictionary` and `outputDeviceDiagnosticSnapshot`, which `dump_state` reads too (`Mac/App/AGENTS.md`).
 
 **Termination.** `AppDelegate` detaches the player's delegate on main. `applicationShouldTerminate:` calls `prepareForTermination`, so nothing restarts the output during `NSTerminateLater`.

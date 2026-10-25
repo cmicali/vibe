@@ -10,7 +10,7 @@
 #import "AudioPlayer.h"
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
-#import "PlaybackDeliveryRules.h"
+#import "PlaybackShellRules.h"
 #import "PlaylistController.h"
 
 @implementation MainPlayerController (NowPlaying)

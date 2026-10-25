@@ -11,7 +11,7 @@
 #import "AudioPlayer+Recovery.h"
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
-#import "PlaybackDeliveryRules.h"
+#import "PlaybackShellRules.h"
 #import "WidgetPublisher.h"
 
 // Held once: the publisher's dirty check compares artwork by identity, and

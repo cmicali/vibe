@@ -12,7 +12,7 @@
 #import "MainPlayerController+Window.h" // contentWidthForSizeIdentifier:, for the Size checkmarks
 #import "MainMenuBuilder.h"
 #import "MenuValidationRules.h"
-#import "PlaybackDeliveryRules.h"
+#import "PlaybackShellRules.h"
 #import "SettingsRules.h"
 #import "SettingsThemesViewController.h" // the theme list's swatches
 #import "NSView+DarkMode.h"
