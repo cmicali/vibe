@@ -625,7 +625,10 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
 }
 
 
-- (void)testNowPlayingMetadataAndArtworkDirtyDetectionUsesTheInstalledTrack {
+// The values the shells push from the row: its title and artist as they
+// change, and its art, else its thumbnail, else the shell's placeholder. The
+// artwork's dirty check and size cap are vibe-libs' tests.
+- (void)testNowPlayingPublishesTheRowsValuesAndItsArtworkInOrder {
     AudioTrack *track = TrackNamed(@"cover.wav");
     FakeTrackMetadata *metadata = [FakeTrackMetadata new];
     metadata.title = @"Title";
@@ -635,14 +638,23 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
     NowPlayingController *publisher = [[NowPlayingController alloc] initWithClock:^{ return 1000.0; }
             publish:^(NSDictionary *info, NowPlayingPlaybackState state) { [publications addObject:info ?: @{}]; }
             commandAvailability:^(BOOL next, BOOL previous) {}];
-    __block NSImage *placeholder = nil;
+    NSImage *placeholder = [NSImage imageWithSize:NSMakeSize(64, 64) flipped:NO drawingHandler:^BOOL(NSRect rect) { return YES; }];
+    __block NSImage *published = nil;
     void (^publish)(void) = ^{
-        // As the shells push the row's values.
-        [publisher updateWithSourceKey:track.sourceKey title:track.displayTitle artist:track.displayArtist
-                               artwork:track.cachedArt ?: track.cachedThumbnail ?: placeholder position:0 duration:30
-                                 state:NowPlayingPlaybackStatePlaying rate:1 hasNext:NO hasPrevious:NO];
+        // As the shells fill the record from the row.
+        published = track.cachedArt ?: track.cachedThumbnail ?: placeholder;
+        [publisher updateWithRecord:(VibeNowPlayingRecord){
+            .sourceKey = track.sourceKey,
+            .title = track.displayTitle,
+            .artist = track.displayArtist,
+            .artwork = published,
+            .duration = 30,
+            .state = NowPlayingPlaybackStatePlaying,
+            .rate = 1,
+        }];
     };
     publish();
+    XCTAssertEqual(published, placeholder);
     metadata.title = @"New title";
     publish();
     metadata.artist = nil;
@@ -650,40 +662,15 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
     XCTAssertEqual(publications.count, 3u);
     XCTAssertEqualObjects([publications.lastObject objectForKey:MPMediaItemPropertyTitle], @"New title");
     XCTAssertNil([publications.lastObject objectForKey:MPMediaItemPropertyArtist]);
+
     metadata.cachedThumbnail = [NSImage imageWithSize:NSMakeSize(20, 20) flipped:NO drawingHandler:^BOOL(NSRect rect) { return YES; }];
     publish();
-    MPMediaItemArtwork *thumbnail = [publications.lastObject objectForKey:MPMediaItemPropertyArtwork];
-    XCTAssertNotNil(thumbnail);
-    publish();
-    XCTAssertEqual(publications.count, 4u);
-    metadata.title = @"Title only";
-    publish();
-    XCTAssertEqual([publications.lastObject objectForKey:MPMediaItemPropertyArtwork], thumbnail);
+    XCTAssertEqual(published, metadata.cachedThumbnail);
     metadata.cachedArt = [NSImage imageWithSize:NSMakeSize(1024, 768) flipped:NO drawingHandler:^BOOL(NSRect rect) { return YES; }];
     publish();
-    MPMediaItemArtwork *full = [publications.lastObject objectForKey:MPMediaItemPropertyArtwork];
-    XCTAssertNotEqual(full, thumbnail);
-    XCTAssertLessThanOrEqual(full.bounds.size.width, 512);
-    metadata.cachedArt = nil;
-    metadata.cachedThumbnail = nil;
-    publish();
-    XCTAssertNil([publications.lastObject objectForKey:MPMediaItemPropertyArtwork]);
-
-    // The shell's placeholder stands in for missing art, and only for it.
-    placeholder = [NSImage imageWithSize:NSMakeSize(64, 64) flipped:NO drawingHandler:^BOOL(NSRect rect) { return YES; }];
-    publish();
-    MPMediaItemArtwork *standIn = [publications.lastObject objectForKey:MPMediaItemPropertyArtwork];
-    XCTAssertNotNil(standIn);
-    NSUInteger count = publications.count;
-    publish();
-    XCTAssertEqual(publications.count, count);
-    metadata.cachedThumbnail = [NSImage imageWithSize:NSMakeSize(20, 20) flipped:NO drawingHandler:^BOOL(NSRect rect) { return YES; }];
-    publish();
-    MPMediaItemArtwork *thumb = [publications.lastObject objectForKey:MPMediaItemPropertyArtwork];
-    XCTAssertNotNil(thumb);
-    XCTAssertNotEqual(thumb, standIn);
+    XCTAssertEqual(published, metadata.cachedArt, @"the art outranks the thumbnail");
+    XCTAssertEqual(publications.count, 5u);
 }
-
 
 #pragma mark - Artwork scheduling (actual controller, controlled pixel work)
 
