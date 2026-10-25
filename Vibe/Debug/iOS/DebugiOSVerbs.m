@@ -115,7 +115,7 @@ static NSString *VibeScreenshotJSON(NSString *commandId) {
     NSData *png = [renderer PNGDataWithActions:^(UIGraphicsImageRendererContext *context) {
         [window drawViewHierarchyInRect:window.bounds afterScreenUpdates:NO];
     }];
-    NSString *path = VibeDebugScreenshotPathForCommand(commandId);
+    NSString *path = VibeDebugScreenshotPathForCommand(VibeDebugChannelName(), commandId);
     if (![png writeToFile:path atomically:YES]) {
         return VibeErrorJSON(@"could not write %@", path);
     }

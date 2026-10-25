@@ -16,8 +16,9 @@ extern "C" {
 // Installs a notification hook that dumps the key window (else the main
 // window, else the first visible one) to a PNG. Trigger from a terminal:
 //
-//     notifyutil -p com.vibe.debug.screenshot
+//     notifyutil -p com.commonwealthrecordings.Vibe.debug.screenshot
 //
+// The name starts with the app's bundle identifier, as the channel's does.
 // then read vibe-screenshot.png from the app container's tmp directory. The
 // app is sandboxed, so /tmp is not writable:
 //
@@ -53,8 +54,8 @@ void VibeInstallDebugScreenshotHook(void);
 // reply both derive from it. Usage docs: the vibe-debug skill's
 // references/mac-verbs.md.
 
-// The app side; call it at launch. Listens on com.vibe.debug.command, on the
-// main queue.
+// The app side; call it at launch. Installs the channel under the app's bundle
+// identifier, so it listens on <bundle id>.debug.command, on the main queue.
 void VibeInstallDebugCommandHook(void);
 
 // The client side, in DebugClient.m. main() invokes it for

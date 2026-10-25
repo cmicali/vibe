@@ -23,6 +23,7 @@ set -euo pipefail
 [ "$#" -ge 1 ] || { echo "usage: debug-ios.sh <verb> [args ...] | --all <verb> ..." >&2; exit 64; }
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+# The app's bundle identifier also names its channel's files.
 BUNDLE_ID="com.commonwealthrecordings.Vibe"
 TMP="${VIBE_APP_TMP:-}"
 if [ -z "$TMP" ]; then
@@ -38,8 +39,8 @@ fi
 # read mid-write is deleted unexecuted. The drain ignores the .part name.
 send() {   # <id> <args ...>
     local id="$1"; shift
-    jq -cn --arg id "$id" '{id: $id, args: $ARGS.positional}' --args -- "$@" > "$TMP/vibe-command-$id.json.part"
-    mv "$TMP/vibe-command-$id.json.part" "$TMP/vibe-command-$id.json"
+    jq -cn --arg id "$id" '{id: $id, args: $ARGS.positional}' --args -- "$@" > "$TMP/$BUNDLE_ID.debug-command-$id.json.part"
+    mv "$TMP/$BUNDLE_ID.debug-command-$id.json.part" "$TMP/$BUNDLE_ID.debug-command-$id.json"
 }
 
 ALL=""
@@ -68,7 +69,7 @@ TIMEOUT="${VIBE_DEBUG_TIMEOUT:-$VERB_TIMEOUT}"
 IDS=()
 cleanup() {
     for id in ${IDS[@]+"${IDS[@]}"}; do
-        rm -f "$TMP/vibe-command-$id.json" "$TMP/vibe-command-$id.json.part" "$TMP/vibe-response-$id.txt"
+        rm -f "$TMP/$BUNDLE_ID.debug-command-$id.json" "$TMP/$BUNDLE_ID.debug-command-$id.json.part" "$TMP/$BUNDLE_ID.debug-response-$id.txt"
     done
 }
 trap cleanup EXIT
@@ -84,7 +85,7 @@ DEADLINE=$(( $(date +%s) + TIMEOUT ))
 REPLIES=()
 STATUS=0
 for ID in "${IDS[@]}"; do
-    RESPONSE="$TMP/vibe-response-$ID.txt"
+    RESPONSE="$TMP/$BUNDLE_ID.debug-response-$ID.txt"
     while [ ! -f "$RESPONSE" ] && [ "$(date +%s)" -lt "$DEADLINE" ]; do
         sleep 0.02
     done

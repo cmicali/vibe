@@ -8,7 +8,9 @@
 # VIBE_SIGNPOSTS=1 links the work tally the debug verbs call. In an older
 # version DEBUG switched on the signposts and the tally, so every version
 # builds the same way.
-# A separate bundle id protects preferences. The separate executable name
+# A separate bundle id protects preferences. In a version whose debug channel
+# takes the app's bundle id, it also names the channel bench.py addresses
+# (channel_names), so a running Vibe never answers. The separate executable name
 # keeps Vibe launchers from killing the benchmark. CFFIXED_USER_HOME isolates
 # caches but does not isolate cfprefsd's preferences.
 # Sources are a detached worktree. Version patches add required debug verbs.
