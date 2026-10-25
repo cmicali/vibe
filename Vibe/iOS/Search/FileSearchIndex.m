@@ -78,6 +78,8 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
 #if DEBUG
     NSUInteger                  _lastFilterEvaluationCount;
 #endif
+    // kMaxIndexedFiles, unless a test set a smaller cap.
+    NSUInteger                  _maxIndexedFiles;
 }
 
 - (instancetype)init {
@@ -85,6 +87,7 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
     if (self) {
         _roots = @[];
         _files = [NSMutableArray array];
+        _maxIndexedFiles = kMaxIndexedFiles;
         atomic_init(&_hitRequestGeneration, 1);
         dispatch_queue_attr_t filterAttributes = dispatch_queue_attr_make_with_qos_class(
                 DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0);
@@ -119,6 +122,7 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
     NSProgress *progress = [NSProgress discreteProgressWithTotalUnitCount:-1];
     _buildProgress = progress;
     NSSet<NSString *> *supported = [FolderWalk supportedExtensions];
+    NSUInteger cap = _maxIndexedFiles;
     // The batches arrive one at a time on one worker.
     __block NSUInteger total = 0;
     [FolderWalk scanRoots:_roots readPolicy:VibeFolderScanReadPolicyNone progress:progress
@@ -126,15 +130,14 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
         NSMutableArray<IndexedSearchFile *> *batch = [NSMutableArray arrayWithCapacity:entries.count];
         for (PlaylistEntry *entry in entries) {
             // A CUE sheet arrives as a file. Only audio is a hit.
-            if (total < kMaxIndexedFiles && [supported containsObject:entry.url.pathExtension.lowercaseString]) {
+            if (total < cap && [supported containsObject:entry.url.pathExtension.lowercaseString]) {
                 [batch addObject:[self indexedFileForURL:entry.url]];
                 total++;
             }
         }
         [self flushBatch:batch progress:progress];
-        if (total >= kMaxIndexedFiles && !progress.isCancelled) {
-            LogWarn(@"FileSearchIndex: stopped at the %lu-file cap; results are partial",
-                    (unsigned long)kMaxIndexedFiles);
+        if (total >= cap && !progress.isCancelled) {
+            LogWarn(@"FileSearchIndex: stopped at the %lu-file cap; results are partial", (unsigned long)cap);
             [progress cancel];
         }
     } completion:^(NSArray<NSNumber *> *verdicts, NSArray<NSArray<NSError *> *> *failures) {
@@ -153,7 +156,9 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
 - (IndexedSearchFile *)indexedFileForURL:(NSURL *)url {
     IndexedSearchFile *file = [[IndexedSearchFile alloc] init];
     file.hit = [[FileSearchHit alloc] initWithURL:url];
-    file.path = url.path ?: @"";
+    // The scan resolves its roots, so a hit under /var is spelled
+    // /private/var. The exclusion set is in this spelling too.
+    file.path = VibeComparablePath(url.path) ?: @"";
     NSString *searchText = [NSString stringWithFormat:@"%@\n%@",
             file.hit.fileName, file.hit.folderName ?: @""];
     file.foldedSearchText = VibeSearchFoldedText(searchText);
@@ -275,6 +280,18 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
         [keptPaths addObject:path];
     }
     return kept;
+}
+
+- (void)setMaxIndexedFilesForTesting:(NSUInteger)cap {
+    _maxIndexedFiles = cap;
+}
+
+- (NSUInteger)maxIndexedFilesForTesting {
+    return _maxIndexedFiles;
+}
+
+- (NSProgress *)buildProgressForTesting {
+    return _buildProgress;
 }
 
 - (void)appendFileURLForTesting:(NSURL *)url {

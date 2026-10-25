@@ -959,8 +959,8 @@ targetTemplates:
                 VibeLibsVorbis]
     sources:
       - path: vibe-libs/Tests/Support/HTTPStub.m   # the link tests' host, and a link played over it
-      - path: vibe-libs/files/ShareLinks/VibeFakeHTTP.m           # HTTPStub's sessionConfiguration
-      - path: vibe-libs/files/ShareLinks/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
+      - path: vibe-libs/files/ShareLinks/VibeFakeHTTP.m     # the link tests' fake web server
+      - path: vibe-libs/files/HTTP/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
       - path: Vibe/Playlist/AudioTrack.m
       - path: vibe-libs/media/Metadata/NSURL+FilenameTitle.m
       # The render path's -O2, anchored in VibeAudioTests' list, which YAML reads first.
