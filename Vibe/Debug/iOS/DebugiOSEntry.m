@@ -65,7 +65,7 @@ static void VibeiOSStartLaunchProbes(void) {
 }
 
 void VibeiOSInstallDebugCommandHook(void) {
-    VibeInstallDebugCommandChannel(^NSString *(NSArray<NSString *> *args, NSString *commandId) {
+    VibeInstallDebugCommandChannel(NSBundle.mainBundle.bundleIdentifier, ^NSString *(NSArray<NSString *> *args, NSString *commandId) {
         return VibeiOSExecuteDebugCommand(args, commandId);
     });
     VibeiOSStartLaunchProbes();

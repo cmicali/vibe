@@ -156,16 +156,18 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             @"args": args,
         };
         // Same bundle ID + sandbox entitlements as the app, so NSTemporaryDirectory()
-        // resolves to the same container tmp the app-side handler reads.
+        // resolves to the same container tmp the app-side handler reads. The
+        // bundle ID also names the channel, as the app installs it.
+        NSString *channel = NSBundle.mainBundle.bundleIdentifier;
         NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
-        NSString *commandPath = VibeDebugCommandPath(commandId);
+        NSString *commandPath = VibeDebugCommandPath(channel, commandId);
         if (![data writeToFile:commandPath atomically:YES]) {
             fprintf(stderr, "vibe: cannot write %s\n", commandPath.fileSystemRepresentation);
             return 1;
         }
-        notify_post(kVibeDebugCommandNotification.UTF8String);
+        notify_post(VibeDebugCommandNotificationName(channel).UTF8String);
 
-        NSString *responsePath = VibeDebugResponsePath(commandId);
+        NSString *responsePath = VibeDebugResponsePath(channel, commandId);
         NSFileManager *fileManager = NSFileManager.defaultManager;
         // Slow verbs declare their own wait in the table the app dispatches
         // with. Everything else gets 5s, or VIBE_DEBUG_TIMEOUT: a script
