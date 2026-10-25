@@ -54,8 +54,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Matching runs off main; an unchanged query over a growing index examines
 // only the appended suffix. Discovery order, capped at limit. excludedPaths is
-// keyed by NSURL.path. An empty query matches nothing. Only the latest request
-// delivers, on main.
+// keyed by VibeComparablePath of each URL's path. An empty query matches
+// nothing. Only the latest request delivers, on main.
 - (void)requestHitsMatchingQuery:(NSString *)query
                        excluding:(nullable NSSet<NSString *> *)excludedPaths
                            limit:(NSUInteger)limit

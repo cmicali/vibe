@@ -19,6 +19,11 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)appendFileURLForTesting:(NSURL *)url;
 @property (nonatomic, readonly) NSUInteger lastFilterEvaluationCountForTesting;
 
+// A cap below kMaxIndexedFiles, set before beginBuildIfNeeded, and the token
+// of the walk that fills the index, so a test sees the cap cancel it.
+@property (nonatomic) NSUInteger maxIndexedFilesForTesting;
+@property (nonatomic, readonly, nullable) NSProgress *buildProgressForTesting;
+
 @end
 
 NS_ASSUME_NONNULL_END
