@@ -7,7 +7,7 @@
 Concurrent agents build and run the macOS Debug app from one checkout. Every build has the same executable name, bundle id and sandbox container.
 
 - Every quit path reaches every instance. `launch.sh` quits through a channel any instance may answer, then signals every non-simulator `pgrep -x Vibe` pid.
-- One container means one channel. `VibeSweepStaleChannelFiles` (vibe-libs' `dev/DebugChannel/DebugChannel.m`) deletes every `vibe-command-*`, `vibe-response-*` and `vibe-screenshot-*` file at launch. That destroys another agent's in-flight commands.
+- One bundle id means one channel. `VibeSweepStaleChannelFiles` (vibe-libs' `dev/DebugChannel/DebugChannel.m`) deletes every one of its channel's command, reply, and screenshot files at launch. That destroys another agent's in-flight commands.
 - One container means shared `NSUserDefaults`, PINCaches and folder-access bookmarks. These corrupt an agent's test silently.
 
 Goal: each agent's Debug build gets its own executable, bundle id and container. Agents then cannot see, kill or interrogate each other. Release and App Store builds stay untouched. An unslotted build behaves exactly as today. `sim-udid.sh` separates iOS simulators by checkout and `CLAUDE_CODE_SESSION_ID`. Sessions without that variable still share the checkout's default simulator unless they set `VIBE_SIM_NAME` or `VIBE_SIM_UDID`.
@@ -20,7 +20,7 @@ The slot comes from `CLAUDE_CODE_SESSION_ID`, which Task subagents inherit. It n
 
 - **Slots are `xcodebuild` argv overrides, never `project.yml`.** Argv overrides are supported. Importing env vars into build settings is not verified. The generated project stays slot-free, and no release path can inherit a slot.
 - **The bundle id takes a hyphen**, as in `com.commonwealthrecordings.Vibe-a71feaa3`. A hex slot can start with a digit, which a reverse-DNS component should avoid.
-- **Notification names are bundle-scoped.** The container already keeps out a command file from the wrong app. A Darwin notification is global, so without this every main queue would wake on every command.
+- **Notification names are bundle-scoped.** The container already keeps out a command file from the wrong app. A Darwin notification is global, so without this every main queue would wake on every command. This part is built (Channel, below).
 - **`CFBundleName` stays "Vibe".** `InfoPlist.xcstrings` pins it in every language. The Dock, menu bar and window owner read "Vibe" for every slot, so select windows and processes by pid.
 - **The `os_log` subsystem is unchanged.** A slot's log stream adds `process == "$VIBE_PRODUCT"`.
 - **`pgrep -x Vibe` does not match `Vibe-<slot>`.** Unslotted tooling cannot see a slot.
@@ -31,7 +31,7 @@ The slot comes from `CLAUDE_CODE_SESSION_ID`, which Task subagents inherit. It n
 | executable | `Vibe` | `Vibe-a71feaa3` |
 | bundle id | `com.commonwealthrecordings.Vibe` | `com.commonwealthrecordings.Vibe-a71feaa3` |
 | DerivedData | `build/DerivedData` | `build/DerivedData-a71feaa3` |
-| channel | `com.vibe.debug.command` | `com.commonwealthrecordings.Vibe-a71feaa3.debug.command` |
+| channel | `com.commonwealthrecordings.Vibe.debug.command` | `com.commonwealthrecordings.Vibe-a71feaa3.debug.command` |
 
 ## Work
 
@@ -53,8 +53,7 @@ It exports `VIBE_SLOT`, `VIBE_PRODUCT`, `VIBE_BUNDLE_ID`, `VIBE_DERIVED_DATA`, `
 - `generate-git-info.sh` writes a temp file, then moves it.
 
 **Channel.**
-- `kVibeDebugCommandNotification` (vibe-libs' `dev/DebugChannel/DebugWireFormat.{h,m}`) becomes `VibeDebugCommandNotificationName()` and `VibeDebugScreenshotNotificationName()`. Both are formatted from `NSBundle.mainBundle.bundleIdentifier`. App and client are one binary, so both derive the same name.
-- Callers to change: `VibeInstallDebugCommandChannel`, the `notify_post` in `DebugClient.m`, the literal in `VibeInstallDebugScreenshotHook`, and the comments in `DebugMacEntry.h` and `DebugChannel.h`. The channel's half is vibe-libs', so it lands there first.
+- Done. vibe-libs' channel takes its name when the app installs it (`dev/DebugChannel`). Every name on the wire derives from it. Vibe passes `NSBundle.mainBundle.bundleIdentifier` from both entries and from `DebugClient.m`. App and client are one binary, so both derive the same name. The screenshot hook listens on `<bundle id>.debug.screenshot`. A slot's own bundle id therefore gives it its own channel with no further change.
 - `dump_build` (`DebugCommonVerbs.m`) adds the bundle id, executable and resolved channel. Do not add a second instance report to `dump_state`.
 - `VibeLogBuildProvenance` also logs the bundle id.
 

@@ -78,7 +78,7 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             }),
             VibeDebugCmd(@"dump_screenshot [- | <label>]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 // The arguments are the client's; see DebugClient.m.
-                NSString *path = VibeDebugScreenshotPathForCommand(commandId);
+                NSString *path = VibeDebugScreenshotPathForCommand(VibeDebugChannelName(), commandId);
                 if (!VibeDumpWindowSnapshot(path)) {
                     return VibeErrorJSON(@"screenshot failed to render or write; see app log");
                 }
