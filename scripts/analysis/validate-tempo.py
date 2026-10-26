@@ -36,7 +36,6 @@ TOLERANCE = 0.04
 OCTAVE_FACTORS = (1 / 3, 1 / 2, 1, 2, 3)
 
 REPO = Path(__file__).resolve().parents[2]
-DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
 
 
 def parse_args():
@@ -48,7 +47,8 @@ def parse_args():
     p.add_argument("--annotations", choices=("v1", "v2"), default="v2",
                    help="which ground-truth set to score against (default: %(default)s)")
     p.add_argument("--app", type=Path, default=None,
-                   help=f"Vibe.app to test (default: {DEFAULT_APP}, or $VIBE_APP)")
+                   help="Vibe.app to test (default: $VIBE_APP, or this shell's slot, "
+                        "scripts/vibe-env.sh)")
     p.add_argument("--limit", type=int, default=0,
                    help="score only the first N files (0 = all)")
     p.add_argument("--sample", type=int, default=0,
@@ -128,10 +128,12 @@ def factor_label(factor):
 
 def main():
     args = parse_args()
-    app = args.app or Path(os.environ.get("VIBE_APP", DEFAULT_APP))
-    binary = app / "Contents/MacOS/Vibe"
+    # scripts/vibe-env.sh reads --app's ids from its Info.plist.
+    env = {**os.environ, "VIBE_APP": str(args.app)} if args.app else None
+    binary = Path(subprocess.check_output([str(REPO / "scripts/vibe-env.sh"), "--print", "VIBE_BIN"],
+                                          text=True, env=env).strip())
     if not binary.is_file():
-        sys.exit(f"no debug build at {app} — run: make build CONFIG=Debug")
+        sys.exit(f"no debug build at {binary} — run: make build CONFIG=Debug")
 
     items, missing = load_dataset(args.dataset, args.annotations)
     if not items:

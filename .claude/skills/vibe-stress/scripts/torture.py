@@ -21,6 +21,8 @@ import sys
 import time
 from pathlib import Path
 
+from stress import vibe_env
+
 
 class App:
     def __init__(self, binary):
@@ -45,7 +47,8 @@ class App:
         return p.returncode, p.stdout, p.stderr
 
     def alive(self):
-        out = subprocess.run(["pgrep", "-x", "Vibe"], capture_output=True, text=True).stdout
+        # The executable's name is the product, the slot's own (scripts/vibe-env.sh).
+        out = subprocess.run(["pgrep", "-x", Path(self.bin).name], capture_output=True, text=True).stdout
         for pid in out.split():
             argv = subprocess.run(["ps", "-o", "command=", "-p", pid],
                                   capture_output=True, text=True).stdout
@@ -282,7 +285,7 @@ def main():
 
     seed = args.seed if args.seed is not None else random.randrange(1 << 30)
     rng = random.Random(seed)
-    binary = str(Path(args.app) / "Contents/MacOS/Vibe")
+    binary = vibe_env("VIBE_BIN", args.app)
     app = App(binary)
 
     print(f"seed:     {seed}   (replay with --seed {seed})")
