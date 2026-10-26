@@ -118,17 +118,23 @@ test: project check-cloud-scenarios
 
 # The iOS shell's views and controllers (VibeiOSTests), on a simulator, hosted
 # in the Debug app. It has its own derived data and can run beside `make test`.
-# IOS_TEST_DEVICE names the simulator. CI's runner has the default.
+# IOS_TEST_DEVICE names the simulator. CI's runner has the default. When the
+# caller names none and this Mac lacks the default, the run takes the first
+# available iPhone (the vibe-debug skill's `sim-udid.sh --iphone`).
 # ARGS='-only-testing:VibeiOSTests/<Class>' narrows a run.
 IOS_TEST_DEVICE ?= iPhone 17
 IOS_RESULT_BUNDLE ?= build/iOSTestResults.xcresult
 test-ios: project
 	rm -rf $(IOS_RESULT_BUNDLE)
+	device='$(IOS_TEST_DEVICE)'; \
+	if [ '$(origin IOS_TEST_DEVICE)' = file ]; then \
+	    device="$$(.claude/skills/vibe-debug/scripts/sim-udid.sh --iphone "$$device")" || exit 1; \
+	fi; \
 	xcodebuild \
 	    -project Vibe.xcodeproj \
 	    -scheme VibeiOSTests \
 	    -configuration Debug \
-	    -destination 'platform=iOS Simulator,name=$(IOS_TEST_DEVICE)' \
+	    -destination "platform=iOS Simulator,name=$$device" \
 	    -derivedDataPath build/iOSTestDerivedData \
 	    -resultBundlePath $(IOS_RESULT_BUNDLE) \
 	    -collect-test-diagnostics never \
