@@ -11,6 +11,7 @@
 #include <stdatomic.h>
 
 #import "ICloudLinkRules.h"
+#import "ICloudLookupFixtures.h"
 #import "LinkStoreTestCase.h"
 #import "VibeFakeHTTP.h"
 

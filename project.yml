@@ -751,6 +751,15 @@ targets:
       - path: Vibe/Mac/MainWindow/MainPlayerController+Playlist.m
       - path: Vibe/Mac/MainWindow/MainPlayerController+NowPlaying.m
       - path: Vibe/Mac/MainWindow/MainPlayerController+Settings.m
+      # +Window, and the views it builds: the content, the track display and
+      # the pitch panel.
+      - path: Vibe/Mac/MainWindow/MainPlayerController+Window.m
+      - path: Vibe/Mac/MainWindow/MainPlayerContentView.m
+      - path: Vibe/Mac/MainWindow/MainPlayerContentView+Construction.m
+      - path: Vibe/Mac/MainWindow/TrackDisplayController.m
+      - path: vibe-libs/ui/Controls/Mac/PitchControlPanel.m
+      - path: vibe-libs/ui/Controls/Mac/PitchFaderView.m
+      - path: Vibe/Playlist/Mac/PlaylistDropZoneView.m
       - path: vibe-libs/ui/Shortcuts/Mac/ShortcutLayout.m   # +Settings names a shortcut under the layout
       - path: Vibe/Mac/MainWindow/Transport/MainPlayerController+Transport.m
       - path: Vibe/Playlist/Mac/PlaylistController.m
@@ -842,6 +851,9 @@ targets:
           - "$(SRCROOT)/vibe-libs/audio/Decode"
           # The handle's test helpers, which the waveform and render tests share.
           - "$(SRCROOT)/vibe-libs/Tests/Support"
+          # HTTP's HTTPStub, and ShareLinks' iCloud lookup fixtures.
+          - "$(SRCROOT)/vibe-libs/Tests/files/HTTP"
+          - "$(SRCROOT)/vibe-libs/Tests/files/ShareLinks"
           - "$(SRCROOT)/vibe-libs/files/HTTP"
           - "$(SRCROOT)/vibe-libs/files/RemoteFiles"
           - "$(SRCROOT)/vibe-libs/files/ShareLinks"
@@ -958,7 +970,7 @@ targetTemplates:
     templates: [VibeLibsAudioTypes, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav,
                 VibeLibsVorbis]
     sources:
-      - path: vibe-libs/Tests/Support/HTTPStub.m   # the link tests' host, and a link played over it
+      - path: vibe-libs/Tests/files/HTTP/HTTPStub.m   # the link tests' host, and a link played over it
       - path: vibe-libs/files/ShareLinks/VibeFakeHTTP.m     # the link tests' fake web server
       - path: vibe-libs/files/HTTP/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
       - path: Vibe/Playlist/AudioTrack.m

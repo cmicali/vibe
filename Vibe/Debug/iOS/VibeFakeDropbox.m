@@ -19,9 +19,7 @@
 static NSString *const kFakeAccountID = @"dbid:fake";
 static NSString *const kFakeAccountName = @"Fake Dropbox";
 static const NSUInteger kSearchLimit = 50;
-static const uint64_t kPieceBytes = 64 * 1024;
 static const NSUInteger kLogLimit = 200;
-static const NSTimeInterval kStallPollSeconds = 0.1;
 
 // One record per fixture entry: where it is, and its Dropbox path with the
 // disk's case. Keyed by lowercase Dropbox path, which is also the id.
@@ -53,10 +51,6 @@ static NSMutableArray<NSMutableDictionary *> *sFaults;
 // sLock, copied out by statistics.
 static NSMutableArray<NSMutableDictionary *> *sLog;
 static NSUInteger sLogSequence;
-// Pieces of a download are delivered here, never on CFNetwork's protocol
-// thread: a sleep there would queue every other request behind it and hold
-// a cancel until the whole file had gone out.
-static dispatch_queue_t sDeliveryQueue;
 
 static NSArray<NSString *> *VibeFakeDropboxFaultKinds(void) {
     return @[@"stall", @"drop", @"rev-change", @"throttle", @"expired-token", @"tail-fail", @"slow-tail", @"slow-tags", @"rate", @"latency"];
@@ -82,6 +76,10 @@ static NSString *VibeFakeDropboxRefreshRev(VibeFakeDropboxItem *item) {
 
 // The whole fixture, once: a walk of the tree keyed by lowercase path. Under
 // sLock, since it issues revs.
+// TRAP: the walk names each entry relative to the root. A walked absolute
+// path need not spell the root as the caller did: standardizing drops
+// /private from /private/tmp, and a walk through a symlink answers the
+// resolved path. Cutting the root's length off one crashed past its end.
 static NSDictionary<NSString *, VibeFakeDropboxItem *> *VibeFakeDropboxIndex(NSURL *root) {
     NSMutableDictionary<NSString *, VibeFakeDropboxItem *> *items = [NSMutableDictionary dictionary];
     VibeFakeDropboxItem *account = [[VibeFakeDropboxItem alloc] init];
@@ -89,19 +87,19 @@ static NSDictionary<NSString *, VibeFakeDropboxItem *> *VibeFakeDropboxIndex(NSU
     account.path = @"";
     account.folder = YES;
     items[@""] = account;
-    NSString *rootPath = root.path;
-    NSDirectoryEnumerator<NSURL *> *walk = [NSFileManager.defaultManager
-            enumeratorAtURL:root
- includingPropertiesForKeys:@[NSURLIsDirectoryKey]
-                    options:NSDirectoryEnumerationSkipsHiddenFiles
-               errorHandler:nil];
-    for (NSURL *url in walk) {
-        NSNumber *isDirectory = nil;
-        [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
+    NSDirectoryEnumerator<NSString *> *walk = [NSFileManager.defaultManager enumeratorAtPath:root.path];
+    for (NSString *relative in walk) {
+        BOOL folder = [walk.fileAttributes.fileType isEqualToString:NSFileTypeDirectory];
+        if ([relative.lastPathComponent hasPrefix:@"."]) {
+            if (folder) {
+                [walk skipDescendants];
+            }
+            continue;
+        }
         VibeFakeDropboxItem *item = [[VibeFakeDropboxItem alloc] init];
-        item.url = url;
-        item.path = [url.URLByStandardizingPath.path substringFromIndex:rootPath.length];
-        item.folder = isDirectory.boolValue;
+        item.url = [root URLByAppendingPathComponent:relative isDirectory:folder];
+        item.path = [@"/" stringByAppendingString:relative];
+        item.folder = folder;
         if (!item.folder) {
             VibeFakeDropboxRefreshRev(item);
         }
@@ -175,35 +173,43 @@ static VibeFakeDropboxResponse VibeFakeDropboxNotFound(void) {
                                       @"error": @{@".tag": @"path", @"path": @{@".tag": @"not_found"}}});
 }
 
-// files/download's headers as Dropbox sends them, a 206 included: the
-// version's metadata, and a type, since with none the session sniffs the
-// first 512 bytes before handing the client the response.
-static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeaders(NSDictionary *metadata,
-                                                                                 uint64_t length) {
-    return [@{@"Dropbox-API-Result": VibeDropboxAPIArgHeader(metadata) ?: @"{}",
-              @"Content-Type": @"application/octet-stream",
-              @"Content-Length": @(length).stringValue} mutableCopy];
+// The engine's answer for a response sent whole and at once.
+static VibeFakeHTTPAnswer *VibeFakeDropboxAnswer(NSURLRequest *request, VibeFakeDropboxResponse response) {
+    NSData *body = response.body ?: [NSData data];
+    VibeFakeHTTPAnswer *answer = [[VibeFakeHTTPAnswer alloc] init];
+    answer.response = [[NSHTTPURLResponse alloc] initWithURL:request.URL statusCode:response.status
+                                                 HTTPVersion:@"HTTP/1.1" headerFields:response.headers];
+    answer.length = body.length;
+    answer.piece = MAX(body.length, (NSUInteger)1);
+    answer.bytes = ^NSData *(uint64_t offset, uint64_t count) {
+        return [body subdataWithRange:NSMakeRange((NSUInteger)offset, (NSUInteger)count)];
+    };
+    return answer;
 }
 
-@interface VibeFakeDropboxProtocol : NSURLProtocol
-@property (atomic) BOOL cancelled;
-// This request's log line; mutated under sLock.
-@property (nonatomic, nullable) NSMutableDictionary *entry;
+// A download's log line, as its answer proceeds. A cancel marks only a line
+// still running. Under sLock.
+static void VibeFakeDropboxNote(NSMutableDictionary *entry, NSString *outcome, uint64_t delivered) {
+    NSString *was = entry[@"outcome"];
+    if ([outcome isEqualToString:@"cancelled"]) {
+        if ([was isEqualToString:@"running"] || [was isEqualToString:@"stalled"]) {
+            entry[@"outcome"] = outcome;
+        }
+        return;
+    }
+    entry[@"delivered"] = @(delivered);
+    entry[@"outcome"] = outcome;
+}
+
+// vibe-libs' engine (VibeFakeHTTPProtocol.h) delivers each answer: the
+// pieces, the hold, the lost connection and the pace. This class answers as
+// the account.
+@interface VibeFakeDropboxProtocol : VibeFakeHTTPProtocol
 @end
 
 @implementation VibeFakeDropboxProtocol
 
-// On sessions the client alone owns, so every request is Dropbox's.
-+ (BOOL)canInitWithRequest:(NSURLRequest *)request {
-    return YES;
-}
-
-+ (NSURLRequest *)canonicalRequestForRequest:(NSURLRequest *)request {
-    return request;
-}
-
-- (void)startLoading {
-    NSURLRequest *request = self.request;
+- (VibeFakeHTTPAnswer *)answerForRequest:(NSURLRequest *)request {
     NSString *endpoint = request.URL.path;
     os_unfair_lock_lock(&sLock);
     NSDictionary<NSString *, VibeFakeDropboxItem *> *items = sItems;
@@ -211,15 +217,14 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
     os_unfair_lock_unlock(&sLock);
 
     if ([endpoint isEqualToString:@"/2/files/download"]) {
-        [self serveDownloadFrom:items];
-        return;
+        return [self answerDownload:request items:items];
     }
     NSData *body = VibeFakeHTTPBodyOfRequest(request);
     NSDictionary *json = body ? [NSJSONSerialization JSONObjectWithData:body options:0 error:NULL] : nil;
     if (![json isKindOfClass:NSDictionary.class]) {
         json = nil;
     }
-    [self finishWith:[self respondTo:endpoint json:json items:items]];
+    return VibeFakeDropboxAnswer(request, [self respondTo:endpoint json:json items:items]);
 }
 
 - (VibeFakeDropboxResponse)respondTo:(NSString *)endpoint
@@ -275,25 +280,25 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
 
 // files/download: the path, id or rev from the Dropbox-API-Arg header. Four
 // kinds by their Range: none is a whole download and an open one
-// (`bytes=N-`) the client's resend, both paced off this thread, each piece
-// read as it is sent; a closed one is a tag read, or the tail window when it
-// is the file's last VibeAudioFileTailWindowBytes, answered at once. The
-// request-time faults land here, the delivery-time ones in deliverPieceOf:.
-- (void)serveDownloadFrom:(NSDictionary<NSString *, VibeFakeDropboxItem *> *)items {
-    NSString *argument = [self.request valueForHTTPHeaderField:@"Dropbox-API-Arg"];
+// (`bytes=N-`) the client's resend, both paced; a closed one is a tag read,
+// or the tail window when it is the file's last VibeAudioFileTailWindowBytes,
+// answered at once. A refusal answers at once too. The request-time faults
+// land here, the delivery-time ones in pace:.
+- (VibeFakeHTTPAnswer *)answerDownload:(NSURLRequest *)request
+                                 items:(NSDictionary<NSString *, VibeFakeDropboxItem *> *)items {
+    NSString *argument = [request valueForHTTPHeaderField:@"Dropbox-API-Arg"];
     NSDictionary *arg = argument
             ? [NSJSONSerialization JSONObjectWithData:[argument dataUsingEncoding:NSUTF8StringEncoding]
                                               options:0 error:NULL]
             : nil;
     NSString *path = [arg[@"path"] isKindOfClass:NSString.class] ? arg[@"path"] : @"";
-    NSString *range = [self.request valueForHTTPHeaderField:@"Range"];
+    NSString *range = [request valueForHTTPHeaderField:@"Range"];
     unsigned long long first = 0, last = ULLONG_MAX;
     if (range) {
         sscanf(range.UTF8String, "bytes=%llu-%llu", &first, &last);
     }
     BOOL closed = range && ![range hasSuffix:@"-"];
     BOOL byRev = [path hasPrefix:@"rev:"];
-    BOOL download = !closed;
 
     os_unfair_lock_lock(&sLock);
     VibeFakeDropboxItem *item = byRev ? sRevs[[path substringFromIndex:4]] : VibeFakeDropboxLookup(items, path);
@@ -316,10 +321,10 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
     if (sLog.count > kLogLimit) {
         [sLog removeObjectAtIndex:0];
     }
-    self.entry = entry;
     VibeFakeDropboxResponse refusal = {0, nil, nil};
-    NSTimeInterval delay = 0;
-    if (download) {
+    // A server's time to first byte. A closed range waits for its slow fault too.
+    NSTimeInterval latency = [VibeFakeDropboxFault(@"latency", name)[@"seconds"] doubleValue];
+    if (!closed) {
         NSMutableDictionary *fault = VibeFakeDropboxFault(@"throttle", name);
         if (fault) {
             [sFaults removeObject:fault];
@@ -341,183 +346,107 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
             refusal = (VibeFakeDropboxResponse){500, @{@"Content-Type": @"text/plain"},
                                                 [@"Internal Server Error" dataUsingEncoding:NSUTF8StringEncoding]};
         }
-        delay = [VibeFakeDropboxFault(@"slow-tail", name)[@"seconds"] doubleValue];
+        latency += [VibeFakeDropboxFault(@"slow-tail", name)[@"seconds"] doubleValue];
     }
     else {
-        delay = [VibeFakeDropboxFault(@"slow-tags", name)[@"seconds"] doubleValue];
+        latency += [VibeFakeDropboxFault(@"slow-tags", name)[@"seconds"] doubleValue];
     }
-    NSTimeInterval latency = [VibeFakeDropboxFault(@"latency", name)[@"seconds"] doubleValue];
-    delay += latency;
     NSTimeInterval transferSeconds = sTransferSeconds;
     os_unfair_lock_unlock(&sLock);
 
     NSFileHandle *file = item && !item.folder ? [NSFileHandle fileHandleForReadingFromURL:item.url error:NULL] : nil;
-    if (!file) {
-        [self finishWith:VibeFakeDropboxNotFound()];
-        return;
-    }
-    if (refusal.status) {
-        [self finishWith:refusal];
-        return;
-    }
-    NSDictionary *metadata = VibeFakeDropboxEntry(item, rev);
+    NSDictionary *metadata = file ? VibeFakeDropboxEntry(item, rev) : nil;
     uint64_t length = [metadata[@"size"] unsignedLongLongValue];
-    if (range && first >= length) {
-        [self finishWith:(VibeFakeDropboxResponse){416, @{@"Content-Range": [NSString stringWithFormat:@"bytes */%llu", length]}, nil}];
-        return;
+    if (!file) {
+        refusal = VibeFakeDropboxNotFound();
     }
-    if (closed) {
-        last = MIN(last, length - 1);
-        NSData *slice = [NSData data];
-        if (first <= last && [file seekToOffset:first error:NULL]) {
-            slice = [file readDataUpToLength:(NSUInteger)(last - first + 1) error:NULL] ?: slice;
+    else if (!refusal.status && range && first >= length) {
+        refusal = (VibeFakeDropboxResponse){416, @{@"Content-Range": [NSString stringWithFormat:@"bytes */%llu", length]}, nil};
+    }
+    VibeFakeHTTPAnswer *answer = nil;
+    if (refusal.status) {
+        answer = VibeFakeDropboxAnswer(request, refusal);
+    }
+    else {
+        // files/download's headers as Dropbox sends them, a 206 included: the
+        // version's metadata, and a type, since with none the session sniffs
+        // the first 512 bytes before handing the client the response.
+        NSMutableDictionary<NSString *, NSString *> *headers =
+                [@{@"Dropbox-API-Result": VibeDropboxAPIArgHeader(metadata) ?: @"{}",
+                   @"Content-Type": @"application/octet-stream"} mutableCopy];
+        uint64_t offset = 0, count = 0;
+        NSInteger status = VibeFakeHTTPRangeStatus(range, length, headers, &offset, &count);
+        answer = [[VibeFakeHTTPAnswer alloc] init];
+        answer.response = [[NSHTTPURLResponse alloc] initWithURL:request.URL statusCode:status
+                                                     HTTPVersion:@"HTTP/1.1" headerFields:headers];
+        answer.length = count;
+        answer.latency = latency;
+        answer.bytes = ^NSData *(uint64_t at, uint64_t bytes) {
+            return [file seekToOffset:offset + at error:NULL] ? [file readDataUpToLength:(NSUInteger)bytes error:NULL]
+                                                              : nil;
+        };
+        if (closed) {
+            answer.piece = MAX(count, (uint64_t)1);
         }
-        NSMutableDictionary *headers = VibeFakeDropboxContentHeaders(metadata, slice.length);
-        headers[@"Content-Range"] = [NSString stringWithFormat:@"bytes %llu-%llu/%llu", first, last, length];
-        VibeFakeDropboxResponse answer = {206, headers, slice};
-        if (delay <= 0) {
-            [self finishWith:answer];
-            return;
+        else {
+            [self pace:answer item:item entry:entry first:offset size:length transferSeconds:transferSeconds];
         }
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(delay * NSEC_PER_SEC)), sDeliveryQueue, ^{
-            if (!self.cancelled) {
-                [self finishWith:answer];
-            }
-        });
-        return;
     }
-    if (first > 0 && ![file seekToOffset:first error:NULL]) {
-        [self finishWith:VibeFakeDropboxNotFound()];
-        return;
-    }
-    NSMutableDictionary *headers = VibeFakeDropboxContentHeaders(metadata, length - first);
-    if (range) {
-        headers[@"Content-Range"] = [NSString stringWithFormat:@"bytes %llu-%llu/%llu", first, length - 1, length];
-    }
-    NSInteger status = range ? 206 : 200;
     os_unfair_lock_lock(&sLock);
-    entry[@"status"] = @(status);
-    entry[@"size"] = @(length);
+    entry[@"status"] = @(answer.response.statusCode);
+    if (!refusal.status && !closed) {
+        entry[@"size"] = @(length);
+    }
     os_unfair_lock_unlock(&sLock);
-    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
-                                                              statusCode:status
-                                                             HTTPVersion:@"HTTP/1.1"
-                                                            headerFields:headers];
-    NSTimeInterval interval = transferSeconds > 0 && length > 0 ? transferSeconds * kPieceBytes / length : 0;
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(latency * NSEC_PER_SEC)), sDeliveryQueue, ^{
-        if (self.cancelled) {
-            return;
-        }
-        [self.client URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed];
-        [self deliverPieceOf:file item:item at:first from:first size:length every:interval after:interval];
-    });
+    if (!answer.progress) {
+        answer.progress = ^(NSString *outcome, uint64_t delivered) {
+            os_unfair_lock_lock(&sLock);
+            VibeFakeDropboxNote(entry, [outcome isEqualToString:@"complete"] ? @"answered" : outcome, delivered);
+            os_unfair_lock_unlock(&sLock);
+        };
+    }
+    return answer;
 }
 
-// One piece per step, so the bytes written — the progress the loading bar
-// reads — grow as a real transfer's do, and a cancel lands between pieces.
-// The faults are read at every step, so one set mid-transfer applies to it.
-- (void)deliverPieceOf:(NSFileHandle *)file
-                  item:(VibeFakeDropboxItem *)item
-                    at:(uint64_t)offset
-                  from:(uint64_t)from
-                  size:(uint64_t)length
-                 every:(NSTimeInterval)interval
-                 after:(NSTimeInterval)wait {
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(wait * NSEC_PER_SEC)), sDeliveryQueue, ^{
-        if (self.cancelled) {
-            return;
-        }
-        NSString *name = item.url.lastPathComponent;
-        uint64_t piece = MIN(kPieceBytes, length - offset);
-        NSTimeInterval next = interval;
+// A download's body, paced in pieces so the whole file takes about
+// transferSeconds. The bytes written, which the loading bar reads, grow as a
+// real transfer's do. The faults are read before every piece, so one set
+// mid-transfer applies to it.
+- (void)pace:(VibeFakeHTTPAnswer *)answer
+             item:(VibeFakeDropboxItem *)item
+            entry:(NSMutableDictionary *)entry
+            first:(uint64_t)first
+             size:(uint64_t)size
+  transferSeconds:(NSTimeInterval)transferSeconds {
+    NSString *name = item.url.lastPathComponent;
+    NSTimeInterval paced = transferSeconds > 0 && size > 0 ? transferSeconds * kVibeFakeHTTPPieceBytes / size : 0;
+    answer.interval = paced;
+    // The fault that cuts this body, should the next piece reach it.
+    __block NSMutableDictionary *cut = nil;
+    answer.beforePiece = ^(VibeFakeHTTPAnswer *body, uint64_t delivered) {
         os_unfair_lock_lock(&sLock);
         NSMutableDictionary *stall = VibeFakeDropboxFault(@"stall", name);
-        BOOL stalled = stall && offset >= [stall[@"after"] unsignedLongLongValue];
-        NSMutableDictionary *cut = stalled ? nil
-                : (VibeFakeDropboxFault(@"drop", name) ?: VibeFakeDropboxFault(@"rev-change", name));
+        uint64_t stallAt = [stall[@"after"] unsignedLongLongValue];
+        body.holdAt = stall ? (stallAt > first ? stallAt - first : 0) : UINT64_MAX;
+        BOOL stalled = stall && delivered >= body.holdAt;
+        cut = stalled ? nil : (VibeFakeDropboxFault(@"drop", name) ?: VibeFakeDropboxFault(@"rev-change", name));
         uint64_t cutAt = [cut[@"after"] unsignedLongLongValue];
-        if (cut && offset + piece < cutAt) {
-            cut = nil;
-        }
-        if (cut) {
-            piece = cutAt > offset ? cutAt - offset : 0;
+        body.cutAt = cut ? (cutAt > first ? cutAt - first : 0) : UINT64_MAX;
+        uint64_t rate = [VibeFakeDropboxFault(@"rate", name)[@"rate"] unsignedLongLongValue];
+        body.interval = rate > 0 ? (double)kVibeFakeHTTPPieceBytes / rate : paced;
+        os_unfair_lock_unlock(&sLock);
+    };
+    answer.progress = ^(NSString *outcome, uint64_t delivered) {
+        os_unfair_lock_lock(&sLock);
+        if ([outcome isEqualToString:@"dropped"] && cut) {
             [sFaults removeObject:cut];
             if ([cut[@"kind"] isEqualToString:@"rev-change"]) {
                 VibeFakeDropboxIssueRev(item);
             }
         }
-        else if (!stalled && stall) {
-            // A stall not reached yet stops this piece at its offset.
-            piece = MIN(piece, [stall[@"after"] unsignedLongLongValue] - offset);
-        }
-        uint64_t rate = [VibeFakeDropboxFault(@"rate", name)[@"rate"] unsignedLongLongValue];
-        if (rate > 0) {
-            next = (double)kPieceBytes / rate;
-        }
-        self.entry[@"outcome"] = stalled ? @"stalled" : @"running";
+        VibeFakeDropboxNote(entry, outcome, delivered);
         os_unfair_lock_unlock(&sLock);
-        if (stalled) {
-            [self deliverPieceOf:file item:item at:offset from:from size:length every:interval after:kStallPollSeconds];
-            return;
-        }
-        NSData *bytes = piece > 0 ? [file readDataUpToLength:(NSUInteger)piece error:NULL] : [NSData data];
-        if (bytes.length > 0) {
-            [self.client URLProtocol:self didLoadData:bytes];
-        }
-        uint64_t reached = offset + bytes.length;
-        BOOL complete = !cut && (reached >= length || (piece > 0 && bytes.length == 0));
-        os_unfair_lock_lock(&sLock);
-        self.entry[@"delivered"] = @(reached - from);
-        if (cut || complete) {
-            self.entry[@"outcome"] = cut ? @"dropped" : @"complete";
-        }
-        os_unfair_lock_unlock(&sLock);
-        if (cut) {
-            // TRAP: a failed load discards every byte the session has not yet
-            // handed its delegate. Under load that is many pieces, so the
-            // client's resend can start well below `delivered`.
-            [self.client URLProtocol:self didFailWithError:[NSError errorWithDomain:NSURLErrorDomain
-                                                                               code:NSURLErrorNetworkConnectionLost
-                                                                           userInfo:nil]];
-            return;
-        }
-        if (complete) {
-            [self.client URLProtocolDidFinishLoading:self];
-            return;
-        }
-        [self deliverPieceOf:file item:item at:reached from:from size:length every:interval after:next];
-    });
-}
-
-- (void)finishWith:(VibeFakeDropboxResponse)answer {
-    os_unfair_lock_lock(&sLock);
-    if (self.entry) {
-        self.entry[@"status"] = @(answer.status);
-        self.entry[@"delivered"] = @(answer.body.length);
-        self.entry[@"outcome"] = @"answered";
-    }
-    os_unfair_lock_unlock(&sLock);
-    NSHTTPURLResponse *response = [[NSHTTPURLResponse alloc] initWithURL:self.request.URL
-                                                              statusCode:answer.status
-                                                             HTTPVersion:@"HTTP/1.1"
-                                                            headerFields:answer.headers];
-    [self.client URLProtocol:self didReceiveResponse:response cacheStoragePolicy:NSURLCacheStorageNotAllowed];
-    if (answer.body.length > 0) {
-        [self.client URLProtocol:self didLoadData:answer.body];
-    }
-    [self.client URLProtocolDidFinishLoading:self];
-}
-
-// Also sent after a load that finished, so only a line still running was
-// cancelled.
-- (void)stopLoading {
-    self.cancelled = YES;
-    os_unfair_lock_lock(&sLock);
-    NSString *outcome = self.entry[@"outcome"];
-    if ([outcome isEqualToString:@"running"] || [outcome isEqualToString:@"stalled"]) {
-        self.entry[@"outcome"] = @"cancelled";
-    }
-    os_unfair_lock_unlock(&sLock);
+    };
 }
 
 @end
@@ -528,10 +457,11 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
              transferSeconds:(NSTimeInterval)transferSeconds
                       client:(DropboxClient *)client {
     os_unfair_lock_lock(&sLock);
-    // TRAP: never rebuild the sessions under transfers in flight. The client
-    // keys a download by its task's identifier, which counts from 1 in every
-    // session, so a new session's download takes an old one's entry and the
-    // old one's callbacks land on it.
+    // TRAP: an install over a linked fake never links the account again. A
+    // link is an account change. It clears a playlist that reaches into the
+    // mirror, and it moves the account generation under the transfers in
+    // flight. A session swap alone is safe: the old sessions finish their
+    // tasks, and the client keys a transfer by its task object.
     BOOL installed = sItems != nil;
     sRevs = [NSMutableDictionary dictionary];
     sItems = VibeFakeDropboxIndex(directory.URLByStandardizingPath);
@@ -541,16 +471,11 @@ static NSMutableDictionary<NSString *, NSString *> *VibeFakeDropboxContentHeader
     sDownloadKinds = [NSMutableDictionary dictionary];
     sFaults = [NSMutableArray array];
     sLog = [NSMutableArray array];
-    if (!sDeliveryQueue) {
-        sDeliveryQueue = dispatch_queue_create("com.commonwealthrecordings.Vibe.fake-dropbox", DISPATCH_QUEUE_SERIAL);
-    }
     os_unfair_lock_unlock(&sLock);
     if (installed && client.isLinked) {
         return;
     }
-    NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.ephemeralSessionConfiguration;
-    configuration.protocolClasses = @[VibeFakeDropboxProtocol.class];
-    [client useSessionConfiguration:configuration];
+    [client useSessionConfiguration:VibeFakeDropboxProtocol.sessionConfiguration];
     [client adoptRefreshToken:@"fake-refresh" accountID:kFakeAccountID];
 }
 

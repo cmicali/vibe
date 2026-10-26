@@ -3,9 +3,10 @@
 //
 //  The mac shell's collaborators at the boundary the host-less suite controls.
 //  MainPlayerController is built through its injected constructor with these
-//  in place of the audio player and the metadata scan. They are duck-typed and
-//  cast to the property types, as AudioTrackMetadata's fake is. A selector
-//  that a newly tested path sends and the fake lacks fails loudly.
+//  in place of the audio player, the metadata scan and the window. The player
+//  and the scan are duck-typed and cast to the property types, as
+//  AudioTrackMetadata's fake is. A selector that a newly tested path sends
+//  and the fake lacks fails loudly.
 //
 
 #import <AppKit/AppKit.h>
@@ -30,6 +31,7 @@ typedef NS_ENUM(NSInteger, VibeShellTestPlayerState) {
 @property (nonatomic) BOOL outputAudioActive;
 @property (nonatomic) BOOL levelsEnabled;
 @property (nonatomic) VibeBitPerfectReport bitPerfectReport;
+@property (nonatomic) float maxPitch;
 @property (nonatomic, strong, readonly) NSMutableArray<NSString *> *calls;
 // The last prefetchTrack: argument, kept as the exact object.
 @property (nonatomic, strong, nullable, readonly) AudioTrack *parkedTrack;
@@ -43,10 +45,14 @@ typedef NS_ENUM(NSInteger, VibeShellTestPlayerState) {
 @property (nonatomic, copy, readonly) NSArray<AudioTrack *> *neighborhood;
 @end
 
-// The OS boundary +Window owns: occlusion. +Window is not compiled into the
-// suite, so its one method a tested path reaches is answered here.
-@interface MainPlayerController (ShellTestWindow)
-@property (class, nonatomic) BOOL testWindowVisible;
+// The window at the boundary +Window reads: the OS's occlusion, and the pitch
+// panel's shown flag, which MainWindow answers in the app. Borderless and
+// deferred, so it never shows. Its content view is layer-backed, as
+// MainWindow's is.
+@interface VibeShellTestWindow : NSWindow
+@property (nonatomic) BOOL occluded;
++ (instancetype)windowWithSize:(NSSize)size;
+- (BOOL)isPitchPanelShown;
 @end
 
 NS_ASSUME_NONNULL_END

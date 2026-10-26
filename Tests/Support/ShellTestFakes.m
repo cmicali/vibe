@@ -164,20 +164,24 @@ static NSString *NameOf(AudioTrack *_Nullable track) {
 
 @end
 
-static BOOL gTestWindowVisible = YES;
+@implementation VibeShellTestWindow
 
-@implementation MainPlayerController (ShellTestWindow)
-
-+ (BOOL)testWindowVisible {
-    return gTestWindowVisible;
++ (instancetype)windowWithSize:(NSSize)size {
+    VibeShellTestWindow *window = [[self alloc] initWithContentRect:NSMakeRect(0, 0, size.width, size.height)
+                                                          styleMask:NSWindowStyleMaskBorderless
+                                                            backing:NSBackingStoreBuffered
+                                                              defer:YES];
+    window.releasedWhenClosed = NO;
+    window.contentView.wantsLayer = YES;
+    return window;
 }
 
-+ (void)setTestWindowVisible:(BOOL)visible {
-    gTestWindowVisible = visible;
+- (NSWindowOcclusionState)occlusionState {
+    return self.occluded ? 0 : NSWindowOcclusionStateVisible;
 }
 
-- (BOOL)isWindowVisible {
-    return gTestWindowVisible;
+- (BOOL)isPitchPanelShown {
+    return NO;
 }
 
 @end
