@@ -247,7 +247,9 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             backoff = MIN(backoff * 2, 20 * 1000);
         }
         [fileManager removeItemAtPath:commandPath error:nil];
-        fprintf(stderr, "vibe: no response after %.0fs — is a debug build of Vibe running?\n", timeout);
+        // Tenths for a wait that is not whole, or 0.5 s prints as 0 s.
+        int decimals = timeout == floor(timeout) ? 0 : 1;
+        fprintf(stderr, "vibe: no response after %.*fs — is a debug build of Vibe running?\n", decimals, timeout);
         return 1;
     }
 }

@@ -10,8 +10,9 @@
 #   --all sends argument-less verbs together, one drain answering them all,
 #   and prints their replies as one JSON array in order: a poll of six dumps
 #   costs one round trip, not six.
-# Timeout: VIBE_DEBUG_TIMEOUT seconds when set; otherwise the verb's own wait
-# in the command tables (Vibe/Debug), when longer than 10; else 10.
+# Timeout: VIBE_DEBUG_TIMEOUT seconds when set, a fraction allowed; otherwise
+# the verb's own wait in the command tables (Vibe/Debug), when longer than 10;
+# else 10.
 # VIBE_APP_TMP: the app container's tmp, resolved once by a caller that sends
 # many commands (`simctl get_app_container` is most of a round trip). Valid
 # only until the next install, which moves the container.
@@ -77,12 +78,15 @@ else
     ID="$(uuidgen)"; IDS+=("$ID"); send "$ID" "$@"
 fi
 
-DEADLINE=$(( $(date +%s) + TIMEOUT ))
+# Milliseconds since the epoch. date +%s counts whole seconds. With it, a 1 s
+# wait gave up after 0.2 to 0.9 s. bash 3.2 has no $EPOCHREALTIME.
+now_ms() { perl -MTime::HiRes=time -e 'printf "%d", time * 1000'; }
+DEADLINE=$(( $(now_ms) + $(perl -e 'printf "%d", $ARGV[0] * 1000' "$TIMEOUT") ))
 REPLIES=()
 STATUS=0
 for ID in "${IDS[@]}"; do
     RESPONSE="$TMP/$BUNDLE_ID.debug-response-$ID.txt"
-    while [ ! -f "$RESPONSE" ] && [ "$(date +%s)" -lt "$DEADLINE" ]; do
+    while [ ! -f "$RESPONSE" ] && [ "$(now_ms)" -lt "$DEADLINE" ]; do
         sleep 0.02
     done
     if [ -f "$RESPONSE" ]; then
