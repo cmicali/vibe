@@ -61,7 +61,7 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 ## Replacement, append and play
 
-**`loadTracks:selectingIndex:` replaces the list and lands the cursor. It opens nothing.** The shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one path. A replacement calls `deselectAll` before `reloadData`. `reloadData` can keep the selection by row index, which would land on an unrelated row. `append:` inserts rows without animation and touches neither playback nor `currentIndex`.
+**`loadTracks:selectingIndex:` replaces the list and lands the cursor. It opens nothing.** The shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one path. A replacement calls `deselectAll` before `reloadAllTracks`. A row reload keeps the selection by row index. It would land on an unrelated row. `append:` inserts rows without animation and touches neither playback nor `currentIndex`.
 
 **Row starts go through `playStartPaused:`.** `playWillStartHandler` fires after submission for parked and ordinary starts. The shell's `replayTrack:intent:` submits directly to `AudioPlayer` to preserve position (`Mac/MainWindow/AGENTS.md`).
 

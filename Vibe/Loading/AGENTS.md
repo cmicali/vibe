@@ -15,4 +15,4 @@ The player's side of an open is vibe-libs' `audio/Player/AGENTS.md`'s: the deadl
 
 **Each placeholder store is a remote backend.** It installs itself at launch, before any open, with `installAsRemoteBackend` (vibe-libs' `files/RemoteFiles/AGENTS.md`). The mac installs the Links store. iOS installs the Dropbox mirror and the Links store (`iOS/Dropbox/AGENTS.md`). The piece sends each remote placeholder to the backend of the longest root holding it.
 
-**The fake cloud is installed by the debug channel** (`Debug/AGENTS.md`). The cloud-loading scenario suite and its oracle tests drive it there (the `vibe-stress` skill). They are Vibe's harness, so they stay here.
+**The fake cloud is installed by the debug channel** (`Debug/AGENTS.md`). The cloud-loading scenario suite and its oracle tests drive it there (the `vibe-stress` skill). They are Vibe's harness, so they stay in Vibe.
