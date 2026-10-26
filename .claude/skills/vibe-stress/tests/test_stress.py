@@ -1,6 +1,8 @@
+import argparse
 import contextlib
 import io
 import json
+import os
 import random
 import sys
 import tempfile
@@ -368,6 +370,25 @@ class PurgatoryTests(unittest.TestCase):
         self.assertIsNone(stress.purgatory_note("playlist", "resting views", unread))
 
 
+class CrashReportTests(unittest.TestCase):
+    def test_only_the_named_process_reports_since_the_run(self):
+        names = ("Vibe-2026-10-26-131617.ips", "Vibe-ab12-2026-10-26-131617.ips",
+                 "Vibe-2026-2026-10-26-131617.ips", "Vibe_2026-10-26-131617_host.cpu_resource.diag",
+                 "Vibe-ab12-2025-01-01-000000.ips")
+        with tempfile.TemporaryDirectory() as directory:
+            reports = Path(directory)
+            for name in names:
+                (reports / name).write_text("")
+            old = reports / names[-1]
+            os.utime(old, (old.stat().st_mtime - 3600,) * 2)
+            with mock.patch.object(stress, "CRASH_DIR", reports):
+                found = {product: sorted(p.name for p in stress.fresh_crash_reports(
+                             old.stat().st_mtime + 1, product))
+                         for product in ("Vibe", "Vibe-ab12", "Vibe-2026")}
+        self.assertEqual(found, {"Vibe": [names[0], names[3]], "Vibe-ab12": [names[1]],
+                                 "Vibe-2026": [names[2]]})
+
+
 class TsanReplayTests(unittest.TestCase):
     REPORT = """==================
 WARNING: ThreadSanitizer: data race (pid=4242)
@@ -393,17 +414,22 @@ WARNING: ThreadSanitizer: heap-use-after-free (pid=4242)
         self.assertTrue(reports[0][1][0].startswith("#0 -[AudioPlayer setPosition:]"))
         self.assertEqual(reports[1][1], ["#0 VibeLevelMeterRender (Vibe:arm64+0x3000)"])
 
-    def test_options_follow_the_sandbox_rules(self):
-        self.assertIn(f"log_path={stress.TSAN_LOG_DIR}/tsan", stress.TSAN_OPTIONS)
-        self.assertIn("external_symbolizer_path=:", stress.TSAN_OPTIONS)
-        self.assertNotIn("suppressions", stress.TSAN_OPTIONS)
+    def test_options_follow_the_sandbox_rules_in_the_apps_own_container(self):
+        container = "/Users/u/Library/Containers/com.commonwealthrecordings.Vibe-ab12"
+        with mock.patch.object(stress, "vibe_env", return_value=container) as env:
+            options, logs = stress.tsan_options(Path("/apps/Vibe-ab12.app"))
+        env.assert_called_once_with("VIBE_CONTAINER", Path("/apps/Vibe-ab12.app"))
+        self.assertEqual(logs, Path(container) / "Data/tmp")
+        self.assertIn(f"log_path={logs}/tsan:", options)
+        self.assertIn("external_symbolizer_path=:", options)
+        self.assertNotIn("suppressions", options)
 
     def run_tsan(self, replay, logs):
         args = mock.Mock(app="/apps/Vibe-tsan.app", tsan_replay="run.ndjson")
         with mock.patch.object(stress.subprocess, "run") as process, \
                 mock.patch.object(stress, "replay", side_effect=replay), \
                 mock.patch.object(stress, "app_pid", return_value=None), \
-                mock.patch.object(stress, "TSAN_LOG_DIR", logs), \
+                mock.patch.object(stress, "tsan_options", return_value=("options", logs)), \
                 contextlib.redirect_stdout(io.StringIO()):
             try:
                 return stress.tsan_replay(args), process
@@ -764,6 +790,81 @@ class IosRestorerTests(unittest.TestCase):
         errors = stress.ios_restore(ios_command_stub(replies, sent), self.before(), 1)
         self.assertTrue(errors)
         self.assertEqual(sent[-1], ["recents", "restore"])
+
+
+class LaunchedIosApp:
+    """The simulator app as launch-ios.sh can leave it: row 0 of the corpus
+    playing. Answers ios_command. An open lands on the third dump after it,
+    restarting row 0."""
+
+    SETTERS = {"set_repeat": "repeatMode", "set_shuffle": "shuffleEnabled",
+               "set_pause_at_track_end": "pauseAtTrackEnd"}
+
+    def __init__(self, corpus):
+        self.corpus, self.playing, self.position, self.landing = corpus, True, 30.0, None
+        self.settings = {"repeatMode": "off", "shuffleEnabled": False, "pauseAtTrackEnd": False,
+                         "folderOpenSort": "name", "crossfadeMilliseconds": 0,
+                         "analyzeBPM": True, "audioFXEnabled": True}
+
+    def __call__(self, env, journal, argv, phase="run", op=None):
+        verb = argv[0]
+        if verb == "play_pause":
+            self.playing = not self.playing
+        elif verb == "open":
+            self.landing = 3
+        elif verb in self.SETTERS:
+            self.settings[self.SETTERS[verb]] = argv[1] if verb == "set_repeat" else argv[1] == "on"
+        elif verb == "dump_state":
+            if self.landing is not None:
+                self.landing -= 1
+                if not self.landing:
+                    self.landing, self.playing, self.position = None, True, 0.0
+            self.position += 0.5 if self.playing else 0
+            return {"player": {"state": "playing" if self.playing else "paused", "position": self.position,
+                               "duration": 120, "noAudioHw": True},
+                    "currentTrack": {"url": str(self.corpus / "a.wav")},
+                    "playlist": {"files": ["a.wav", "b.wav"], "currentIndex": 0, "count": 2},
+                    "settings": dict(self.settings), "fx": {"stages": {}},
+                    "ui": {"fxPadEngaged": False, "selectedTab": "playlist"}}
+        elif verb == "dump_audio_path":
+            return {"stages": [{"stage": "output", "idle": not self.playing, "running": self.playing}]}
+        return {"dump_favorites": {"favorites": []}, "dump_dropbox": {"fake": False},
+                "recents": {"items": []}}.get(verb, {"ok": True})
+
+
+class IosSetupTests(unittest.TestCase):
+    def test_a_row_the_launch_left_playing_does_not_fail_the_setup(self):
+        uuid = "00000000-0000-0000-0000-00000000C0DE"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data, app = root / "data", root / "Vibe.app"
+            corpus = data / "Documents" / "Music"
+            corpus.mkdir(parents=True)
+            app.mkdir()
+            for path in (app / "Vibe", corpus / "a.wav", corpus / "b.wav"):
+                path.write_bytes(b"")
+
+            def simctl(argv, **_):
+                if argv[:3] == ["xcrun", "simctl", "list"]:
+                    return json.dumps({"devices": {"iOS": [{"udid": uuid, "state": "Booted"}]}})
+                if argv[:3] == ["xcrun", "simctl", "get_app_container"]:
+                    return str(data if argv[-1] == "data" else app)
+                return f"4242 {app / 'Vibe'}\n"
+
+            args = argparse.Namespace(replay=None, ios=uuid, corpus=str(corpus), app=None, seed=1,
+                                      ios_output="pump", isolated_host_audio=False, iterations=0,
+                                      batch=25, ios_rounds=0, duration=None, ios_idle_timeout=1,
+                                      ios_progress_timeout=1)
+            with mock.patch.object(stress.subprocess, "check_output", side_effect=simctl), \
+                    mock.patch.object(stress, "ios_command", side_effect=LaunchedIosApp(corpus)), \
+                    mock.patch.object(stress, "DEFAULT_OUTPUT_DIR", root / "out"), \
+                    mock.patch.object(stress, "CRASH_DIR", root / "reports"), \
+                    mock.patch.object(stress.time, "sleep"), \
+                    mock.patch("tempfile.gettempdir", return_value=str(root)), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                result = stress.run_ios(args)
+            outcome = json.loads(next((root / "out").glob("ios-*/result.json")).read_text())
+        self.assertEqual((result, outcome["failure"]), (0, None))
 
 
 class IosDeadOpTests(unittest.TestCase):

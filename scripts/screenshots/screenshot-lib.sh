@@ -57,15 +57,15 @@ start_backdrop() {
 }
 
 stop_backdrop() {
-    if [ -n "$BACKDROP_PID" ]; then
-        kill "$BACKDROP_PID" 2>/dev/null || true
-        # Reaped, or bash prints "Terminated: 15" mid-run.
-        wait "$BACKDROP_PID" 2>/dev/null || true
-        BACKDROP_PID=""
-    fi
-    # `swift file.swift` runs the script in a child, which outlives killing
-    # the driver and keeps the full-screen window up, so sweep by name too.
-    pkill -f 'backdrop\.swift' 2>/dev/null || true
+    [ -n "$BACKDROP_PID" ] || return 0
+    # Some toolchains run `swift file.swift`'s script in a child. The child
+    # outlives the driver and keeps the full-screen window up. It is read
+    # before the driver dies, since that death reparents it. Never kill by
+    # name: that takes another session's backdrop too.
+    kill $(pgrep -P "$BACKDROP_PID" 2>/dev/null) "$BACKDROP_PID" 2>/dev/null || true
+    # Reaped, or bash prints "Terminated: 15" mid-run.
+    wait "$BACKDROP_PID" 2>/dev/null || true
+    BACKDROP_PID=""
 }
 
 launch() { "$SKILL/launch.sh" "$@" >/dev/null; }
