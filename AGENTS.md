@@ -27,12 +27,12 @@ A CUE sheet, beside its files or embedded in a FLAC, plays as rows. Each row is 
 | Command | What it does |
 | --- | --- |
 | `make help` | Every target, with the first sentence of its comment. |
-| `make build [CONFIG=Debug]` | macOS app; Release by default, into `build/DerivedData`. |
+| `make build [CONFIG=Debug]` | macOS app; Release by default, into the build slot's `build/DerivedData-<slot>`, or `build/DerivedData` with no slot. A slotted Debug build is `Vibe-<slot>.app`, with its own bundle id (the `vibe-debug` skill, Slots). |
 | `make build-ios [CONFIG=Debug]` | iOS app, generic simulator destination, unsigned, arm64 only. |
 | `make install-ios [CONFIG=Debug]` | iOS app onto a paired device, signed. `DEVICE=<name or id>` when more than one is paired. |
-| `make run` / `make install` | Launch; copy into `/Applications`. |
+| `make run` / `make install` | Launch; copy into `/Applications`. `make install` refuses a slotted Debug build. |
 | `make compile-commands` | Writes `compile_commands.json`, which clangd, CLion and clang-tidy read. It covers both apps and `VibeTests`, Debug. Rerun it after adding a file. |
-| `make clean` | Removes `build/` and the generated project. |
+| `make clean` | Removes `build/` and the generated project. In a slot it removes only the slot's DerivedData, and `ARGS=--all` removes everything. |
 | `make reset-state [ARGS=-n]` | Wipes Vibe's persisted state (macOS container; `--both` adds the simulator app). Prompts; `-n` previews. |
 
 **The debug command channel needs a Debug build.** It is compiled out of Release.
@@ -78,7 +78,7 @@ Every check above passes as happily on a 400-line addition as on a 40-line one, 
 
 ## Debugging and verification
 
-The **`vibe-debug` skill** launches, drives, inspects and screenshots either app. It is the reference for the debug command channel (`Vibe --debug-cmd <command>`, debug builds only, `Vibe/Debug/`), the iOS simulator loop, log streaming and the launch-time build-provenance block. The command list lives in the skill and in the channel's own unknown-command reply, deliberately not here.
+The **`vibe-debug` skill** launches, drives, inspects and screenshots either app. It is the reference for the debug command channel (`Vibe --debug-cmd <command>`, debug builds only, `Vibe/Debug/`), the build slots, the iOS simulator loop, log streaming and the launch-time build-provenance block. The command list lives in the skill and in the channel's own unknown-command reply, deliberately not here.
 
 The **`vibe-stress` skill** (`make stress`, `make torture`) is soak runs, leak and resource-growth hunting, TSan race hunting, fuzzing the file-loading path, and shrinking a failing run to a repro. Read `vibe-debug` first.
 

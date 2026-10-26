@@ -5,6 +5,10 @@
 
 # shellcheck shell=bash
 
+# For vibe_assert_stock_bundle. The release scripts turn the slot off first.
+# shellcheck source=scripts/vibe-env.sh
+. "$(dirname "${BASH_SOURCE[0]}")/../vibe-env.sh"
+
 # Release is the direct download; the Mac App Store path sets AppStore.
 ASC_CONFIGURATION="${ASC_CONFIGURATION:-Release}"
 
@@ -48,7 +52,7 @@ asc_generate_and_archive() {
     rm -rf "$BUILD_DIR"
 
     echo "🔊 xcodegen generate"
-    xcodegen generate
+    scripts/build/build-lock.sh xcodegen generate
 
     asc_archive "$ASC_CONFIGURATION" "$@"
 }
@@ -118,9 +122,11 @@ asc_require_binary_architectures() {
 
 # Export $ARCHIVE into $EXPORT_DIR with the caller's
 # $BUILD_DIR/ExportOptions.plist. The log is teed for asc_explain_export_failure.
+# Both pipelines export here. This is where a slotted app is refused.
 #   $1  progress label
 #   $2  "developer-id", or "" for the App Store path
 asc_export_archive() {
+    vibe_assert_stock_bundle "$ARCHIVE/Products/Applications/$PRODUCT.app" || exit 1
     echo "🔊 export ($1)"
     if ! xcodebuild -exportArchive -archivePath "$ARCHIVE" \
             -exportOptionsPlist "$BUILD_DIR/ExportOptions.plist" \

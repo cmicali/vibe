@@ -74,12 +74,12 @@ make build-test-blackhole
 open build/blackhole-drivers/VibeBlackHoleTests.pkg      # install, then restart CoreAudio or reboot
 scripts/test/generate-test-audio.sh --render-tests build/audio-fixtures
 VIBE_NOW_PLAYING=0 VIBE_AUDIBLE=1 .claude/skills/vibe-debug/scripts/launch.sh
-V="$PWD/build/DerivedData/Build/Products/Debug/Vibe.app/Contents/MacOS/Vibe"
+V="$(scripts/vibe-env.sh --print VIBE_BIN)"
 "$V" --debug-cmd settings_open audio
 "$V" --debug-cmd dump_settings_ui | jq '.controls[] | select(.name == "Output") | .rows'   # VibeBlackHole 16ch's row
 "$V" --debug-cmd settings_click Output <row>
 "$V" --debug-cmd set_bit_perfect off
-open -a "$PWD/build/DerivedData/Build/Products/Debug/Vibe.app" "$PWD/build/audio-fixtures"   # grant the fixture directory
+open -a "$(scripts/vibe-env.sh --print VIBE_APP)" "$PWD/build/audio-fixtures"   # grant the fixture directory
 "$V" --debug-cmd quiesce
 "$V" --debug-cmd set_pitch 0
 make test-bit-perfect ARGS='--force-volume' > build/bit-perfect-acceptance.ndjson

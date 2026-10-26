@@ -42,7 +42,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from stress import (AUDIO_SUFFIXES, DEFAULT_APP,  # noqa: E402
+from stress import (AUDIO_SUFFIXES, resolve_app,  # noqa: E402
                     Channel, launch)
 
 # Seconds. Long enough to observe a transfer mid-flight across channel round
@@ -2898,7 +2898,8 @@ def main():
                         help="multiply every real-provider wait (default 1: "
                              f"{REAL_TRANSFER:.0f}s per transfer, {REAL_EVICT:.0f}s "
                              f"per eviction, {REAL_SETTLE:.0f}s per settle)")
-    parser.add_argument("--app", help=f"path to Vibe.app (default {DEFAULT_APP})")
+    parser.add_argument("--app", help="path to Vibe.app (default: this shell's slot, "
+                                      "scripts/vibe-env.sh)")
     parser.add_argument("--only", help="comma-separated scenario ids to run")
     parser.add_argument("--verbose", action="store_true",
                         help="echo every channel command with its exit code and reply")
@@ -2917,7 +2918,7 @@ def main():
         error = real_folder_error(corpus)
         if error:
             sys.exit(error)
-    app = Path(args.app).resolve() if args.app else DEFAULT_APP.resolve()
+    app = resolve_app(args.app)
 
     wanted = {s.strip() for s in args.only.split(",")} if args.only else None
     try:

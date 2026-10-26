@@ -60,7 +60,6 @@ import urllib.parse
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[4]
-DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
 # Under build/: gitignored and removed by `make clean`, unlike the CWD, which
 # for `make stress` is the repo root.
 DEFAULT_OUTPUT_DIR = REPO / "build/stress"
@@ -232,7 +231,7 @@ class Channel:
         # that matters: 2.38s per op with a TSan client against 0.133s with a
         # plain one, driving the same TSan app. Opt-in, because builds from
         # different sources can skew the protocol.
-        self.binary = (client_app or app) / "Contents/MacOS/Vibe"
+        self.binary = Path(vibe_env("VIBE_BIN", client_app or app))
         self.gesture_test = gesture_test
         # Off by default so the shrinker and --replay get each op's own timing.
         self.batch = False
@@ -320,6 +319,21 @@ class Channel:
         return results
 
 
+def vibe_env(key, app=None):
+    """scripts/vibe-env.sh's KEY: this shell's build slot, or APP's own ids."""
+    env = {**os.environ, "VIBE_APP": str(app)} if app else None
+    return subprocess.check_output([str(REPO / "scripts/vibe-env.sh"), "--print", key],
+                                   text=True, env=env).strip()
+
+
+def resolve_app(arg):
+    """--app, else this shell's slot's Debug build. Exported as VIBE_APP, so
+    launch.sh and app_pid follow the same app."""
+    app = Path(arg).expanduser().resolve() if arg else Path(vibe_env("VIBE_APP"))
+    os.environ["VIBE_APP"] = str(app)
+    return app
+
+
 def app_pid():
     """The GUI instance's pid, or None.
 
@@ -327,7 +341,7 @@ def app_pid():
     name also matches every in-flight `--debug-cmd`, whose polling stack reads
     as a hang, and the iOS Simulator's Vibe. Filtered here by argv.
     """
-    found = subprocess.run(["pgrep", "-x", "Vibe"], capture_output=True, text=True)
+    found = subprocess.run(["pgrep", "-x", vibe_env("VIBE_PRODUCT")], capture_output=True, text=True)
     for pid in found.stdout.split():
         listing = subprocess.run(["ps", "-o", "command=", "-p", pid],
                                  capture_output=True, text=True)
@@ -506,12 +520,12 @@ def launch(corpus: Path, app: Path):
 def assert_running_binary(app: Path):
     """Exit unless the running GUI instance is the binary that was asked for.
 
-    TRAP: `open -a <path>` resolves by BUNDLE ID, not path, and every build is
-    com.commonwealthrecordings.Vibe, so VIBE_APP (handed to `open -a` by
-    launch.sh) does not pin the build. A sanitizer run on the plain build
-    would report a clean pass over an uninstrumented binary.
+    TRAP: `open -a <path>` resolves by BUNDLE ID, not path, and every build of
+    one slot shares one, so VIBE_APP (handed to `open -a` by launch.sh) does
+    not pin the build. A sanitizer run on the plain build would report a clean
+    pass over an uninstrumented binary.
     """
-    wanted = (app / "Contents/MacOS/Vibe").resolve()
+    wanted = Path(vibe_env("VIBE_BIN", app)).resolve()
     pid = app_pid()
     if pid is None:
         sys.exit("launch reported success but no GUI instance is running")
@@ -1696,13 +1710,17 @@ def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
     return None, baseline
 
 
-def fresh_crash_reports(since):
+def fresh_crash_reports(since, product=None):
+    """The reports newer than since of the process named product, by default
+    the app's own (Vibe-<slot> in a slot). A report is named for its process
+    and a date. A bare Vibe* would also take every other slot's."""
     if not CRASH_DIR.is_dir():
         return []
+    name = re.compile(re.escape(product or vibe_env("VIBE_PRODUCT")) + r"[-_]\d{4}-\d{2}-\d{2}-")
     out = []
-    for entry in CRASH_DIR.glob("Vibe*"):
+    for entry in CRASH_DIR.iterdir():
         try:
-            if entry.stat().st_mtime >= since:
+            if name.match(entry.name) and entry.stat().st_mtime >= since:
                 out.append(entry)
         except OSError:
             pass
@@ -1921,7 +1939,7 @@ def replay_ops(channel, ops, journal=None, check_every=0, stop_on_failure=True, 
 
 
 def run(args):
-    app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
+    app = resolve_app(args.app)
     corpus = Path(args.corpus).expanduser().resolve()
     if not corpus.is_dir():
         sys.exit(f"corpus is not a directory: {corpus}")
@@ -2197,7 +2215,7 @@ def shrink(args):
     the first that still fails (n-1), otherwise double n. One relaunch per
     candidate, so a shrink takes minutes.
     """
-    app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
+    app = resolve_app(args.app)
     corpus = Path(args.corpus).expanduser().resolve()
     channel = Channel(app, verbose=args.verbose,
                       client_app=Path(args.client_app) if args.client_app else None)
@@ -2254,7 +2272,7 @@ def shrink(args):
 
 
 def replay(args, journal):
-    app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
+    app = resolve_app(args.app)
     corpus = Path(args.corpus).expanduser().resolve()
     channel = Channel(app, verbose=args.verbose,
                       client_app=Path(args.client_app) if args.client_app else None)
@@ -2275,11 +2293,18 @@ def replay(args, journal):
         return 0
 
 
-# TRAP: log_path must be inside the container and the symbolizer empty, or
-# TSan kills the app trying to write its first report (references/sanitizers.md).
-TSAN_LOG_DIR = Path.home() / "Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp"
-TSAN_OPTIONS = (f"log_path={TSAN_LOG_DIR}/tsan:halt_on_error=0:external_symbolizer_path=:"
-                f"symbolize=1:history_size=7")
+def tsan_options(app):
+    """TSAN_OPTIONS for app, and the folder its reports land in.
+
+    TRAP: log_path must be inside the app's own container and the symbolizer
+    empty, or TSan kills the app trying to write its first report
+    (references/sanitizers.md). A slotted build has a container of its own.
+    """
+    logs = Path(vibe_env("VIBE_CONTAINER", app)) / "Data/tmp"
+    return (f"log_path={logs}/tsan:halt_on_error=0:external_symbolizer_path=:"
+            f"symbolize=1:history_size=7"), logs
+
+
 TSAN_STACK_FRAMES = 8
 
 
@@ -2309,8 +2334,9 @@ def tsan_replay(args):
     instrumented app is quit so no later launch inherits its reports.
     """
     app = Path(args.app).expanduser().resolve()
+    options, logs = tsan_options(app)
     started = time.time()
-    subprocess.run(["launchctl", "setenv", "TSAN_OPTIONS", TSAN_OPTIONS], check=True)
+    subprocess.run(["launchctl", "setenv", "TSAN_OPTIONS", options], check=True)
     try:
         result = replay(args, args.tsan_replay)
     finally:
@@ -2322,11 +2348,11 @@ def tsan_replay(args):
                     time.sleep(0.2)
         finally:
             subprocess.run(["launchctl", "unsetenv", "TSAN_OPTIONS"])
-    reports = sorted(path for path in TSAN_LOG_DIR.glob("tsan.*")
+    reports = sorted(path for path in logs.glob("tsan.*")
                      if path.stat().st_mtime >= started)
     if not reports:
         print("tsan: no report written. Confirm the app was the TSan build and could write "
-              f"to {TSAN_LOG_DIR} before reading this as clean")
+              f"to {logs} before reading this as clean")
         return result
     for path in reports:
         found = tsan_first_stacks(path.read_text(errors="replace"))
@@ -2387,7 +2413,7 @@ def describe_materialization_coverage(channel) -> str:
 
 
 def run_gesture_test(args):
-    app = Path(args.app).expanduser().resolve() if args.app else DEFAULT_APP
+    app = resolve_app(args.app)
     channel = Channel(app, verbose=args.verbose, gesture_test=args.gesture_test,
                       client_app=Path(args.client_app) if args.client_app else None)
 
@@ -3133,6 +3159,11 @@ def run_ios(args):
                         raise Failure("setup", "replay requires matching folder order, crossfade, BPM settings and favorites")
                 before = {**state, "favorites": favorites, "dropbox": command(["dump_dropbox"]),
                           "recents": [i["path"] for i in command(["recents", "save"])["items"]]}
+                # Start at rest. A row the launch left playing passes the open's
+                # landing check before the open lands. The open then restarts
+                # the row, and the progress check fails on the reset. A replay
+                # starts here too. It is not a recorded step.
+                ios_restore_output(command, before, args.ios_idle_timeout)
                 if steps is not None:
                     for step in steps:
                         perform(step)
@@ -3197,7 +3228,8 @@ def run_ios(args):
             finally:
                 if before is not None:
                     cleanup = ios_restore(lambda argv: ios_command(env, journal, argv, "cleanup"), before, args.ios_idle_timeout)
-                for report in fresh_crash_reports(since):
+                # The simulator's app is never slotted.
+                for report in fresh_crash_reports(since, "Vibe"):
                     if re.search(r'"pid"\s*:\s*' + str(pid) + r'\b', report.read_text(errors="replace")):
                         shutil.copy2(report, out / report.name)
                         failure = failure or "app crash report found"
@@ -3222,7 +3254,8 @@ def main():
                         help="run one named gesture against the running app, outside stress/replay")
     parser.add_argument("--isolated-desktop", action="store_true",
                         help="assert the gesture test is on a dedicated test Mac or disposable VM")
-    parser.add_argument("--app", help=f"path to Vibe.app (default {DEFAULT_APP})")
+    parser.add_argument("--app", help="path to Vibe.app (default: this shell's slot, "
+                                      "scripts/vibe-env.sh)")
     parser.add_argument("--seed", type=int, help="seed the op generator (a run prints its own)")
     parser.add_argument("--iterations", type=int, default=2000, help="ops to run (default 2000)")
     parser.add_argument("--duration", type=float,

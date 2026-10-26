@@ -643,15 +643,15 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
     void (^publish)(void) = ^{
         // As the shells fill the record from the row.
         published = track.cachedArt ?: track.cachedThumbnail ?: placeholder;
-        [publisher updateWithRecord:(VibeNowPlayingRecord){
-            .sourceKey = track.sourceKey,
-            .title = track.displayTitle,
-            .artist = track.displayArtist,
-            .artwork = published,
-            .duration = 30,
-            .state = NowPlayingPlaybackStatePlaying,
-            .rate = 1,
-        }];
+        VibeNowPlayingRecord *record = [VibeNowPlayingRecord new];
+        record.sourceKey = track.sourceKey;
+        record.title = track.displayTitle;
+        record.artist = track.displayArtist;
+        record.artwork = published;
+        record.duration = 30;
+        record.state = NowPlayingPlaybackStatePlaying;
+        record.rate = 1;
+        [publisher updateWithRecord:record];
     };
     publish();
     XCTAssertEqual(published, placeholder);
