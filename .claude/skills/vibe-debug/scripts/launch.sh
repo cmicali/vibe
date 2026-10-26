@@ -82,9 +82,10 @@ if [ -n "$(vibe_pids)" ]; then
     fi
 fi
 
-# A command posted before the channel installs is swept, so retry (each call
-# waits up to 5s). Re-open when no process is up: right after a rebuild the
-# first open can silently do nothing while Launch Services re-registers.
+# A command written once the process exists is answered when the channel
+# installs. One written before is swept, so retry (each call waits up to 5s).
+# Re-open when no process is up: right after a rebuild the first open can
+# silently do nothing while Launch Services re-registers.
 for _ in 1 2 3 4 5 6; do
     if [ -z "$(vibe_pids)" ]; then
         # --args last: everything after it is argv. -AppleLanguages takes one
@@ -115,13 +116,14 @@ for _ in 1 2 3 4 5 6; do
             "$V"*) ;;
             *) echo "warning: running binary is: $RUNNING" >&2 ;;
         esac
-        # The launch lands behind the frontmost app, and an occluded, paused
-        # app is deferred by the OS until the channel times out (raise_window's
-        # TRAP). A sleeping display or locked screen occludes every window.
+        # The launch lands behind the frontmost app. An occluded window shows
+        # nothing to a real capture and keeps the equalizer bars off
+        # (raise_window's TRAP). A sleeping display or locked screen occludes
+        # every window.
         RAISED="$("$V" --debug-cmd raise_window 2>/dev/null || true)"
         if ! printf '%s' "$RAISED" | jq -e '.visible' >/dev/null 2>&1; then
             if printf '%s' "$RAISED" | jq -e '.displayAsleep' >/dev/null 2>&1; then
-                echo "warning: the display is asleep or the screen locked, so the window stays occluded and a paused Vibe will be deferred; wake and unlock the Mac" >&2
+                echo "warning: the display is asleep or the screen locked, so the window stays occluded; wake and unlock the Mac for a real capture or the equalizer bars" >&2
             else
                 echo "warning: the window is still occluded after raise_window" >&2
             fi

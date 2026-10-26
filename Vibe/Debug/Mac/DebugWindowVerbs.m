@@ -32,13 +32,13 @@ NSArray<NSDictionary *> *VibeDebugWindowVerbs(void) {
     dispatch_once(&once, ^{
         table = @[
             // TRAP: a shell-driven launch lands behind the frontmost app (the
-            // launch's cooperative activate is declined), and once the window
-            // is occluded and playback paused the OS defers the whole app: its
-            // timers and the channel's wake-up stall for up to ~20s. Ordered
-            // front without activating, so the frontmost app keeps the
-            // keyboard. No ordering helps a sleeping display or a locked
-            // screen, where every window reads occluded. Occlusion settles
-            // asynchronously, hence the spin.
+            // launch's cooperative activate is declined). An occluded window
+            // shows nothing to a real capture and keeps the equalizer bars
+            // off. The channel keeps the app from being napped meanwhile
+            // (vibe-libs' dev/DebugChannel). Ordered front without activating,
+            // so the frontmost app keeps the keyboard. No ordering helps a
+            // sleeping display or a locked screen, where every window reads
+            // occluded. Occlusion settles asynchronously, hence the spin.
             VibeDebugCmd(@"raise_window", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 NSWindow *window = controller.window;
                 [window orderFrontRegardless];

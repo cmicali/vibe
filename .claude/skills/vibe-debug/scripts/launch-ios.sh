@@ -51,16 +51,17 @@ case "${VIBE_AUDIBLE:-}" in
 esac
 xcrun simctl launch "$UDID" "$BUNDLE_ID" ${ARGS[@]+"${ARGS[@]}"}
 
-# Short per-attempt timeouts: a command written before the channel installs is
-# swept as stale, and a fresh one lands. A channel that never answers (a
-# non-debug build) falls back to a flat 2s.
+# Polls with short timeouts until the channel answers. Only the reply that
+# answers is printed. debug-ios.sh prints a failed attempt's error JSON too. A
+# channel that never answers (a non-debug build) falls back to a flat 2s.
 # TRAP: the poll names this device and never an inherited VIBE_APP_TMP. That
 # path is another caller's device, or this one's before the install moved it.
 # Inherited, another simulator's app answered at once, so the launch returned
 # before this app's channel was up, and its first command was swept.
 READY=""
 for _ in $(seq 1 15); do
-    if VIBE_SIM_UDID="$UDID" VIBE_APP_TMP="" VIBE_DEBUG_TIMEOUT=1 "$DIR/debug-ios.sh" dump_state 2>/dev/null; then
+    if STATE="$(VIBE_SIM_UDID="$UDID" VIBE_APP_TMP="" VIBE_DEBUG_TIMEOUT=1 "$DIR/debug-ios.sh" dump_state 2>/dev/null)"; then
+        printf '%s\n' "$STATE"
         READY=1
         break
     fi
