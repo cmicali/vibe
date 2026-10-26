@@ -186,7 +186,7 @@ The View > Theme items carry `view_theme_<identifier>` ids (`view_theme_vibe`, `
 ## Analyzers, lifecycle and scripts
 
 ```bash
-"$V" --debug-cmd scan_bpm - < file   # {ok, bpm}: decode and analyze in the CLI process, no app needed; prefer scripts/scan-bpm.sh (references/test-audio.md)
+"$V" --debug-cmd scan_bpm - < file   # {ok, bpm}: decode and analyze in the CLI process, no app needed; prefer scripts/scan-bpm.sh (references/test-audio.md). It opens the file with no interrupt block. Such a handle reads directly and never reads ahead. set_slow_volume never slows it, in the client or in the app. file_cache times a throttled decode
 "$V" --debug-cmd scan_key - < file   # {ok, key, camelot, index}: same contract; ignores tags
 "$V" --debug-cmd quit                # {ok, quitting}: the normal terminate path, the only exit that runs applicationWillTerminate: (AppStats flush, last-playlist mirror). Prefer it to pkill
 "$V" --debug-cmd sleep 0.5           # client-side pause (above 0, up to 600 s)

@@ -6,7 +6,7 @@ Getting a report out of the sandboxed app, the three builds, the cheap variants.
 
 **Default options make TSan kill the app instead of reporting**, and the crash looks nothing like a race: an `EXC_CRASH`/`SIGABRT` whose faulting stack is `__sanitizer::Die` under `ReportFile::ReopenIfNecessary` and `StartSymbolizerSubprocess`. That is the sanitizer failing to *report*. Two causes, both the sandbox:
 
-- **`log_path` must be inside the app's container**, `~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/`. Anywhere else, including a scratch dir under `/tmp`, and the first report aborts the process on the write. With no `log_path` the report goes to stderr, which is nowhere for a GUI app launched by `open -a`.
+- **`log_path` must be inside the app's own container**, in its `Data/tmp/`. `VIBE_APP=<the app> scripts/vibe-env.sh --print VIBE_CONTAINER` names the container. A slotted build has a container of its own. Anywhere else, including a scratch dir under `/tmp`, and the first report aborts the process on the write. With no `log_path` the report goes to stderr, which is nowhere for a GUI app launched by `open -a`.
 - **`external_symbolizer_path=` must be empty.** Symbolizing spawns `atos`, which the sandbox denies; TSan then tries to report *that* failure and hits the first problem. Empty falls back to the in-process `dladdr` symbolizer: function names, no file or line, enough to place a race.
 
 **Never add a `suppressions=` file.** It deadlocks the launch before `main()`:
@@ -26,17 +26,17 @@ Options are environment variables. `open -a` cannot pass them, so `launchctl set
 
 ```bash
 xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Debug \
-    -derivedDataPath build/DerivedData-tsan -enableThreadSanitizer YES build
-C=~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp
+    -derivedDataPath build/tsan/DerivedData -enableThreadSanitizer YES build
+APP="$PWD/build/tsan/DerivedData/Build/Products/Debug/Vibe.app"
+C="$(VIBE_APP="$APP" scripts/vibe-env.sh --print VIBE_CONTAINER)/Data/tmp"
 launchctl setenv TSAN_OPTIONS "log_path=$C/tsan:halt_on_error=0:external_symbolizer_path=:history_size=7"
-.claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --profile ui \
-    --app "$PWD/build/DerivedData-tsan/Build/Products/Debug/Vibe.app" --max-stalls 20
+.claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --profile ui --app "$APP" --max-stalls 20
 launchctl unsetenv TSAN_OPTIONS
 ```
 
 `stress.py` always relaunches through `launch.sh`, so options set in the shell never reach the app; `run-torture.sh` direct-execs and takes them from its environment (`TSAN_OPTIONS=… run-torture.sh …`), its report in `build/stress/torture-app.log`, the app's stderr.
 
-Build to a **separate** derived-data path so the plain Debug build stays usable, and hand it to the driver with `--app` (which sets `VIBE_APP` for `launch.sh`). Reports land as `log_path.<pid>`; Confirm that the instrumented app launched and could write its report. TSan creates the file on the first report: **no file means no report was written**. Raise `--max-stalls`: instrumentation makes ordinary verbs slow enough to trip the liveness oracle.
+Build to a **separate** derived-data path so the plain Debug build stays usable, and hand it to the driver with `--app` (which sets `VIBE_APP` for `launch.sh`). A slot's `make clean` removes only its own `build/DerivedData-<slot>`. It keeps `build/tsan/`. Reports land as `log_path.<pid>`; Confirm that the instrumented app launched and could write its report. TSan creates the file on the first report: **no file means no report was written**. Raise `--max-stalls`: instrumentation makes ordinary verbs slow enough to trip the liveness oracle.
 
 ## From a stress failure to a TSan report
 
@@ -44,7 +44,7 @@ A failing journal reproduces commands, not scheduling, so a race that failed onc
 
 1. **Shrink** the journal on the plain build: `stress.py --corpus <dir> --shrink build/stress/stress-<seed>.ndjson`. Shrink writes the minimal ops twice: as script lines (`.min.txt`) and as a journal (`.min.ndjson`), which the next step takes.
 2. **Replay it under TSan**: `stress.py --corpus <dir> --app <TSan Vibe.app> --tsan-replay <journal>`. It sets `TSAN_OPTIONS` through `launchctl setenv` with the options above, replays through `launch.sh`, restores the settings, quits the app and unsets the options. The unset runs on pass, failure, `^C`, SIGTERM and SIGHUP. Only SIGKILL leaves the options set for the session.
-3. **Read the reports.** It collects every `tsan.*` in the container's tmp written during the run and prints each report's warning line and first stack. A report fails the replay. No file means no report was written, so confirm the instrumented app launched before reading that as clean.
+3. **Read the reports.** It collects every `tsan.*` written during the run in the tmp of the `--app`'s own container. It prints each report's warning line and first stack. A report fails the replay. No file means no report was written, so confirm the instrumented app launched before reading that as clean.
 
 A race the journal reaches only sometimes needs repeats. Run step 2 a few times rather than lengthening one run, since a long TSan run can exhaust its shadow metadata.
 
