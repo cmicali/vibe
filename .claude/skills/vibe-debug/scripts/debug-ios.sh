@@ -54,11 +54,20 @@ else
 fi
 
 # Read from the tables' source, as the mac client reads the tables. A copy
-# here went stale, and a slow verb's reply then came after this gave up.
+# here went stale, and a slow verb's reply then came after this gave up. A
+# usage may go on in a second literal on the next line. A verb with no entry
+# keeps the default. TRAP: the lookup never fails. Under set -e a failure ends
+# the script with no output.
 ROOT="$(cd "$DIR/../../../.." && pwd)"
+wait_of() {   # <verb>
+    find "$ROOT/Vibe/Debug" \( -name '*.m' -o -name '*.mm' \) -exec env VERB="$1" perl -0777 -ne '
+        my $v = quotemeta $ENV{VERB};
+        if (/VibeDebugCmd\(\@"$v(?: [^"]*)?"(?:\s*\@"[^"]*")*\s*,\s*([0-9]+)/) { print "$1\n"; exit }
+    ' {} + 2>/dev/null | head -1 || true
+}
 VERB_TIMEOUT=10
 for verb in "${VERBS[@]}"; do
-    t="$(grep -rhoE "VibeDebugCmd\(@\"$verb( [^\"]*)?\", *[0-9]+" "$ROOT/Vibe/Debug" | head -1 | sed -E 's/.*, *//')"
+    t="$(wait_of "$verb")"
     [ -z "$t" ] || [ "$t" -le "$VERB_TIMEOUT" ] || VERB_TIMEOUT="$t"
 done
 TIMEOUT="${VIBE_DEBUG_TIMEOUT:-$VERB_TIMEOUT}"
