@@ -95,7 +95,7 @@ def features(src):
     waveform, three_band = find('AudioWaveform.h'), find('ThreeBandWaveformRenderer.h')
     resampler = find('AudioResampler.h')
     registry = find('WaveformRendererRegistry.h')
-    playlist = find('Playlist.h')
+    playlist = find('VibePlaylist.h') or find('Playlist.h')
     renderer = find('WaveformRenderer.h') or find('AudioWaveformRenderer.h')
     summary, raster = find('WaveformSummary.hpp'), find('WaveformRaster.hpp')
     metadata = [path for root in (src / 'Vibe', src / 'vibe-libs') if root.is_dir()

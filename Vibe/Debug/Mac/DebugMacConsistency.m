@@ -45,7 +45,7 @@ NSUInteger VibeDebugCheckMac(NSMutableArray<NSDictionary *> *v,
                 @"table has %ld rows, playlist has %lu tracks", (long)rows, (unsigned long)count);
     }
 
-    // Both of Playlist's row indexes against the array they index. Every
+    // Both of VibePlaylist's row indexes against the array they index. Every
     // structural edit rebuilds them wholesale, so a rebuild that drops or
     // doubles an entry leaves lookups answering a neighbouring row forever —
     // silently, since the counts still agree and every row still draws. The

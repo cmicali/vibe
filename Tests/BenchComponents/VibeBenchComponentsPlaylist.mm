@@ -8,7 +8,12 @@
 #import "VibeBenchComponents.h"
 
 #import "AudioTrack.h"
+#if __has_include("VibePlaylist.h")
+#import "VibePlaylist.h"
+#else
 #import "Playlist.h"
+#define VibePlaylist Playlist   // the queue was Playlist before vibe-libs prefixed it
+#endif
 
 #include <memory>
 
@@ -18,7 +23,7 @@ static void VibeBenchComponentsRegisterPlaylist(void) {
     // A 100,000-row playlist; one repetition is five single-row removals each
     // undone by its insert, and five single-row moves there and back, at one
     // place in the list.
-    auto playlist = std::make_shared<Playlist *>();
+    auto playlist = std::make_shared<VibePlaylist *>();
     auto prepare = [playlist]() -> double {
         if (!*playlist) {
             NSMutableArray<AudioTrack *> *tracks = [NSMutableArray arrayWithCapacity:100000];
@@ -30,13 +35,13 @@ static void VibeBenchComponentsRegisterPlaylist(void) {
 #if VIBE_BENCH_COMPONENTS_PLAYLIST_KEYS
             // Keyed as the shells key theirs, so the URL index is built and
             // renumbered as in the app.
-            *playlist = [[Playlist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
+            *playlist = [[VibePlaylist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
                 return track.url;
             } sourceKey:^NSString *(AudioTrack *track) {
                 return track.sourceKey;
             }];
 #else
-            *playlist = [[Playlist alloc] init];
+            *playlist = [[VibePlaylist alloc] init];
 #endif
             [*playlist replaceAllWithTracks:tracks startingAtIndex:NSNotFound];
         }
@@ -45,7 +50,7 @@ static void VibeBenchComponentsRegisterPlaylist(void) {
     for (double at : {0.0, 0.5, 0.99}) {
         const char *where = at == 0 ? "head" : at == 0.5 ? "middle" : "tail";
         VibeBenchComponentsAdd("playlist-edit", std::string("100k-") + where, "edit", prepare, [playlist, at]() {
-            Playlist *list = *playlist;
+            VibePlaylist *list = *playlist;
             NSUInteger row = (NSUInteger)(at * (list.count - 1));
             for (int i = 0; i < 5; i++) {
                 NSIndexSet *one = [NSIndexSet indexSetWithIndex:row + i];
@@ -62,7 +67,7 @@ static void VibeBenchComponentsRegisterPlaylist(void) {
         prepare();
         return 4;
     }, [playlist]() {
-        Playlist *list = *playlist;
+        VibePlaylist *list = *playlist;
         NSMutableIndexSet *source = [NSMutableIndexSet indexSet];
         for (NSUInteger i = 0; i < 1000; i++) [source addIndex:i * 97];
         NSArray<AudioTrack *> *removed = [list removeTracksAtIndexes:source];
@@ -89,7 +94,7 @@ static void VibeBenchComponentsRegisterPlaylist(void) {
         prepare();
         return 1;
     }, [playlist]() {
-        Playlist *list = *playlist;
+        VibePlaylist *list = *playlist;
         list.currentIndex = 0;
         __block uint32_t seed = 12345;
         list.randomBelow = ^uint32_t(uint32_t upper) {

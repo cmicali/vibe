@@ -5,7 +5,7 @@
 
 #import "FileRow.h"
 
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 
 UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void)) {
     return [UIAction actionWithTitle:title
@@ -77,7 +77,7 @@ UIImage *VibeFileTileImage(BOOL playlist) {
         self.image = [UIImage systemImageNamed:@"folder"];
         return;
     }
-    self.image = art ?: VibeFileTileImage([PlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]);
+    self.image = art ?: VibeFileTileImage([VibePlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]);
     self.imageProperties.cornerRadius = kFileTileCornerRadius;
 }
 

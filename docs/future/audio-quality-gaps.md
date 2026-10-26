@@ -94,7 +94,7 @@ Mono is fine. Apple's matrix sends mono to each channel at 0.707, but `VibeMixMa
 
 ## 7. Pre-emphasis is ignored
 
-Some CDs from the 1980s were mastered with pre-emphasis, and a rip keeps the flag. Played without de-emphasis, the treble is too loud by up to 10 dB at 20 kHz. The CUE reader skips `FLAGS`, and with it `PRE` (`PlaylistFile+CUE.m`). FLAC's own CUESHEET block also carries the flag. This audit did not check whether Vibe reads that block's flag.
+Some CDs from the 1980s were mastered with pre-emphasis, and a rip keeps the flag. Played without de-emphasis, the treble is too loud by up to 10 dB at 20 kHz. The CUE reader skips `FLAGS`, and with it `PRE` (`VibePlaylistFile+CUE.m`). FLAC's own CUESHEET block also carries the flag. This audit did not check whether Vibe reads that block's flag.
 
 The fix is a fixed de-emphasis filter, the standard 50/15 µs shelf, for each flagged row. It is niche.
 

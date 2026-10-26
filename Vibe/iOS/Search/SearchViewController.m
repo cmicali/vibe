@@ -17,7 +17,7 @@
 #import "FilePaths.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 #import "FavoritesStore.h"
 #import "LocationStore.h"
 #import "UIViewController+Alert.h"
@@ -37,7 +37,7 @@ static const NSUInteger kMaxFileResults = 200;
 
 @implementation SearchViewController {
     PlaybackController *_playback;
-    Playlist<AudioTrack *> *_playlist;
+    VibePlaylist<AudioTrack *> *_playlist;
     UISearchController *_searchController;
     // Indexes into the playlist; all of them for an empty query.
     NSArray<NSNumber *> *_matches;

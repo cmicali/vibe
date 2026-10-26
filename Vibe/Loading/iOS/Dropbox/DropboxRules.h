@@ -14,7 +14,7 @@
 #import <CommonCrypto/CommonDigest.h>
 
 #import "HTTPTransferRules.h"
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 #import "SettingsRules.h"
 
 #include <sys/types.h>
@@ -225,7 +225,7 @@ static inline BOOL VibeDropboxNameIsMirrored(NSString *name, NSSet<NSString *> *
         return NO;
     }
     NSString *extension = name.pathExtension.lowercaseString;
-    return [PlaylistFile isPlaylistExtension:extension] || [playableExtensions containsObject:extension];
+    return [VibePlaylistFile isPlaylistExtension:extension] || [playableExtensions containsObject:extension];
 }
 
 // files/search_v2's answer as entries (the shape list_folder gives), kept
@@ -251,7 +251,7 @@ static inline NSArray<NSDictionary *> *VibeDropboxSearchEntries(NSDictionary *_N
         if (kind == VibeDropboxEntryKindFolder
                 || (kind == VibeDropboxEntryKindFile && [name isKindOfClass:NSString.class]
                     && VibeDropboxNameIsMirrored(name, playableExtensions)
-                    && ![PlaylistFile isCueExtension:name.pathExtension.lowercaseString])) {
+                    && ![VibePlaylistFile isCueExtension:name.pathExtension.lowercaseString])) {
             [entries addObject:entry];
         }
     }

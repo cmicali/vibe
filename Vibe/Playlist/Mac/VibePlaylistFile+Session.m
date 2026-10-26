@@ -1,14 +1,14 @@
 //
-//  PlaylistFile+Session.m
+//  VibePlaylistFile+Session.m
 //  Vibe
 //
 
-#import "PlaylistFile+Session.h"
+#import "VibePlaylistFile+Session.h"
 #import "AudioTrack.h"
 
 NSString *const kVibeLastPlaylistCurrentIndexKey = @"VibeLastPlaylistCurrentIndex";
 
-@implementation PlaylistFile (Session)
+@implementation VibePlaylistFile (Session)
 
 + (BOOL)saveSessionTracks:(NSArray<AudioTrack *> *)tracks currentIndex:(NSUInteger)index
                  enabled:(BOOL)enabled toURL:(NSURL *)url defaults:(NSUserDefaults *)defaults

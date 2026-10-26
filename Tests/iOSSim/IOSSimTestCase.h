@@ -11,7 +11,7 @@
 
 @class AudioTrack;
 @class PlaybackController;
-@class Playlist<__covariant ObjectType>;
+@class VibePlaylist<__covariant ObjectType>;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -19,7 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 // one. The screens read the properties below. Any other selector
 // PlaybackController declares is recorded in calls and answers zero.
 @interface FakePlayback : NSObject <EqualizerLevelSource>
-@property (nonatomic, strong) Playlist<AudioTrack *> *playlist;
+@property (nonatomic, strong) VibePlaylist<AudioTrack *> *playlist;
 @property (nonatomic) VibePlayerScreenState screenState;
 @property (nonatomic, strong, nullable) AudioTrack *displayedTrack;
 @property (nonatomic, copy, nullable) NSString *errorText;

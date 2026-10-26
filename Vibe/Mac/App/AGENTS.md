@@ -81,7 +81,7 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 **A launch-time open outranks the remembered playlist, and the restore is not an open.** It does not enter the coalescer. An empty drain arms no burst, so a Finder open a beat later replaces rather than appends. It does not enter `openURLs:appending:` either, so it records no stats and mints no bookmarks.
 
-`MainPlayerController` saves and restores the mirror through `PlaylistFile+Session` (`Playlist/Mac/`). The mirror's rules are in `Mac/MainWindow/AGENTS.md` (The last playlist).
+`MainPlayerController` saves and restores the mirror through `VibePlaylistFile+Session` (`Playlist/Mac/`). The mirror's rules are in `Mac/MainWindow/AGENTS.md` (The last playlist).
 
 **Links are pruned once per launch, half a second after the restore** (`pruneLinks`). The playlist's rows and the recent documents keep their links (`pruneKeepingTracks:recentURLs:`). The store deletes every other link not opened for 30 days, off main. A launch-time open may still be expanding, so its rows keep nothing. A saved M3U naming a pruned link finds that entry missing.
 

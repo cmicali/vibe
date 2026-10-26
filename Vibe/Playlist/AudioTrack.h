@@ -11,7 +11,7 @@
 NS_ASSUME_NONNULL_BEGIN
 
 @class AudioTrackMetadata;
-@class PlaylistEntry;
+@class VibePlaylistEntry;
 
 // A playlist row: a file whole, or a cue sheet's window of one. What the
 // player and the caches read of it is VibePlayableItem. The metadata loader
@@ -84,8 +84,8 @@ NS_ASSUME_NONNULL_BEGIN
 // The one place rows are made from playlist entries, a fresh row each, and
 // the one place rows become entries for the writer, with their duration and
 // display names.
-+ (NSArray<AudioTrack *> *)rowsForEntries:(NSArray<PlaylistEntry *> *)entries;
-+ (NSArray<PlaylistEntry *> *)entriesForRows:(NSArray<AudioTrack *> *)rows;
++ (NSArray<AudioTrack *> *)rowsForEntries:(NSArray<VibePlaylistEntry *> *)entries;
++ (NSArray<VibePlaylistEntry *> *)entriesForRows:(NSArray<AudioTrack *> *)rows;
 
 // A fresh row for this one's audio at another URL — Convert's swap: the
 // window, names, duration and analysis carry across. Minted rather than

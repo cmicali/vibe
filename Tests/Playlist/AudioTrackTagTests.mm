@@ -12,7 +12,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadataInternal.h"
 #import "AudioTrackMetadataTagFixtures.h"
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 
 @interface AudioTrackTagTests : XCTestCase
 @end
@@ -56,7 +56,7 @@
 // TagLib's save keeps the CUESHEET block, so the file still plays as rows.
 - (void)testATaggedFLACsEmbeddedCueSheetStillMakesRows {
     XCTAssertTrue([self parse:VibeTagFixtureFLACCueSheet].parsedOK);
-    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile cueEntriesEmbeddedInFLACAtURL:
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[VibePlaylistFile cueEntriesEmbeddedInFLACAtURL:
             [_dir URLByAppendingPathComponent:@"cuesheet.flac"]]];
     XCTAssertEqual(rows.count, 2u);
 }

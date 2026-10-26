@@ -10,7 +10,7 @@
 #import "Formatters.h"
 #import "NSURL+FilenameTitle.h"
 #import "NSURL+Hash.h"
-#import "PlaylistEntry.h"
+#import "VibePlaylistEntry.h"
 #import "VibeStrings.h"
 
 #include <stdatomic.h>
@@ -71,9 +71,9 @@
     return self;
 }
 
-+ (NSArray<AudioTrack *> *)rowsForEntries:(NSArray<PlaylistEntry *> *)entries {
++ (NSArray<AudioTrack *> *)rowsForEntries:(NSArray<VibePlaylistEntry *> *)entries {
     NSMutableArray<AudioTrack *> *rows = [NSMutableArray arrayWithCapacity:entries.count];
-    for (PlaylistEntry *entry in entries) {
+    for (VibePlaylistEntry *entry in entries) {
         // A whole file skips the cue initializer, which would spell the path twice.
         BOOL whole = !entry.isWindowed && !entry.cueSheetURL && !entry.cueTitle && !entry.cuePerformer
                 && entry.cueTrackNumber == 0;
@@ -85,10 +85,10 @@
     return rows;
 }
 
-+ (NSArray<PlaylistEntry *> *)entriesForRows:(NSArray<AudioTrack *> *)rows {
-    NSMutableArray<PlaylistEntry *> *entries = [NSMutableArray arrayWithCapacity:rows.count];
++ (NSArray<VibePlaylistEntry *> *)entriesForRows:(NSArray<AudioTrack *> *)rows {
+    NSMutableArray<VibePlaylistEntry *> *entries = [NSMutableArray arrayWithCapacity:rows.count];
     for (AudioTrack *row in rows) {
-        [entries addObject:[[PlaylistEntry alloc] initWithURL:row.url cueStart:row.cueStart cueEnd:row.cueEnd
+        [entries addObject:[[VibePlaylistEntry alloc] initWithURL:row.url cueStart:row.cueStart cueEnd:row.cueEnd
                                                         title:row.cueTitle performer:row.cuePerformer
                                                         sheet:row.cueSheetURL trackNumber:row.cueTrackNumber
                                                      duration:row.duration displayTitle:row.displayTitle

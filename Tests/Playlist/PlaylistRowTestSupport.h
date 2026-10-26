@@ -3,7 +3,7 @@
 //  VibeTests
 //
 //  The shells' tests' rows: AudioTrack rows named by file, and the row sets
-//  they compare. The queue's own tests use PlaylistTestSupport.h, over rows of
+//  they compare. The queue's own tests use VibePlaylistTestSupport.h, over rows of
 //  their own.
 //
 

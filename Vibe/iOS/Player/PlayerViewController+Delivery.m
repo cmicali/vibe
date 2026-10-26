@@ -15,7 +15,7 @@
 #import "Formatters.h"
 #import "PlaceholderFiles.h"
 #import "PlaybackController+NowPlaying.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 #import "WaveformZoomMath.h"

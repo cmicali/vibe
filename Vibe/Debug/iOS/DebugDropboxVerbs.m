@@ -16,7 +16,7 @@
 #import "DropboxMirror.h"
 #import "VibeFakeDropbox.h"
 #import "PlaceholderFiles.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 #import "PlaybackController.h"
 #import "RootViewController.h"
 #import "RootViewController+Debug.h"
