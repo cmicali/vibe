@@ -73,7 +73,7 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     NSMutableSet<NSURL *> *_cacheOnlyAsked;
     NSMutableDictionary<NSURL *, AudioTrack *> *_artTracks;
 
-    // A row swipe sets isEditing too; only the Select button's is multi-select.
+    // TRAP: a row swipe sets isEditing too; only the Select button's is multi-select.
     BOOL _swipingRow;
     // A subfolder walk is out; a second ask waits for it.
     BOOL _walkingSubfolders;

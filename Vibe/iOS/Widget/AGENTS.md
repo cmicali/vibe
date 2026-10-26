@@ -13,7 +13,7 @@ The Home Screen and Lock Screen widget runs in its own process, the `VibeWidget`
 
 ## The snapshot
 
-`VibeWidgetState` is what was true at `positionDate`. The widget advances the playhead itself, so ordinary playback publishes nothing. A publish happens on a track change, a play or pause, a duration or title change, or a seek. The seek test is the lock screen's (`VibeNowPlayingPositionIsDirty`) with a 2 s tolerance. The whole decision is `VibeWidgetNeedsPublish` (`VibeWidgetState.h`). It takes the last snapshot and the tick's values.
+`VibeWidgetState` is what was true at `positionDate`. The widget advances the playhead itself, so ordinary playback publishes nothing. A publish happens on a track change, a play or pause, a duration, title or artist change, or a seek. The seek test is the lock screen's (`VibeNowPlayingPositionIsDirty`) with a 2 s tolerance. The whole decision is `VibeWidgetNeedsPublish` (`VibeWidgetState.h`). It takes the last snapshot and the tick's values.
 
 **While a placed widget shows a playing track, the publisher requests a timeline reload every minute** (`updatePlayingReloads`). It writes no new state. WidgetKit controls delivery. The timeline keeps coarse entries through the track’s end if a reload is delayed (`VibeWidget/AGENTS.md`).
 
@@ -36,7 +36,7 @@ The app bakes the current track's envelope twice, once in each half of the palet
 
 **Under a playhead line both images are the whole strip as played, and the widget draws the line.** `VibeWidgetState.playheadLine` says so. The bake sets it, and commits the plist again when it changed, after the images.
 
-A waveform is baked only for the published track, so a page swiped past cannot overwrite the strip. A bake runs only when its signature changes: the resolved style, alignment, palette and waveform object. **TRAP: the Custom theme's colour wells post continuously while dragged.** The signature compare and the cancel of a queued bake keep a drag from queuing dozens.
+A waveform is baked only for the published track, so a page swiped past cannot overwrite the strip. A bake runs only when its signature changes: the resolved style, alignment, playhead line, palette and waveform object. **TRAP: the Custom theme's colour wells post continuously while dragged.** The signature compare and the cancel of a queued bake keep a drag from queuing dozens.
 
 ## The buttons
 
