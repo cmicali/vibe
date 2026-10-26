@@ -13,7 +13,7 @@
 #import "AudioTrackMetadata.h"
 #import "FakeTrackMetadata.h"
 #import "NSURL+Hash.h"
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 
 @interface AudioTrackTests : XCTestCase
 @end
@@ -398,13 +398,13 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
     tags.duration = 305.4;
     tags.parsedOK = YES;
     Attach(track, tags);
-    NSString *text = [PlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:@[track]] relativeToDirectory:nil];
+    NSString *text = [VibePlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:@[track]] relativeToDirectory:nil];
     XCTAssertEqualObjects(text, @"#EXTM3U\n#EXTINF:305,Björk - Jóga\n/Music/A/x.mp3\n");
 }
 
 - (void)testAnUntaggedRowsEntryCarriesTheFilenameTitleAndNoLength {
     AudioTrack *track = [AudioTrack withURL:[NSURL fileURLWithPath:@"/Music/A/01_My_Track.mp3"]];
-    NSString *text = [PlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:@[track]] relativeToDirectory:nil];
+    NSString *text = [VibePlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:@[track]] relativeToDirectory:nil];
     XCTAssertEqualObjects(text, @"#EXTM3U\n#EXTINF:-1,01 My Track\n/Music/A/01_My_Track.mp3\n");
 }
 
@@ -414,7 +414,7 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
     AudioTrack *row = [[AudioTrack alloc] initWithURL:[NSURL fileURLWithPath:@"/Music/mix.flac"] cueStart:4500
                                                cueEnd:9000 title:@"Two" performer:@"DJ"
                                                 sheet:[NSURL fileURLWithPath:@"/Music/mix.cue"] trackNumber:2];
-    NSString *text = [PlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:@[row]] relativeToDirectory:nil];
+    NSString *text = [VibePlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:@[row]] relativeToDirectory:nil];
     XCTAssertEqualObjects(text, @"#EXTM3U\n"
                                  "#EXTINF:60,DJ - Two\n"
                                  "#EXTVLCOPT:start-time=60.000\n"
@@ -426,7 +426,7 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end, NSString *title,
 - (void)testRowsMadeFromEntriesKeepEachWindowAndName {
     NSData *data = [@"#VIBE-CUE:1,0,4500,A,,file:///M/mix.cue\n/M/mix.flac\n/M/b.flac\n"
             dataUsingEncoding:NSUTF8StringEncoding];
-    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[PlaylistFile entriesInM3UData:data]];
+    NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:[VibePlaylistFile entriesInM3UData:data]];
     XCTAssertEqual(rows.count, 2u);
     XCTAssertEqual(rows[0].cueEnd, 4500u);
     XCTAssertEqualObjects(rows[0].cueTitle, @"A");

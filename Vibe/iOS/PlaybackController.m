@@ -43,7 +43,7 @@ static const NSUInteger kUIUpdateHz = 3;
     if (self) {
         _observers = [NSPointerArray weakObjectsPointerArray];
 
-        _playlist = [[Playlist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
+        _playlist = [[VibePlaylist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
             return track.url;
         } sourceKey:^NSString *(AudioTrack *track) {
             return track.sourceKey;
@@ -581,7 +581,7 @@ static const NSUInteger kUIUpdateHz = 3;
 }
 
 // A list's rows can be stale (an external open replaced the playlist), and
-// Playlist.setCurrentIndex does not range-check.
+// VibePlaylist.setCurrentIndex does not range-check.
 - (void)selectTrackAtIndex:(NSUInteger)index {
     if (index >= _playlist.count) {
         return;
@@ -702,9 +702,9 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     [_metadataCache loadMetadata:_playlist.tracks];
 }
 
-#pragma mark - PlaylistObserver
+#pragma mark - VibePlaylistObserver
 
-- (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
+- (void)playlistDidReplaceAllTracks:(VibePlaylist *)playlist {
     // A replacement resets the index without the index-change event.
     [self endLoadingProgress];
     [self updateMetadataNeighborhood];
@@ -715,7 +715,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     }
 }
 
-- (void)playlist:(Playlist *)playlist didAppendTracksAtIndexes:(NSIndexSet *)indexes {
+- (void)playlist:(VibePlaylist *)playlist didAppendTracksAtIndexes:(NSIndexSet *)indexes {
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playback:didAppendTracksAtIndexes:)]) {
             [observer playback:self didAppendTracksAtIndexes:indexes];
@@ -723,7 +723,7 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     }
 }
 
-- (void)playlist:(Playlist *)playlist didReplaceTrackAtIndex:(NSUInteger)index {
+- (void)playlist:(VibePlaylist *)playlist didReplaceTrackAtIndex:(NSUInteger)index {
     for (id<PlaybackObserver> observer in [self observerSnapshot]) {
         if ([observer respondsToSelector:@selector(playback:didReplaceTrackAtIndex:)]) {
             [observer playback:self didReplaceTrackAtIndex:index];
@@ -733,20 +733,20 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 // iOS exposes no remove UI. A future caller must first coordinate the player;
 // forwarding this model-only event would leave it playing the departed track.
-- (void)playlist:(Playlist *)playlist didRemoveTracksAtIndexes:(NSIndexSet *)indexes {
+- (void)playlist:(VibePlaylist *)playlist didRemoveTracksAtIndexes:(NSIndexSet *)indexes {
 }
 
 // The removal's inverse; a no-op for the same reason.
-- (void)playlist:(Playlist *)playlist didInsertTracksAtIndexes:(NSIndexSet *)indexes {
+- (void)playlist:(VibePlaylist *)playlist didInsertTracksAtIndexes:(NSIndexSet *)indexes {
 }
 
 // No reorder UI either; a future one adds its own observer event.
-- (void)playlist:(Playlist *)playlist
+- (void)playlist:(VibePlaylist *)playlist
         didMoveTracksFromIndexes:(NSIndexSet *)sourceIndexes
                        toIndexes:(NSIndexSet *)destinationIndexes {
 }
 
-- (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
+- (void)playlist:(VibePlaylist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
     [self endLoadingProgress];
     [self updateMetadataNeighborhood];
     // The effects belong to the track they were played over: a change cuts

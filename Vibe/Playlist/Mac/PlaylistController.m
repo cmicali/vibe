@@ -5,7 +5,7 @@
 
 #import "PlaylistController.h"
 #import "AudioTrackMetadata.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 #import "PlaylistDragRules.h"
 #import "PlaylistTableView.h"
 #import "PlaylistRowView.h"
@@ -23,12 +23,12 @@ static NSString *const kPlaylistRowViewIdentifier = @"playlistRow";
 static NSPasteboardType const kPlaylistReorderPasteboardType =
         @"com.commonwealthrecordings.vibe.playlist-reorder";
 
-@interface PlaylistController () <NSMenuItemValidation, NSMenuDelegate, PlaylistObserver,
+@interface PlaylistController () <NSMenuItemValidation, NSMenuDelegate, VibePlaylistObserver,
         CloudTransferRegistryObserver>
 @end
 
 @implementation PlaylistController {
-    Playlist<AudioTrack *> *_model;
+    VibePlaylist<AudioTrack *> *_model;
     __weak PlaylistTableView *_tableView;
     __weak NSClipView *_observedClipView;
     // The track the list last centered under shuffle, so a seek's refresh,
@@ -157,7 +157,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
 - (instancetype)initWithAudioPlayer:(AudioPlayer *)audioPlayer {
     self = [super init];
     if (self) {
-        _model = [[Playlist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
+        _model = [[VibePlaylist<AudioTrack *> alloc] initWithURLKey:^NSURL *(AudioTrack *track) {
             return track.url;
         } sourceKey:^NSString *(AudioTrack *track) {
             return track.sourceKey;
@@ -307,9 +307,9 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     _dragSessionFileURLs = nil;
 }
 
-#pragma mark - Playlist observer
+#pragma mark - VibePlaylist observer
 
-- (void)playlistDidReplaceAllTracks:(Playlist *)playlist {
+- (void)playlistDidReplaceAllTracks:(VibePlaylist *)playlist {
     // The cursor is reset without its setter, so nothing else announces it.
     [self notifyCurrentIndexDidChange];
     // A row reload keeps the selection by row index, which would land on an
@@ -318,16 +318,16 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     [self reloadAllTracks];
 }
 
-- (void)playlist:(Playlist *)playlist didAppendTracksAtIndexes:(NSIndexSet *)indexes {
+- (void)playlist:(VibePlaylist *)playlist didAppendTracksAtIndexes:(NSIndexSet *)indexes {
     // Not reloadData: existing row views, and so the playing marking, survive.
     [self.tableView insertRowsAtIndexes:indexes withAnimation:NSTableViewAnimationEffectNone];
 }
 
-- (void)playlist:(Playlist *)playlist didReplaceTrackAtIndex:(NSUInteger)index {
+- (void)playlist:(VibePlaylist *)playlist didReplaceTrackAtIndex:(NSUInteger)index {
     [self reloadTrackAtIndex:index];
 }
 
-- (void)playlist:(Playlist *)playlist didRemoveTracksAtIndexes:(NSIndexSet *)indexes {
+- (void)playlist:(VibePlaylist *)playlist didRemoveTracksAtIndexes:(NSIndexSet *)indexes {
     PlaylistTableView *tableView = self.tableView;
     [tableView removeRowsAtIndexes:indexes withAnimation:NSTableViewAnimationEffectNone];
     // Presentation only; never starts a play.
@@ -342,7 +342,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     // once from the final state; a second edge would reconcile one edit twice.
 }
 
-- (void)playlist:(Playlist *)playlist didInsertTracksAtIndexes:(NSIndexSet *)indexes {
+- (void)playlist:(VibePlaylist *)playlist didInsertTracksAtIndexes:(NSIndexSet *)indexes {
     PlaylistTableView *tableView = self.tableView;
     [tableView insertRowsAtIndexes:indexes withAnimation:NSTableViewAnimationEffectNone];
     [self selectRevealAndRestampRows:indexes];
@@ -359,7 +359,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     [self reconfigureVisibleNumberCells];
 }
 
-- (void)playlist:(Playlist *)playlist
+- (void)playlist:(VibePlaylist *)playlist
         didMoveTracksFromIndexes:(NSIndexSet *)sourceIndexes
                        toIndexes:(NSIndexSet *)destinationIndexes {
     PlaylistTableView *tableView = self.tableView;
@@ -386,7 +386,7 @@ static NSPasteboardType const kPlaylistReorderPasteboardType =
     }
 }
 
-- (void)playlist:(Playlist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
+- (void)playlist:(VibePlaylist *)playlist currentIndexDidChangeFromIndex:(NSUInteger)previousIndex {
     [self notifyCurrentIndexDidChange];
     [self refreshRowViewPlayingStates];
     // Now, not after the async didStartPlaying round-trip.

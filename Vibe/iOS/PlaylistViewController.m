@@ -15,7 +15,7 @@
 #import "LoadingIndicatorMath.h"
 #import "LoadingIndicatorView.h"
 #import "PlaybackController.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 #import "PlaylistTrackCell.h"
 #import "SettingsViewController.h"
 #import "VibeStrings.h"
@@ -29,7 +29,7 @@ static NSString *const kTrackCellIdentifier = @"track";
 
 @implementation PlaylistViewController {
     PlaybackController *_playback;
-    Playlist<AudioTrack *> *_playlist;
+    VibePlaylist<AudioTrack *> *_playlist;
     // Changes what the empty state says until the next open finds audio.
     BOOL               _lastPickWasEmpty;
     // Appearance covers tabs and pushes; the root's surface fact covers the

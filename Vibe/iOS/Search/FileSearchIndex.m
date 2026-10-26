@@ -11,7 +11,7 @@
 #import "FileSearchIndexInternal.h"
 #import "FileSearchRules.h"
 #import "FolderWalk.h"
-#import "PlaylistEntry.h"
+#import "VibePlaylistEntry.h"
 
 // Bound memory when a granted root contains a large library.
 static const NSUInteger kMaxIndexedFiles = 20000;
@@ -126,9 +126,9 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
     // The batches arrive one at a time on one worker.
     __block NSUInteger total = 0;
     [FolderWalk scanRoots:_roots readPolicy:VibeFolderScanReadPolicyNone progress:progress
-                    batch:^(NSArray<PlaylistEntry *> *entries) {
+                    batch:^(NSArray<VibePlaylistEntry *> *entries) {
         NSMutableArray<IndexedSearchFile *> *batch = [NSMutableArray arrayWithCapacity:entries.count];
-        for (PlaylistEntry *entry in entries) {
+        for (VibePlaylistEntry *entry in entries) {
             // A CUE sheet arrives as a file. Only audio is a hit.
             if (total < cap && [supported containsObject:entry.url.pathExtension.lowercaseString]) {
                 [batch addObject:[self indexedFileForURL:entry.url]];

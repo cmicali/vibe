@@ -18,8 +18,8 @@
 #import "FolderAccessRules.h"
 #import "PlaceholderFiles.h"
 #import "PlaylistController.h"
-#import "PlaylistFile.h"
-#import "PlaylistFile+Session.h"
+#import "VibePlaylistFile.h"
+#import "VibePlaylistFile+Session.h"
 #import "VibeStrings.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
@@ -59,7 +59,7 @@
 // Seeded from the tracks' common folder, so a folder's playlist lands beside
 // its music.
 - (IBAction)savePlaylist:(nullable id)sender {
-    NSURL *common = [PlaylistFile commonDirectoryForEntries:[AudioTrack entriesForRows:self.playlistController.playlist]];
+    NSURL *common = [VibePlaylistFile commonDirectoryForEntries:[AudioTrack entriesForRows:self.playlistController.playlist]];
     NSSavePanel *panel = [NSSavePanel savePanel];
     panel.allowedContentTypes = @[UTTypeM3UPlaylist];
     panel.directoryURL = common;   // nil: the panel's own default
@@ -79,9 +79,9 @@
 
 - (BOOL)writePlaylistToURL:(NSURL *)url error:(NSError **)error {
     // Relative to the chosen file's folder, which the reader resolves against.
-    if (![PlaylistFile writeM3UForEntries:[AudioTrack entriesForRows:self.playlistController.playlist]
-                      relativeToDirectory:url.URLByDeletingLastPathComponent
-                                    toURL:url error:error]) {
+    if (![VibePlaylistFile writeM3UForEntries:[AudioTrack entriesForRows:self.playlistController.playlist]
+                          relativeToDirectory:url.URLByDeletingLastPathComponent
+                                        toURL:url error:error]) {
         return NO;
     }
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:url];
@@ -102,7 +102,7 @@ static NSURL *VibeLastPlaylistURL(void) {
 
 - (void)saveLastPlaylist {
     NSError *error = nil;
-    if (![PlaylistFile saveSessionTracks:self.playlistController.playlist
+    if (![VibePlaylistFile saveSessionTracks:self.playlistController.playlist
             currentIndex:self.playlistController.currentIndex enabled:AppSettings.sharedInstance.reopenLastPlaylist
             toURL:VibeLastPlaylistURL() defaults:NSUserDefaults.standardUserDefaults write:nil error:&error]) {
         LogError(@"Last playlist not saved: %@", error.localizedDescription);
@@ -110,11 +110,11 @@ static NSURL *VibeLastPlaylistURL(void) {
 }
 
 - (void)removeLastPlaylist {
-    [PlaylistFile removeSessionAtURL:VibeLastPlaylistURL() defaults:NSUserDefaults.standardUserDefaults];
+    [VibePlaylistFile removeSessionAtURL:VibeLastPlaylistURL() defaults:NSUserDefaults.standardUserDefaults];
 }
 
 - (BOOL)restoreLastPlaylist {
-    return [PlaylistFile restoreSessionAtURL:VibeLastPlaylistURL()
+    return [VibePlaylistFile restoreSessionAtURL:VibeLastPlaylistURL()
             enabled:AppSettings.sharedInstance.reopenLastPlaylist defaults:NSUserDefaults.standardUserDefaults
             load:^(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused) {
         [self loadTracks:rows selectingIndex:index startPaused:paused];
@@ -188,7 +188,7 @@ static NSURL *VibeLastPlaylistURL(void) {
 }
 
 // The one removal funnel, and the only place a removal's playback consequences
-// are decided: Playlist.removeTracksAtIndexes: touches no audio, so removing
+// are decided: VibePlaylist.removeTracksAtIndexes: touches no audio, so removing
 // the current row there alone would leave the player sounding a track the
 // playlist no longer holds, and every identity guard would read its events as
 // stale. It touches no file and registers no undo; each caller registers its
@@ -438,7 +438,7 @@ static NSURL *VibeLastPlaylistURL(void) {
 - (NSDictionary *)debugLastPlaylistDictionary {
     return @{
         @"exists": @([NSFileManager.defaultManager fileExistsAtPath:VibeLastPlaylistURL().path]),
-        @"rows": @([PlaylistFile entriesInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]].count),
+        @"rows": @([VibePlaylistFile entriesInM3UData:[NSData dataWithContentsOfURL:VibeLastPlaylistURL()]].count),
         @"currentIndex": @([NSUserDefaults.standardUserDefaults integerForKey:kVibeLastPlaylistCurrentIndexKey]),
     };
 }

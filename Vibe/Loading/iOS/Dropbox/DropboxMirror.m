@@ -12,7 +12,7 @@
 #import "FilePaths.h"
 #import "PlaceholderFiles.h"
 #import "PlayableExtensions.h"
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 #import "RemotePlaceholderStoreInternal.h"
 
 // list_folder's own maximum page.
@@ -252,7 +252,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
         if (present && VibeDropboxLocalMatchesEntry(st.st_size, st.st_mtimespec.tv_sec, size, modified)) {
             continue;
         }
-        if ([PlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]) {
+        if ([VibePlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]) {
             if ([identifier isKindOfClass:NSString.class]) {
                 [sidecars addObject:@{@"path": identifier, @"url": url}];
             }
@@ -294,7 +294,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
             struct stat st;
             if (lstat(url.fileSystemRepresentation, &st) == 0
                     && (S_ISDIR(st.st_mode) || (S_ISREG(st.st_mode) && !VibeFileModeIsRemotePlaceholder(st.st_mode)
-                                                && ![PlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]))) {
+                                                && ![VibePlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]))) {
                 *discarded = YES;   // a folder may hold downloads; not walked to find out
             }
             [files removeItemAtURL:url error:NULL];
@@ -493,7 +493,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 - (NSArray<NSDictionary *> *)downloadsUnder:(NSURL *)root {
     NSMutableArray<NSDictionary *> *downloads = [[super downloadsUnder:root] mutableCopy];
     [downloads filterUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSDictionary *download, NSDictionary *bindings) {
-        return ![PlaylistFile isPlaylistExtension:[download[@"url"] pathExtension].lowercaseString];
+        return ![VibePlaylistFile isPlaylistExtension:[download[@"url"] pathExtension].lowercaseString];
     }]];
     return downloads;
 }

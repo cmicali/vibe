@@ -25,7 +25,7 @@
 #import "OpenRecentMenuController.h"
 #import "PINCache+VibeAudioCache.h"
 #import "PlaylistController.h"
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 #import "NSBundle+BuildInfo.h"
 #import "AppStats.h"
 #import "VibeProductURLs.h"
@@ -478,7 +478,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     // the expansion worker, off main.
     [FolderWalk expandAndFilterList:urls
                            sortedBy:AppSettings.sharedInstance.folderOpenSort
-                         completion:^(NSArray<PlaylistEntry *> *entries, NSUInteger folderCount) {
+                         completion:^(NSArray<VibePlaylistEntry *> *entries, NSUInteger folderCount) {
         NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:entries];
         run_on_main_thread({
             [OpenRequestCoordinator.sharedCoordinator finishRequest:token
@@ -499,7 +499,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     if (rows.count == 0) {
         NSString *playlist = nil;
         for (NSURL *url in urls) {
-            if ([PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]) {
+            if ([VibePlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]) {
                 playlist = url.lastPathComponent;
                 break;
             }

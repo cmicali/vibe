@@ -11,7 +11,7 @@
 #import "FileRow.h"
 #import "LoadingIndicatorView.h"
 #import "MiniPlayerView.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 #import "PlaylistTrackCell.h"
 #import "PlaylistViewController.h"
 #import "TrackPageViews.h"

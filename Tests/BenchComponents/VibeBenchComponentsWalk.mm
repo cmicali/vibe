@@ -15,7 +15,7 @@
 #define FolderWalk NSURLUtil   // the walk was NSURLUtil before it moved to Playlist/
 #endif
 
-#if __has_include("PlaylistEntry.h")
+#if __has_include("VibePlaylistEntry.h") || __has_include("PlaylistEntry.h")
 // The walk answers entries, and the app makes its rows from them.
 #define VibeBenchWalkRows(entries) [AudioTrack rowsForEntries:(entries)]
 #else

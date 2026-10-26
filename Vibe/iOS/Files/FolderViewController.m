@@ -20,7 +20,7 @@
 #import "PlaceholderFiles.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 #import "SettingsRules.h"
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
@@ -235,7 +235,7 @@ static const NSUInteger kFilterThreshold = 12;
         NSMutableArray<NSURL *> *songs = [NSMutableArray array];
         NSMutableArray<NSURL *> *local = [NSMutableArray array];
         for (NSURL *url in files) {
-            BOOL song = ![PlaylistFile isCueExtension:url.pathExtension.lowercaseString];
+            BOOL song = ![VibePlaylistFile isCueExtension:url.pathExtension.lowercaseString];
             if (song) {
                 [songs addObject:url];
             }
@@ -249,7 +249,7 @@ static const NSUInteger kFilterThreshold = 12;
             // would download. Formatted here, not per cell.
             NSNumber *size = nil;
             [url getResourceValue:&size forKey:NSURLFileSizeKey error:NULL];
-            if (size != nil && ![PlaylistFile isCueExtension:url.pathExtension.lowercaseString]) {
+            if (size != nil && ![VibePlaylistFile isCueExtension:url.pathExtension.lowercaseString]) {
                 sizes[url] = [NSByteCountFormatter stringFromByteCount:size.longLongValue
                                                             countStyle:NSByteCountFormatterCountStyleFile];
             }

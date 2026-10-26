@@ -9,7 +9,7 @@
 #import "LinkStore.h"
 #import "LocationStore.h"
 #import "PlaybackController.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 #import "RecentsStore.h"
 #import "RootViewController.h"
 

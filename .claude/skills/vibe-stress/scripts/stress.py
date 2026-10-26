@@ -87,7 +87,7 @@ STALL_PROBE_MS = 2000
 AUDIO_SUFFIXES = (".wav", ".wave", ".bwf", ".w64", ".aif", ".aiff", ".flac", ".caf",
                   ".m4a", ".mp4", ".qta", ".m4b", ".m4r", ".aac", ".adts",
                   ".ogg", ".oga", ".opus", ".mp3", ".mp2")
-PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".cue"}   # PlaylistFile.isPlaylistExtension:
+PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".cue"}   # VibePlaylistFile.isPlaylistExtension:
 
 # TRAP: raw input can start native file and window drags, so unattended runs
 # send only app-owned actions. require_command fails closed on anything else,
