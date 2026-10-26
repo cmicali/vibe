@@ -4,9 +4,12 @@
 # checkout — never share an app container, debug channel or touch driver.
 # Outside Claude Code: one device per checkout.
 #
-# Usage: sim-udid.sh [--create]
+# Usage: sim-udid.sh [--create | --iphone NAME]
 #   --create   create the device if missing (the first available iPhone's
 #              device type and runtime); does not boot it
+#   --iphone NAME   print NAME when an available simulator has it, else the
+#              first available iPhone's name; touches no device. `make
+#              test-ios` uses it for its default device.
 # Overrides: VIBE_SIM_UDID is printed as-is (`booted` means any booted
 # device); VIBE_SIM_NAME replaces the derived name.
 # Exit 1 when the device does not exist and --create was not given.
@@ -14,6 +17,18 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/../../../.." && pwd)"
+
+# The first available iPhone. --create models a new device on it, and --iphone
+# stands it in for a missing name.
+FIRST_IPHONE='first(.devices | to_entries[] | .key as $rt | .value[]
+        | select(.name | startswith("iPhone")) | .runtime = $rt)'
+
+if [ "${1:-}" = "--iphone" ]; then
+    xcrun simctl list devices available -j | jq -er --arg n "${2:-}" \
+            "if any(.devices[][]; .name == \$n) then \$n else ($FIRST_IPHONE).name end" \
+        || { echo "no available iPhone simulator" >&2; exit 1; }
+    exit 0
+fi
 
 if [ -n "${VIBE_SIM_UDID:-}" ]; then printf '%s\n' "$VIBE_SIM_UDID"; exit 0; fi
 
@@ -38,9 +53,7 @@ printf '%s' "$JSON" | jq -r --arg n "$NAME" '.devices[][]
 done
 
 if [ -z "$UDID" ] && [ "${1:-}" = "--create" ]; then
-    MODEL="$(printf '%s' "$JSON" | jq -r 'first(.devices | to_entries[]
-            | .key as $rt | .value[] | select(.name | startswith("iPhone"))
-            | "\(.deviceTypeIdentifier)\t\($rt)") // empty')"
+    MODEL="$(printf '%s' "$JSON" | jq -r "$FIRST_IPHONE"' | "\(.deviceTypeIdentifier)\t\(.runtime)"')"
     [ -n "$MODEL" ] || { echo "no available iPhone simulator to model $NAME on" >&2; exit 1; }
     UDID="$(xcrun simctl create "$NAME" "${MODEL%%$'\t'*}" "${MODEL##*$'\t'}")"
 fi
