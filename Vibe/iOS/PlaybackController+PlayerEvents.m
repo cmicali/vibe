@@ -16,7 +16,7 @@
 #import "FilePaths.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
-#import "PlaybackDeliveryRules.h"
+#import "PlaybackShellRules.h"
 #import "UIUpdateTimer.h"
 
 @implementation PlaybackController (PlayerEvents)

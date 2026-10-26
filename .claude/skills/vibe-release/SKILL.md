@@ -24,6 +24,8 @@ Each App Store pair works the same way: `appstore-build[-ios]` stops after valid
 
 **Both archive scripts preflight `asc_require_translations`** before the archive. A key missing any catalog language fails the release, because nothing else catches it: `make check-strings` compares the catalog to the source, and the build compiles a partial key silently, so that locale would show English. Fix it by translating, never by skipping (the **vibe-strings** skill). This is the in-app catalog, separate from the product-page copy below.
 
+**A release is never a build slot** (the **vibe-debug** skill, Slots). Every agent shell has a session id, so both archive scripts set `VIBE_NO_SLOT=1` and clear the slot's names rather than refuse. `asc_export_archive` and `github-release.sh` refuse any app that is not the stock `Vibe.app` (`vibe_assert_stock_bundle`, in `scripts/vibe-env.sh`).
+
 ## The Developer ID path
 
 `make release` builds two Release archives: universal under `build/release/` and arm64-only under `build/release/arm64/`. Each is exported with Developer ID, notarized and stapled, then packaged in its own plain drag-to-`Applications` DMG, which is itself signed, notarized and stapled. Architecture is a build input. Never thin the signed universal app, since changing its executable invalidates the signature and notarization. Each final zip is signed for Sparkle into `<zip>.sig`.
@@ -35,6 +37,8 @@ Each App Store pair works the same way: `appstore-build[-ios]` stops after valid
 ## The release commit
 
 A release commit bumps `project.yml`'s `vibe-version` lines (`MARKETING_VERSION` and `CURRENT_PROJECT_VERSION`) and rewrites `whats-new.txt`. Make it as `release: <ver>`, on an up-to-date `main` in the main checkout. **The build number never restarts with a new marketing version.** Confirm rather than go backwards when a request reads like "1.14 (114)". When the notes are still under review, push the version bump alone and build from it. Then commit the notes as `release: <ver> notes`, wait for CI, and publish from that commit.
+
+**The notes name every cache archive version bump since the last release**, since the new build then reads each file again. Two are pending after v1.17. The metadata archive's v8 (#400) parses every file's tags once. The waveform archive's format 7 (#355) decodes each waveform again when it is next shown.
 
 **A stable release sets `VIBE_BETA_DEBUG: 0` in the same commit; a beta keeps 1.** It controls `VIBE_VERBOSE_LOGGING` and the mac's Include beta versions default (`receiveBetaUpdates`). Verbose logging compiles in the beta instrumentation (`Vibe/Audio/AGENTS.md`, Beta diagnostics), which writes the user's file paths into the unified log as public text. **No script flips `VIBE_BETA_DEBUG`, so a stable release ships verbose logging unless this commit turns it off.** The commit that opens the next version on `main` sets it back to 1. Before publishing a stable release, `strings -a build/release/export/Vibe.app/Contents/MacOS/Vibe | grep -c 'Timeline: play'` must print 0. The flag is compile-time, so it governs the App Store builds too.
 

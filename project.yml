@@ -144,10 +144,12 @@ targets:
     type: application
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources.
-    # SettingsWindow, Shortcuts, and Updates are macOS only, so VibeiOS never
-    # lists them. Updates lists Sparkle, which links and embeds the framework. The vendored libraries carry their own flags. Metadata's parse
-    # reads TagLib's own types, and the FLAC converter writes tags through
-    # TagLib, so both apps list TagLib's template beside Tags' and Metadata's.
+    # SettingsWindow, Shortcuts, AppOpening, SandboxAccess, and Updates are
+    # macOS only, so VibeiOS never lists them. Updates lists Sparkle, which
+    # links and embeds the framework. The vendored libraries carry their own
+    # flags. Metadata's parse reads TagLib's own types, and the FLAC converter
+    # writes tags through TagLib, so both apps list TagLib's template beside
+    # Tags' and Metadata's.
     #
     # TRAP: VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, and
     # VibeLibsTaglib. Header search paths follow this order, and taglib/ogg
@@ -157,8 +159,9 @@ targets:
                 VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts,
-                VibeLibsNowPlaying, VibeLibsUpdates, VibeLibsDebugChannel, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata,
-                VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsAppOpening, VibeLibsSandboxAccess, VibeLibsNowPlaying, VibeLibsUpdates, VibeLibsDebugChannel, VibeLibsVorbis,
+                VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
+                VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: iOS
     sources:
@@ -742,8 +745,7 @@ targets:
       - path: vibe-libs/system/NowPlaying/NowPlayingController.m
       - path: Vibe/Mac/MainWindow/ArtworkDisplayController.m
       - path: vibe-libs/ui/Controls/Mac/CrossfadingImageView.m
-      - path: Vibe/Mac/App/OpenBurstCoalescer.m
-      - path: Vibe/Mac/App/OpenRequestCoordinator.m
+      - path: vibe-libs/system/AppOpening/Mac/OpenRequestCoordinator.m   # +Playlist's close invalidates it
       - path: Vibe/Mac/MainWindow/Transport/TransportKeyMonitor.m
       - path: Vibe/Mac/MainWindow/MainPlayerController.m   # injected constructor; ShellTestFakes stand in for the rest
       - path: Vibe/Mac/MainWindow/MainPlayerController+Playlist.m
@@ -764,7 +766,6 @@ targets:
       - path: vibe-libs/ui/Controls/Mac/ScaledImageView.m
       - path: Vibe/Mac/Controls/ArtworkImageView.m          # the drawn views render into a bitmap, windowless
       - path: vibe-libs/ui/Controls/Mac/DrawnControls.m
-      - path: Vibe/Mac/Controls/PitchFaderView.m
       - path: vibe-libs/ui/Controls/Mac/SymbolButton.m
       - path: Vibe/Mac/MainWindow/VolumeControlView.m
       - path: vibe-libs/waveform/WaveformView/Mac/WaveformView.mm
@@ -772,9 +773,9 @@ targets:
       - path: Vibe/Util/Mac/NSDraggingImageComponent+Util.m
       - path: Vibe/Util/Mac/NSTextField+Label.m
       - path: vibe-libs/core/Common/VibeWeakProxy.m
-      - path: vibe-libs/media/PlayQueue/Playlist.m
+      - path: vibe-libs/media/PlayQueue/VibePlaylist.m
       - path: Vibe/Playlist/Mac/TrackCommands.m
-      - path: Vibe/Playlist/Mac/PlaylistFile+Session.m
+      - path: Vibe/Playlist/Mac/VibePlaylistFile+Session.m
       - path: vibe-libs/core/Common/UIUpdateTimer.m
       - path: Vibe/iOS/Player/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
@@ -847,6 +848,7 @@ targets:
           - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
+          - "$(SRCROOT)/vibe-libs/files/SandboxAccess/Mac"
           - "$(SRCROOT)/Vibe/Playlist"
           - "$(SRCROOT)/vibe-libs/media/PlayQueue"
           - "$(SRCROOT)/vibe-libs/media/Playlists"
@@ -872,10 +874,9 @@ targets:
           # The styles: the theme, the zoom math, the renderers, the level
           # math, and the host-less morph engine.
           - "$(SRCROOT)/vibe-libs/waveform/WaveformStyles"
-          # The oracles, simulators and seams that the tests and their
-          # compiled production sources import.
+          # The oracles that the tests and their compiled production sources
+          # import.
           - "$(SRCROOT)/Vibe/Debug/Oracles"
-          - "$(SRCROOT)/Vibe/Debug/Seams"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
           - "$(SRCROOT)/Vibe/Mac/Convert"
           # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
@@ -958,8 +959,8 @@ targetTemplates:
                 VibeLibsVorbis]
     sources:
       - path: vibe-libs/Tests/Support/HTTPStub.m   # the link tests' host, and a link played over it
-      - path: vibe-libs/files/ShareLinks/VibeFakeHTTP.m           # HTTPStub's sessionConfiguration
-      - path: vibe-libs/files/ShareLinks/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
+      - path: vibe-libs/files/ShareLinks/VibeFakeHTTP.m     # the link tests' fake web server
+      - path: vibe-libs/files/HTTP/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
       - path: Vibe/Playlist/AudioTrack.m
       - path: vibe-libs/media/Metadata/NSURL+FilenameTitle.m
       # The render path's -O2, anchored in VibeAudioTests' list, which YAML reads first.
@@ -1004,9 +1005,9 @@ targetTemplates:
       - path: vibe-libs/files/FileLoading/PlaceholderFiles.m
       - path: vibe-libs/files/FileLoading/PlaceholderFiles+Debug.m   # its dataless test asks the probe first
       - path: vibe-libs/media/FolderScan/FolderWalk.m
-      - path: vibe-libs/media/Playlists/PlaylistEntry.m
-      - path: vibe-libs/media/Playlists/PlaylistFile.m
-      - path: vibe-libs/media/Playlists/PlaylistFile+CUE.m
+      - path: vibe-libs/media/Playlists/VibePlaylistEntry.m
+      - path: vibe-libs/media/Playlists/VibePlaylistFile.m
+      - path: vibe-libs/media/Playlists/VibePlaylistFile+CUE.m
       - path: Vibe/Util/Formatters.m
       - path: vibe-libs/core/Common/NSURL+Hash.m
       - path: vibe-libs/core/Common/NSURL+Emptiness.m
@@ -1030,7 +1031,6 @@ targetTemplates:
       - path: Vibe/Common/Mac/Theme/AppTheme.m
       - path: vibe-libs/core/Graphics/PlatformColor.m
       - path: vibe-libs/core/Graphics/PlatformImage.m
-      - path: Vibe/Mac/App/FolderAccessManager.m
       - path: vibe-libs/core/Graphics/Mac/NSImage+Util.m
       - path: vibe-libs/core/Graphics/Mac/NSView+DarkMode.m
 

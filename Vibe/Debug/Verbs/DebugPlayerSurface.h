@@ -62,7 +62,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (AudioWaveformCache *)debugWaveformCache;
 
 // What DebugConsistency.m reads: facts rather than objects, since the mac's
-// playlist lives behind PlaylistController and the iOS one is a bare Playlist.
+// playlist lives behind PlaylistController and the iOS one is a bare VibePlaylist.
 
 - (AudioPlayer *)debugPlayer;
 

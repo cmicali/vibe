@@ -7,7 +7,7 @@
 #import "AppSettings.h"
 #import "FavoritesStore.h"
 #import "FileRow.h"
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
 
@@ -201,7 +201,7 @@
             })];
             // An M3U is never a row of its folder, so there is nothing to
             // select in it.
-            if (!folder && ![PlaylistFile isM3UExtension:url.pathExtension.lowercaseString]) {
+            if (!folder && ![VibePlaylistFile isM3UExtension:url.pathExtension.lowercaseString]) {
                 [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
                     [weakSelf openURLs:@[url] inFolder:YES];
                 })];

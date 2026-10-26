@@ -6,6 +6,9 @@ CONFIG ?= Release
 # it from. Under build/, so `make clean` takes it.
 RESULT_BUNDLE ?= build/TestResults.xcresult
 
+# This shell's build slot (scripts/vibe-env.sh), read only where a recipe uses it.
+vibe_env = $(or $(shell scripts/vibe-env.sh --print $(1)),$(error scripts/vibe-env.sh resolved no $(1)))
+
 .PHONY: help audio-test-bundle audio-fixtures compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-ios test-ios-summary test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
@@ -40,8 +43,10 @@ project:
 	@scripts/build/vibe-libs-submodule.sh
 	scripts/build/build-lock.sh xcodegen generate
 
-# The macOS app. `project` has already regenerated, so build.sh skips its own.
-# ARGS reaches xcodebuild: CI's AppStore build is ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'.
+# The macOS app, into the slot's DerivedData. A slotted Debug build is
+# Vibe-<slot>.app (scripts/build/build.sh). `project` has already regenerated,
+# so build.sh skips its own. ARGS reaches xcodebuild: CI's AppStore build is
+# ARGS='ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO'.
 build: project
 	SKIP_GENERATE=1 scripts/build/build.sh $(CONFIG) $(ARGS)
 
@@ -96,7 +101,9 @@ compile-commands: project
 	    -e 's#"[^"]*/SharedPrecompiledHeaders/[0-9]+/Vibe-Prefix\.pch"#"$(CURDIR)/Vibe/Common/Vibe-Prefix.pch"#'; \
 	    echo ']'; } > compile_commands.json
 
-# The host-less unit tests (VibeTests) plus the cloud-runner oracle tests.
+# The host-less unit tests (VibeTests) plus the cloud-runner oracle tests, in
+# the slot's DerivedData. The scheme's test action builds no app. It takes
+# no slot overrides.
 # The rm matters: xcodebuild refuses to write over an existing result bundle.
 # `make -j3 test test-audio` runs both suites at once: test-audio has its own
 # derived data, since two xcodebuilds cannot share one.
@@ -110,7 +117,7 @@ test: project check-cloud-scenarios
 	    -project Vibe.xcodeproj \
 	    -scheme Vibe \
 	    -configuration Debug \
-	    -derivedDataPath build/DerivedData \
+	    -derivedDataPath "$(call vibe_env,VIBE_DERIVED_DATA)" \
 	    -resultBundlePath $(RESULT_BUNDLE) \
 	    -collect-test-diagnostics never \
 	    $(COVERAGE_FLAG) \
@@ -118,17 +125,23 @@ test: project check-cloud-scenarios
 
 # The iOS shell's views and controllers (VibeiOSTests), on a simulator, hosted
 # in the Debug app. It has its own derived data and can run beside `make test`.
-# IOS_TEST_DEVICE names the simulator. CI's runner has the default.
+# IOS_TEST_DEVICE names the simulator. CI's runner has the default. When the
+# caller names none and this Mac lacks the default, the run takes the first
+# available iPhone (the vibe-debug skill's `sim-udid.sh --iphone`).
 # ARGS='-only-testing:VibeiOSTests/<Class>' narrows a run.
 IOS_TEST_DEVICE ?= iPhone 17
 IOS_RESULT_BUNDLE ?= build/iOSTestResults.xcresult
 test-ios: project
 	rm -rf $(IOS_RESULT_BUNDLE)
+	device='$(IOS_TEST_DEVICE)'; \
+	if [ '$(origin IOS_TEST_DEVICE)' = file ]; then \
+	    device="$$(.claude/skills/vibe-debug/scripts/sim-udid.sh --iphone "$$device")" || exit 1; \
+	fi; \
 	xcodebuild \
 	    -project Vibe.xcodeproj \
 	    -scheme VibeiOSTests \
 	    -configuration Debug \
-	    -destination 'platform=iOS Simulator,name=$(IOS_TEST_DEVICE)' \
+	    -destination "platform=iOS Simulator,name=$$device" \
 	    -derivedDataPath build/iOSTestDerivedData \
 	    -resultBundlePath $(IOS_RESULT_BUNDLE) \
 	    -collect-test-diagnostics never \
@@ -149,7 +162,7 @@ build-test-blackhole:
 	@scripts/test/generate-test-audio.sh --blackhole-drivers
 
 AUDIO_DEVICE ?= BlackHole 2ch
-AUDIO_APP ?= $(abspath build/DerivedData/Build/Products/Debug/Vibe.app/Contents/MacOS/Vibe)
+AUDIO_APP ?= $(call vibe_env,VIBE_BIN)
 # Opt-in live acceptance, never CI: the test drivers from build-test-blackhole,
 # and the Debug app already running on VibeBlackHole 16ch. See
 # vibe-debug/references/test-audio.md.
@@ -232,7 +245,7 @@ stress:
 # instance and cold caches first; both are load-bearing (vibe-stress skill).
 #   make torture PLAYLIST=~/Music/big
 #   make torture PLAYLIST=~/Music/big ARGS="--rounds 40 --burst 40"
-torture: APP ?= build/DerivedData/Build/Products/Debug/Vibe.app
+torture: APP ?= $(call vibe_env,VIBE_APP)
 torture:
 	@test -n "$(PLAYLIST)" || { echo "usage: make torture PLAYLIST=<folder of audio files> [APP=<Vibe.app>]"; exit 64; }
 	.claude/skills/vibe-stress/scripts/run-torture.sh "$(APP)" "$(PLAYLIST)" $(ARGS)
@@ -271,11 +284,19 @@ bench-report:
 
 # Copy the built app into /Applications. The rm matters: BSD cp -R copies INTO
 # an existing destination directory, so without it a second install produces
-# /Applications/Vibe.app/Vibe.app.
+# /Applications/Vibe.app/Vibe.app. A slotted Debug build is refused before it
+# builds, since it is not Vibe.app.
+ifeq ($(filter install,$(MAKECMDGOALS)),install)
+ifeq ($(CONFIG),Debug)
+ifneq ($(shell scripts/vibe-env.sh --print VIBE_SLOT),)
+$(error make install refuses a slotted Debug build. Run it with VIBE_NO_SLOT=1)
+endif
+endif
+endif
 install: build
 	@echo "🔊 installing to /Applications/Vibe.app"
 	rm -rf /Applications/Vibe.app
-	cp -R build/DerivedData/Build/Products/$(CONFIG)/Vibe.app /Applications/Vibe.app
+	cp -R "$(call vibe_env,VIBE_DERIVED_DATA)/Build/Products/$(CONFIG)/Vibe.app" /Applications/Vibe.app
 
 # Build universal and arm64-only Release archives, then independently export,
 # sign (Developer ID), notarize and staple both apps and their
@@ -328,9 +349,10 @@ appstore-build-ios:
 appstore-upload-signed-build-ios:
 	scripts/appstore/release-appstore.sh --platform ios --upload
 
-# Remove build/ and the generated Vibe.xcodeproj.
+# Remove build/ and the generated Vibe.xcodeproj, or in a slot only the
+# slot's DerivedData. ARGS=--all removes everything from a slot too.
 clean:
-	scripts/build/clean.sh
+	scripts/build/clean.sh $(ARGS)
 
 # Wipe Vibe's persisted state (settings, folder grants, caches, saved window
 # state) so the next launch is a first launch. Prompts before deleting.

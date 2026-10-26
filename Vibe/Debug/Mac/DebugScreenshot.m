@@ -135,7 +135,8 @@ BOOL VibeDumpWindowSnapshot(NSString *path) {
 
 void VibeInstallDebugScreenshotHook(void) {
     static int token;
-    notify_register_dispatch("com.vibe.debug.screenshot", &token, dispatch_get_main_queue(), ^(int t) {
+    NSString *name = [NSBundle.mainBundle.bundleIdentifier stringByAppendingString:@".debug.screenshot"];
+    notify_register_dispatch(name.UTF8String, &token, dispatch_get_main_queue(), ^(int t) {
         VibeDumpWindowSnapshot(VibeDebugScreenshotPath());
     });
 }

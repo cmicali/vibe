@@ -20,7 +20,7 @@ Each phase builds, passes `make test` and can be verified alone. Read first: the
 
 `ENABLE_APP_SANDBOX: YES` is set on the `Vibe` target for every configuration. Debug and Release sign with `Vibe-Direct.entitlements`, which adds Sparkle's installer exceptions. AppStore signs with `Vibe.entitlements`. Both get `network.client` from `ENABLE_OUTGOING_NETWORK_CONNECTIONS`, for Open URL. The code that depends on the sandbox:
 
-- **`FolderAccessManager`** (`Vibe/Mac/App/`): the security-scoped bookmark store, launch restoration with its deadlines and lanes, and `canReadInsideDirectory:`. Readers: `AppDelegate` (the launch order grants → drain → restore, and the playlist-grant handler, which calls the grant panel's `requestAccessForPlaylistFolder:`), `FolderArtResolver` (`canReadInsideDirectory:`), `MainPlayerController`, `SettingsFilesViewController` (the grant list), and `DebugInfo`.
+- **`FolderAccessManager`** (vibe-libs' `files/SandboxAccess`): the security-scoped bookmark store, launch restoration with its deadlines and lanes, and `canReadInsideDirectory:`. Readers: `AppDelegate` (the launch order grants → drain → restore, and the playlist-grant handler, which calls the grant panel's `requestAccessForPlaylistFolder:`), `FolderArtResolver` (`canReadInsideDirectory:`), `MainPlayerController`, `SettingsFilesViewController` (the grant list), and `DebugInfo`.
 - **`AudioFileConverter+Sandbox`**: the three rungs that get the encoded file out of the container's tmp — plain move, related-item coordinated move, save panel.
 - **Security-scope calls on plain URLs**: `PlaylistController`'s drag-out (`startAccessingSecurityScopedResource` per dragged track) and `ArtworkImageView`'s art drag. Both already tolerate a `NO` answer.
 - **`+realHomeDirectory`** (`getpwuid`): correct in both modes.
@@ -46,7 +46,7 @@ The budget is zero new files and zero new types: each item is a branch at the to
   - `canReadInsideDirectory:` answers `YES`.
   - `restoreGrantedAccessWithCompletion:` completes at once with nothing to restore, so the launch order is drain → restore → empty state with no grant wait.
   - Merging a grant from an open or a drop, and persisting, are no-ops; `grantedFolders` is empty.
-  - `requestAccessForPlaylistFolder:` answers `YES` without the panel. `FolderAccessManager+GrantPanel` is not compiled into the path.
+  - `requestAccessForPlaylistFolder:message:prompt:` answers `YES` without the panel. `FolderAccessManager+GrantPanel` is not compiled into the path.
   Do not delete the stored bookmarks key on an unsandboxed launch: a user who moves back to the App Store build keeps a separate container anyway, and the direct defaults never had them.
 - **Settings > Files**: the granted-folders section and Add Common Folder are absent unsandboxed. Check what remains in the pane and whether it still earns a pane.
 - **Converter**: no code change expected. Rung 1 tries the plain move. A failed move still falls through to coordination and the save panel. The encode's temporary file now lives in the per-user `NSTemporaryDirectory()` rather than the container's; confirm the launch sweep of `vibe-convert-<uuid>.flac` targets `NSTemporaryDirectory()` and not a container path. `convertAsksWhereToSave` keeps its meaning.

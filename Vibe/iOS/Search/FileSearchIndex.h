@@ -4,10 +4,12 @@
 //
 //  The search screen's files section: every audio file under the roots
 //  PlaybackController.searchRoots composes, walked once into memory and
-//  filtered off main per keystroke. The walk STREAMS, and reads directory
-//  listings only — never bytes or tags — so a provider tree costs no downloads.
+//  filtered off main per keystroke. The walk is FolderWalk's catalog scan,
+//  which streams its batches and reads no file's contents, so a provider tree
+//  costs no downloads.
 //
-//  Main thread only; the walk and the filter have private queues.
+//  Main thread only. The scan runs on its own worker, and the filter has a
+//  private queue.
 //
 
 #import <Foundation/Foundation.h>
@@ -52,8 +54,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 // Matching runs off main; an unchanged query over a growing index examines
 // only the appended suffix. Discovery order, capped at limit. excludedPaths is
-// keyed by NSURL.path. An empty query matches nothing. Only the latest request
-// delivers, on main.
+// keyed by VibeComparablePath of each URL's path. An empty query matches
+// nothing. Only the latest request delivers, on main.
 - (void)requestHitsMatchingQuery:(NSString *)query
                        excluding:(nullable NSSet<NSString *> *)excludedPaths
                            limit:(NSUInteger)limit

@@ -12,7 +12,7 @@
 #import "AudioSessionController.h"
 #import "AudioTrackMetadataCache.h"
 #import "FolderSession.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 
 @class AudioPlayer;
 @class NowPlayingController;
@@ -23,10 +23,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 // AudioPlayerDelegate and NowPlayingControllerDelegate are declared on the
 // categories that implement them, so the compiler checks each against its file.
-@interface PlaybackController () <PlaylistObserver,
+@interface PlaybackController () <VibePlaylistObserver,
         AudioSessionControllerDelegate, AudioTrackMetadataCacheDelegate> {
     AudioPlayer             *_player;
-    Playlist<AudioTrack *>  *_playlist;
+    VibePlaylist<AudioTrack *> *_playlist;
     AudioTrackMetadataCache *_metadataCache;
     NowPlayingController    *_nowPlaying;
     AudioSessionController  *_audioSession;

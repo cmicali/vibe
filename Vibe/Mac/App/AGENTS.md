@@ -6,12 +6,14 @@ The application object and the app-wide services it owns. The test for this dire
 
 **Launch work the first window does not need runs half a second after the window is up** (`VibeAfterLaunch`). The menu's key equivalents and the link prune run there. A main-queue block queued during launch can still run before the window, so `dispatch_async` is not enough.
 
+**`applicationDidFinishLaunching:` removes the cache stores other builds left**, off main. The rule is shared with iOS (`Audio/AGENTS.md`, Metadata and artwork).
+
 ## Opening files is a funnel, not an event
 
-Every way a file arrives lands in `AppDelegate` and comes out as one playlist: a Finder double-click, ⌘O, Add to Playlist, Open Recent, Open URL, a drop on the window, argv. The OS delivers opens in two broken shapes, so two tested pieces handle them.
+Every way a file arrives lands in `AppDelegate` and comes out as one playlist: a Finder double-click, ⌘O, Add to Playlist, Open Recent, Open URL, a drop on the window, argv. The OS delivers opens in two broken shapes. Two classes of vibe-libs' `system/AppOpening` handle them. That piece's `AGENTS.md` is their authority: the burst's shape, the launch order, supersession, holds, and the straggler deadline.
 
-- **`OpenBurstCoalescer`.** Launch Services splits a multi-file open across several `application:openURLs:` calls. The first batch plays at once, so a double-clicked file never waits. Later batches inside a **0.3-second quiet period** append instead of replacing.
-- **`OpenRequestCoordinator`.** Expansion (the folder walk, the CUE and M3U reads) runs concurrently, so results finish out of order. One instance serves the whole app, the window's drops included. It buffers appends within the surviving burst. A newer replacing open supersedes every unfinished older result. An expansion that never finishes, such as one on a mount that stopped answering, holds a later finished batch at most **ten seconds** before it is abandoned. Otherwise one wedged batch would swallow every later batch in its burst. **A held request is never abandoned** (`holdRequest:`, `releaseRequest:`). Every open with links to resolve is held. Each link probe has its own deadline. The release gives the head a full ten seconds for its expansion.
+- **`OpenBurstCoalescer`.** Launch Services splits a multi-file open across several `application:openURLs:` calls. The first batch plays at once, so a double-clicked file never waits. Later batches inside Vibe's **0.3-second quiet period** append instead of replacing. The launch arguments join a burst too. `AppDelegate` lists `--debug-cmd` as an option with a value, so the argument scan skips the debug channel's command.
+- **`OpenRequestCoordinator`.** Expansion (the folder walk, the CUE and M3U reads) runs concurrently, so results finish out of order. Vibe uses the one shared instance for the whole app, the window's drops included. Its rows are Vibe's `AudioTrack` rows, made on the expansion worker. A newer replacing open supersedes every unfinished older result. An expansion that never finishes, such as one on a mount that stopped answering, holds a later finished batch at most **ten seconds** before it is abandoned. **Every open with links to resolve is held** (`holdRequest:`), so it is never abandoned. Each link probe has its own deadline. The release gives the head a full ten seconds for its expansion.
 
 ⌘O, Add to Playlist, Open Recent and window drops enter through `openDeliberateURLs:appending:`. A deliberate open ends a Launch Services burst in progress rather than joining it. Add to Playlist and a drop are the deliberate opens that can append. **⌘O and Add to Playlist share one open panel.** Choosing either command with the panel open brings it forward. The command chosen last sets its button and whether it appends.
 
@@ -40,25 +42,15 @@ The walk is `FolderWalk` (vibe-libs' `media/FolderScan`) on a four-wide queue. A
 
 ## Sandbox grants
 
-`FolderAccessManager` is the bookmark store. It resolves at launch, merges what an open or a drop grants, persists, and answers `canReadInsideDirectory:` before anything touches the disk. It lives here because its readers are the app delegate, the folder-art resolver and the main window. The Files pane only displays it.
+The folder grants' store is vibe-libs' `files/SandboxAccess` (`FolderAccessManager`). Its doc holds the store's rules and traps: launch resolution never mounts a volume, an unresolved bookmark is not authority, coverage's two spellings, the on-disk home, the two-second deadlines, and the restore lanes. This section is Vibe's side.
 
-**Asking is separate from storing.** `FolderAccessManager+GrantPanel` is the one path that raises a panel: the grant a playlist file needs for the folder its entries live in. A playlist file grants that file alone, not the audio it names. The panel blocks a background expansion worker until a human answers. **Powerbox prompts must not stack, so it serializes on its own gate.** No unit test can reach it. The store performs bookmark I/O on workers and never raises a panel. `FolderAccessCoverageTests` covers its path rules.
+**The app delegate makes the one store at init** (`folderAccessManager`), over the standard defaults and the key `VibeGrantedFolders`. It names ~/Music as the one entitled folder, since both entitlements files hold the music read-write entitlement. It spells it from the store's `realHomeDirectory`, since the sandbox's home is the container. **TRAP: that key is shipped.** Another spelling forgets every grant. The Files pane and the debug info report read the store from the app delegate. The launch providers capture it.
 
-**The auto-add hook is the open funnel** (`openURLsWithRestoredAccess:token:` calls `noteOpenedURLs:`). It bookmarks only directories outside an active grant and outside ~/Music, which the entitlement covers.
+**The auto-add hook is the open funnel** (`openURLsWithRestoredAccess:token:` calls `noteOpenedURLs:`). Each open first waits for the grants that cover it (`awaitRestoredAccessForURLs:completion:`). The store bookmarks only directories outside an active grant and outside ~/Music.
 
-**A row's state costs no I/O to know.** `grantedFolders` answers a `VibeGrantedFolderState` per row (`Active`, `Restoring` or `Unavailable`) from the resolve the manager already did. **Never stat a row to decide it.** `viewForTableColumn:` runs on main for every reload, and a dead mount can block a stat for an automounter timeout.
+**The grant panel is the folder walk's playlist handler**, installed in `applicationWillFinishLaunching:`. A playlist file grants that file alone, not the audio it names, so the walk asks for the folder its entries live in. The handler formats the panel's message from the app's name and the playlist's file name, and passes Vibe's strings.
 
-**TRAP: launch resolution never mounts a volume or shows UI** (`NSURLBookmarkResolutionWithoutMounting | WithoutUI`). Nobody asked for it. A grant on a server that is not mounted fails at once and stays Unavailable until a launch finds the volume mounted. Without the flags the resolver tries the mount itself. That can raise a connect dialog at every launch and pin a restore lane for the automounter timeout.
-
-**TRAP: an unresolved stored bookmark is not authority.** A stored row is visible at once but authorizes nothing until restoration has started its security scope. Folder art never probes a directory without an *active* grant, because unasked-for background work must never raise a permission panel. `FolderAccessManagerDidChangeNotification` says a scope has settled.
-
-**TRAP: inside the sandbox, `NSHomeDirectory` and `NSHomeDirectoryForUser` both answer the container.** That silently turns the ~/Music rule into a test against a path no music sits under. `+realHomeDirectory` uses `getpwuid`, the documented way to the on-disk home.
-
-**TRAP: coverage has two spellings, and the callers need different ones** (`FolderAccessRules.h`). `path:isCoveredByAnyOf:` is case-**sensitive**. It is the auto-add's duplicate check over canonical spellings. `readablePath:isCoveredByAnyOf:` is case-**insensitive**. It is the read test (`canReadInsideDirectory:`), and the same folding decides whether an open must wait for a grant. Those paths come straight off Launch Services, a pasteboard or a track URL. Under-matching them would walk a folder before its grant is restored, or refuse a readable one.
-
-**Every wait for a grant has a two-second deadline**, the launch drain's and each open's alike. Waiting is an optimization. Going on without the grant only risks an unreadable folder, which every open path handles. Waiting forever on a mount that never answers would leave the window in its launch grace with a blank header.
-
-Restoration runs three utility workers plus one user-initiated lane for a grant an open is waiting on (`VibeFolderAccessRestoreConcurrencyLimit`). So a relevant grant never sits behind unrelated blocked restores. When remembered grants nest, the most specific sufficient one takes that lane. Once an active grant covers each requested URL, a parent still resolving no longer holds the open. Restoration posts its change notification **coalesced to one per run-loop turn**, because it settles one bookmark at a time and each observer does real work. The user's add and remove post directly, so the pane redraws in the same turn as the click.
+**Folder art reads the store through its access provider** (`canReadInsideDirectory:`), so it never probes a directory without an *active* grant. `MainPlayerController` observes `FolderAccessManagerDidChangeNotification` for it (`Mac/MainWindow/AGENTS.md`). The Files pane only displays the store (`Mac/Settings/AGENTS.md`).
 
 ## Updates
 
@@ -89,7 +81,7 @@ Sparkle's dialogs use its own translations. It ships none for Bulgarian or Indon
 
 **A launch-time open outranks the remembered playlist, and the restore is not an open.** It does not enter the coalescer. An empty drain arms no burst, so a Finder open a beat later replaces rather than appends. It does not enter `openURLs:appending:` either, so it records no stats and mints no bookmarks.
 
-`MainPlayerController` saves and restores the mirror through `PlaylistFile+Session` (`Playlist/Mac/`). The mirror's rules are in `Mac/MainWindow/AGENTS.md` (The last playlist).
+`MainPlayerController` saves and restores the mirror through `VibePlaylistFile+Session` (`Playlist/Mac/`). The mirror's rules are in `Mac/MainWindow/AGENTS.md` (The last playlist).
 
 **Links are pruned once per launch, half a second after the restore** (`pruneLinks`). The playlist's rows and the recent documents keep their links (`pruneKeepingTracks:recentURLs:`). The store deletes every other link not opened for 30 days, off main. A launch-time open may still be expanding, so its rows keep nothing. A saved M3U naming a pruned link finds that entry missing.
 

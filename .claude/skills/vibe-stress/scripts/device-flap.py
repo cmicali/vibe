@@ -26,10 +26,11 @@ import sys
 import time
 from pathlib import Path
 
+from stress import vibe_env
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[3]
 HELPER_SRC = HERE / "device-flap.swift"
-DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
 
 # Footprint includes retained allocator pages. Use live heap for this oracle.
 HEALTH_KEYS = (
@@ -109,7 +110,8 @@ class App:
 
     def alive(self):
         # The CLI client IS the app binary, so filter argv for the GUI process.
-        out = subprocess.run(["pgrep", "-x", "Vibe"], capture_output=True, text=True).stdout
+        # The executable's name is the product, the slot's own (scripts/vibe-env.sh).
+        out = subprocess.run(["pgrep", "-x", Path(self.bin).name], capture_output=True, text=True).stdout
         for pid in out.split():
             argv = subprocess.run(["ps", "-o", "command=", "-p", pid],
                                   capture_output=True, text=True).stdout
@@ -163,7 +165,7 @@ def main():
     ap.add_argument("--corpus", required=True, type=Path,
                     help="folder of audio files; opened via launch.sh so the "
                          "sandbox grant covers it")
-    ap.add_argument("--app", type=Path, default=DEFAULT_APP)
+    ap.add_argument("--app", type=Path, help="default: this shell's slot (scripts/vibe-env.sh)")
     ap.add_argument("--flaps", type=int, default=200)
     ap.add_argument("--i-know-this-degrades-coreaudiod", action="store_true",
                     help=f"permit more than {MAX_UNCAPPED_FLAPS} vanish flaps in one "
@@ -206,7 +208,8 @@ def main():
             f"this machine.")
 
     helper = build_helper(HERE / "device-flap-helper")
-    binary = args.app / "Contents/MacOS/Vibe"
+    args.app = args.app or Path(vibe_env("VIBE_APP"))
+    binary = Path(vibe_env("VIBE_BIN", args.app))
     if not binary.exists():
         sys.exit(f"no Debug build at {binary}")
 

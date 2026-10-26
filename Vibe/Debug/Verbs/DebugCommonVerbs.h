@@ -54,6 +54,20 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
 FOUNDATION_EXTERN NSString *VibeDebugBPMScanJSON(NSString *rawPath);
 FOUNDATION_EXTERN NSString *VibeDebugKeyScanJSON(NSString *rawPath);
 
+// The debug launch flags, read here and nowhere else. The app pushes them into
+// the pieces, which read no flag. --silent drives the device and zeroes the
+// output after the meter. --no-audio-hw renders through the player's pump,
+// with no output device. With --no-now-playing or --no-audio-hw a shell makes
+// no Now Playing controller, since claiming the system's media slot can pull
+// AirPods from another device.
+BOOL VibeDebugLaunchSilent(void);
+BOOL VibeDebugLaunchNoAudioHardware(void);
+BOOL VibeDebugLaunchNoNowPlaying(void);
+
+// Sets the player's debug output from the two audio flags. Call it before the
+// first player is made.
+void VibeDebugApplyLaunchFlags(void);
+
 // "playing", "paused" or "stopped". Reads "playing" during an in-flight open,
 // as the transport control does, since loading reports isPlaying.
 NSString *VibeDebugPlayerStateName(AudioPlayer *player);

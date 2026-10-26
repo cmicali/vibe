@@ -54,7 +54,6 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                 for (NSUInteger i = 0; i < kLevelBandCount; i++) {
                     [bands addObject:@(published ? levels[i] : 0)];
                 }
-                NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
                 NSDictionary *renderer = @{
                     @"activeDisplayLinks":
                             @([EqualizerIndicatorView vibeDebugActiveDisplayLinkCount]),
@@ -74,8 +73,8 @@ NSArray<NSDictionary *> *VibeDebugAudioVerbs(void) {
                     @"bands": bands,
                     @"audio": audio,
                     @"renderer": renderer,
-                    @"silent": @([arguments containsObject:@"--silent"]),
-                    @"noAudioHw": @([arguments containsObject:@"--no-audio-hw"]),
+                    @"silent": @(VibeDebugLaunchSilent()),
+                    @"noAudioHw": @(VibeDebugLaunchNoAudioHardware()),
                     @"manualRendering": @([player manualRenderingActive]),
                 });
             }),

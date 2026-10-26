@@ -13,6 +13,7 @@
 #import "ArtworkDisplayController.h"
 #import "AppSettings+Mac.h"
 #import "AudioPlayer.h"
+#import "Formatters.h"
 #import "MainMenuBuilder.h" // the context menu's symbol items
 #import "MainPlayerController+Convert.h" // convertCurrentTrackToFLAC:, the context menu's
 #import "MainPlayerContentView.h"
@@ -140,6 +141,12 @@
     _pitchPanel = [[PitchControlPanel alloc] initWithFrame:[self pitchPanelFrame]];
     _pitchPanel.autoresizingMask = NSViewMinXMargin | NSViewHeightSizable;
     _pitchPanel.delegate = self;
+    _pitchPanel.title = STR_LABEL_PITCH;
+    _pitchPanel.faderAccessibilityLabel = STR_A11Y_PITCH_FADER;
+    _pitchPanel.pitchFormatter = ^NSString *(double pitch) {
+        return [Formatters.sharedInstance signedPercentString:pitch];
+    };
+    _pitchPanel.cornerRadius = AppSettings.sharedInstance.currentTheme.resolvedWindowCornerRadius;
     [contentView addSubview:_pitchPanel];
     [self applyPitchRange];
 }
@@ -279,7 +286,7 @@
     contentView.layer.cornerRadius = radius;
     [MainPlayerContentView applyCornerRadius:radius toBackdrop:self.windowBackdropView];
     [self applyWindowBackground];
-    self->_pitchPanel.needsDisplay = YES;
+    self->_pitchPanel.cornerRadius = radius;
     [self.window invalidateShadow];
 }
 

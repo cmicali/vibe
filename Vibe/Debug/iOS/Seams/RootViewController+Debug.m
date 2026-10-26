@@ -31,7 +31,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "AudioFX.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 
 // A display link on the main run loop for `seconds` (0: until replaced),
 // riding whatever rate the app's own work earns: the probes measure, they

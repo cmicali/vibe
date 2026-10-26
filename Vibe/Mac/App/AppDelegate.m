@@ -10,6 +10,8 @@
 #import "AudioPlayer.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioTrack.h"
+#import "AudioTrackMetadataCache.h"
+#import "AudioWaveformCache.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Playlist.h"
 #import "MainPlayerController+Settings.h"
@@ -21,8 +23,9 @@
 #import "OpenRequestCoordinator.h"
 #import "OpenLinkWindowController.h"
 #import "OpenRecentMenuController.h"
+#import "PINCache+VibeAudioCache.h"
 #import "PlaylistController.h"
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 #import "NSBundle+BuildInfo.h"
 #import "AppStats.h"
 #import "VibeProductURLs.h"
@@ -34,6 +37,7 @@
 #import "LinkDropRules.h"
 #import "LinkStore.h"
 #import "StringRules.h"
+#import "VibeStrings.h"
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #if VIBE_DIRECT_DISTRIBUTION
@@ -41,6 +45,7 @@
 #endif
 
 #if DEBUG
+#import "DebugCommonVerbs.h"
 #import "DebugMacEntry.h"
 #import "OpenBurstCoalescer+Debug.h"
 #import "OpenLinkWindowController+Debug.h"
@@ -58,6 +63,9 @@
 // Long enough to absorb a split multi-file open, short enough that a
 // deliberate second open replaces rather than appends.
 static const NSTimeInterval kOpenBurstQuietPeriod = 0.3;
+
+// TRAP: a shipped key. Another spelling forgets every grant.
+static NSString *const kGrantedFoldersDefaultsKey = @"VibeGrantedFolders";
 
 #if VIBE_DIRECT_DISTRIBUTION
 // A Debug build starts the updater only with --update-feed, and checks only
@@ -104,7 +112,15 @@ static void VibeAfterLaunch(dispatch_block_t block) {
                                    [weakSelf openURLs:urls appending:append];
                                }];
         _linkOpenCancels = [NSMutableArray array];
-        LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
+        // The music read-write entitlement grants ~/Music, so it needs no
+        // bookmark. The real home, since the sandbox's is the container.
+        NSString *music = [FolderAccessManager.realHomeDirectory stringByAppendingPathComponent:@"Music"];
+        _folderAccessManager = [[FolderAccessManager alloc]
+                initWithDefaults:NSUserDefaults.standardUserDefaults
+                             key:kGrantedFoldersDefaultsKey
+                 entitledFolders:@[[NSURL fileURLWithPath:music isDirectory:YES]]];
+        LogInfo(@"Vibe %@ starting as %@", NSBundle.mainBundle.vibeVersionString,
+                NSBundle.mainBundle.bundleIdentifier);
     }
     return self;
 }
@@ -114,20 +130,30 @@ static void VibeAfterLaunch(dispatch_block_t block) {
 - (void)applicationWillFinishLaunching:(NSNotification *)notification {
     // Before the player exists, so every play-path error carries the app's domain.
     VibeAudioErrorSetDomain(NSBundle.mainBundle.bundleIdentifier);
+#if DEBUG
+    // Before the player exists too, which reads its debug output when it
+    // makes it.
+    VibeDebugApplyLaunchFlags();
+#endif
     // Before the restore, which may name a link. From here a link's
     // placeholder is dataless, and opening it streams it.
     [LinkStore.shared installAsRemoteBackend];
+    FolderAccessManager *folderAccess = self.folderAccessManager;
     // Folder art asks the app whether it is on and whether a folder's grant
     // covers a directory, so the resolver reads no setting or grant itself.
     [FolderArtResolver.sharedInstance setEnabledProvider:^BOOL{
         return AppSettings.sharedInstance.useFolderArt;
     } accessProvider:^BOOL(NSString *directory) {
-        return [FolderAccessManager.sharedInstance canReadInsideDirectory:directory];
+        return [folderAccess canReadInsideDirectory:directory];
     }];
     // Installed before any open can run. The walk reports; acting on it
     // (the grant panel, folder art) belongs to the app layer.
     [FolderWalk setPlaylistFolderGrantHandler:^BOOL(NSURL *playlistURL) {
-        return [[FolderAccessManager sharedInstance] requestAccessForPlaylistFolder:playlistURL];
+        NSString *message = [NSString stringWithFormat:STR_PLAYLIST_GRANT_MESSAGE,
+                                                       VibeAppName(), playlistURL.lastPathComponent];
+        return [folderAccess requestAccessForPlaylistFolder:playlistURL
+                                                    message:message
+                                                     prompt:STR_PLAYLIST_GRANT_BUTTON];
     }];
     // The walk ranks each file it lists by folder art's cover rank.
     [FolderWalk setWalkedFileHandler:^NSUInteger(NSString *filename) {
@@ -181,7 +207,9 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     VibeInstallDebugCommandHook();
 #endif
 
-    [self cleanupLegacyCaches];
+    [PINCache removeOtherAudioCacheVersionsKeeping:@[AudioTrackMetadataCache.cacheName, AudioWaveformCache.cacheName]
+                                          rootPath:nil
+                                        completion:nil];
 
     [self.mainPlayerController showWindow:self];
 
@@ -205,7 +233,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
 
     // A launch-time open may need a restored grant, so the coalescer's queue
     // drains only once the grants are back (bounded).
-    [[FolderAccessManager sharedInstance] restoreGrantedAccessWithCompletion:^{
+    [self.folderAccessManager restoreGrantedAccessWithCompletion:^{
         // A launch-time open outranks the remembered playlist, and the restore
         // is not an open (Mac/App/AGENTS.md).
         [self->_openBurstCoalescer finishLaunchRestoring:^BOOL{
@@ -237,7 +265,10 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     // Off main: a stat can block for an automounter timeout. The survivors
     // race the launch drain; openBurstURLs: queues before start either way.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSArray<NSURL *> *urls = [OpenBurstCoalescer fileURLsInArguments:args existingPath:^BOOL(NSString *path) {
+        // The debug channel's command is the argument after its flag.
+        NSArray<NSURL *> *urls = [OpenBurstCoalescer fileURLsInArguments:args
+                                                            valueOptions:[NSSet setWithObject:@"--debug-cmd"]
+                                                            existingPath:^BOOL(NSString *path) {
             return [NSFileManager.defaultManager fileExistsAtPath:path];
         }];
         if (urls.count == 0) {
@@ -246,27 +277,6 @@ static void VibeAfterLaunch(dispatch_block_t block) {
         run_on_main_thread({
             [self->_openBurstCoalescer openBurstURLs:urls];
         });
-    });
-}
-
-- (void)cleanupLegacyCaches {
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
-        NSString *cachesDir = NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES).firstObject;
-        if (!cachesDir) {
-            return;
-        }
-        NSArray<NSString *> *legacyCacheNames = @[
-                @"com.pinterest.PINDiskCache.Audio Track Metadata",
-                @"com.pinterest.PINDiskCache.Audio Track Metadata v2",
-                @"com.pinterest.PINDiskCache.Audio Track Metadata v3",
-                @"com.pinterest.PINDiskCache.audio_waveform_cache",
-                @"com.pinterest.PINDiskCache.audio_waveform_cache_v2",
-                @"com.pinterest.PINDiskCache.audio_waveform_cache_v3",
-                @"com.pinterest.PINDiskCache.audio_waveform_cache_v4",
-        ];
-        for (NSString *name in legacyCacheNames) {
-            [[NSFileManager defaultManager] removeItemAtPath:[cachesDir stringByAppendingPathComponent:name] error:nil];
-        }
     });
 }
 
@@ -292,7 +302,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
 
 - (void)openFiles:(NSArray<NSURL *> *)urls token:(OpenRequestToken *)token {
     __weak AppDelegate *weakSelf = self;
-    [[FolderAccessManager sharedInstance] awaitRestoredAccessForURLs:urls completion:^{
+    [self.folderAccessManager awaitRestoredAccessForURLs:urls completion:^{
         [weakSelf openURLsWithRestoredAccess:urls token:token];
     }];
 }
@@ -464,12 +474,12 @@ static void VibeAfterLaunch(dispatch_block_t block) {
         return;
     }
     // Bookmark while the open's sandbox grant is live.
-    [[FolderAccessManager sharedInstance] noteOpenedURLs:urls];
+    [self.folderAccessManager noteOpenedURLs:urls];
     // Read on main; the walk reads no setting itself. The rows are made on
     // the expansion worker, off main.
     [FolderWalk expandAndFilterList:urls
                            sortedBy:AppSettings.sharedInstance.folderOpenSort
-                         completion:^(NSArray<PlaylistEntry *> *entries, NSUInteger folderCount) {
+                         completion:^(NSArray<VibePlaylistEntry *> *entries, NSUInteger folderCount) {
         NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:entries];
         run_on_main_thread({
             [OpenRequestCoordinator.sharedCoordinator finishRequest:token
@@ -490,7 +500,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     if (rows.count == 0) {
         NSString *playlist = nil;
         for (NSURL *url in urls) {
-            if ([PlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]) {
+            if ([VibePlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]) {
                 playlist = url.lastPathComponent;
                 break;
             }

@@ -99,6 +99,7 @@ class TraceHelperTests(unittest.TestCase):
     def test_cloud_hung_open_can_arm_poll_and_release_through_channel(self):
         with tempfile.TemporaryDirectory() as directory, \
                 mock.patch.object(Path, "exists", return_value=True), \
+                mock.patch.object(stress, "vibe_env", return_value="unused.app/Contents/MacOS/Vibe"), \
                 mock.patch.object(stress.subprocess, "run") as process:
             corpus = Path(directory)
             (corpus / "a").mkdir()
@@ -852,16 +853,17 @@ class ScriptLineTests(unittest.TestCase):
         if not shutil.which("jq"):
             self.skipTest("debug-ios.sh needs jq")
         with tempfile.TemporaryDirectory() as root:
-            unrelated = Path(root) / "vibe-command-other.json"
+            commands = "com.commonwealthrecordings.Vibe.debug-command-"
+            unrelated = Path(root) / f"{commands}other.json"
             unrelated.write_text("{}")
             proc = subprocess.Popen([str(stress.LAUNCH_SH.with_name("debug-ios.sh")), "dump_state"],
                                     env={**os.environ, "VIBE_APP_TMP": root, "VIBE_DEBUG_TIMEOUT": "10"},
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
             try:
                 deadline = time.monotonic() + 5
-                while len(list(Path(root).glob("vibe-command-*.json"))) < 2 and time.monotonic() < deadline:
+                while len(list(Path(root).glob(f"{commands}*.json"))) < 2 and time.monotonic() < deadline:
                     time.sleep(0.01)
-                self.assertEqual(len(list(Path(root).glob("vibe-command-*.json"))), 2)
+                self.assertEqual(len(list(Path(root).glob(f"{commands}*.json"))), 2)
                 proc.terminate()
                 proc.communicate(timeout=3)
                 self.assertEqual(proc.returncode, 143)

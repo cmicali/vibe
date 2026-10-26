@@ -4,6 +4,7 @@
 //
 
 #import "SettingsFilesViewController.h"
+#import "AppDelegate.h"
 #import "AppSettings.h"
 #import "AppSettings+Mac.h"
 #import "FolderAccessManager.h"
@@ -35,6 +36,8 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 @end
 
 @interface SettingsFilesViewController () <NSTableViewDataSource, NSTableViewDelegate>
+// The app delegate's.
+@property (nonatomic, readonly) FolderAccessManager *folderAccessManager;
 @end
 
 @implementation SettingsFilesViewController {
@@ -149,7 +152,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
 }
 
 - (void)refreshFromSettings {
-    _folders = FolderAccessManager.sharedInstance.grantedFolders;
+    _folders = self.folderAccessManager.grantedFolders;
     [_tableView reloadData];
     [self updateRemoveButton];
     [self rebuildCommonFolderMenu];
@@ -202,7 +205,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
         if (exists && !exists.boolValue) {
             title = [NSString stringWithFormat:STR_SETTINGS_FOLDER_NOT_FOUND, name];
             available = NO;
-        } else if ([self.class folderGranted:path in:self.grantedPaths]) {
+        } else if ([self.folderAccessManager coversFolder:path]) {
             title = [NSString stringWithFormat:STR_SETTINGS_FOLDER_ALREADY_ADDED, name];
             available = NO;
         }
@@ -258,26 +261,12 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
             && isDirectory;
 }
 
-// The manager's rule, so "Already accessible" cannot drift from what adding
-// the folder would do.
-+ (BOOL)folderGranted:(NSString *)path in:(NSArray<NSString *> *)paths {
-    return [FolderAccessManager path:path isCoveredByAnyOf:paths];
-}
-
-// An unavailable grant is the folder worth offering again; a restoring one
-// still counts, or the menu briefly offers a duplicate at launch.
-- (NSArray<NSString *> *)grantedPaths {
-    NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithCapacity:_folders.count];
-    for (VibeGrantedFolder *folder in _folders) {
-        if (folder.state != VibeGrantedFolderStateUnavailable) {
-            [paths addObject:folder.path];
-        }
-    }
-    return paths;
-}
-
 + (NSString *)homeFolderPath {
     return FolderAccessManager.realHomeDirectory;
+}
+
+- (FolderAccessManager *)folderAccessManager {
+    return ((AppDelegate *)NSApp.delegate).folderAccessManager;
 }
 
 #pragma mark - Actions
@@ -317,7 +306,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     panel.allowsMultipleSelection = YES;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result == NSModalResponseOK) {
-            [FolderAccessManager.sharedInstance noteOpenedURLs:panel.URLs];
+            [self.folderAccessManager noteOpenedURLs:panel.URLs];
         }
     }];
 }
@@ -337,7 +326,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     panel.prompt = STR_PLAYLIST_GRANT_BUTTON;
     [panel beginSheetModalForWindow:self.view.window completionHandler:^(NSInteger result) {
         if (result == NSModalResponseOK) {
-            [FolderAccessManager.sharedInstance noteOpenedURLs:panel.URLs];
+            [self.folderAccessManager noteOpenedURLs:panel.URLs];
         }
     }];
 }
@@ -345,7 +334,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
 - (void)removeFolder:(id)sender {
     NSIndexSet *rows = _tableView.selectedRowIndexes;
     if (rows.count > 0) {
-        [FolderAccessManager.sharedInstance removeFoldersAtIndexes:rows];
+        [self.folderAccessManager removeFoldersAtIndexes:rows];
     }
 }
 
@@ -431,7 +420,7 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
         [urls addObject:path ? [NSURL fileURLWithPath:path isDirectory:YES] : url];
     }
     // The drag carries the sandbox grant the bookmark is made from.
-    [FolderAccessManager.sharedInstance noteOpenedURLs:urls];
+    [self.folderAccessManager noteOpenedURLs:urls];
     return YES;
 }
 

@@ -48,7 +48,7 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
 }
 
 void VibeInstallDebugCommandHook(void) {
-    VibeInstallDebugCommandChannel(^NSString *(NSArray<NSString *> *args, NSString *commandId) {
+    VibeInstallDebugCommandChannel(NSBundle.mainBundle.bundleIdentifier, ^NSString *(NSArray<NSString *> *args, NSString *commandId) {
         return VibeExecuteDebugCommand(args, commandId);
     });
 }

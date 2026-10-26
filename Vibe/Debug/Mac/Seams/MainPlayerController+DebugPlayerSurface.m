@@ -59,7 +59,7 @@
     // the funnel.
     [FolderWalk expandAndFilterList:@[[NSURL fileURLWithPath:path]]
                            sortedBy:AppSettings.sharedInstance.folderOpenSort
-                         completion:^(NSArray<PlaylistEntry *> *entries, NSUInteger folderCount) {
+                         completion:^(NSArray<VibePlaylistEntry *> *entries, NSUInteger folderCount) {
         NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:entries];
         run_on_main_thread({
             if (rows.count > 0) {

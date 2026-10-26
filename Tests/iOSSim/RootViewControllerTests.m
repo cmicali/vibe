@@ -8,7 +8,7 @@
 #import "MiniPlayerView.h"
 #import "PlaybackController.h"
 #import "PlayerViewController.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 #import "RootViewController.h"
 
 @interface RootViewControllerTests : IOSSimTestCase

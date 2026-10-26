@@ -26,7 +26,7 @@
 #import "AudioFileConverter.h"
 #import "FolderArtResolver.h"
 #import "PlaylistController.h"
-#import "PlaybackDeliveryRules.h"
+#import "PlaybackShellRules.h"
 #import "PlaylistTableView.h"
 #import "PlaylistDropZoneView.h"
 #import "MainWindow.h"

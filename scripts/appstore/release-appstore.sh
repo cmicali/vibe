@@ -49,6 +49,11 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
+# A release is never slotted (scripts/vibe-env.sh). Every agent shell has a
+# session id. The slot is turned off here, not refused.
+export VIBE_NO_SLOT=1
+unset VIBE_SLOT VIBE_PRODUCT VIBE_BUNDLE_ID VIBE_DERIVED_DATA VIBE_APP VIBE_BIN VIBE_CONTAINER
+
 # shellcheck source=scripts/appstore/asc-auth-lib.sh
 source scripts/appstore/asc-auth-lib.sh
 # shellcheck source=scripts/appstore/asc-build-lib.sh

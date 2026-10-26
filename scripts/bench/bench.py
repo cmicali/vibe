@@ -118,8 +118,17 @@ def ffmpeg(*args, limit=60):
 
 
 def resolve(ref):
-    """The commit a ref names."""
-    return subprocess.run(['git', '-C', str(ROOT), 'rev-parse', '--verify', ref + '^{commit}'],
+    """The commit a ref names. A bare branch name that origin also has names
+    origin's branch, fetched first. The checkout is shared, so its own main
+    is often stale. `heads/<branch>` names the local branch."""
+    git = ['git', '-C', str(ROOT)]
+    full = subprocess.run(git + ['rev-parse', '--symbolic-full-name', ref], capture_output=True, text=True).stdout.strip()
+    if full == f'refs/heads/{ref}' and not subprocess.run(
+            git + ['show-ref', '--verify', '--quiet', f'refs/remotes/origin/{ref}']).returncode:
+        fetched = not subprocess.run(git + ['fetch', '--quiet', 'origin', ref], capture_output=True).returncode
+        print(f'{ref}: origin/{ref}{"" if fetched else ", not fetched"}', flush=True)
+        ref = f'origin/{ref}'
+    return subprocess.run(git + ['rev-parse', '--verify', ref + '^{commit}'],
                           capture_output=True, text=True, check=True).stdout.strip()
 
 
@@ -341,6 +350,19 @@ class ChannelTimeout(Exception):
     pass
 
 
+OLD_NOTIFICATION = b'com.vibe.debug.command'
+
+
+def channel_names(exe):
+    """(file prefix, notification) of a version's channel. The channel is named
+    by the app's bundle identifier, which build-version.sh sets to BUNDLE_ID.
+    Versions from before that used fixed names, so their binary holds the old
+    notification's name."""
+    if OLD_NOTIFICATION in Path(exe).read_bytes():
+        return 'vibe-', OLD_NOTIFICATION
+    return f'{BUNDLE_ID}.debug-', f'{BUNDLE_ID}.debug.command'.encode()
+
+
 class App:
     """One running version. The executable is its own channel client, but its
     client polls every 50 ms and costs a process launch per command; this one
@@ -353,6 +375,7 @@ class App:
         self.tmp = self.home / 'channel'
         self.tmp.mkdir(parents=True, exist_ok=True)
         exe = app_executable(label)
+        self.prefix, self.notification = channel_names(exe)
         env = dict(os.environ, CFFIXED_USER_HOME=str(self.home), VIBE_DEBUG_TMPDIR=str(self.tmp) + '/')
         # The real output path, silent: the output unit drives the built-in
         # speakers' clock and --silent zeroes the samples after the meter.
@@ -398,13 +421,13 @@ class App:
         `handled` estimates when processing starts from the command file's
         disappearance. It still includes the observer's polling delay."""
         cid = str(uuid.uuid4()).upper()
-        path = self.tmp / f'vibe-command-{cid}.json'
-        reply_path = self.tmp / f'vibe-response-{cid}.txt'
+        path = self.tmp / f'{self.prefix}command-{cid}.json'
+        reply_path = self.tmp / f'{self.prefix}response-{cid}.txt'
         staging = self.tmp / f'.staging-{cid}'
         staging.write_text(json.dumps({'id': cid, 'args': [str(a) for a in args]}))
         staging.rename(path)
         sent = uptime_ns()
-        libc.notify_post(b'com.vibe.debug.command')
+        libc.notify_post(self.notification)
         deadline = sent + timeout * 1e9
         handled, polls = None, 0
         while uptime_ns() < deadline:
@@ -422,7 +445,7 @@ class App:
             if repost and polls % 20 == 0:
                 if not alive(self.pid):
                     raise RuntimeError('app exited')
-                libc.notify_post(b'com.vibe.debug.command')
+                libc.notify_post(self.notification)
             time.sleep(0.0002)
         path.unlink(missing_ok=True)
         raise ChannelTimeout(f'{args[0]}: no reply in {timeout}s')

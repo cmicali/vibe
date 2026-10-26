@@ -35,7 +35,7 @@ The biggest win. `FolderSession` owns the open and Add orchestration that `Vibe/
 
 Each is a race or an ordering rule. Tests with held provider calls can exercise these races deterministically.
 
-Its header imports only Foundation. Its implementation spans `FolderSession.m`, `FolderSession+ExternalOpens.m` and `FolderSession+Persistence.m`. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FolderSessionRules.h`, `FilePaths.h`, `FolderWalk`, `LocationStoreInternal.h`, `PlaceholderFiles` and `PlaylistFile`. The two stores are not in the target. `FavoritesStore` has no UIKit reference. `LocationStore` uses `UIDevice` for a display name. That needs a platform boundary or a test seam first.
+Its header imports only Foundation. Its implementation spans `FolderSession.m`, `FolderSession+ExternalOpens.m` and `FolderSession+Persistence.m`. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FolderSessionRules.h`, `FilePaths.h`, `FolderWalk`, `LocationStoreInternal.h`, `PlaceholderFiles` and `VibePlaylistFile`. The two stores are not in the target. `FavoritesStore` has no UIKit reference. `LocationStore` uses `UIDevice` for a display name. That needs a platform boundary or a test seam first.
 
 Follow `DropboxMirrorTests`' shape: a temp root for the folders and real listings on disk. Compile the two main-only stores with the in-memory `VibeTestUserDefaults` supplied by `TestFilesystemGuard`, or stub their queries (`grantCoveringURL:`, `resolvedRootCoveringURL:`). A plain temp file URL does not exercise a picker grant. `startAccessingSecurityScopedResource` answers NO for that URL. The session treats that as "not failure". The bookkeeping can still be tested: which URLs are held, that a replace installs the new set before stopping the old one, and that an append extends the set.
 
@@ -78,7 +78,7 @@ Host-less tests must call the shipping decisions. Drawing and navigation stay in
 
 ### 3. `PlaybackController`, by seams
 
-It pulls in the real `AudioPlayer`, `AppSettings`, both stores, `DropboxMirror` and `WidgetPublisher`. Running it whole on the Mac means replacing the player, which costs more than the decisions are worth. Follow `PlaybackDeliveryRules.h` (`VibePlaybackPreviousIsAvailable`, shared with the mac). Move pure decisions into seams as they are touched: the Add settle, the metadata neighborhood, the empty-folder bring-forward, and which open URL context wins. Leave the player wiring to `make test-audio` and the channel.
+It pulls in the real `AudioPlayer`, `AppSettings`, both stores, `DropboxMirror` and `WidgetPublisher`. Running it whole on the Mac means replacing the player, which costs more than the decisions are worth. Follow `Audio/PlaybackShellRules.h` (`VibePlaybackPreviousIsAvailable`, shared with the mac). Move pure decisions into seams as they are touched: the Add settle, the metadata neighborhood, the empty-folder bring-forward, and which open URL context wins. Leave the player wiring to `make test-audio` and the channel.
 
 ## The in-simulator tier
 

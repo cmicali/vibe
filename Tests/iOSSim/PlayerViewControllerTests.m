@@ -11,7 +11,7 @@
 #import "PlayerViewController+Delivery.h"
 #import "OutputRouteView.h"
 #import "PlaybackController.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 #import "TrackPageCell.h"
 #import "VibeStrings.h"
 #import "WaveformScrubberView.h"

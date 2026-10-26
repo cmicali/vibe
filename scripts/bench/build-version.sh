@@ -5,7 +5,12 @@
 # Output: build/bench/apps/<label>/Vibe.app
 #
 # Release with the debug channel enabled and verbose logging disabled.
-# A separate bundle id protects preferences. The separate executable name
+# VIBE_SIGNPOSTS=1 links the work tally the debug verbs call. In an older
+# version DEBUG switched on the signposts and the tally, so every version
+# builds the same way.
+# A separate bundle id protects preferences. In a version whose debug channel
+# takes the app's bundle id, it also names the channel bench.py addresses
+# (channel_names), so a running Vibe never answers. The separate executable name
 # keeps Vibe launchers from killing the benchmark. CFFIXED_USER_HOME isolates
 # caches but does not isolate cfprefsd's preferences.
 # Sources are a detached worktree. Version patches add required debug verbs.
@@ -48,7 +53,7 @@ xcodebuild \
     -configuration Release \
     -destination 'platform=macOS,arch=arm64' \
     -derivedDataPath "$DD" \
-    GCC_PREPROCESSOR_DEFINITIONS='NDEBUG=1 DEBUG=1 VIBE_ENABLE_EXCLUSIVE_OUTPUT=1 VIBE_VERBOSE_LOGGING=0' \
+    GCC_PREPROCESSOR_DEFINITIONS='NDEBUG=1 DEBUG=1 VIBE_SIGNPOSTS=1 VIBE_ENABLE_EXCLUSIVE_OUTPUT=1 VIBE_VERBOSE_LOGGING=0' \
     VIBE_VERBOSE_LOGGING=0 \
     ENABLE_APP_SANDBOX=NO \
     PRODUCT_BUNDLE_IDENTIFIER=com.commonwealthrecordings.Vibe.bench \

@@ -1,18 +1,18 @@
 //
-//  PlaylistFileSessionTests.m
+//  VibePlaylistFileSessionTests.m
 //  VibeTests
 //
 
 #import <XCTest/XCTest.h>
-#import "PlaylistFile.h"
-#import "PlaylistFile+Session.h"
+#import "VibePlaylistFile.h"
+#import "VibePlaylistFile+Session.h"
 #import "AudioTrack.h"
 #import "TestFilesystemGuard.h"
 
-@interface PlaylistFileSessionTests : XCTestCase
+@interface VibePlaylistFileSessionTests : XCTestCase
 @end
 
-@implementation PlaylistFileSessionTests
+@implementation VibePlaylistFileSessionTests
 
 #pragma mark - Private session mirror
 
@@ -41,10 +41,10 @@
     NSURL *url = [self sessionURLWithDefaults:&defaults];
     NSArray *tracks = self.sessionTracks;
     NSError *error = nil;
-    XCTAssertTrue([PlaylistFile saveSessionTracks:tracks currentIndex:1 enabled:YES toURL:url defaults:defaults write:nil error:&error]);
+    XCTAssertTrue([VibePlaylistFile saveSessionTracks:tracks currentIndex:1 enabled:YES toURL:url defaults:defaults write:nil error:&error]);
     XCTAssertNil(error);
     __block NSUInteger loads = 0;
-    XCTAssertTrue([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused) {
+    XCTAssertTrue([VibePlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused) {
         loads++;
         XCTAssertEqualObjects([rows valueForKey:@"url"], [tracks valueForKey:@"url"]);
         XCTAssertEqual(index, 1u);
@@ -56,16 +56,16 @@
 - (void)testSessionCursorClampsCorruptAndOutOfRangeValues {
     NSUserDefaults *defaults;
     NSURL *url = [self sessionURLWithDefaults:&defaults];
-    XCTAssertTrue([PlaylistFile saveSessionTracks:self.sessionTracks currentIndex:NSNotFound enabled:YES toURL:url defaults:defaults write:nil error:nil]);
+    XCTAssertTrue([VibePlaylistFile saveSessionTracks:self.sessionTracks currentIndex:NSNotFound enabled:YES toURL:url defaults:defaults write:nil error:nil]);
     XCTAssertEqual([defaults integerForKey:kVibeLastPlaylistCurrentIndexKey], 2);
     for (NSArray<NSNumber *> *row in @[@[@(-4), @0], @[@0, @0], @[@1, @1], @[@(NSIntegerMax), @2]]) {
         [defaults setObject:row[0] forKey:kVibeLastPlaylistCurrentIndexKey];
-        XCTAssertTrue([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray *urls, NSUInteger index, BOOL paused) {
+        XCTAssertTrue([VibePlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray *urls, NSUInteger index, BOOL paused) {
             XCTAssertEqual(index, row[1].unsignedIntegerValue);
         }]);
     }
     [defaults removeObjectForKey:kVibeLastPlaylistCurrentIndexKey];
-    XCTAssertTrue([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray *urls, NSUInteger index, BOOL paused) {
+    XCTAssertTrue([VibePlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray *urls, NSUInteger index, BOOL paused) {
         XCTAssertEqual(index, 0u);
     }]);
 }
@@ -73,17 +73,17 @@
 - (void)testFailedSaveRemovesOldMirrorAndCursor {
     NSUserDefaults *defaults;
     NSURL *url = [self sessionURLWithDefaults:&defaults];
-    XCTAssertTrue([PlaylistFile saveSessionTracks:self.sessionTracks currentIndex:1 enabled:YES toURL:url defaults:defaults write:nil error:nil]);
+    XCTAssertTrue([VibePlaylistFile saveSessionTracks:self.sessionTracks currentIndex:1 enabled:YES toURL:url defaults:defaults write:nil error:nil]);
     NSError *failure = [NSError errorWithDomain:NSCocoaErrorDomain code:NSFileWriteOutOfSpaceError userInfo:nil];
     NSError *error = nil;
-    XCTAssertFalse([PlaylistFile saveSessionTracks:self.sessionTracks currentIndex:2 enabled:YES toURL:url defaults:defaults write:^BOOL(NSError **outError) {
+    XCTAssertFalse([VibePlaylistFile saveSessionTracks:self.sessionTracks currentIndex:2 enabled:YES toURL:url defaults:defaults write:^BOOL(NSError **outError) {
         if (outError) *outError = failure;
         return NO;
     } error:&error]);
     XCTAssertEqualObjects(error, failure);
     XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:url.path]);
     XCTAssertNil([defaults objectForKey:kVibeLastPlaylistCurrentIndexKey]);
-    XCTAssertFalse([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray *urls, NSUInteger index, BOOL paused) {
+    XCTAssertFalse([VibePlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:^(NSArray *urls, NSUInteger index, BOOL paused) {
         XCTFail(@"Must not revive an old playlist after failed save");
     }]);
 }
@@ -92,9 +92,9 @@
     for (NSNumber *enabled in @[@NO, @YES]) {
         NSUserDefaults *defaults;
         NSURL *url = [self sessionURLWithDefaults:&defaults];
-        XCTAssertTrue([PlaylistFile saveSessionTracks:self.sessionTracks currentIndex:1 enabled:YES toURL:url defaults:defaults write:nil error:nil]);
+        XCTAssertTrue([VibePlaylistFile saveSessionTracks:self.sessionTracks currentIndex:1 enabled:YES toURL:url defaults:defaults write:nil error:nil]);
         NSArray *tracks = enabled.boolValue ? @[] : self.sessionTracks;
-        XCTAssertTrue([PlaylistFile saveSessionTracks:tracks currentIndex:0 enabled:enabled.boolValue toURL:url defaults:defaults write:^BOOL(NSError **error) {
+        XCTAssertTrue([VibePlaylistFile saveSessionTracks:tracks currentIndex:0 enabled:enabled.boolValue toURL:url defaults:defaults write:^BOOL(NSError **error) {
             XCTFail(@"No session should be written"); return YES;
         } error:nil]);
         XCTAssertFalse([NSFileManager.defaultManager fileExistsAtPath:url.path]);
@@ -106,12 +106,12 @@
     NSUserDefaults *defaults;
     NSURL *url = [self sessionURLWithDefaults:&defaults];
     void (^unexpectedLoad)(NSArray *, NSUInteger, BOOL) = ^(NSArray *urls, NSUInteger index, BOOL paused) { XCTFail(@"No restorable session"); };
-    XCTAssertFalse([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:unexpectedLoad]);
-    XCTAssertTrue([PlaylistFile saveSessionTracks:self.sessionTracks currentIndex:0 enabled:YES toURL:url defaults:defaults write:nil error:nil]);
-    XCTAssertFalse([PlaylistFile restoreSessionAtURL:url enabled:NO defaults:defaults load:unexpectedLoad]);
+    XCTAssertFalse([VibePlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:unexpectedLoad]);
+    XCTAssertTrue([VibePlaylistFile saveSessionTracks:self.sessionTracks currentIndex:0 enabled:YES toURL:url defaults:defaults write:nil error:nil]);
+    XCTAssertFalse([VibePlaylistFile restoreSessionAtURL:url enabled:NO defaults:defaults load:unexpectedLoad]);
     for (NSString *text in @[@"", @"#EXTM3U\n# comment\n", @"relative.mp3\nhttps://example.com/a.mp3\n"]) {
         XCTAssertTrue([text writeToURL:url atomically:YES encoding:NSUTF8StringEncoding error:nil]);
-        XCTAssertFalse([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:unexpectedLoad]);
+        XCTAssertFalse([VibePlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults load:unexpectedLoad]);
     }
 }
 
@@ -144,11 +144,11 @@ static void AssertSameRow(AudioTrack *restored, AudioTrack *saved) {
         CueRowAt(@"/nonexistent-vibe-session/mix.flac", 4500, 0, @"Two\nlines", nil, sheet, 2),
         CueRowAt(@"/nonexistent-vibe-session/single.flac", 0, 0, @"Whole", @"Band", sheet, 7),
     ];
-    XCTAssertTrue([PlaylistFile saveSessionTracks:tracks currentIndex:2 enabled:YES toURL:url defaults:defaults
-                                            write:nil error:nil]);
+    XCTAssertTrue([VibePlaylistFile saveSessionTracks:tracks currentIndex:2 enabled:YES toURL:url defaults:defaults
+                                                write:nil error:nil]);
     __block NSArray<AudioTrack *> *restored = nil;
-    XCTAssertTrue([PlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults
-                                               load:^(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused) {
+    XCTAssertTrue([VibePlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults
+                                                   load:^(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused) {
         restored = rows;
         XCTAssertEqual(index, 2u);
     }]);

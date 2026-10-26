@@ -8,37 +8,42 @@
 #import "VibeBenchComponents.h"
 
 #import "AudioTrack.h"
+#if __has_include("VibePlaylistFile.h")
+#import "VibePlaylistFile.h"
+#else
 #import "PlaylistFile.h"
+#define VibePlaylistFile PlaylistFile   // the readers were PlaylistFile before vibe-libs prefixed them
+#endif
 
 #include <memory>
 
 // Each version's own path from a playlist file to rows and back. Since the
 // readers and the writer take entries, the app makes the rows and entries.
-#if __has_include("PlaylistEntry.h")
+#if __has_include("VibePlaylistEntry.h") || __has_include("PlaylistEntry.h")
 static NSArray<AudioTrack *> *VibeBenchPlaylistRows(NSURL *url) {
-    return [AudioTrack rowsForEntries:[PlaylistFile entriesForPlaylistAtURL:url]];
+    return [AudioTrack rowsForEntries:[VibePlaylistFile entriesForPlaylistAtURL:url]];
 }
 static NSArray<AudioTrack *> *VibeBenchM3URows(NSData *data) {
-    return [AudioTrack rowsForEntries:[PlaylistFile entriesInM3UData:data]];
+    return [AudioTrack rowsForEntries:[VibePlaylistFile entriesInM3UData:data]];
 }
 static NSString *VibeBenchM3UText(NSArray<AudioTrack *> *rows) {
-    return [PlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:rows] relativeToDirectory:nil];
+    return [VibePlaylistFile m3uTextForEntries:[AudioTrack entriesForRows:rows] relativeToDirectory:nil];
 }
 static BOOL VibeBenchWriteM3U(NSArray<AudioTrack *> *rows, NSURL *url) {
-    return [PlaylistFile writeM3UForEntries:[AudioTrack entriesForRows:rows] relativeToDirectory:nil toURL:url error:nil];
+    return [VibePlaylistFile writeM3UForEntries:[AudioTrack entriesForRows:rows] relativeToDirectory:nil toURL:url error:nil];
 }
 #else
 static NSArray<AudioTrack *> *VibeBenchPlaylistRows(NSURL *url) {
-    return [PlaylistFile rowsForPlaylistAtURL:url];
+    return [VibePlaylistFile rowsForPlaylistAtURL:url];
 }
 static NSArray<AudioTrack *> *VibeBenchM3URows(NSData *data) {
-    return [PlaylistFile rowsInM3UData:data];
+    return [VibePlaylistFile rowsInM3UData:data];
 }
 static NSString *VibeBenchM3UText(NSArray<AudioTrack *> *rows) {
-    return [PlaylistFile m3uTextForTracks:rows relativeToDirectory:nil];
+    return [VibePlaylistFile m3uTextForTracks:rows relativeToDirectory:nil];
 }
 static BOOL VibeBenchWriteM3U(NSArray<AudioTrack *> *rows, NSURL *url) {
-    return [PlaylistFile writeM3UForTracks:rows relativeToDirectory:nil toURL:url error:nil];
+    return [VibePlaylistFile writeM3UForTracks:rows relativeToDirectory:nil toURL:url error:nil];
 }
 #endif
 

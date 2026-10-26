@@ -14,7 +14,7 @@
 #import "PlaybackController.h"
 #import "PlayerScreenRules.h"
 #import "PlayerViewController.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 #import "PlaylistViewController.h"
 #import "SearchViewController.h"
 #import "UIViewController+Alert.h"

@@ -124,7 +124,7 @@ void VibeNotifyDisplaySettingsChanged(void);
 - (void)setCrossfadeMilliseconds:(NSInteger)milliseconds;
 
 // YES parks on the finished track as the end of the playlist does. Each shell
-// pushes it into Playlist.pauseAtTrackEnd, which enforces it (root AGENTS.md).
+// pushes it into VibePlaylist.pauseAtTrackEnd, which enforces it (root AGENTS.md).
 // A writer must push and re-park. Otherwise a mid-track switch to Pause leaves
 // an armed gapless splice that advances anyway.
 - (BOOL)pauseAtTrackEnd;
@@ -132,7 +132,7 @@ void VibeNotifyDisplaySettingsChanged(void);
 
 // Transport state, both platforms, toggled while listening rather than set in
 // Settings: Playback-menu items on the mac, the card's buttons on iOS. Each
-// shell pushes them into its Playlist and re-parks the successor through the
+// shell pushes them into its VibePlaylist and re-parks the successor through the
 // same apply as pauseAtTrackEnd, which outranks both: Pause parks whatever
 // repeat says. A writer that skips the apply leaves an armed gapless splice
 // into the old successor.

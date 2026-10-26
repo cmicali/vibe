@@ -6,7 +6,7 @@
 //  the mac's MainPlayerController.
 //
 //  It broadcasts, where the rest of the app uses one weak delegate: three
-//  views describe one playback and Playlist has one observer slot. Observers
+//  views describe one playback and VibePlaylist has one observer slot. Observers
 //  are held weakly and called synchronously, in registration order.
 //
 //  Main thread only.
@@ -20,7 +20,7 @@
 
 @class AudioTrack;
 @class PlaybackController;
-@class Playlist<__covariant ObjectType>;
+@class VibePlaylist<__covariant ObjectType>;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -105,7 +105,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - What there is to play
 
-@property (nonatomic, readonly) Playlist<AudioTrack *> *playlist;
+@property (nonatomic, readonly) VibePlaylist<AudioTrack *> *playlist;
 @property (nonatomic, readonly, nullable) AudioTrack *currentTrack;
 @property (nonatomic, readonly) NSUInteger currentIndex;
 // The open folder's display name, nil before anything was opened.
@@ -201,7 +201,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)setFXPadPosition:(CGPoint)position engaged:(BOOL)engaged;
 
 // The decode pass detected a tempo for `track`: stamped on every row sounding
-// it (Playlist.stampTracksSounding:usingBlock:), each redrawn, the delay taps
+// it (VibePlaylist.stampTracksSounding:usingBlock:), each redrawn, the delay taps
 // refed. The match closes the race with a track change.
 - (void)noteDetectedBPM:(float)bpm forTrack:(AudioTrack *)track;
 

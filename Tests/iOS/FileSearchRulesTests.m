@@ -1,6 +1,7 @@
 
 #import "IOSShellTestCase.h"
 
+#import "FilePaths.h"
 #import "FileSearchIndexInternal.h"
 #import "FileSearchRules.h"
 #import "FolderSessionRules.h"
@@ -13,11 +14,19 @@
 
 // An index over the harness's root, holding these files.
 - (FileSearchIndex *)indexWithRelativeFilePaths:(NSArray<NSString *> *)paths {
+    return [self indexWithRelativeFilePaths:paths cap:0];
+}
+
+// The same, capped at `cap` files unless it is 0.
+- (FileSearchIndex *)indexWithRelativeFilePaths:(NSArray<NSString *> *)paths cap:(NSUInteger)cap {
     for (NSString *path in paths) {
         [self file:path];
     }
 
     FileSearchIndex *index = [[FileSearchIndex alloc] init];
+    if (cap > 0) {
+        index.maxIndexedFilesForTesting = cap;
+    }
     index.delegate = self;
     self.buildFinished = [self expectationWithDescription:@"index built"];
     [index setRoots:@[self.root]];
@@ -33,6 +42,17 @@
 
 - (void)fileSearchIndexDidFinishBuilding:(FileSearchIndex *)index {
     [self.buildFinished fulfill];
+}
+
+- (NSArray<FileSearchHit *> *)hitsOf:(FileSearchIndex *)index matching:(NSString *)query {
+    XCTestExpectation *delivered = [self expectationWithDescription:@"hits delivered"];
+    __block NSArray<FileSearchHit *> *answer = @[];
+    [index requestHitsMatchingQuery:query excluding:nil limit:100 completion:^(NSArray<FileSearchHit *> *hits) {
+        answer = hits;
+        [delivered fulfill];
+    }];
+    [self waitForExpectations:@[delivered] timeout:VIBE_TEST_HANG_TIMEOUT];
+    return answer;
 }
 
 #pragma mark - Text
@@ -243,10 +263,13 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
         return;
     }
 
+    // The walk resolves its root, so a hit is spelled under /private. The
+    // playlist's paths are the alias-free spelling.
+    XCTAssertTrue([excludedPath hasPrefix:@"/private/"], @"%@", excludedPath);
     XCTestExpectation *delivered = [self expectationWithDescription:@"hits delivered"];
     __block BOOL requestReturned = NO;
     [index requestHitsMatchingQuery:@"kid a"
-                          excluding:[NSSet setWithObject:excludedPath]
+                          excluding:[NSSet setWithObject:VibeComparablePath(excludedPath)]
                               limit:1
                          completion:^(NSArray<FileSearchHit *> *hits) {
         XCTAssertTrue(requestReturned);
@@ -257,6 +280,27 @@ static NSArray<NSString *> *PrunedPaths(NSArray<NSString *> *paths) {
     }];
     requestReturned = YES;
     [self waitForExpectations:@[delivered] timeout:VIBE_TEST_HANG_TIMEOUT];
+}
+
+// The walk lists a CUE sheet as a file. Only audio is a hit.
+- (void)testTheIndexDropsACueSheet {
+    FileSearchIndex *index = [self indexWithRelativeFilePaths:@[
+        @"Music/Kid A/01.flac",
+        @"Music/Kid A/Kid A.cue"
+    ]];
+    NSArray<FileSearchHit *> *hits = [self hitsOf:index matching:@"kid a"];
+    XCTAssertEqualObjects([hits valueForKey:@"fileName"], @[@"01.flac"]);
+}
+
+// The cap stops the index and cancels the walk's token, so a large library
+// is not listed to its end.
+- (void)testTheFileCapCancelsTheWalk {
+    FileSearchIndex *index = [self indexWithRelativeFilePaths:@[
+        @"Music/A/1.mp3", @"Music/A/2.mp3", @"Music/A/3.mp3", @"Music/B/4.mp3"
+    ] cap:2];
+    XCTAssertTrue(index.buildProgressForTesting.isCancelled);
+    XCTAssertFalse(index.isBuilding);
+    XCTAssertEqual([self hitsOf:index matching:@"mp3"].count, 2u);
 }
 
 - (void)testFileMatchesItsFolderName {

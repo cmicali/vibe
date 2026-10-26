@@ -11,7 +11,7 @@
 #import "LinkStore.h"
 #import "FilePaths.h"
 #import "PlaybackController+ReplacePrompt.h"
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 #import "RecentsStore.h"
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
@@ -137,7 +137,7 @@ static NSString *const kRecentCellIdentifier = @"item";
     NSDictionary *item = _items[(NSUInteger)indexPath.row];
     BOOL folder = [item[@"folder"] boolValue];
     VibeBrowserRowActions actions = VibeBrowserRowActionsFor(
-            folder, _appending, [PlaylistFile isM3UExtension:[item[@"path"] pathExtension].lowercaseString],
+            folder, _appending, [VibePlaylistFile isM3UExtension:[item[@"path"] pathExtension].lowercaseString],
             ![LinkStore.shared containsURL:[NSURL fileURLWithPath:item[@"path"] isDirectory:folder]]);
     __weak RecentsViewController *weakSelf = self;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil

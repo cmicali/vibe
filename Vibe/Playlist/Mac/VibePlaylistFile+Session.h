@@ -1,9 +1,9 @@
 //
-//  PlaylistFile+Session.h
+//  VibePlaylistFile+Session.h
 //  Vibe
 //
 
-#import "PlaylistFile.h"
+#import "VibePlaylistFile.h"
 
 @class AudioTrack;
 
@@ -11,7 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 extern NSString *const kVibeLastPlaylistCurrentIndexKey;
 
-@interface PlaylistFile (Session)
+@interface VibePlaylistFile (Session)
 
 // The app's private session mirror: explicit URL/defaults keep it independent
 // of the shell and let tests use a temporary folder. No grants or Open Recent.

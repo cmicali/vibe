@@ -91,14 +91,14 @@ NS_ASSUME_NONNULL_BEGIN
 
 - (BOOL)previous;
 
-// Playlist's transport modes, pushed in by the shell's end-of-track apply.
+// VibePlaylist's transport modes, pushed in by the shell's end-of-track apply.
 - (void)setRepeatMode:(VibeRepeatMode)repeatMode shuffleEnabled:(BOOL)shuffleEnabled
         pauseAtTrackEnd:(BOOL)pauseAtTrackEnd;
 
-// Playlist's: what follows a track that plays out, or nil to park.
+// VibePlaylist's: what follows a track that plays out, or nil to park.
 - (nullable AudioTrack *)trackEndSuccessor;
 
-// Playlist's metadata neighborhood, in play order.
+// VibePlaylist's metadata neighborhood, in play order.
 - (NSArray<AudioTrack *> *)neighborhoodTracks;
 
 // The track end's advance: moves to trackEndSuccessor and plays it, as next
@@ -127,7 +127,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (NSIndexSet *)replaceTracksMatchingTrack:(AudioTrack *)track
                                 usingBlock:(AudioTrack *(NS_NOESCAPE ^)(AudioTrack *outgoing))replacement;
 
-// The model mutation alone (Playlist.h): call it ONLY from the shell's removal
+// The model mutation alone (VibePlaylist.h): call it ONLY from the shell's removal
 // funnel. A user gesture goes through removeTracksRequestHandler.
 - (NSArray<AudioTrack *> * _Nullable)removeTracksAtIndexes:(NSIndexSet *)indexes;
 
@@ -159,7 +159,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (AudioTrack * _Nullable)trackForURL:(NSURL *)url;
 
 - (NSIndexSet *)indexesOfTracksWithURL:(NSURL *)url;
-// Playlist's: stamps every row sounding what track sounds, YES when one of
+// VibePlaylist's: stamps every row sounding what track sounds, YES when one of
 // them is current.
 - (BOOL)stampTracksSounding:(AudioTrack *)track usingBlock:(void (NS_NOESCAPE ^)(AudioTrack *track))stamp;
 

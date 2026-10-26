@@ -2,7 +2,7 @@
 
 #import "AudioTrack.h"
 #import "PlaybackController.h"
-#import "Playlist.h"
+#import "VibePlaylist.h"
 
 @implementation FakePlayback {
     NSHashTable *_observers;
@@ -13,7 +13,7 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
-        _playlist = [[Playlist alloc] init];
+        _playlist = [[VibePlaylist alloc] init];
         _observers = [NSHashTable weakObjectsHashTable];
         _calls = [NSMutableArray array];
     }

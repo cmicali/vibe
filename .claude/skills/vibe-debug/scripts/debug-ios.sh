@@ -10,9 +10,9 @@
 #   --all sends argument-less verbs together, one drain answering them all,
 #   and prints their replies as one JSON array in order: a poll of six dumps
 #   costs one round trip, not six.
-# Timeout: VIBE_DEBUG_TIMEOUT seconds when set; otherwise the verb's own
-# clientTimeout from the shared tables (Vibe/Debug/Verbs/: clear_caches 20,
-# block_main and block_main_deep 30, file_cache and open_url 60), else 10.
+# Timeout: VIBE_DEBUG_TIMEOUT seconds when set, a fraction allowed; otherwise
+# the verb's own wait in the command tables (Vibe/Debug), when longer than 10;
+# else 10.
 # VIBE_APP_TMP: the app container's tmp, resolved once by a caller that sends
 # many commands (`simctl get_app_container` is most of a round trip). Valid
 # only until the next install, which moves the container.
@@ -23,6 +23,7 @@ set -euo pipefail
 [ "$#" -ge 1 ] || { echo "usage: debug-ios.sh <verb> [args ...] | --all <verb> ..." >&2; exit 64; }
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
+# The app's bundle identifier also names its channel's files.
 BUNDLE_ID="com.commonwealthrecordings.Vibe"
 TMP="${VIBE_APP_TMP:-}"
 if [ -z "$TMP" ]; then
@@ -38,8 +39,8 @@ fi
 # read mid-write is deleted unexecuted. The drain ignores the .part name.
 send() {   # <id> <args ...>
     local id="$1"; shift
-    jq -cn --arg id "$id" '{id: $id, args: $ARGS.positional}' --args -- "$@" > "$TMP/vibe-command-$id.json.part"
-    mv "$TMP/vibe-command-$id.json.part" "$TMP/vibe-command-$id.json"
+    jq -cn --arg id "$id" '{id: $id, args: $ARGS.positional}' --args -- "$@" > "$TMP/$BUNDLE_ID.debug-command-$id.json.part"
+    mv "$TMP/$BUNDLE_ID.debug-command-$id.json.part" "$TMP/$BUNDLE_ID.debug-command-$id.json"
 }
 
 ALL=""
@@ -52,23 +53,29 @@ else
     VERBS=("$1")
 fi
 
-# Mirrors the table's clientTimeout: there is no client here to read it.
+# Read from the tables' source, as the mac client reads the tables. A copy
+# here went stale, and a slow verb's reply then came after this gave up. A
+# usage may go on in a second literal on the next line. A verb with no entry
+# keeps the default. TRAP: the lookup never fails. Under set -e a failure ends
+# the script with no output.
+ROOT="$(cd "$DIR/../../../.." && pwd)"
+wait_of() {   # <verb>
+    find "$ROOT/Vibe/Debug" \( -name '*.m' -o -name '*.mm' \) -exec env VERB="$1" perl -0777 -ne '
+        my $v = quotemeta $ENV{VERB};
+        if (/VibeDebugCmd\(\@"$v(?: [^"]*)?"(?:\s*\@"[^"]*")*\s*,\s*([0-9]+)/) { print "$1\n"; exit }
+    ' {} + 2>/dev/null | head -1 || true
+}
 VERB_TIMEOUT=10
 for verb in "${VERBS[@]}"; do
-    case "$verb" in
-        clear_caches) t=20 ;;
-        block_main|block_main_deep) t=30 ;;
-        file_cache|open_url) t=60 ;;
-        *) t=10 ;;
-    esac
-    [ "$t" -le "$VERB_TIMEOUT" ] || VERB_TIMEOUT="$t"
+    t="$(wait_of "$verb")"
+    [ -z "$t" ] || [ "$t" -le "$VERB_TIMEOUT" ] || VERB_TIMEOUT="$t"
 done
 TIMEOUT="${VIBE_DEBUG_TIMEOUT:-$VERB_TIMEOUT}"
 
 IDS=()
 cleanup() {
     for id in ${IDS[@]+"${IDS[@]}"}; do
-        rm -f "$TMP/vibe-command-$id.json" "$TMP/vibe-command-$id.json.part" "$TMP/vibe-response-$id.txt"
+        rm -f "$TMP/$BUNDLE_ID.debug-command-$id.json" "$TMP/$BUNDLE_ID.debug-command-$id.json.part" "$TMP/$BUNDLE_ID.debug-response-$id.txt"
     done
 }
 trap cleanup EXIT
@@ -80,12 +87,15 @@ else
     ID="$(uuidgen)"; IDS+=("$ID"); send "$ID" "$@"
 fi
 
-DEADLINE=$(( $(date +%s) + TIMEOUT ))
+# Milliseconds since the epoch. date +%s counts whole seconds. With it, a 1 s
+# wait gave up after 0.2 to 0.9 s. bash 3.2 has no $EPOCHREALTIME.
+now_ms() { perl -MTime::HiRes=time -e 'printf "%d", time * 1000'; }
+DEADLINE=$(( $(now_ms) + $(perl -e 'printf "%d", $ARGV[0] * 1000' "$TIMEOUT") ))
 REPLIES=()
 STATUS=0
 for ID in "${IDS[@]}"; do
-    RESPONSE="$TMP/vibe-response-$ID.txt"
-    while [ ! -f "$RESPONSE" ] && [ "$(date +%s)" -lt "$DEADLINE" ]; do
+    RESPONSE="$TMP/$BUNDLE_ID.debug-response-$ID.txt"
+    while [ ! -f "$RESPONSE" ] && [ "$(now_ms)" -lt "$DEADLINE" ]; do
         sleep 0.02
     done
     if [ -f "$RESPONSE" ]; then

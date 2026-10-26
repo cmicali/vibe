@@ -15,8 +15,8 @@
 #import "LocationStoreInternal.h"
 #import "FilePaths.h"
 #import "FolderWalk.h"
-#import "PlaylistEntry.h"
-#import "PlaylistFile.h"
+#import "VibePlaylistEntry.h"
+#import "VibePlaylistFile.h"
 #import "RecentsStore.h"
 #import <stdatomic.h>
 
@@ -446,7 +446,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // it; then the file expands to its directory, selected. Otherwise it
         // is a one-track playlist. An M3U is its own entries, never a row of
         // its folder.
-        BOOL m3u = !isDir && [PlaylistFile isM3UExtension:url.pathExtension.lowercaseString];
+        BOOL m3u = !isDir && [VibePlaylistFile isM3UExtension:url.pathExtension.lowercaseString];
         if (!isDir && expands && !m3u) {
             NSURL *parent = url.URLByDeletingLastPathComponent;
             NSString *parentPath = VibeComparablePath(parent.path);
@@ -498,7 +498,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             // Each folder the playlist names, as the mirror holds only what
             // something has listed.
             NSMutableOrderedSet<NSURL *> *entryFolders = [NSMutableOrderedSet orderedSet];
-            for (PlaylistEntry *entry in [PlaylistFile entriesForPlaylistAtURL:url]) {
+            for (VibePlaylistEntry *entry in [VibePlaylistFile entriesForPlaylistAtURL:url]) {
                 [entryFolders addObject:entry.url.URLByDeletingLastPathComponent];
             }
             for (NSURL *folder in entryFolders) {
@@ -512,7 +512,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 [held stopAccessingSecurityScopedResource];
             }
             if (!isDir && !restored && !deniedSheetURL && produced.count == 0
-                    && [PlaylistFile isCueExtension:url.pathExtension.lowercaseString]
+                    && [VibePlaylistFile isCueExtension:url.pathExtension.lowercaseString]
                     && [FolderWalk isReadDenied:url.URLByDeletingLastPathComponent]) {
                 deniedSheetURL = url;
             }

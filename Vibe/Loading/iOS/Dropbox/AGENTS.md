@@ -10,6 +10,10 @@ Dropbox access uses its HTTP API. This lets the app browse and search without re
 
 Both classes compile into the macOS `VibeTests`. Tests drive them over a stubbed `NSURLProtocol` and a temp root (`DropboxMirrorTestCase` and its subclasses). The client also uses AuthenticationServices for sign-in and Security for the Keychain.
 
+**TRAP: the content endpoints take their arguments in the `Dropbox-API-Arg` header, which must be ASCII** (`VibeDropboxAPIArgHeader`). A path holding "é" or "日本" is sent as `\uXXXX` escapes. Raw UTF-8 there fails every non-English filename with a 400.
+
+**TRAP: `DropboxClientInternal.h` never redeclares `useSessionConfiguration:` or `retryDelayScale`.** Both come from the base's `HTTPTransferClientInternal.h`. A redeclaration that cannot see the base's gets an ivar of its own. It starts at 0, not 1, and every retry wait would read it.
+
 ## The account
 
 **The app key is `VibeDropboxAppKey` in the generated Info.plist** (`project.yml`). It is not a secret: PKCE needs none, and Dropbox grants every app the `db-<key>://2/token` redirect without registration. Scopes: `account_info.read files.metadata.read files.content.read`. The app needs **Full Dropbox** access to browse existing music outside its dedicated app folder.

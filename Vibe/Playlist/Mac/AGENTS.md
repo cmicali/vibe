@@ -6,7 +6,7 @@ The macOS half of `Vibe/Playlist/`:
 - `PlaylistTableView` is everything *structural*: columns, row metrics, the scroll view, and the code-built cells and their styling.
 - `PlaylistRowView` draws row backgrounds. `PlaylistTextCell` and `PlaylistCoverImageView` are cell parts.
 - `PlaylistDropZoneView` draws the pane's Add and Replace wells and hit-tests them. The window is the dragging destination.
-- `PlaylistFile+Session` is the last-playlist store. It saves and restores the mirror and owns the `VibeLastPlaylistCurrentIndex` defaults key. Only `MainPlayerController` calls it (`Mac/MainWindow/AGENTS.md`, The last playlist). It is here, not in the shell, so `PlaylistFileSessionTests` keeps testing it.
+- `VibePlaylistFile+Session` is the last-playlist store. It saves and restores the mirror and owns the `VibeLastPlaylistCurrentIndex` defaults key. Only `MainPlayerController` calls it (`Mac/MainWindow/AGENTS.md`, The last playlist). It is here, not in the shell, so `VibePlaylistFileSessionTests` keeps testing it.
 
 Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reorder follow-ups are `Mac/MainWindow/AGENTS.md`'s.
 
@@ -61,7 +61,7 @@ Model, cursor and index rules are `../AGENTS.md`'s. The shell's removal and reor
 
 ## Replacement, append and play
 
-**`loadTracks:selectingIndex:` replaces the list and lands the cursor. It opens nothing.** The shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one path. A replacement calls `deselectAll` before `reloadData`. `reloadData` can keep the selection by row index, which would land on an unrelated row. `append:` inserts rows without animation and touches neither playback nor `currentIndex`.
+**`loadTracks:selectingIndex:` replaces the list and lands the cursor. It opens nothing.** The shell follows with `play` or `playStartPaused:`, so an open and the launch restore share one path. A replacement calls `deselectAll` before `reloadAllTracks`. A row reload keeps the selection by row index. It would land on an unrelated row. `append:` inserts rows without animation and touches neither playback nor `currentIndex`.
 
 **Row starts go through `playStartPaused:`.** `playWillStartHandler` fires after submission for parked and ordinary starts. The shell's `replayTrack:intent:` submits directly to `AudioPlayer` to preserve position (`Mac/MainWindow/AGENTS.md`).
 

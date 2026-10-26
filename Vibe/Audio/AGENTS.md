@@ -10,13 +10,13 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 
 **There is one `AudioPlayer` per process.** The mac's `MainPlayerController` makes it (`+Construction`) and the iOS `PlaybackController` makes its own. Each is its delegate. Vibe's item is its playlist row, `AudioTrack` (`Playlist/AGENTS.md`), which the player only reads and hands back.
 
-**Each app delegate pushes the player's error domain at launch**, before the player exists: `VibeAudioErrorSetDomain(NSBundle.mainBundle.bundleIdentifier)` in `applicationWillFinishLaunching:` on the mac and `application:didFinishLaunchingWithOptions:` on iOS. Both apps' identifier is `com.commonwealthrecordings.Vibe`, the string the player hardcoded before it moved. The host-less test targets push the XCTest tool's identifier from `TestFilesystemGuard`, at image load. A read before the push asserts in a debug build.
+**Each app delegate pushes the player's error domain at launch**, before the player exists: `VibeAudioErrorSetDomain(NSBundle.mainBundle.bundleIdentifier)` in `applicationWillFinishLaunching:` on the mac and `application:didFinishLaunchingWithOptions:` on iOS. Both apps' identifier is `com.commonwealthrecordings.Vibe`, the string the player hardcoded before it moved. A slotted Debug build pushes its own bundle id (the `vibe-debug` skill, Slots). The host-less test targets push the XCTest tool's identifier from `TestFilesystemGuard`, at image load. A read before the push asserts in a debug build.
 
 **The shells push Vibe's settings into the player.** Nothing in the player reads `AppSettings`.
 
 - **Declick** (`AppSettings.declick`, Settings > Audio Output, default on) is `AudioPlayer.declick`, through `VibeSettingsLiveEffectDeclick` on the mac.
 - **The crossfade** is Settings > Playback's slider, which shows the 10 ms declick minimum as off.
-- **The volume** moves only with the mac's Volume control. iOS uses the system volume. The debug `--silent` is the volume stage's target of 0.
+- **The volume** moves only with the mac's Volume control. iOS uses the system volume. A debug launch's `--silent` is the volume stage's target of 0. The app delegate sets it through the player's seam before the player exists (`Debug/AGENTS.md`).
 - **The pitch fader** is the mac's. Its varispeed is hosted only on macOS.
 - **FX** follows the shared `audioFXEnabled`. The mac's five toggles and the iOS pad's levels are cleared synchronously when a bypass is submitted (`clearFXIntent`), and the mac redraws the cleared flags once through `updateFXIndicators`. The mac's keys write the toggles, and the iOS pad writes the numbers. Telling a tap from a hold is `TransportKeyMonitor`'s job. The pad's axes are vibe-libs' `AudioFXMath.h`.
 - **Bit-perfect and exclusive output** are Settings > Audio's, through `setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:`. Advanced's `allowBitPerfectOnAnyDevice` is `allowAnyDevice`. `AppSettings` remembers only enabled modes, per device UID, and answers `audioPlayer:outputModesForDeviceUID:bitPerfectOutput:exclusiveOutput:`. A carry of modes to the same model on another port is persisted on main through `AppSettings.carryOutputModesFromDeviceUID:toDeviceUID:`.
@@ -26,6 +26,8 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 **File > Close is `stop`.** It fires no transport or track-end callback, and the shell owns the UI reset (root `AGENTS.md`).
 
 **The shells show what the player decides.** `bufferingNoticeShown` puts Buffering… in place of the file info line (`Mac/MainWindow/AGENTS.md`). A hold edge moves the Now Playing clock, and a notice edge redraws the header. `VibeAudioErrorDeviceInUse` is shown on the parked track's info line. The bit-perfect report's edge redraws the header's lock and the Settings caption.
+
+**`PlaybackShellRules.h` is how both shells' transport reads the player** (`PlaybackShellRulesTests`): when Previous is available, when a seek's settlement is current, and when the deferred metadata sweep runs. On the first row, Previous restarts the loaded track. The settlement rule the player keeps for itself is vibe-libs' `PlaybackDeliveryRules.h`.
 
 **The mac's device manager has three observers**: `AudioPlayer`, `OutputDevicesMenuController`, and `SettingsAudioOutputViewController`. The Output menu's checkmark follows `currentlyRequestedAudioDeviceId` (`Mac/Menu/AGENTS.md`). The delegate's `didChangeOutputDevice:` persists the choice. The player's side of Save Debug Info is `bitPerfectReportDictionary` and `outputDeviceDiagnosticSnapshot`, which `dump_state` reads too (`Mac/App/AGENTS.md`).
 
@@ -43,7 +45,7 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 
 **An owner that comes to want more asks for its track again.** The mac asks when the style becomes 3-Band or Spectrum, or a detection switch turns on (`VibeSettingsLiveEffectWaveformStyle`, `VibeSettingsLiveEffectTrackAnalysis`). The iOS card asks when the card's or the widget's style does. Switching between 3-Band and Spectrum asks for nothing, since both read the same entry.
 
-**Receivers match the delivered row's `sourceKey`**: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator`. A tempo or key is stamped on every row sounding that window (`Playlist.stampTracksSounding:usingBlock:`). iOS reads only the tempo from the results, and forwards it to `PlaybackController.noteDetectedBPM:forTrack:`. The iOS pager reads its neighbors' entries only, through `cachedWaveformForTrack:completion:`. The iOS scrubber asks for the deep zoom blocks its last draw lacked (vibe-libs' `waveform/WaveformView/AGENTS.md`).
+**Receivers match the delivered row's `sourceKey`**: `MainPlayerController+Delivery` and the iOS `PageWaveformCoordinator`. A tempo or key is stamped on every row sounding that window (`VibePlaylist.stampTracksSounding:usingBlock:`). iOS reads only the tempo from the results, and forwards it to `PlaybackController.noteDetectedBPM:forTrack:`. The iOS pager reads its neighbors' entries only, through `cachedWaveformForTrack:completion:`. The iOS scrubber asks for the deep zoom blocks its last draw lacked (vibe-libs' `waveform/WaveformView/AGENTS.md`).
 
 **The debug verbs drive the piece's two seams.** `file_cache`, `dump_waveform`, and `file_clear_cache` make a row for the file and pass it to the cache's seam. `set_waveform_decode_seconds` sets the decode pace. `dump_timing` and `clear_timing` read the loader's seam (`Debug/AGENTS.md`).
 
@@ -52,6 +54,8 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 **Vibe's row, `AudioTrack`, is the metadata's holder** (`Playlist/AGENTS.md`). It adopts `AudioTrackMetadataHolder` and memoizes its cache key. Tags beat analysis on the row alone (root `AGENTS.md`).
 
 **Each shell owns one `AudioTrackMetadataCache`**, rooted in the user's Caches directory (`init`): the mac's `MainPlayerController` (`+Construction`) and the iOS `PlaybackController`. The iOS Files tab keeps one more for its browser's art (`FilesRootViewController`). It sends only rows whose audio is not on the device to `loadCachedMetadata:` (`FolderViewController+Art.m`).
+
+**Each shell removes the stores other builds left, once per launch.** Its app delegate passes the two stores' names to vibe-libs' `files/DiskCache`, whose rule and downgrade cost are in its `AGENTS.md`. A new store version in vibe-libs needs no edit here.
 
 **The shells drive the scan, and the scan reads no setting.** The sweep waits until the picked track's open settles (`scheduleDeferredMetadataLoad`, root `AGENTS.md`). Every track start sends `loadMetadataNow:`. The one current-index funnel sends `setNeighborhoodTracks:` the playlist's `neighborhoodTracks`: the next two and the previous in play order. The removal funnel sends `abandonQueuedTrack:` for each removed row. File > Close and a playlist replacement send `cancelScan`. Each list redraws its visible rows on `AudioTrackMetadataThumbnailDidLoadNotification`.
 
@@ -69,7 +73,7 @@ The debug scripts launch with `--no-audio-hw --silent`, so the bars are live wit
 
 ## Error text
 
-**`VibeAudioError*` descriptions are for logs and are never localized.** The one line a screen shows is `VibeStatusForPlayError` (`Common/StringRules.h`, tested), mapping `VibeAudioErrorCode` to a `STR_ERROR_*` string. Both screens render the same wording. **`AudioErrorRules.h` is which play failures a shell shows**: `VibePlayErrorIsBenign` and `VibePlayErrorMatchesCurrentURL`, a function of the error alone, so both screens agree (`AudioErrorRulesTests`). Both read the domain through `VibeAudioErrorDomain()`.
+**`VibeAudioError*` descriptions are for logs and are never localized.** The one line a screen shows is `VibeStatusForPlayError` (`Common/StringRules.h`, tested), mapping `VibeAudioErrorCode` to a `STR_ERROR_*` string. Both screens render the same wording. **`AudioErrorRules.h` is which play failures a shell shows**: `VibePlayErrorIsBenign` and `VibePlayErrorMatchesCurrentURL`. They read the error and the shown row's URL, never the player. So both screens agree (`AudioErrorRulesTests`). Both read the domain through `VibeAudioErrorDomain()`.
 
 ## Diagnostics
 
