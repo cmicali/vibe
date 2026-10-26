@@ -28,8 +28,6 @@
 #import <OSLog/OSLog.h>
 #import <sys/sysctl.h>
 
-static NSString *const kVibeLogSubsystem = @"com.commonwealthrecordings.Vibe";
-
 // A bound on the file, not a filter: a long session keeps its newest lines.
 static const NSUInteger kVibeDebugInfoMaxLogLines = 100000;
 
@@ -282,13 +280,15 @@ static NSArray<NSString *> *VibeLogLines(NSUInteger *dropped) {
     NSDateFormatter *time = [[NSDateFormatter alloc] init];
     time.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
     time.dateFormat = @"HH:mm:ss.SSS";
+    // The Log* macros' subsystem, which a slotted Debug build changes.
+    NSString *subsystem = NSBundle.mainBundle.bundleIdentifier;
     NSMutableArray<NSString *> *lines = [NSMutableArray array];
     for (OSLogEntry *entry in entries) {
         if (![entry isKindOfClass:OSLogEntryLog.class]) {
             continue;
         }
         OSLogEntryLog *log = (OSLogEntryLog *)entry;
-        BOOL ours = [log.subsystem isEqualToString:kVibeLogSubsystem];
+        BOOL ours = [log.subsystem isEqualToString:subsystem];
         BOOL audio = [log.subsystem hasPrefix:@"com.apple.coreaudio"] || [log.subsystem hasPrefix:@"com.apple.audio"]
                 || [log.subsystem hasPrefix:@"com.apple.avfaudio"];
         if (!ours && !audio && log.level < OSLogEntryLogLevelError) {

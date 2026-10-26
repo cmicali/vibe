@@ -99,6 +99,7 @@ class TraceHelperTests(unittest.TestCase):
     def test_cloud_hung_open_can_arm_poll_and_release_through_channel(self):
         with tempfile.TemporaryDirectory() as directory, \
                 mock.patch.object(Path, "exists", return_value=True), \
+                mock.patch.object(stress, "vibe_env", return_value="unused.app/Contents/MacOS/Vibe"), \
                 mock.patch.object(stress.subprocess, "run") as process:
             corpus = Path(directory)
             (corpus / "a").mkdir()

@@ -13,9 +13,9 @@ Always use the `-` form. The client streams the PNG to stdout and the JSON reply
 ## Real capture and probes
 
 ```bash
-.claude/skills/vibe-debug/scripts/capture-window.sh out.png [pid]     # screencapture of the window; needs Screen Recording. Pass the pid with two instances running
+.claude/skills/vibe-debug/scripts/capture-window.sh out.png [pid]     # screencapture of the window; needs Screen Recording. Without a pid, this slot's instance
 swift .claude/skills/vibe-debug/scripts/probe-pixel.swift out.png 700 600 [x y ...]   # image size plus RGBA per point; bitmap pixels, top-left origin, 2x on retina
-swift .claude/skills/vibe-debug/scripts/find-window.swift [pid]        # windowID pid x y w h per Vibe window
+swift .claude/skills/vibe-debug/scripts/find-window.swift <pid>        # windowID pid x y w h per window of that pid
 ```
 
 Assert near-identical grays numerically with the probe, never by eye.

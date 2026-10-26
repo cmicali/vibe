@@ -31,10 +31,11 @@ import sys
 import time
 from pathlib import Path
 
+from stress import vibe_env
+
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[3]
 HELPER_SRC = HERE / "device-flap.swift"
-DEFAULT_APP = REPO / "build/DerivedData/Build/Products/Debug/Vibe.app"
 
 # A rate change relocks the DAC in ~1 s on real interfaces; this is headroom.
 SETTLE_SECONDS = 5.0
@@ -142,7 +143,7 @@ def main():
     ap.add_argument("--device", type=int, required=True,
                     help="AudioDeviceID of an eligible output device. Changes on "
                          "every re-enumeration, so read it fresh")
-    ap.add_argument("--app", type=Path, default=DEFAULT_APP)
+    ap.add_argument("--app", type=Path, help="default: this shell's slot (scripts/vibe-env.sh)")
     ap.add_argument("--rounds", type=int, default=2)
     ap.add_argument("--device-name", default=None,
                     help="text identifying the device's row in the Output list; "
@@ -162,7 +163,8 @@ def main():
         also.append((int(did), dname))
 
     helper = build_helper(HERE / "device-flap-helper")
-    binary = args.app / "Contents/MacOS/Vibe"
+    args.app = args.app or Path(vibe_env("VIBE_APP"))
+    binary = Path(vibe_env("VIBE_BIN", args.app))
     if not binary.exists():
         sys.exit(f"no Debug build at {binary}")
 

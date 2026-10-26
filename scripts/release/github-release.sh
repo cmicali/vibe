@@ -119,6 +119,7 @@ verify_release_variant() (
     zip_tmp="$(mktemp -d)"
     trap 'hdiutil detach "$mount" -quiet -force 2>/dev/null || true; rm -rf "$mount" "$zip_tmp"' EXIT
 
+    vibe_assert_stock_bundle "$app" || exit 1
     xcrun stapler validate "$app" >/dev/null || {
         echo "error: $label exported app is not stapled — re-run 'make release'" >&2
         exit 1
@@ -136,6 +137,7 @@ verify_release_variant() (
         echo "error: $dmg holds no Vibe.app — re-run 'make release'" >&2
         exit 1
     }
+    vibe_assert_stock_bundle "$mounted_app" || exit 1
     [[ -L "$mount/Applications" ]] || {
         echo "error: $dmg holds no /Applications alias — re-run 'make release'" >&2
         exit 1
@@ -149,6 +151,7 @@ verify_release_variant() (
 
     ditto -x -k "$zip" "$zip_tmp"
     zipped_app="$zip_tmp/Vibe.app"
+    vibe_assert_stock_bundle "$zipped_app" || exit 1
     xcrun stapler validate "$zipped_app" >/dev/null || {
         echo "error: the app inside $zip is not stapled — re-run 'make release'" >&2
         exit 1

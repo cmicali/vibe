@@ -16,7 +16,7 @@ For another gesture, define one named case and its expected state first. Read `d
 
 ```bash
 # Only in the isolated test environment. Resolve this run's window geometry first.
-swift .claude/skills/vibe-debug/scripts/find-window.swift
+swift .claude/skills/vibe-debug/scripts/find-window.swift <pid>
 swift .claude/skills/vibe-debug/scripts/input.swift --isolated-desktop move <x> <y>
 swift .claude/skills/vibe-debug/scripts/input.swift --isolated-desktop click <x> <y>
 swift .claude/skills/vibe-debug/scripts/input.swift --isolated-desktop drag <x1> <y1> <x2> <y2> [steps]

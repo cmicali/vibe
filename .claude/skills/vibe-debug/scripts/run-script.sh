@@ -3,6 +3,7 @@
 # saving its replies and screenshots.
 #
 # Usage: run-script.sh [--assert '<jq predicate>'] <output-dir> [script-file]
+# App: this shell's slot (scripts/vibe-env.sh), or $VIBE_APP if set.
 #
 # Inside a script, dump_screenshot replies carry the PNG as base64: only the
 # sandboxed client can read the container, and stdout is the sanctioned
@@ -27,16 +28,13 @@ fi
 }
 command -v jq >/dev/null || { echo "run-script.sh requires jq" >&2; exit 1; }
 
-DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT="$(cd "$DIR/../../../.." && pwd)"
-APP="${VIBE_APP:-$ROOT/build/DerivedData/Build/Products/Debug/Vibe.app}"
-V="$APP/Contents/MacOS/Vibe"
-[ -x "$V" ] || { echo "no app at $APP — build first, or set VIBE_APP" >&2; exit 1; }
+. "$(cd "$(dirname "$0")" && pwd)/../../../../scripts/vibe-env.sh" || exit 1
+[ -x "$VIBE_BIN" ] || { echo "no app at $VIBE_APP — build first, or set VIBE_APP" >&2; exit 1; }
 
 mkdir -p "$1" || exit 1
 OUTPUT="$(cd "$1" && pwd)" || exit 1
 
-"$V" --debug-cmd script - < "${2:-/dev/stdin}" | {
+"$VIBE_BIN" --debug-cmd script - < "${2:-/dev/stdin}" | {
     set -e
     n=0
     while IFS= read -r line; do
