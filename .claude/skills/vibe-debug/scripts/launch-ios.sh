@@ -71,7 +71,7 @@ done
 # A live touch driver holds the process just killed: without a re-attach its
 # next gesture waits a minute and then relaunches the app itself (the TRAP in
 # vibe-libs/dev/iOSDriver/VibeiOSDriverTests.m). No driver: nothing to do.
-if [ -f "$ROOT/build/ios-driver/$UDID/vibe-driver-ready" ]; then
+if [ -f "$ROOT/build/ios-driver/$UDID/driver-ready" ]; then
     VIBE_SIM_UDID="$UDID" VIBE_DEBUG_TIMEOUT=30 "$DIR/drive-ios.sh" attach >/dev/null 2>&1 || true
 fi
 

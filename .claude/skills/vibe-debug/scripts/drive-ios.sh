@@ -39,7 +39,7 @@ set -euo pipefail
 
 DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$DIR/../../../.." && pwd)"
-READY_NAME="vibe-driver-ready"
+READY_NAME="driver-ready"
 
 # start creates and boots this session's device; every other verb needs it.
 if [ "$1" = "start" ]; then
@@ -77,7 +77,7 @@ start)
     pkill -f "VibeiOSDriver -destination id=$UDID" 2>/dev/null || true
     pkill -f "Devices/$UDID/.*VibeiOSDriver-Runner" 2>/dev/null || true
     mkdir -p "$TMP"
-    rm -f "$TMP/$READY_NAME" "$TMP"/vibe-touch-*
+    rm -f "$TMP/$READY_NAME" "$TMP"/touch-*
     # The build tree is shared by the checkout's sessions: hold the lock across
     # the generate, the build and the install (released when this script
     # exits), or xcodegen rewrites Vibe.xcodeproj under another session's
@@ -152,8 +152,8 @@ status)
         exit 1
     fi
     ID="$(uuidgen)"
-    CMD="$TMP/vibe-touch-$ID.json"
-    RESPONSE="$TMP/vibe-touch-response-$ID.txt"
+    CMD="$TMP/touch-$ID.json"
+    RESPONSE="$TMP/touch-response-$ID.txt"
     # Rename into place: a command read mid-write is deleted unexecuted.
     jq -cn --arg id "$ID" '{id: $id, args: $ARGS.positional}' --args -- "$@" > "$CMD.part"
     mv "$CMD.part" "$CMD"
