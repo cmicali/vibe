@@ -10,7 +10,7 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 
 **There is one `AudioPlayer` per process.** The mac's `MainPlayerController` makes it (`+Construction`) and the iOS `PlaybackController` makes its own. Each is its delegate. Vibe's item is its playlist row, `AudioTrack` (`Playlist/AGENTS.md`), which the player only reads and hands back.
 
-**Each app delegate pushes the player's error domain at launch**, before the player exists: `VibeAudioErrorSetDomain(NSBundle.mainBundle.bundleIdentifier)` in `applicationWillFinishLaunching:` on the mac and `application:didFinishLaunchingWithOptions:` on iOS. Both apps' identifier is `com.commonwealthrecordings.Vibe`, the string the player hardcoded before it moved. The host-less test targets push the XCTest tool's identifier from `TestFilesystemGuard`, at image load. A read before the push asserts in a debug build.
+**Each app delegate pushes the player's error domain at launch**, before the player exists: `VibeAudioErrorSetDomain(NSBundle.mainBundle.bundleIdentifier)` in `applicationWillFinishLaunching:` on the mac and `application:didFinishLaunchingWithOptions:` on iOS. Both apps' identifier is `com.commonwealthrecordings.Vibe`, the string the player hardcoded before it moved. A slotted Debug build pushes its own bundle id (the `vibe-debug` skill, Slots). The host-less test targets push the XCTest tool's identifier from `TestFilesystemGuard`, at image load. A read before the push asserts in a debug build.
 
 **The shells push Vibe's settings into the player.** Nothing in the player reads `AppSettings`.
 
@@ -73,7 +73,7 @@ The debug scripts launch with `--no-audio-hw --silent`, so the bars are live wit
 
 ## Error text
 
-**`VibeAudioError*` descriptions are for logs and are never localized.** The one line a screen shows is `VibeStatusForPlayError` (`Common/StringRules.h`, tested), mapping `VibeAudioErrorCode` to a `STR_ERROR_*` string. Both screens render the same wording. **`AudioErrorRules.h` is which play failures a shell shows**: `VibePlayErrorIsBenign` and `VibePlayErrorMatchesCurrentURL`, a function of the error alone, so both screens agree (`AudioErrorRulesTests`). Both read the domain through `VibeAudioErrorDomain()`.
+**`VibeAudioError*` descriptions are for logs and are never localized.** The one line a screen shows is `VibeStatusForPlayError` (`Common/StringRules.h`, tested), mapping `VibeAudioErrorCode` to a `STR_ERROR_*` string. Both screens render the same wording. **`AudioErrorRules.h` is which play failures a shell shows**: `VibePlayErrorIsBenign` and `VibePlayErrorMatchesCurrentURL`. They read the error and the shown row's URL, never the player. So both screens agree (`AudioErrorRulesTests`). Both read the domain through `VibeAudioErrorDomain()`.
 
 ## Diagnostics
 
