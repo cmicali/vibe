@@ -33,6 +33,27 @@
 #import <AppKit/AppKit.h>
 #endif
 
+BOOL VibeDebugLaunchSilent(void) {
+    return [NSProcessInfo.processInfo.arguments containsObject:@"--silent"];
+}
+
+BOOL VibeDebugLaunchNoAudioHardware(void) {
+    return [NSProcessInfo.processInfo.arguments containsObject:@"--no-audio-hw"];
+}
+
+BOOL VibeDebugLaunchNoNowPlaying(void) {
+    return VibeDebugLaunchNoAudioHardware()
+            || [NSProcessInfo.processInfo.arguments containsObject:@"--no-now-playing"];
+}
+
+void VibeDebugApplyLaunchFlags(void) {
+    AudioPlayer.debugSilentOutput = VibeDebugLaunchSilent();
+    AudioPlayer.debugNoHardwareOutput = VibeDebugLaunchNoAudioHardware();
+    if (VibeDebugLaunchNoNowPlaying()) {
+        LogInfo(@"Debug launch: no Now Playing controller");
+    }
+}
+
 NSString *VibeDebugPlayerStateName(AudioPlayer *player) {
     if (player.isPlaying) {
         return @"playing";
@@ -88,7 +109,6 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
         [files addObject:[surface debugPlaylistTrackAtIndex:i].url.lastPathComponent ?: @""];
     }
 
-    NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
     return [@{
         @"player": [@{
             @"state": VibeDebugPlayerStateName(player),
@@ -100,8 +120,8 @@ NSMutableDictionary *VibeDebugCommonStateDictionary(id<VibeDebugPlayerSurface> s
             @"bufferingRecord": player.debugBufferingRecord,
             @"crossfadeMilliseconds": @(player.crossfadeMilliseconds),
             @"declick": @(player.declick),
-            @"silent": @([arguments containsObject:@"--silent"]),
-            @"noAudioHw": @([arguments containsObject:@"--no-audio-hw"]),
+            @"silent": @(VibeDebugLaunchSilent()),
+            @"noAudioHw": @(VibeDebugLaunchNoAudioHardware()),
         } mutableCopy],
         @"currentTrack": track ? [@{
             @"url": track.url.path ?: @"",
@@ -177,9 +197,9 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             }),
             VibeDebugCmd(@"dump_now_playing", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                              id<VibeDebugPlayerSurface> surface) {
-                // TRAP: --no-audio-hw and --no-now-playing suppress the
-                // publish and the command registration outright, so under
-                // either this always reports hasInfo: 0 (NowPlayingController.h).
+                // TRAP: under --no-audio-hw or --no-now-playing the shell
+                // makes no controller, so this always reports hasInfo: 0
+                // (VibeDebugLaunchNoNowPlaying).
                 NSDictionary *info = MPNowPlayingInfoCenter.defaultCenter.nowPlayingInfo;
                 NSMutableDictionary *out = [NSMutableDictionary dictionary];
                 out[@"hasInfo"] = @(info != nil);

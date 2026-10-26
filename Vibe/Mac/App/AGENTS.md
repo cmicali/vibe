@@ -44,9 +44,9 @@ The walk is `FolderWalk` (vibe-libs' `media/FolderScan`) on a four-wide queue. A
 
 The folder grants' store is vibe-libs' `files/SandboxAccess` (`FolderAccessManager`). Its doc holds the store's rules and traps: launch resolution never mounts a volume, an unresolved bookmark is not authority, coverage's two spellings, the on-disk home, the two-second deadlines, and the restore lanes. This section is Vibe's side.
 
-**The app delegate makes the one store at init** (`folderAccessManager`), over the standard defaults and the key `VibeGrantedFolders`. **TRAP: that key is shipped.** Another spelling forgets every grant. The Files pane and the debug info report read the store from the app delegate. The launch providers capture it.
+**The app delegate makes the one store at init** (`folderAccessManager`), over the standard defaults and the key `VibeGrantedFolders`. It names ~/Music as the one entitled folder, since both entitlements files hold the music read-write entitlement. It spells it from the store's `realHomeDirectory`, since the sandbox's home is the container. **TRAP: that key is shipped.** Another spelling forgets every grant. The Files pane and the debug info report read the store from the app delegate. The launch providers capture it.
 
-**The auto-add hook is the open funnel** (`openURLsWithRestoredAccess:token:` calls `noteOpenedURLs:`). Each open first waits for the grants that cover it (`awaitRestoredAccessForURLs:completion:`). The store bookmarks only directories outside an active grant and outside ~/Music, which Vibe's music entitlement covers.
+**The auto-add hook is the open funnel** (`openURLsWithRestoredAccess:token:` calls `noteOpenedURLs:`). Each open first waits for the grants that cover it (`awaitRestoredAccessForURLs:completion:`). The store bookmarks only directories outside an active grant and outside ~/Music.
 
 **The grant panel is the folder walk's playlist handler**, installed in `applicationWillFinishLaunching:`. A playlist file grants that file alone, not the audio it names, so the walk asks for the folder its entries live in. The handler formats the panel's message from the app's name and the playlist's file name, and passes Vibe's strings.
 

@@ -16,7 +16,7 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 
 - **Declick** (`AppSettings.declick`, Settings > Audio Output, default on) is `AudioPlayer.declick`, through `VibeSettingsLiveEffectDeclick` on the mac.
 - **The crossfade** is Settings > Playback's slider, which shows the 10 ms declick minimum as off.
-- **The volume** moves only with the mac's Volume control. iOS uses the system volume. The debug `--silent` is the volume stage's target of 0.
+- **The volume** moves only with the mac's Volume control. iOS uses the system volume. A debug launch's `--silent` is the volume stage's target of 0. The app delegate sets it through the player's seam before the player exists (`Debug/AGENTS.md`).
 - **The pitch fader** is the mac's. Its varispeed is hosted only on macOS.
 - **FX** follows the shared `audioFXEnabled`. The mac's five toggles and the iOS pad's levels are cleared synchronously when a bypass is submitted (`clearFXIntent`), and the mac redraws the cleared flags once through `updateFXIndicators`. The mac's keys write the toggles, and the iOS pad writes the numbers. Telling a tap from a hold is `TransportKeyMonitor`'s job. The pad's axes are vibe-libs' `AudioFXMath.h`.
 - **Bit-perfect and exclusive output** are Settings > Audio's, through `setBitPerfectOutput:exclusiveOutput:enableFX:allowAnyDevice:`. Advanced's `allowBitPerfectOnAnyDevice` is `allowAnyDevice`. `AppSettings` remembers only enabled modes, per device UID, and answers `audioPlayer:outputModesForDeviceUID:bitPerfectOutput:exclusiveOutput:`. A carry of modes to the same model on another port is persisted on main through `AppSettings.carryOutputModesFromDeviceUID:toDeviceUID:`.
@@ -26,6 +26,8 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 **File > Close is `stop`.** It fires no transport or track-end callback, and the shell owns the UI reset (root `AGENTS.md`).
 
 **The shells show what the player decides.** `bufferingNoticeShown` puts Buffering… in place of the file info line (`Mac/MainWindow/AGENTS.md`). A hold edge moves the Now Playing clock, and a notice edge redraws the header. `VibeAudioErrorDeviceInUse` is shown on the parked track's info line. The bit-perfect report's edge redraws the header's lock and the Settings caption.
+
+**`PlaybackShellRules.h` is how both shells' transport reads the player** (`PlaybackShellRulesTests`): when Previous is available, when a seek's settlement is current, and when the deferred metadata sweep runs. On the first row, Previous restarts the loaded track. The settlement rule the player keeps for itself is vibe-libs' `PlaybackDeliveryRules.h`.
 
 **The mac's device manager has three observers**: `AudioPlayer`, `OutputDevicesMenuController`, and `SettingsAudioOutputViewController`. The Output menu's checkmark follows `currentlyRequestedAudioDeviceId` (`Mac/Menu/AGENTS.md`). The delegate's `didChangeOutputDevice:` persists the choice. The player's side of Save Debug Info is `bitPerfectReportDictionary` and `outputDeviceDiagnosticSnapshot`, which `dump_state` reads too (`Mac/App/AGENTS.md`).
 

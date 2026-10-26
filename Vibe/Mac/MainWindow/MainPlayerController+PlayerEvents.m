@@ -25,7 +25,7 @@
 #import "AudioWaveformCache.h"
 #import "AudioFileConverter.h"
 #import "PlaylistController.h"
-#import "PlaybackDeliveryRules.h"
+#import "PlaybackShellRules.h"
 #import "SettingsAudioOutputViewController.h"
 #import "SettingsWindowController.h"
 #import "TrackDisplayController.h"

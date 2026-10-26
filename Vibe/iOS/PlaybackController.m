@@ -24,6 +24,9 @@
 #import "DropboxMirror.h"
 #import "SettingsRules.h"
 #import "UIUpdateTimer.h"
+#if DEBUG
+#import "DebugCommonVerbs.h"
+#endif
 
 // Fixed, unlike the mac's (Util/UIUpdateMath.h): a display link moves the
 // playhead here; this tick feeds only the time labels and Now Playing.
@@ -50,6 +53,11 @@ static const NSUInteger kUIUpdateHz = 3;
         _metadataCache.delegate = self;
         _folderSession = [[FolderSession alloc] init];
         _folderSession.delegate = self;
+#if DEBUG
+        // A test launch makes none, since the controller claims the system's
+        // media slot.
+        if (!VibeDebugLaunchNoNowPlaying())
+#endif
         _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
         // Before any restore, so a shuffled restore starts its order on the
         // remembered row.

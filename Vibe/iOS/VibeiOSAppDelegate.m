@@ -14,6 +14,7 @@
 #import "NSBundle+BuildInfo.h"
 #import "PINCache+VibeAudioCache.h"
 #if DEBUG
+#import "DebugCommonVerbs.h"
 #import "DebugiOSEntry.h"
 #endif
 
@@ -25,6 +26,11 @@
     VibeLogBuildProvenance();
     // Before the player exists, so every play-path error carries the app's domain.
     VibeAudioErrorSetDomain(NSBundle.mainBundle.bundleIdentifier);
+#if DEBUG
+    // Before the scene makes the player, which reads its debug output when it
+    // makes it.
+    VibeDebugApplyLaunchFlags();
+#endif
     // Before any scene names a folder.
     LocationStore.deviceModelName = UIDevice.currentDevice.localizedModel;
     // Before the scene restores a playlist, which may name a mirror file or a

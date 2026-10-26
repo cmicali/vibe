@@ -11,7 +11,7 @@
 #import "AudioPlayer+Recovery.h"
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
-#import "PlaybackDeliveryRules.h"
+#import "PlaybackShellRules.h"
 #import "WidgetPublisher.h"
 
 // Held once: the publisher's dirty check compares artwork by identity, and
@@ -49,17 +49,19 @@ static UIImage *VibeNowPlayingPlaceholderArt(void) {
     // A buffering hold is Playing at rate 0, so the lock screen's clock holds
     // with the audio.
     UIImage *placeholder = VibeNowPlayingPlaceholderArt();
-    [_nowPlaying updateWithSourceKey:track.sourceKey
-                               title:track.displayTitle
-                              artist:track.displayArtist
-                             artwork:track.cachedArt ?: track.cachedThumbnail ?: placeholder
-                            position:position
-                            duration:duration
-                               state:state
-                                rate:_player.isBuffering ? 0.0 : 1.0
-                             hasNext:_playlist.hasNextTrack
-                         hasPrevious:VibePlaybackPreviousIsAvailable(_playlist.hasPreviousTrack,
-                                                                     _playlist.currentTrack != nil, _player.isStopped)];
+    [_nowPlaying updateWithRecord:(VibeNowPlayingRecord){
+        .sourceKey = track.sourceKey,
+        .title = track.displayTitle,
+        .artist = track.displayArtist,
+        .artwork = track.cachedArt ?: track.cachedThumbnail ?: placeholder,
+        .position = position,
+        .duration = duration,
+        .state = state,
+        .rate = _player.isBuffering ? 0.0 : 1.0,
+        .hasNext = _playlist.hasNextTrack,
+        .hasPrevious = VibePlaybackPreviousIsAvailable(_playlist.hasPreviousTrack, _playlist.currentTrack != nil,
+                                                       _player.isStopped),
+    }];
     [_widgetPublisher updateWithTrack:track
                              position:position
                              duration:duration
