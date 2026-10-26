@@ -10,9 +10,8 @@
 #   --all sends argument-less verbs together, one drain answering them all,
 #   and prints their replies as one JSON array in order: a poll of six dumps
 #   costs one round trip, not six.
-# Timeout: VIBE_DEBUG_TIMEOUT seconds when set; otherwise the verb's own
-# clientTimeout from the shared tables (Vibe/Debug/Verbs/: clear_caches 20,
-# block_main and block_main_deep 30, file_cache and open_url 60), else 10.
+# Timeout: VIBE_DEBUG_TIMEOUT seconds when set; otherwise the verb's own wait
+# in the command tables (Vibe/Debug), when longer than 10; else 10.
 # VIBE_APP_TMP: the app container's tmp, resolved once by a caller that sends
 # many commands (`simctl get_app_container` is most of a round trip). Valid
 # only until the next install, which moves the container.
@@ -53,16 +52,13 @@ else
     VERBS=("$1")
 fi
 
-# Mirrors the table's clientTimeout: there is no client here to read it.
+# Read from the tables' source, as the mac client reads the tables. A copy
+# here went stale, and a slow verb's reply then came after this gave up.
+ROOT="$(cd "$DIR/../../../.." && pwd)"
 VERB_TIMEOUT=10
 for verb in "${VERBS[@]}"; do
-    case "$verb" in
-        clear_caches) t=20 ;;
-        block_main|block_main_deep) t=30 ;;
-        file_cache|open_url) t=60 ;;
-        *) t=10 ;;
-    esac
-    [ "$t" -le "$VERB_TIMEOUT" ] || VERB_TIMEOUT="$t"
+    t="$(grep -rhoE "VibeDebugCmd\(@\"$verb( [^\"]*)?\", *[0-9]+" "$ROOT/Vibe/Debug" | head -1 | sed -E 's/.*, *//')"
+    [ -z "$t" ] || [ "$t" -le "$VERB_TIMEOUT" ] || VERB_TIMEOUT="$t"
 done
 TIMEOUT="${VIBE_DEBUG_TIMEOUT:-$VERB_TIMEOUT}"
 

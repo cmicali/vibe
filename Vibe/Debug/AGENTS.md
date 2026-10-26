@@ -37,7 +37,7 @@ A command is a file. The client writes one, the app drains it, and the app write
 | `Mac/DebugMacEntry.m`, `iOS/DebugiOSEntry.m` | Each platform's executor, which the channel calls. It finds the controller, looks the verb up in the shared table and then its own, and answers the unknown-command reply. The mac's also gives its CLI client each verb's wait (`VibeCommandSpecForVerb`). |
 | `Mac/DebugClient.m` | The macOS CLI half. `main.m` routes `Vibe --debug-cmd …` here **before `NSApplicationMain`**, so the client is the same binary and never launches a second app. |
 
-iOS has no client. `debug-ios.sh` writes the command file straight into the simulator container's tmp, a plain host directory.
+iOS has no client. `debug-ios.sh` writes the command file straight into the simulator container's tmp, a plain host directory. It reads a verb's wait from the tables' source, so a new window needs no second copy.
 
 ## A verb is written once unless it cannot be
 
