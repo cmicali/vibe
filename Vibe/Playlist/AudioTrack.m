@@ -89,10 +89,10 @@
     NSMutableArray<VibePlaylistEntry *> *entries = [NSMutableArray arrayWithCapacity:rows.count];
     for (AudioTrack *row in rows) {
         [entries addObject:[[VibePlaylistEntry alloc] initWithURL:row.url cueStart:row.cueStart cueEnd:row.cueEnd
-                                                        title:row.cueTitle performer:row.cuePerformer
-                                                        sheet:row.cueSheetURL trackNumber:row.cueTrackNumber
-                                                     duration:row.duration displayTitle:row.displayTitle
-                                                displayArtist:row.displayArtist]];
+                                                            title:row.cueTitle performer:row.cuePerformer
+                                                            sheet:row.cueSheetURL trackNumber:row.cueTrackNumber
+                                                         duration:row.duration displayTitle:row.displayTitle
+                                                    displayArtist:row.displayArtist]];
     }
     return entries;
 }

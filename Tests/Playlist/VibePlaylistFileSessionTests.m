@@ -145,10 +145,10 @@ static void AssertSameRow(AudioTrack *restored, AudioTrack *saved) {
         CueRowAt(@"/nonexistent-vibe-session/single.flac", 0, 0, @"Whole", @"Band", sheet, 7),
     ];
     XCTAssertTrue([VibePlaylistFile saveSessionTracks:tracks currentIndex:2 enabled:YES toURL:url defaults:defaults
-                                            write:nil error:nil]);
+                                                write:nil error:nil]);
     __block NSArray<AudioTrack *> *restored = nil;
     XCTAssertTrue([VibePlaylistFile restoreSessionAtURL:url enabled:YES defaults:defaults
-                                               load:^(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused) {
+                                                   load:^(NSArray<AudioTrack *> *rows, NSUInteger index, BOOL paused) {
         restored = rows;
         XCTAssertEqual(index, 2u);
     }]);

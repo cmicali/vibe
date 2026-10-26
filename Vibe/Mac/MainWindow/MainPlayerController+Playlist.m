@@ -80,8 +80,8 @@
 - (BOOL)writePlaylistToURL:(NSURL *)url error:(NSError **)error {
     // Relative to the chosen file's folder, which the reader resolves against.
     if (![VibePlaylistFile writeM3UForEntries:[AudioTrack entriesForRows:self.playlistController.playlist]
-                      relativeToDirectory:url.URLByDeletingLastPathComponent
-                                    toURL:url error:error]) {
+                          relativeToDirectory:url.URLByDeletingLastPathComponent
+                                        toURL:url error:error]) {
         return NO;
     }
     [[NSDocumentController sharedDocumentController] noteNewRecentDocumentURL:url];
