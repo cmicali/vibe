@@ -205,7 +205,7 @@ static NSString *const kAlbumArtFolder = @"file_then_folder";
         if (exists && !exists.boolValue) {
             title = [NSString stringWithFormat:STR_SETTINGS_FOLDER_NOT_FOUND, name];
             available = NO;
-        } else if ([self.class folderGranted:path in:self.grantedPaths]) {
+        } else if ([self.folderAccessManager coversFolder:path]) {
             title = [NSString stringWithFormat:STR_SETTINGS_FOLDER_ALREADY_ADDED, name];
             available = NO;
         }
@@ -259,24 +259,6 @@ static NSString *const kDropboxCloudStorageSubpath = @"Library/CloudStorage/Drop
     BOOL isDirectory = NO;
     return [NSFileManager.defaultManager fileExistsAtPath:path isDirectory:&isDirectory]
             && isDirectory;
-}
-
-// The manager's rule, so "Already accessible" cannot drift from what adding
-// the folder would do.
-+ (BOOL)folderGranted:(NSString *)path in:(NSArray<NSString *> *)paths {
-    return [FolderAccessManager path:path isCoveredByAnyOf:paths];
-}
-
-// An unavailable grant is the folder worth offering again; a restoring one
-// still counts, or the menu briefly offers a duplicate at launch.
-- (NSArray<NSString *> *)grantedPaths {
-    NSMutableArray<NSString *> *paths = [NSMutableArray arrayWithCapacity:_folders.count];
-    for (VibeGrantedFolder *folder in _folders) {
-        if (folder.state != VibeGrantedFolderStateUnavailable) {
-            [paths addObject:folder.path];
-        }
-    }
-    return paths;
 }
 
 + (NSString *)homeFolderPath {

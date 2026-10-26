@@ -106,8 +106,8 @@ require_debug_build
 mkdir -p "$OUT_DIR"
 # TRAP: --debug-cmd needs a RUNNING debug build and no shot has launched one
 # yet, so the appearance pin needs this launch; without it the command times
-# out and the run exits. launch.sh quits any mac Vibe already running, never
-# the simulator's.
+# out and the run exits. launch.sh quits only this slot's instance, never
+# another slot's, a stock one or the simulator's.
 launch
 quiet set_appearance "$APPEARANCE"
 pin_settings_defaults
@@ -265,5 +265,5 @@ ensure_pitch 0
 ensure_playlist 0
 quiet set_theme vibe
 quiet sleep 0.5
-quit_app
+vibe_quit_own
 say "done — app appearance left pinned to $APPEARANCE"

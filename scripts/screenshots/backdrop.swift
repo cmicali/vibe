@@ -120,7 +120,8 @@ view.layer = layer
 window.contentView = view
 window.orderFrontRegardless()
 
-let vibeBundleID = "com.commonwealthrecordings.Vibe"
+// The slot's bundle id, which screenshot-lib.sh exports (scripts/vibe-env.sh).
+let vibeBundleID = ProcessInfo.processInfo.environment["VIBE_BUNDLE_ID"] ?? "com.commonwealthrecordings.Vibe"
 
 final class Reasserter: NSObject {
     let window: NSWindow

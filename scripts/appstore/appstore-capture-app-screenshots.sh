@@ -270,7 +270,7 @@ for s in "${SHOTS[@]}"; do
 done
 
 # Best effort: the shots are written, so nothing here fails the run.
-if [ -n "$(mac_vibe_pids)" ]; then
+if [ -n "$(vibe_own_pids)" ]; then
     ensure_pitch 0
     ensure_playlist 0
     if [ -n "$ORIGINAL_STYLE" ]; then
@@ -286,5 +286,5 @@ if [ -n "$(mac_vibe_pids)" ]; then
     fi
     quiet sleep 0.5
 fi
-quit_app
+vibe_quit_own
 say "done — $OUT_DIR ($APPEARANCE appearance)"

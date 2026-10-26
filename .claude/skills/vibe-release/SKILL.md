@@ -24,6 +24,8 @@ Each App Store pair works the same way: `appstore-build[-ios]` stops after valid
 
 **Both archive scripts preflight `asc_require_translations`** before the archive. A key missing any catalog language fails the release, because nothing else catches it: `make check-strings` compares the catalog to the source, and the build compiles a partial key silently, so that locale would show English. Fix it by translating, never by skipping (the **vibe-strings** skill). This is the in-app catalog, separate from the product-page copy below.
 
+**A release is never a build slot** (the **vibe-debug** skill, Slots). Every agent shell has a session id, so both archive scripts set `VIBE_NO_SLOT=1` and clear the slot's names rather than refuse. `asc_export_archive` and `github-release.sh` refuse any app that is not the stock `Vibe.app` (`vibe_assert_stock_bundle`, in `scripts/vibe-env.sh`).
+
 ## The Developer ID path
 
 `make release` builds two Release archives: universal under `build/release/` and arm64-only under `build/release/arm64/`. Each is exported with Developer ID, notarized and stapled, then packaged in its own plain drag-to-`Applications` DMG, which is itself signed, notarized and stapled. Architecture is a build input. Never thin the signed universal app, since changing its executable invalidates the signature and notarization. Each final zip is signed for Sparkle into `<zip>.sig`.

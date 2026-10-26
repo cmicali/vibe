@@ -174,11 +174,16 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                 return VibeJSONString(surface.debugStateDictionary);
             }),
             // Which build answered: two instances race for the channel, and a
-            // stale one replies like a fresh one.
+            // stale one replies like a fresh one. A slotted build has its own
+            // bundle id, executable and channel.
             VibeDebugCmd(@"dump_build", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                        id<VibeDebugPlayerSurface> surface) {
                 NSBundle *bundle = NSBundle.mainBundle;
+                NSString *channel = VibeDebugChannelName();
                 return VibeJSONString(@{
+                    @"bundleId": bundle.bundleIdentifier ?: NSNull.null,
+                    @"executable": bundle.executablePath.lastPathComponent ?: NSNull.null,
+                    @"channel": channel ? VibeDebugCommandNotificationName(channel) : NSNull.null,
                     @"version": bundle.vibeVersionString,
                     @"git": bundle.vibeGitString,
                     @"built": bundle.vibeBuildTimeString,

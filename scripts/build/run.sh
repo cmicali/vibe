@@ -18,32 +18,28 @@ if [[ $# -gt 0 ]]; then
     esac
 fi
 
-APP="build/DerivedData/Build/Products/$CONFIGURATION/Vibe.app"
+# Only a Debug build is slotted (scripts/vibe-env.sh).
+. scripts/vibe-env.sh
+APP="$VIBE_APP"
+[[ "$CONFIGURATION" == Debug ]] || APP="$VIBE_DERIVED_DATA/Build/Products/$CONFIGURATION/Vibe.app"
 
 if [[ ! -e "$APP" ]]; then
     scripts/build/build.sh "$CONFIGURATION"
 fi
 
-# The iOS Simulator's app is named Vibe too; it is never this script's instance.
-mac_vibe_pids() {
-    for p in $(pgrep -x Vibe 2>/dev/null); do
-        case "$(ps -o command= -p "$p" 2>/dev/null)" in *CoreSimulator*) ;; *) echo "$p" ;; esac
-    done
+# Its ids, from its Info.plist.
+export VIBE_APP="$APP"
+. scripts/vibe-env.sh
+
+# One instance per bundle id: without the quit, `open` reactivates the old copy.
+vibe_quit_own || {
+    echo "error: the running $VIBE_PRODUCT did not quit; 'open' would only reactivate it" >&2
+    exit 1
 }
 
-# Vibe is single-instance: without the quit, `open` reactivates the old copy.
-if [ -n "$(mac_vibe_pids)" ]; then
-    osascript -e 'tell application "Vibe" to quit' >/dev/null 2>&1 || kill $(mac_vibe_pids) 2>/dev/null || true
-    for _ in $(seq 1 25); do [ -n "$(mac_vibe_pids)" ] || break; sleep 0.2; done
-    if [ -n "$(mac_vibe_pids)" ]; then
-        echo "error: the running Vibe instance did not quit; 'open' would only reactivate it" >&2
-        exit 1
-    fi
-fi
-
 echo "🔊 running $APP${*+ $*}"
-if [[ $# -gt 0 ]]; then
-    open "$APP" --args "$@"
-else
-    open "$APP"
-fi
+ARGS=()
+[[ $# -gt 0 ]] && ARGS=(--args "$@")
+# TRAP: right after a quit, Launch Services can still hand the open to the
+# exiting process, and it fails with -600. One retry covers it.
+open "$APP" ${ARGS[@]+"${ARGS[@]}"} || { sleep 1; open "$APP" ${ARGS[@]+"${ARGS[@]}"}; }

@@ -12,8 +12,9 @@
 SCREENSHOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCREENSHOT_DIR/../.." && pwd)"
 SKILL="$ROOT/.claude/skills/vibe-debug/scripts"
-APP="${VIBE_APP:-$ROOT/build/DerivedData/Build/Products/Debug/Vibe.app}"
-V="$APP/Contents/MacOS/Vibe"
+# This shell's slot, or $VIBE_APP. backdrop.swift reads VIBE_BUNDLE_ID too.
+# shellcheck source=scripts/vibe-env.sh
+. "$ROOT/scripts/vibe-env.sh"
 
 # Waveform morph + progress settle before the shutter.
 SETTLE="${SETTLE:-2.5}"
@@ -21,8 +22,8 @@ SETTLE="${SETTLE:-2.5}"
 # ~9 rows fit in the default height, so 4 is mid-list.
 CENTER_OFFSET="${CENTER_OFFSET:-4}"
 
-quiet() { "$V" --debug-cmd "$@" >/dev/null; }
-state() { "$V" --debug-cmd dump_state; }
+quiet() { "$VIBE_BIN" --debug-cmd "$@" >/dev/null; }
+state() { "$VIBE_BIN" --debug-cmd dump_state; }
 say() { printf '\033[1m==> %s\033[0m\n' "$*"; }
 
 # --- setup ------------------------------------------------------------------
@@ -33,7 +34,7 @@ require_debug_build() {
         say "building Debug"
         "$ROOT/scripts/build/build.sh" Debug >/dev/null
     fi
-    [ -x "$V" ] || { echo "no debug build at $APP" >&2; exit 1; }
+    [ -x "$VIBE_BIN" ] || { echo "no debug build at $VIBE_APP" >&2; exit 1; }
 }
 
 # Callers install `trap screenshot_cleanup EXIT INT TERM`: INT and TERM
@@ -68,26 +69,6 @@ stop_backdrop() {
 }
 
 launch() { "$SKILL/launch.sh" "$@" >/dev/null; }
-
-# The iOS Simulator's app is named Vibe too; it is never the one being shot.
-mac_vibe_pids() {
-    for p in $(pgrep -x Vibe 2>/dev/null); do
-        case "$(ps -o command= -p "$p" 2>/dev/null)" in *CoreSimulator*) ;; *) echo "$p" ;; esac
-    done
-}
-
-# Quit, not kill: the frame autosave and the settings the run restored are
-# flushed only on a real termination.
-quit_app() {
-    [ -n "$(mac_vibe_pids)" ] || return 0
-    osascript -e 'tell application "Vibe" to quit' 2>/dev/null || true
-    for _ in $(seq 1 20); do
-        [ -n "$(mac_vibe_pids)" ] || return 0
-        sleep 0.25
-    done
-    echo "warning: Vibe did not quit — killing it (window state may not persist)" >&2
-    kill $(mac_vibe_pids) 2>/dev/null || true
-}
 
 # --- app state --------------------------------------------------------------
 
@@ -156,7 +137,7 @@ step_to() { # <from> <to>
     n=$(( to - from ))
     if [ "$n" -lt 0 ]; then verb=previous; n=$(( -n )); fi
     for _ in $(seq 1 "$n"); do echo "$verb"; done \
-        | "$V" --debug-cmd script - >/dev/null
+        | "$VIBE_BIN" --debug-cmd script - >/dev/null
 }
 
 play_track() { # <basename>
@@ -197,7 +178,7 @@ select_playing_row() {
 # scroll offset is inferred from the instantiated rows, which bounds it to a
 # couple of points on a 28pt row.
 playing_row_point() { # <0-based row>
-    "$V" --debug-cmd dump_view_tree | jq -r --argjson row "$1" '
+    "$VIBE_BIN" --debug-cmd dump_view_tree | jq -r --argjson row "$1" '
         def rect: gsub("[{}]"; "") | split(", ") | map(tonumber);  # "{{0, 0}, {680, 250}}" -> [0, 0, 680, 250]
         def find(cls): first(recurse(.subviews[]?) | select(.class == cls))
             // error("no \(cls) in the view tree");
@@ -227,7 +208,7 @@ playing_row_point() { # <0-based row>
 # crossing, hence leaving first.
 
 # "<windowID> <pid> <x> <y> <w> <h>" — global screen points, top-left origin.
-win_geom() { swift "$SKILL/find-window.swift" "$(mac_vibe_pids | head -1)" | head -1; }
+win_geom() { swift "$SKILL/find-window.swift" "$(vibe_own_pids | head -1)" | head -1; }
 
 # input.swift gates global CGEvents behind --isolated-desktop, which ASSERTS
 # isolation rather than creating it, so a person makes the assertion, per run,
@@ -286,14 +267,15 @@ cursor_hover_window() {
 # --- capture ----------------------------------------------------------------
 
 # A key window can still sit under another app's, and the merged capture reads
-# the composited screen, so this, not keyWindow, decides. The backdrop window
-# belongs to the swift driver's child, hence the pid set. True with no backdrop.
+# the composited screen, so this, not keyWindow, decides. Both windows are
+# found by pid. Every slot's window is owned by "Vibe", and the backdrop window
+# belongs to the swift driver's child, hence its pid set. True with no backdrop.
 app_above_backdrop() {
     [ -n "$BACKDROP_PID" ] || return 0
     local stack pids app_index backdrop_index
     pids=" $BACKDROP_PID $(pgrep -P "$BACKDROP_PID" 2>/dev/null | tr '\n' ' ') "
     stack=$(swift "$SCREENSHOT_DIR/window-stack.swift")
-    app_index=$(awk '$2 == "Vibe" {print $1; exit}' <<<"$stack")
+    app_index=$(awk -v pid="$(vibe_own_pids | head -1)" '$3 == pid {print $1; exit}' <<<"$stack")
     backdrop_index=$(awk -v pids="$pids" \
             '{ if (index(pids, " " $3 " ")) { print $1; exit } }' <<<"$stack")
     [ -n "$app_index" ] || return 1
@@ -312,7 +294,7 @@ activate_vibe() {
     for attempt in 1 2 3; do
         osascript -e 'tell application "Finder" to activate' 2>/dev/null || true
         sleep 0.3
-        open -a "$APP" 2>/dev/null || true
+        open -a "$VIBE_APP" 2>/dev/null || true
         quiet sleep 1
         if [ "$(state | jq -r .window.keyWindow)" = true ] && app_above_backdrop; then
             return 0
@@ -325,7 +307,7 @@ activate_vibe() {
 # but glass and NSVisualEffectView materials resolve against a NEUTRAL backdrop
 # (the playlist frost is mid-grey whatever is behind).
 capture_window() { # <out.png>
-    "$SKILL/capture-window.sh" "$1" "$(mac_vibe_pids | head -1)" >/dev/null
+    "$SKILL/capture-window.sh" "$1" "$(vibe_own_pids | head -1)" >/dev/null
 }
 
 # The window buffer's alpha, shadow and corners with the composited screen's
