@@ -4,9 +4,11 @@
 
 ## Context
 
-The stress and torture harnesses run in the developer's own login session, against the
-developer's own `~/Library` container, on whatever binary is in `build/DerivedData` at
-that moment. Four traps documented in the `vibe-stress` skill all trace to that:
+The stress and torture harnesses run in the developer's own login session, on whatever
+binary the build slot's `build/DerivedData-<slot>` holds at that moment. A slot has its own app,
+container and debug channel (the `vibe-debug` skill, Slots). An unslotted run shares the
+installed app's `~/Library` container. Four traps documented in the `vibe-stress` skill all
+trace to that:
 
 - a second Vibe instance colliding with the one under test
 - Simulator's Vibe matching `pgrep -x Vibe` (the scripts exclude it)

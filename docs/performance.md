@@ -158,7 +158,7 @@ Every app number is the median of five repetitions, each in a fresh launch. The 
 - **App startup:** process spawn to the first window on screen, the median of ten warm relaunches.
 - **Time to play:** `open` of a file never opened before, until the first rendered audio. Its tags, art and waveform are all cold. The first file, MP3 320k, is the first play after launch and includes starting the output. The others are track switches from a playing file.
 - **Seek latency:** 40 seeded seeks per file, from the app taking the command to audio rendering past the target.
-- **Playback CPU:** 8 s of steady playback of each file, once analysis has settled. The same window gives energy and wakeups. "Every effect on" is FLAC 24/192 with reverb, delay, short delay and low kill. The pitch case holds the fader at +8% on FLAC 24/192.
+- **Playback CPU:** 8 s of steady playback of each file, once analysis has settled. The same window gives energy and wakeups. "Every effect on" is FLAC 24/192 with reverb, delay, short delay and low kill. The pitch cases hold the fader at +8% on FLAC 24/192 and at −8% on MP3 320k.
 - **Idle and paused:** CPU, wakeups and memory over 5 s, with nothing loaded and with a track paused.
 - **Waveform:** the full decode, waveform and tempo pass for a cleared entry, until it is on disk.
 - **Library:** `open` of the 600-file folder with an empty cache, until every row is listed and every row's tags are read. The warm scan repeats that in a relaunch with the cache full.

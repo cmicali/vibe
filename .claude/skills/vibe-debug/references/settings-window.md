@@ -3,7 +3,7 @@
 The settings verbs in detail: reply keys, how `settings_click` names a control, the control-kind table and the toolbar's reserved names. Read when driving a Settings pane. The traps are in `SKILL.md`'s settings section. The walker's verbs are `Vibe/Debug/Mac/DebugSettingsUI.m`. Its walk from a row to its controls is vibe-libs' seam `SettingsFormViews+Debug.h`, keyed off the form views in `vibe-libs/ui/SettingsWindow/AGENTS.md`.
 
 ```bash
-"$V" --debug-cmd settings_open appearance     # {ok, pane, paneTitle, panes, frame, paneFrame, paneFillsTabView, key, appearance} — opens (creating) the window and selects a pane by identifier (general|appearance|themes|playback|audio|files|shortcuts|advanced|about), index or displayed title; bare settings_open just opens
+"$V" --debug-cmd settings_open appearance     # {ok, pane, paneTitle, panes, frame, paneFrame, paneFillsTabView, key, appearance} — opens (creating) the window and selects a pane by identifier (general|themes|appearance|playback|audio|files|shortcuts|advanced|about), index or displayed title; bare settings_open just opens
 "$V" --debug-cmd dump_settings_ui             # {pane, paneTitle, panes, controls: [{index, kind, name, label, enabled, rect, alpha, effectiveAlpha, hidden, rowTitle?, rowCaption?, + the live value}], toolbar, window, sheet} — the SELECTED pane only
 "$V" --debug-cmd settings_click "Detect key" on  # {ok, control, kind, action, + the live value} — one control of the selected pane BY NAME, no coordinates
 "$V" --debug-cmd settings_reveal "Show key"   # {ok, control, kind, action: "revealed", + the live value} — scrolls that control's card to the top of the pane and acts on nothing: how a screenshot reaches a long page's lower cards

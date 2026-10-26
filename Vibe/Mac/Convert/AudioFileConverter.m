@@ -50,8 +50,8 @@ static void VibeConverterPerformOnMain(dispatch_block_t block) {
 // AudioFileConverterInternal.h.
 @implementation AudioFileConverter {
     // Whether the FLAC beside the track the menus name exists, and which
-    // destination that answer is about. Menu validation reads this rather than
-    // statting — a stat on an unreachable mount blocks the main thread.
+    // destination that answer is about. TRAP: menu validation reads this,
+    // never a stat. A stat on an unreachable mount blocks the main thread.
     // refreshDestinationStateForTrack: keeps it warm. One stat runs at a time,
     // and only the newest destination asked for waits behind it. A hung mount
     // then parks one worker, not one per menu open. Main-thread confined.

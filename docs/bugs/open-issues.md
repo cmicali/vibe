@@ -27,4 +27,4 @@ Bugs seen in testing that are not fixed or not explained.
 
 ## Known TSan noise
 
-With TSan on, a few unit tests that use dispatch timers and blocks report races (`DownloadAllocatedSizeSource`, `MetadataParseCoordinatorTests`). Standalone Foundation and libdispatch programs with no Vibe code show the same warnings. Do not change synchronization only to silence them. Check the standalone repro on the current toolchain first.
+With TSan on, a few unit tests that use dispatch timers and blocks report races (vibe-libs' `DownloadAllocatedSizeSource` and `MetadataParseCoordinatorTests`). Standalone Foundation and libdispatch programs with no Vibe code show the same warnings. Do not change synchronization only to silence them. Check the standalone repro on the current toolchain first.

@@ -1,6 +1,6 @@
 # Future: unit tests for the iOS app shell
 
-**Status: Moves 1 and 2 built, and an in-simulator tier added.** `FolderSession`, the iOS stores and the rules seams run in `VibeTests` on the Mac. `VibeiOSTests` runs the views and controllers on a simulator (`make test-ios`, below). Move 3 and the browser regression cases remain.
+**Status: Move 1 built, move 2 partly built, and an in-simulator tier added.** `FolderSession`, the iOS stores and the rules seams run in `VibeTests` on the Mac. `VibeiOSTests` runs the views and controllers on a simulator (`make test-ios`, below). Move 3, the rest of move 2 and the browser regression cases remain.
 
 ## The question, and the answer
 
@@ -16,6 +16,10 @@
 | `FileSearchIndex`, `FileSearchRules.h`, `FolderSessionRules.h` | `FileSearchRulesTests` |
 | `BrowserRules.h` | `BrowserRulesTests` |
 | `PageWaveformCoordinator` | `PageWaveformCoordinatorTests` |
+| `FolderSession` | `FolderSessionTests` |
+| `LocationStore`, `RecentsStore`, `FavoritesStore` | `LocationStoreTests`, `RecentsStoreTests`, `FavoritesStoreTests` |
+| `DropboxSearch` | `DropboxSearchTests` |
+| `VibeWidgetState` | `VibeWidgetStateTests` |
 | `PlayerScreenRules.h`, `DropboxRules.h` | `PlayerScreenRulesTests`, `DropboxRulesTests` |
 
 The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `FilesRootViewController`, `FolderViewController`, `RootViewController` and `PlaylistViewController` sit beside the UIKit calls that act on them.
@@ -35,7 +39,7 @@ The biggest win. `FolderSession` owns the open and Add orchestration that `Vibe/
 
 Each is a race or an ordering rule. Tests with held provider calls can exercise these races deterministically.
 
-Its header imports only Foundation. Its implementation spans `FolderSession.m`, `FolderSession+ExternalOpens.m` and `FolderSession+Persistence.m`. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FolderSessionRules.h`, `FilePaths.h`, `FolderWalk`, `LocationStoreInternal.h`, `PlaceholderFiles` and `VibePlaylistFile`. The two stores are not in the target. `FavoritesStore` has no UIKit reference. `LocationStore` uses `UIDevice` for a display name. That needs a platform boundary or a test seam first.
+Its header imports only Foundation. Its implementation spans `FolderSession.m`, `FolderSession+ExternalOpens.m` and `FolderSession+Persistence.m`. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FolderSessionRules.h`, `FilePaths.h`, `FolderWalk`, `LocationStoreInternal.h`, `PlaceholderFiles` and `VibePlaylistFile`. Both stores are in the target now. `FavoritesStore` has no UIKit reference. `LocationStore` reads no `UIDevice`. The app delegate sets its `deviceModelName` at launch.
 
 Follow `DropboxMirrorTests`' shape: a temp root for the folders and real listings on disk. Compile the two main-only stores with the in-memory `VibeTestUserDefaults` supplied by `TestFilesystemGuard`, or stub their queries (`grantCoveringURL:`, `resolvedRootCoveringURL:`). A plain temp file URL does not exercise a picker grant. `startAccessingSecurityScopedResource` answers NO for that URL. The session treats that as "not failure". The bookkeeping can still be tested: which URLs are held, that a replace installs the new set before stopping the old one, and that an append extends the set.
 

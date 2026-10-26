@@ -159,6 +159,6 @@ VIBE_BENCH_COMPONENTS_REGISTER(VibeBenchComponentsRegisterThings)
 
 **TRAP: VibeBenchComponents is built Release, as the app ships (`-Os`).** The optimizer can change the cost of copies and loops. Measure with the shipping optimization settings.
 
-**Measure compiler-setting changes.** The decoders and resampler have their own optimization flags in `project.yml`. A whole-app flag does not describe every translation unit.
+**Measure compiler-setting changes.** The decoders and resampler have their own optimization flags in vibe-libs' `vibe-libs.yml`. A whole-app flag does not describe every translation unit.
 
 **Never launch the app from here.** VibeBenchComponents is its own process with its own defaults domain and touches no app state. The app benchmarks' app runs as `VibeBenchApp` with its own bundle identifier, home and channel directory. Neither collides with a `Vibe` instance another session is stressing.

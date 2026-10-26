@@ -59,7 +59,7 @@ Runs `closeFile:`: stop, drop the prefetch handle, cancel the waveform load and 
 
 ## What is stable at rest
 
-- **Stable**: windows 1, hosted FX units after initialization, every pending counter 0. Views hold steady until the Settings window has existed. Closing it only hides it, and its views join the resting count for the rest of the run, so a resting-views failure starts with `dump_view_tree`'s window list.
+- **Stable**: hosted FX units after initialization, and every pending counter 0. `windows` is 1 until Settings first opens. It counts every window the app keeps, so a closed Settings window still counts there. Views and layers count visible windows only. An open Settings window is about 190 views, so the driver closes it before each resting sample. A resting-views failure starts with `dump_view_tree`'s window list.
 - **Breathe with the loader pool**: threads and fds.
 - **Layers are bistable at the chrome** (AppKit's glass and hosting views), moving both ways within one run. The Sonic Cirrus style adds two layers per bar, with the count determined by window width. A wide window can retain thousands of layers. The limit is +2400. Views stay the sensitive UI metric.
 - **The resting footprint does not settle.** It is a gross-leak backstop (+256 MB), not a signal. `mallocLiveBytes` (+64 MB) is the sensitive metric.

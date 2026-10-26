@@ -2,7 +2,7 @@
 
 Read alongside the Logs section of the `vibe-debug` skill.
 
-Both app delegates log a build-provenance block at launch through `VibeLogBuildProvenance()` (`NSBundle+BuildInfo`), to help identify its build: the `Source:` line (git commit, branch and dirty flag) and the `Built:` line (the link time), beside the "started" line that carries version and configuration. The mac's earlier "starting" line also names the bundle id, which tells a build slot from the stock app.
+Both app delegates log a build-provenance block at launch through `VibeLogBuildProvenance()` (`NSBundle+BuildInfo`), to help identify its build: the `Source:` line (git commit, branch and dirty flag) and the `Built:` line (the link time), beside the line that carries version and configuration. That line reads "started" on the mac and "starting" on iOS. The mac's earlier "starting" line also names the bundle id, which tells a build slot from the stock app.
 
 `NSBundle+BuildInfo` reads all of it back from the binary: the version keys in Info.plist, the `DEBUG` macro for the configuration, and the executable’s mtime as a build-time estimate. A copy or signing step can change that timestamp. AppStore reports Release because both compile with `DEBUG=0`. Only the git fields need build-time help. The `Generate Git Info` pre-build script phase (vibe-libs' `core/Common/generate-git-info.sh`) writes `build/generated/VibeGitInfo.h`, which is gitignored under `build/` and sits on the target's `HEADER_SEARCH_PATHS`. It is rewritten only when the git state actually changes, so it does not force recompiles, and it falls back to "unknown" in a tree with no git. Reading `.git` from a script phase is why the target sets `ENABLE_USER_SCRIPT_SANDBOXING: NO`.
 
