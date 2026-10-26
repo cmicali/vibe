@@ -584,9 +584,13 @@ if requireDriverFixtures {
 }
 if let binary = appBinary {
     let path = URL(fileURLWithPath: binary).standardizedFileURL.resolvingSymlinksInPath().path
-    let apps = NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier == "com.commonwealthrecordings.Vibe" }
-    guard apps.count == 1, apps[0].executableURL?.standardizedFileURL.resolvingSymlinksInPath().path == path else {
-        fail("exactly one Vibe must be running, from --play-app's worktree")
+    // The binary's own bundle id, since a build slot has its own (scripts/vibe-env.sh).
+    let bundleID = Bundle(url: URL(fileURLWithPath: path).deletingLastPathComponent()
+        .deletingLastPathComponent().deletingLastPathComponent())?.bundleIdentifier
+    let apps = NSWorkspace.shared.runningApplications.filter { $0.bundleIdentifier == bundleID }
+    guard bundleID != nil, apps.count == 1,
+          apps[0].executableURL?.standardizedFileURL.resolvingSymlinksInPath().path == path else {
+        fail("exactly one instance of --play-app's bundle id must be running, from --play-app's worktree")
     }
     let state = debug(binary, ["dump_state"])
     guard let player = state["player"] as? [String: Any],

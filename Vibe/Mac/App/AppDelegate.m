@@ -119,7 +119,8 @@ static void VibeAfterLaunch(dispatch_block_t block) {
                 initWithDefaults:NSUserDefaults.standardUserDefaults
                              key:kGrantedFoldersDefaultsKey
                  entitledFolders:@[[NSURL fileURLWithPath:music isDirectory:YES]]];
-        LogInfo(@"Vibe %@ starting", NSBundle.mainBundle.vibeVersionString);
+        LogInfo(@"Vibe %@ starting as %@", NSBundle.mainBundle.vibeVersionString,
+                NSBundle.mainBundle.bundleIdentifier);
     }
     return self;
 }

@@ -19,7 +19,7 @@
 # Keychain state may remain. launch-ios.sh reinstalls on its next run.
 #
 # Usage: reset-state.sh [--mac] [--ios] [--both] [-n|--dry-run] [-y|--yes]
-#   --mac       the macOS container (default)
+#   --mac       this slot's macOS container (default; scripts/vibe-env.sh)
 #   --ios       this session's simulator (sim-udid.sh; VIBE_SIM_UDID pins one)
 #   --both      both
 #   -n          list what would be removed and exit
@@ -30,7 +30,9 @@ set -euo pipefail
 SELF="$(cd "$(dirname "$0")" && pwd)/$(basename "$0")"
 cd "$(dirname "$SELF")/../.."
 
-BUNDLE_ID="com.commonwealthrecordings.Vibe"
+. scripts/vibe-env.sh
+# The simulator app is never slotted.
+IOS_BUNDLE_ID="com.commonwealthrecordings.Vibe"
 SIM_UDID_SCRIPT=".claude/skills/vibe-debug/scripts/sim-udid.sh"
 
 DO_MAC=0
@@ -55,33 +57,25 @@ done
 
 # Only the container is expected to exist.
 MAC_PATHS=(
-    "$HOME/Library/Containers/$BUNDLE_ID"
-    "$HOME/Library/Application Scripts/$BUNDLE_ID"
-    "$HOME/Library/Preferences/$BUNDLE_ID.plist"
-    "$HOME/Library/Saved Application State/$BUNDLE_ID.savedState"
-    "$HOME/Library/Caches/$BUNDLE_ID"
-    "$HOME/Library/HTTPStorages/$BUNDLE_ID"
-    "$HOME/Library/HTTPStorages/$BUNDLE_ID.binarycookies"
-    "$HOME/Library/WebKit/$BUNDLE_ID"
+    "$VIBE_CONTAINER"
+    "$HOME/Library/Application Scripts/$VIBE_BUNDLE_ID"
+    "$HOME/Library/Preferences/$VIBE_BUNDLE_ID.plist"
+    "$HOME/Library/Saved Application State/$VIBE_BUNDLE_ID.savedState"
+    "$HOME/Library/Caches/$VIBE_BUNDLE_ID"
+    "$HOME/Library/HTTPStorages/$VIBE_BUNDLE_ID"
+    "$HOME/Library/HTTPStorages/$VIBE_BUNDLE_ID.binarycookies"
+    "$HOME/Library/WebKit/$VIBE_BUNDLE_ID"
 )
 
 present_mac_paths() {
     local path
     # nullglob keeps an unmatched pattern from reaching the -e test as itself.
     shopt -s nullglob
-    for path in "${MAC_PATHS[@]}" "$HOME/Library/Preferences/ByHost/$BUNDLE_ID."*.plist; do
+    for path in "${MAC_PATHS[@]}" "$HOME/Library/Preferences/ByHost/$VIBE_BUNDLE_ID."*.plist; do
         [[ -e "$path" ]] && printf '%s\n' "$path"
     done
     shopt -u nullglob
     return 0
-}
-
-# The mac app only: `pgrep -x Vibe` also matches the iOS Simulator's Vibe.
-vibe_pids() {
-    local p
-    for p in $(pgrep -x Vibe 2>/dev/null); do
-        case "$(ps -o command= -p "$p" 2>/dev/null)" in *CoreSimulator*) ;; *) echo "$p" ;; esac
-    done
 }
 
 # This session's simulator. Never `booted`: a wipe must name its device.
@@ -109,12 +103,12 @@ if [[ $DO_IOS -eq 1 ]]; then
     # No device means no state: a reset with nothing to reset is not a failure.
     if ! UDID="$(sim_udid)"; then
         DO_IOS=0
-    elif xcrun simctl get_app_container "$UDID" "$BUNDLE_ID" app >/dev/null 2>&1; then
-        PLAN+=("iOS    app+data  $BUNDLE_ID on $UDID")
+    elif xcrun simctl get_app_container "$UDID" "$IOS_BUNDLE_ID" app >/dev/null 2>&1; then
+        PLAN+=("iOS    app+data  $IOS_BUNDLE_ID on $UDID")
     else
         # get_app_container also fails on a shut-down device, so this is not
         # proof the app is absent — run the uninstall either way.
-        PLAN+=("iOS    app+data  $BUNDLE_ID on $UDID (not installed, or device shut down)")
+        PLAN+=("iOS    app+data  $IOS_BUNDLE_ID on $UDID (not installed, or device shut down)")
     fi
 fi
 
@@ -136,19 +130,9 @@ fi
 # --- macOS ------------------------------------------------------------------
 
 if [[ $DO_MAC -eq 1 ]]; then
-    if [[ -n "$(vibe_pids)" ]]; then
-        echo "quitting Vibe"
-        osascript -e "quit app id \"$BUNDLE_ID\"" >/dev/null 2>&1 || true
-        for _ in $(seq 1 20); do
-            [[ -n "$(vibe_pids)" ]] || break
-            sleep 0.25
-        done
-        pids="$(vibe_pids)"
-        if [[ -n "$pids" ]]; then
-            # shellcheck disable=SC2086
-            kill $pids 2>/dev/null || true
-            sleep 0.5
-        fi
+    if [[ -n "$(vibe_own_pids)" ]]; then
+        echo "quitting $VIBE_PRODUCT"
+        vibe_quit_own
     fi
 
     while IFS= read -r path; do
@@ -166,11 +150,11 @@ fi
 if [[ $DO_IOS -eq 1 ]]; then
     # simctl refuses most container operations on a shut-down device: boot and
     # retry once.
-    if ! xcrun simctl uninstall "$UDID" "$BUNDLE_ID" 2>/dev/null; then
+    if ! xcrun simctl uninstall "$UDID" "$IOS_BUNDLE_ID" 2>/dev/null; then
         xcrun simctl bootstatus "$UDID" -b >/dev/null
-        xcrun simctl uninstall "$UDID" "$BUNDLE_ID"
+        xcrun simctl uninstall "$UDID" "$IOS_BUNDLE_ID"
     fi
-    echo "🔊 uninstalled $BUNDLE_ID from $UDID (launch-ios.sh reinstalls)"
+    echo "🔊 uninstalled $IOS_BUNDLE_ID from $UDID (launch-ios.sh reinstalls)"
 fi
 
 echo "🔊 Vibe reset to defaults"

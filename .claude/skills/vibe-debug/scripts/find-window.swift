@@ -1,10 +1,16 @@
-// Print one line per on-screen Vibe window, front to back:
+// Print one line per on-screen window of one process, front to back:
 //   windowID pid x y width height
-// Usage: swift find-window.swift [pid]   (pid filters to one instance)
+// Usage: swift find-window.swift <pid>
+//
+// By pid, not by owner name: every build slot's windows are owned by "Vibe"
+// (the vibe-debug skill's Slots).
 import CoreGraphics
 import Foundation
 
-let pidFilter = CommandLine.arguments.count > 1 ? Int(CommandLine.arguments[1]) : nil
+guard CommandLine.arguments.count == 2, let pidFilter = Int(CommandLine.arguments[1]) else {
+    FileHandle.standardError.write("usage: swift find-window.swift <pid>\n".data(using: .utf8)!)
+    exit(64)
+}
 let opts: CGWindowListOption = [.optionOnScreenOnly, .excludeDesktopElements]
 guard let list = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String: Any]] else {
     FileHandle.standardError.write("cannot read window list\n".data(using: .utf8)!)
@@ -12,9 +18,8 @@ guard let list = CGWindowListCopyWindowInfo(opts, kCGNullWindowID) as? [[String:
 }
 var found = false
 for w in list {
-    guard (w[kCGWindowOwnerName as String] as? String) == "Vibe" else { continue }
     let pid = w[kCGWindowOwnerPID as String] as? Int ?? 0
-    if let f = pidFilter, f != pid { continue }
+    if pid != pidFilter { continue }
     let wid = w[kCGWindowNumber as String] as? Int ?? 0
     let b = w[kCGWindowBounds as String] as? [String: Any] ?? [:]
     print(wid, pid,

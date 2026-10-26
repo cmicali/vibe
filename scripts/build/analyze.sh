@@ -37,7 +37,7 @@ if [[ "${SKIP_GENERATE:-}" == "1" ]]; then
     echo "🔊 skipping xcodegen generate (SKIP_GENERATE=1)"
 else
     echo "🔊 xcodegen generate"
-    xcodegen generate
+    scripts/build/build-lock.sh xcodegen generate
 fi
 
 mkdir -p build

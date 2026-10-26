@@ -1,6 +1,6 @@
 # macOS `--debug-cmd` verbs
 
-Every macOS channel verb with its arguments and reply schema, plus the verbs whose contract needs more than a line. The channel's unknown-command reply is the authoritative list, and `SKILL.md` carries the rules and traps. `$V` is `<app>/Contents/MacOS/Vibe`.
+Every macOS channel verb with its arguments and reply schema, plus the verbs whose contract needs more than a line. The channel's unknown-command reply is the authoritative list, and `SKILL.md` carries the rules and traps. `$V` is this shell's slot's binary, `scripts/vibe-env.sh --print VIBE_BIN`, and `$APP` its app (`SKILL.md`, Slots).
 
 ## Inspection
 
@@ -14,7 +14,7 @@ Every macOS channel verb with its arguments and reply schema, plus the verbs who
 "$V" --debug-cmd dump_view_tree      # {windows: [{class, frame, visible, key, contentView: {…, subviews}}]}: AppKit bottom-left frames
 "$V" --debug-cmd dump_menu           # {menu: [{title, id, key, action, enabled, state, imageDigest, items}]}: live enabled and checkmark state from validateMenuItem. imageDigest is present only on an item with an image. It hashes the pixels at 1x, so a script can tell a redrawn swatch from an unchanged one
 "$V" --debug-cmd dump_now_playing    # {playbackState, hasInfo, title, artist, duration, elapsed, rate, hasArtwork}: always hasInfo: 0 under --no-audio-hw
-"$V" --debug-cmd dump_build          # {version, git, built, pid, path}: the answering instance's identity (both platforms)
+"$V" --debug-cmd dump_build          # {version, git, built, pid, path, bundleId, executable, channel}: the answering instance's identity (both platforms)
 "$V" --debug-cmd dump_stats          # {filesOpened, foldersOpened, secondsPlayed}: AppStats lifetime counters
 "$V" --debug-cmd dump_equalizer      # producer/renderer snapshot: references/equalizer-counters.md
 "$V" --debug-cmd dump_resampler_costs [reset]  # {costs: {cpuSeconds, audioSeconds, corePercent}, conversion}: the resampler's decode-thread CPU since the bus was made or the last reset, file reads excluded. corePercent is the real-time cost. Both platforms
@@ -80,7 +80,7 @@ Raw input is for explicit gesture tests on an isolated test desktop, never unatt
 "$V" --debug-cmd select_rows current 50  # `current` resolves the playing row at execution time
 "$V" --debug-cmd remove_selected     # the shell's removal action over that selection, transport and undo included
 "$V" --debug-cmd move_to_trash       # Move to Trash without the key window: that selection, or the loaded track while the playlist is collapsed. Real files go to the Trash, so use working copies. Replies before the moves settle; poll dump_state
-"$V" --debug-cmd save_playlist ~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/set.m3u  # {ok, path, tracks}: File > Save Playlist… without its panel. The path must be writable by the sandboxed app
+"$V" --debug-cmd save_playlist "$(scripts/vibe-env.sh --print VIBE_CONTAINER)/Data/tmp/set.m3u"  # {ok, path, tracks}: File > Save Playlist… without its panel. The path must be writable by the sandboxed app
 "$V" --debug-cmd file_cache song.flac        # {ok, path, wasCached, bpm, key, camelot, timing}: decode and cache one file's waveform, UI untouched; waits up to 60 s and replies once the entry is on disk
 "$V" --debug-cmd file_clear_cache song.flac  # {ok, path, wasPresent}: evict one file's waveform entry. Clear then file_cache is a forced cold decode
 "$V" --debug-cmd dump_waveform 1024 song.flac  # {path, wasCached, complete, bins, binFrames, frames, sampleRate, columns, hasBands, bpm, key, min, max, loudest, bandLoudest: {low, mid, high}}: the waveform summary read into that many columns across the window (omitted: 8192), as exact unions. `loudest` is the RMS of the loudest 20 ms window a column covers, which every style draws. `bandLoudest` is the same in each band; zeros without bands. Decodes first when uncached, so it waits up to 60 s. Both platforms. Save it to a file and read it with jq, since the full dump is about 1 MB
