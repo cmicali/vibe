@@ -51,20 +51,20 @@
     // with the audio.
     NSImage *placeholder = [AppSettings.sharedInstance.currentTheme
                                    defaultArtworkImageForAppearance:self.window.effectiveAppearance];
-    [self.nowPlayingController updateWithRecord:(VibeNowPlayingRecord){
-        .sourceKey = track.sourceKey,
-        .title = track.displayTitle,
-        .artist = track.displayArtist,
-        .artwork = track.cachedArt ?: track.cachedThumbnail ?: placeholder,
-        .position = position,
-        .duration = duration,
-        .state = state,
-        .rate = (loadingGap || self.audioPlayer.isBuffering) ? 0.0 : 1.0,
-        .hasNext = self.playlistController.hasNextTrack,
-        .hasPrevious = VibePlaybackPreviousIsAvailable(self.playlistController.hasPreviousTrack,
-                                                       self.playlistController.currentTrack != nil,
-                                                       self.audioPlayer.isStopped),
-    }];
+    VibeNowPlayingRecord *record = [VibeNowPlayingRecord new];
+    record.sourceKey = track.sourceKey;
+    record.title = track.displayTitle;
+    record.artist = track.displayArtist;
+    record.artwork = track.cachedArt ?: track.cachedThumbnail ?: placeholder;
+    record.position = position;
+    record.duration = duration;
+    record.state = state;
+    record.rate = (loadingGap || self.audioPlayer.isBuffering) ? 0.0 : 1.0;
+    record.hasNext = self.playlistController.hasNextTrack;
+    record.hasPrevious = VibePlaybackPreviousIsAvailable(self.playlistController.hasPreviousTrack,
+                                                         self.playlistController.currentTrack != nil,
+                                                         self.audioPlayer.isStopped);
+    [self.nowPlayingController updateWithRecord:record];
 }
 
 #pragma mark - NowPlayingControllerDelegate (system media keys / Control Center)
