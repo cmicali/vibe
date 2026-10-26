@@ -34,7 +34,7 @@ make stress CORPUS=~/Music/big ARGS="--profile loading --duration 3600 --iterati
 
 By default, validated batches travel through one `script -` invocation. `--no-batch` uses one client per operation when individual timing matters.
 
-**iOS stress and replay.** `stress.py --ios <exact simulator UUID>` attaches through `debug-ios.sh` to an already launched Debug app. It never launches, rebuilds, terminates or drives a phone. Use a dedicated simulator that stays in the foreground, with no other driver on it. The run replaces the playlist and leaves playback paused. It restores repeat, shuffle and Pause at track end. It also restores the favorites it starred, Recents, the tab, the card and the route indicator, and disarms the fake Dropbox and web server. These restorers run on pass, failure, `^C` and SIGTERM. FX must start enabled and released. A per-simulator lock excludes other instances of this runner.
+**iOS stress and replay.** `stress.py --ios <exact simulator UUID>` attaches through `debug-ios.sh` to an already launched Debug app. It never launches, rebuilds, terminates or drives a phone. Use a dedicated simulator that stays in the foreground, with no other driver on it. The run replaces the playlist and leaves playback paused. It also starts at rest. It pauses a row the launch left playing and waits for idle output. The open it starts with is then the only play. It restores repeat, shuffle and Pause at track end. It also restores the favorites it starred, Recents, the tab, the card and the route indicator, and disarms the fake Dropbox and web server. These restorers run on pass, failure, `^C` and SIGTERM. FX must start enabled and released. A per-simulator lock excludes other instances of this runner.
 
 ```bash
 # Seed at least two long local files; row 0 must be >= 60 s. Subfolders give
@@ -119,17 +119,18 @@ The suite takes about ten minutes, and silence reads as stalled. Run it with its
 **Sanitizer matrix.** Three builds catch disjoint classes. **TSan matters most**, because the threading contract (pipeline mutations on the player queue, non-blocking getters, delegate callbacks on main) is invisible to every other oracle.
 
 ```bash
-C=~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp
 xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Debug \
-    -derivedDataPath build/DerivedData-tsan -enableThreadSanitizer YES build
+    -derivedDataPath build/tsan/DerivedData -enableThreadSanitizer YES build
+APP="$PWD/build/tsan/DerivedData/Build/Products/Debug/Vibe.app"
+C="$(VIBE_APP="$APP" scripts/vibe-env.sh --print VIBE_CONTAINER)/Data/tmp"   # the app's own container
 launchctl setenv TSAN_OPTIONS \
     "log_path=$C/tsan:halt_on_error=0:external_symbolizer_path=:symbolize=1:history_size=7"
 .claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big \
-    --app "$PWD/build/DerivedData-tsan/Build/Products/Debug/Vibe.app" --profile artwork --max-stalls 20
+    --app "$APP" --profile artwork --max-stalls 20
 launchctl unsetenv TSAN_OPTIONS        # session-wide until unset
 ```
 
-`--tsan-replay <journal>` with `--app` set to the TSan build does the setenv, the replay, the quit and the unsetenv in one step, then prints each report's first stack. It is the last step of a stress failure's chain (`references/sanitizers.md`). `-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES` is a second build. It is incompatible with TSan and about 3x slower. Aim it at malformed files, where input reaches TagLib's C++. Reports land as `$C/tsan.<pid>`, and **no file means no report was written**. The container-path and symbolizer rules, the malloc-debug variants and `--client-app` are in `references/sanitizers.md`.
+The build goes to `build/tsan/`. A slot's `make clean` removes only its own `build/DerivedData-<slot>`, and never this build. `--tsan-replay <journal>` with `--app` set to the TSan build does the setenv, the replay, the quit and the unsetenv in one step. It then prints each report's first stack from that app's own container. It is the last step of a stress failure's chain (`references/sanitizers.md`). `-enableAddressSanitizer YES -enableUndefinedBehaviorSanitizer YES` is a second build. It is incompatible with TSan and about 3x slower. Aim it at malformed files, where input reaches TagLib's C++. Reports land as `$C/tsan.<pid>`, and **no file means no report was written**. The container-path and symbolizer rules, the malloc-debug variants and `--client-app` are in `references/sanitizers.md`.
 
 ## Named gesture tests, separate from stress
 
@@ -151,7 +152,7 @@ Checked between batches (`--batch`, default 25):
 | liveness | main-thread stalls | The channel is delivered on the main queue, so a timeout whose recovery probe is also slow is a stall. The app is sampled first, then re-probed. A recovered stall counts against `--max-stalls` (default 3). A timeout that probes clean was a slow verb, journaled `slow` and not counted. `VERB_TIMEOUTS` keeps each subprocess deadline above the client's per-verb timeout |
 | `check_consistency` | inconsistent state | violations surviving a settle and a second sample. Its `cloud.*` checks skip that filter, since their counters are cumulative and never transiently true |
 | `dump_health` | leaks, unbounded growth | footprint, fds, threads, mach ports, windows, views, layers, hosted units, render refusals and `pending` counters against a post-warmup baseline, plus a tighter at-rest series every `--quiesce-every` batches |
-| crash | death | `pgrep`, plus any `Vibe*.ips` in `~/Library/Logs/DiagnosticReports` newer than the run |
+| crash | death | `pgrep`, plus any report in `~/Library/Logs/DiagnosticReports` newer than the run and named for the app's own process (`Vibe-<slot>` in a slot) |
 | progress | work that silently stops | Demand outstanding, progress flat and no gate in force fails. After each `quiesce`, a file with sound must advance its position and light the equalizer. `references/health-metrics.md` has the window, the gates and the probe |
 
 Failure kinds: `hang`, `crash`, `exit`, `consistency`, `resource`, `stalled`, `command`, `client`. **`stalled` is work no longer attempted**: nothing grew, hung or died, yet nothing moved. **`exit` is the app quitting, not dying**: gone with a fresh `.ips` is `crash`, gone without one is `exit`. **`client` is the harness, not the app** (see traps). On failure the driver writes `stress-<seed>-failure/` (sample or crash report, `dump_state`, `dump_view_tree`, `dump_health`, screenshot) and prints the shrink command.

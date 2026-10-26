@@ -1710,13 +1710,17 @@ def quiesced_checkpoint(channel, samples, streaks, baseline, executed, verbose):
     return None, baseline
 
 
-def fresh_crash_reports(since):
+def fresh_crash_reports(since, product=None):
+    """The reports newer than since of the process named product, by default
+    the app's own (Vibe-<slot> in a slot). A report is named for its process
+    and a date. A bare Vibe* would also take every other slot's."""
     if not CRASH_DIR.is_dir():
         return []
+    name = re.compile(re.escape(product or vibe_env("VIBE_PRODUCT")) + r"[-_]\d{4}-\d{2}-\d{2}-")
     out = []
-    for entry in CRASH_DIR.glob("Vibe*"):
+    for entry in CRASH_DIR.iterdir():
         try:
-            if entry.stat().st_mtime >= since:
+            if name.match(entry.name) and entry.stat().st_mtime >= since:
                 out.append(entry)
         except OSError:
             pass
@@ -2289,11 +2293,18 @@ def replay(args, journal):
         return 0
 
 
-# TRAP: log_path must be inside the container and the symbolizer empty, or
-# TSan kills the app trying to write its first report (references/sanitizers.md).
-TSAN_LOG_DIR = Path.home() / "Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp"
-TSAN_OPTIONS = (f"log_path={TSAN_LOG_DIR}/tsan:halt_on_error=0:external_symbolizer_path=:"
-                f"symbolize=1:history_size=7")
+def tsan_options(app):
+    """TSAN_OPTIONS for app, and the folder its reports land in.
+
+    TRAP: log_path must be inside the app's own container and the symbolizer
+    empty, or TSan kills the app trying to write its first report
+    (references/sanitizers.md). A slotted build has a container of its own.
+    """
+    logs = Path(vibe_env("VIBE_CONTAINER", app)) / "Data/tmp"
+    return (f"log_path={logs}/tsan:halt_on_error=0:external_symbolizer_path=:"
+            f"symbolize=1:history_size=7"), logs
+
+
 TSAN_STACK_FRAMES = 8
 
 
@@ -2323,8 +2334,9 @@ def tsan_replay(args):
     instrumented app is quit so no later launch inherits its reports.
     """
     app = Path(args.app).expanduser().resolve()
+    options, logs = tsan_options(app)
     started = time.time()
-    subprocess.run(["launchctl", "setenv", "TSAN_OPTIONS", TSAN_OPTIONS], check=True)
+    subprocess.run(["launchctl", "setenv", "TSAN_OPTIONS", options], check=True)
     try:
         result = replay(args, args.tsan_replay)
     finally:
@@ -2336,11 +2348,11 @@ def tsan_replay(args):
                     time.sleep(0.2)
         finally:
             subprocess.run(["launchctl", "unsetenv", "TSAN_OPTIONS"])
-    reports = sorted(path for path in TSAN_LOG_DIR.glob("tsan.*")
+    reports = sorted(path for path in logs.glob("tsan.*")
                      if path.stat().st_mtime >= started)
     if not reports:
         print("tsan: no report written. Confirm the app was the TSan build and could write "
-              f"to {TSAN_LOG_DIR} before reading this as clean")
+              f"to {logs} before reading this as clean")
         return result
     for path in reports:
         found = tsan_first_stacks(path.read_text(errors="replace"))
@@ -3147,6 +3159,11 @@ def run_ios(args):
                         raise Failure("setup", "replay requires matching folder order, crossfade, BPM settings and favorites")
                 before = {**state, "favorites": favorites, "dropbox": command(["dump_dropbox"]),
                           "recents": [i["path"] for i in command(["recents", "save"])["items"]]}
+                # Start at rest. A row the launch left playing passes the open's
+                # landing check before the open lands. The open then restarts
+                # the row, and the progress check fails on the reset. A replay
+                # starts here too. It is not a recorded step.
+                ios_restore_output(command, before, args.ios_idle_timeout)
                 if steps is not None:
                     for step in steps:
                         perform(step)
@@ -3211,7 +3228,8 @@ def run_ios(args):
             finally:
                 if before is not None:
                     cleanup = ios_restore(lambda argv: ios_command(env, journal, argv, "cleanup"), before, args.ios_idle_timeout)
-                for report in fresh_crash_reports(since):
+                # The simulator's app is never slotted.
+                for report in fresh_crash_reports(since, "Vibe"):
                     if re.search(r'"pid"\s*:\s*' + str(pid) + r'\b', report.read_text(errors="replace")):
                         shutil.copy2(report, out / report.name)
                         failure = failure or "app crash report found"
