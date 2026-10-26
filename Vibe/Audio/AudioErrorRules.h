@@ -2,9 +2,10 @@
 //  AudioErrorRules.h
 //  Vibe
 //
-//  Which play failures a shell shows: a function of the error alone, so both
-//  screens agree and it is tested without a player. The line a shown failure
-//  reads as is VibeStatusForPlayError (Common/StringRules.h).
+//  Which play failures a shell shows: a function of the error and the shown
+//  row's URL, never the player, so both screens agree and it is tested without
+//  a player. The line a shown failure reads as is VibeStatusForPlayError
+//  (Common/StringRules.h).
 //
 
 #import <Foundation/Foundation.h>

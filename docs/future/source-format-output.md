@@ -1,6 +1,6 @@
 # Future: preserve source PCM through bit-perfect output
 
-**Status: Not built. Parked.** Only 32-bit integer and float64 sources would play differently. They are rare in real libraries. The bit-perfect report already refuses to call them Active (`depthOK`, `OutputFormatRules.h`). The cost is rewriting the bus's sample storage.
+**Status: Not built. Parked.** Only 32-bit integer and float64 sources would play differently. They are rare in real libraries. The bit-perfect report already refuses to call them Active (`depthOK`, from `OutputFormatRules.h`'s `VibePhysicalFormatSatisfies`). The cost is rewriting the bus's sample storage.
 
 **Revisit** when users bring such files, and only with a digital loopback that captures wider than float32 to prove the result.
 
