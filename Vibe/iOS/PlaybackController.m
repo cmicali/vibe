@@ -53,12 +53,16 @@ static const NSUInteger kUIUpdateHz = 3;
         _metadataCache.delegate = self;
         _folderSession = [[FolderSession alloc] init];
         _folderSession.delegate = self;
-#if DEBUG
         // A test launch makes none, since the controller claims the system's
         // media slot.
-        if (!VibeDebugLaunchNoNowPlaying())
+#if DEBUG
+        BOOL makeNowPlaying = !VibeDebugLaunchNoNowPlaying();
+#else
+        BOOL makeNowPlaying = YES;
 #endif
-        _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
+        if (makeNowPlaying) {
+            _nowPlaying = [[NowPlayingController alloc] initWithDelegate:self];
+        }
         // Before any restore, so a shuffled restore starts its order on the
         // remembered row.
         [self pushTransportModes];

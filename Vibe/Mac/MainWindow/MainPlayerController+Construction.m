@@ -119,12 +119,16 @@
 
     _keyMonitor = [[TransportKeyMonitor alloc] initWithController:self];
 
-#if DEBUG
     // A test launch makes none, since the controller claims the system's
     // media slot.
-    if (!VibeDebugLaunchNoNowPlaying())
+#if DEBUG
+    BOOL makeNowPlaying = !VibeDebugLaunchNoNowPlaying();
+#else
+    BOOL makeNowPlaying = YES;
 #endif
-    self.nowPlayingController = [[NowPlayingController alloc] initWithDelegate:self];
+    if (makeNowPlaying) {
+        self.nowPlayingController = [[NowPlayingController alloc] initWithDelegate:self];
+    }
     // Before the launch restore, so a shuffled restore starts its order on the
     // saved row.
     [self pushTransportModesToPlaylist];
