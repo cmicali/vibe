@@ -10,6 +10,10 @@
 //  is lazy — a folder exists locally only once something listed it — which is
 //  exactly the class of bug a scripted tree reproduces.
 //
+//  Its serving engine is vibe-libs' files/HTTP fake (VibeFakeHTTPProtocol.h),
+//  which the fake web server and the tests' HTTPStub share. This file holds
+//  the account's routes, its tree, its faults and its log.
+//
 
 #if DEBUG
 

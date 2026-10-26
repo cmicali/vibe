@@ -3,22 +3,25 @@
 //
 //  The shell's own guarantees, run through the real controller and its real
 //  PlaylistController. Only the player, the metadata scan, the deferral's timer
-//  and the window's occlusion are replaced (ShellTestFakes.h). AppKit groups
-//  undo by event, so each user gesture here runs in an explicit undo group.
+//  and the window are replaced (ShellTestFakes.h). AppKit groups undo by
+//  event, so each user gesture here runs in an explicit undo group.
 //
 
 #import <XCTest/XCTest.h>
 
 #import "ShellTestFakes.h"
-#import "DrawnViewTestSupport.h"
 #import "PlaylistRowTestSupport.h"
 #import "AppSettings.h"
+#import "AppSettings+Mac.h"
+#import "Formatters.h"
 #import "MainPlayerController+NowPlaying.h"
 #import "MainPlayerController+Playlist.h"
 #import "MainPlayerController+Settings.h"
 #import "MainPlayerController+Transport.h"
+#import "MainPlayerController+Window.h"
 #import "MenuValidationRules.h"
 #import "NowPlayingController.h"
+#import "PitchControlPanel.h"
 #import "PlaylistController.h"
 #import "VibeStrings.h"
 
@@ -26,6 +29,7 @@
 @end
 
 @implementation MainPlayerControllerTests {
+    VibeShellTestWindow *_window;
     VibeShellTestPlayer *_player;
     VibeShellTestMetadataCache *_cache;
     NSMutableArray<dispatch_block_t> *_timers;
@@ -45,13 +49,13 @@
     settings.shuffleEnabled = NO;
     settings.repeatMode = VibeRepeatModeOff;
     settings.pauseAtTrackEnd = NO;
-    MainPlayerController.testWindowVisible = YES;
 
+    _window = [VibeShellTestWindow windowWithSize:NSMakeSize(100, 100)];
     _player = [VibeShellTestPlayer new];
     _cache = [VibeShellTestMetadataCache new];
     _timers = [NSMutableArray array];
     NSMutableArray<dispatch_block_t> *timers = _timers;
-    _controller = [[MainPlayerController alloc] initWithWindow:VibeOffscreenWindow(NSMakeSize(100, 100))
+    _controller = [[MainPlayerController alloc] initWithWindow:_window
                                                    audioPlayer:(AudioPlayer *)_player
                                                  metadataCache:(AudioTrackMetadataCache *)_cache
                                              metadataScheduler:^(NSTimeInterval delay, dispatch_block_t block) {
@@ -68,7 +72,6 @@
     settings.shuffleEnabled = _savedShuffle;
     settings.repeatMode = _savedRepeat;
     settings.pauseAtTrackEnd = _savedPause;
-    MainPlayerController.testWindowVisible = YES;
     [super tearDown];
 }
 
@@ -466,7 +469,7 @@
     XCTAssertTrue(self.playlist.equalizerAudioOutputActive);
     XCTAssertTrue(self.playlist.equalizerSurfaceVisible);
 
-    MainPlayerController.testWindowVisible = NO;
+    _window.occluded = YES;
     [_controller syncEqualizerActivity];
     XCTAssertFalse(_player.levelsEnabled, @"occluded");
     XCTAssertFalse(self.playlist.equalizerSurfaceVisible);
@@ -487,6 +490,62 @@
     NSString *caption = [_controller bitPerfectStatusText];
     XCTAssertTrue([caption containsString:@"16-bit"], @"%@", caption);
     XCTAssertFalse([caption containsString:@"32"], @"%@", caption);
+}
+
+#pragma mark - The window's pushes
+
+// The glass's own radius from macOS 26, the frost mask's cap inset before.
+static CGFloat BackdropRadius(NSView *backdrop) {
+    if (@available(macOS 26.0, *)) {
+        return ((NSGlassEffectView *)backdrop).cornerRadius;
+    }
+    return ((NSVisualEffectView *)backdrop).maskImage.capInsets.top;
+}
+
+// The app's construction order: the content, then the panel. The panel takes
+// its text, its formatter, the player's range and the theme's radius. A
+// theme edit's chrome effect then takes a new radius to every corner.
+- (void)testThePitchPanelAndTheChromeTakeWhatTheWindowPushes {
+    AppTheme *theme = AppSettings.sharedInstance.currentTheme;
+    BOOL savedCustom = theme.customCornerRadius;
+    CGFloat savedRadius = theme.windowCornerRadius;
+    [self addTeardownBlock:^{
+        theme.customCornerRadius = savedCustom;
+        theme.windowCornerRadius = savedRadius;
+    }];
+    theme.customCornerRadius = YES;
+    theme.windowCornerRadius = 7;
+    VibeShellTestWindow *window = [VibeShellTestWindow windowWithSize:NSMakeSize(600, 300)];
+    MainPlayerController *controller =
+            [[MainPlayerController alloc] initWithWindow:window
+                                             audioPlayer:(AudioPlayer *)_player
+                                           metadataCache:(AudioTrackMetadataCache *)_cache
+                                       metadataScheduler:^(NSTimeInterval delay, dispatch_block_t block) {}];
+    [controller buildContentInWindow:(MainWindow *)window];
+    [controller buildPitchPanel];
+
+    PitchControlPanel *panel = nil;
+    for (NSView *view in window.contentView.subviews) {
+        if ([view isKindOfClass:PitchControlPanel.class]) {
+            panel = (PitchControlPanel *)view;
+        }
+    }
+    XCTAssertNotNil(panel);
+    XCTAssertEqualObjects(panel.title, STR_LABEL_PITCH);
+    XCTAssertEqualObjects(panel.faderAccessibilityLabel, STR_A11Y_PITCH_FADER);
+    XCTAssertEqualObjects(panel.pitchFormatter(-2.5), [Formatters.sharedInstance signedPercentString:-2.5]);
+    XCTAssertEqual(panel.maxPitch, (float)AppSettings.sharedInstance.pitchRange);
+    XCTAssertEqual(_player.maxPitch, panel.maxPitch, @"the panel's range is the player's");
+    XCTAssertEqual(panel.cornerRadius, 7);
+    XCTAssertEqual(BackdropRadius(controller.windowBackdropView), 7);
+    XCTAssertEqual(controller.windowBackgroundOverlayView.layer.cornerRadius, 7);
+
+    theme.windowCornerRadius = 11;
+    [controller applySettingsLiveEffects:VibeSettingsLiveEffectWindowChrome];
+    XCTAssertEqual(panel.cornerRadius, 11);
+    XCTAssertEqual(window.contentView.layer.cornerRadius, 11);
+    XCTAssertEqual(BackdropRadius(controller.windowBackdropView), 11);
+    XCTAssertEqual(controller.windowBackgroundOverlayView.layer.cornerRadius, 11);
 }
 
 @end
