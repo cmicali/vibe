@@ -4,9 +4,10 @@
 //
 //  The consistency checks that hold on both platforms; check_consistency adds
 //  the platform's through debugCheckPlatform:. A violation is state that
-//  should never be legal, but a check comparing a published or rendered value
-//  against its source can lag a run-loop turn: believe only what survives a
-//  re-check after a short settle, as the stress driver does.
+//  should never be legal.
+//  TRAP: a check comparing a published or rendered value against its source
+//  can lag a run-loop turn. Believe only what survives a re-check after a
+//  short settle, as the stress driver does.
 //
 
 #if DEBUG

@@ -48,7 +48,7 @@ NSString *bpmText = [NSString stringWithFormat:STR_LABEL_BPM, formatted];
 
 `VibeNotLocalized(s)` (in the pch, no runtime effect) marks a user-visible string deliberately kept in English — format acronyms, layout punctuation, instrument-scale glyphs, product names, titles AppKit never draws. Every unwrapped `@"..."` in UI code should be one or the other.
 
-Working the display-names-are-never-identifiers rule: `WaveformRenderer` splits `+styleIdentifier` (stable; the registry key and the `NSUserDefaults` value) from `+displayName` (localized, display only). The `VibeAudioFileFormat` names (`AudioFileFormat.h`) are the inverse case: never localized, because they are compared with `isEqualToString:` and archived into the metadata cache. Locale-dependent numbers (kHz, BPM, pitch %) go through `Formatters`' `decimalString:fractionDigits:` / `signedPercentString:`, not `%.1f`.
+Working the display-names-are-never-identifiers rule: `WaveformRenderer`'s `+styleIdentifier` is stable. It is the registry key and the `NSUserDefaults` value. The localized name, for display only, is `VibeWaveformStyleDisplayName` in `Common/StringRules.h`. The `VibeAudioFileFormat` names (`AudioFileFormat.h`) are the inverse case: never localized, because they are compared with `isEqualToString:` and archived into the metadata cache. Locale-dependent numbers (kHz, BPM, pitch %) go through `Formatters`' `decimalString:fractionDigits:` / `signedPercentString:`, not `%.1f`.
 
 ## Extraction pipeline
 

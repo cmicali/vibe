@@ -76,7 +76,7 @@ Each wait is bounded by a named constant. One file's transfer gets 60 s (`REAL_T
 3. `set_dataless_diag on`, then the scenario.
 4. `quiesce`, then three closing checks. The coordinator's cumulative counters must not have gone backwards. `check_consistency` must report no `cloud.*` violation that survives a second sample. `dump_dataless_diag` must show the app's own stat answering dataless in a scenario folder. Otherwise the scenario met only local files, and it is `ERROR`.
 
-The diagnostic counts per directory, not per file. That is why the runner verifies each file's eviction itself. It uses the app's record only to rule out a vacuous pass. Both diagnostic verbs join the command gate in `cloud-scenarios.py`, not in `stress.py`, so random stress never sends them.
+The diagnostic counts per directory, not per file. That is why the runner verifies each file's eviction itself. It uses the app's record only to rule out a vacuous pass. Both diagnostic verbs are in the command gate, `stress.py`'s `COMMAND_VERBS`, which the scenario runner shares. No stress op sends them.
 
 ### The oracle without a trace
 

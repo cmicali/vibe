@@ -23,7 +23,7 @@ The short files end after eight seconds. Pause early, or use `tone-long.wav`, wh
 
 **The MP3s need `lame` or `ffmpeg`.** Without either, the generator skips them with a note. `afconvert` cannot stand in: macOS ships an MP3 decoder and no encoder.
 
-**Every ffmpeg call is bounded and writes its output whole or not at all.** Use the generator's `ffmpeg_out` or `scripts/bench/bench.py`'s `ffmpeg()`. TRAP: ffmpeg's native `vorbis` encoder can hang on empty input, so a window cut from a real file clamps `-ss` to `ffprobe`'s duration (the generator's `TRAP:` comment).
+**Every ffmpeg call is bounded and writes its output whole or not at all.** Use the generator's `ffmpeg_out` or `scripts/bench/bench.py`'s `ffmpeg()`. TRAP: ffmpeg's native `vorbis` encoder can hang on an empty input window. So each call runs under a 60 s alarm that survives exec, and a hung encode is killed (the `TRAP:` comments in the generator and in `bench.py`).
 
 ## A slow cloud open
 
@@ -66,7 +66,7 @@ Download progress (fake): 42% (5.0s) tone-long.wav   <- a stall
 
 ## Bit-perfect acceptance
 
-`make test-bit-perfect` is opt-in and never runs in CI. It compiles `build/verify-bit-perfect`, runs its self-tests, generates fixtures and drives the live matrix on **VibeBlackHole 16ch**. It needs exclusive use of the debug channel: the verifier checks that exactly one Vibe is running and that its executable matches `--play-app`.
+`make test-bit-perfect` is opt-in and never runs in CI. It compiles `build/verify-bit-perfect`, runs its self-tests, generates fixtures and drives the live matrix on **VibeBlackHole 16ch**. It needs exclusive use of the debug channel: the verifier checks that exactly one instance of `--play-app`'s bundle id is running, from that executable.
 
 ```bash
 make build CONFIG=Debug
@@ -139,4 +139,4 @@ Without `--play-app`, wait for **Capture ready** before opening the file. Record
 
 For a physical DAC, run `build/verify-bit-perfect --device-check <fixture> "device name" --play-app "$V"` from a stopped, bit-perfect-off state. It checks the negotiated format, the six-second idle release and format restoration. Add `--require-exclusive` only with Exclusive output on and a device that is not the system default. It reports HAL ownership, not a PCM recording.
 
-`make test-audio-loopback AUDIO_DEVICE="BlackHole 2ch"` wraps a single capture (`ARGS="--set-rate --ordinary"` for the ordinary chain). `AUDIO_FILE`, `AUDIO_SECONDS` and `AUDIO_APP` default to the 48/24 noise WAV, 3 and the worktree's Debug binary. `make test-audio-device AUDIO_DEVICE="device name"` wraps the device check (`ARGS=--require-exclusive`). Both use the setup and restoration rules above.
+`make test-audio-loopback AUDIO_DEVICE="BlackHole 2ch"` wraps a single capture (`ARGS="--set-rate --ordinary"` for the ordinary chain). `AUDIO_FILE`, `AUDIO_SECONDS` and `AUDIO_APP` default to the 48/24 noise WAV, 3 and this slot's Debug binary. `make test-audio-device AUDIO_DEVICE="device name"` wraps the device check (`ARGS=--require-exclusive`). Both use the setup and restoration rules above.

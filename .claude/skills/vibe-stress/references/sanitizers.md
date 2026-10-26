@@ -29,7 +29,7 @@ xcodebuild -project Vibe.xcodeproj -scheme Vibe -configuration Debug \
     -derivedDataPath build/tsan/DerivedData -enableThreadSanitizer YES build
 APP="$PWD/build/tsan/DerivedData/Build/Products/Debug/Vibe.app"
 C="$(VIBE_APP="$APP" scripts/vibe-env.sh --print VIBE_CONTAINER)/Data/tmp"
-launchctl setenv TSAN_OPTIONS "log_path=$C/tsan:halt_on_error=0:external_symbolizer_path=:history_size=7"
+launchctl setenv TSAN_OPTIONS "log_path=$C/tsan:halt_on_error=0:external_symbolizer_path=:symbolize=1:history_size=7"
 .claude/skills/vibe-stress/scripts/stress.py --corpus ~/Music/big --profile ui --app "$APP" --max-stalls 20
 launchctl unsetenv TSAN_OPTIONS
 ```
