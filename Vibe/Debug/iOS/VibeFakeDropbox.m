@@ -76,6 +76,10 @@ static NSString *VibeFakeDropboxRefreshRev(VibeFakeDropboxItem *item) {
 
 // The whole fixture, once: a walk of the tree keyed by lowercase path. Under
 // sLock, since it issues revs.
+// TRAP: the walk names each entry relative to the root. A walked absolute
+// path need not spell the root as the caller did: standardizing drops
+// /private from /private/tmp, and a walk through a symlink answers the
+// resolved path. Cutting the root's length off one crashed past its end.
 static NSDictionary<NSString *, VibeFakeDropboxItem *> *VibeFakeDropboxIndex(NSURL *root) {
     NSMutableDictionary<NSString *, VibeFakeDropboxItem *> *items = [NSMutableDictionary dictionary];
     VibeFakeDropboxItem *account = [[VibeFakeDropboxItem alloc] init];
@@ -83,19 +87,19 @@ static NSDictionary<NSString *, VibeFakeDropboxItem *> *VibeFakeDropboxIndex(NSU
     account.path = @"";
     account.folder = YES;
     items[@""] = account;
-    NSString *rootPath = root.path;
-    NSDirectoryEnumerator<NSURL *> *walk = [NSFileManager.defaultManager
-            enumeratorAtURL:root
- includingPropertiesForKeys:@[NSURLIsDirectoryKey]
-                    options:NSDirectoryEnumerationSkipsHiddenFiles
-               errorHandler:nil];
-    for (NSURL *url in walk) {
-        NSNumber *isDirectory = nil;
-        [url getResourceValue:&isDirectory forKey:NSURLIsDirectoryKey error:NULL];
+    NSDirectoryEnumerator<NSString *> *walk = [NSFileManager.defaultManager enumeratorAtPath:root.path];
+    for (NSString *relative in walk) {
+        BOOL folder = [walk.fileAttributes.fileType isEqualToString:NSFileTypeDirectory];
+        if ([relative.lastPathComponent hasPrefix:@"."]) {
+            if (folder) {
+                [walk skipDescendants];
+            }
+            continue;
+        }
         VibeFakeDropboxItem *item = [[VibeFakeDropboxItem alloc] init];
-        item.url = url;
-        item.path = [url.URLByStandardizingPath.path substringFromIndex:rootPath.length];
-        item.folder = isDirectory.boolValue;
+        item.url = [root URLByAppendingPathComponent:relative isDirectory:folder];
+        item.path = [@"/" stringByAppendingString:relative];
+        item.folder = folder;
         if (!item.folder) {
             VibeFakeDropboxRefreshRev(item);
         }
@@ -453,10 +457,11 @@ static void VibeFakeDropboxNote(NSMutableDictionary *entry, NSString *outcome, u
              transferSeconds:(NSTimeInterval)transferSeconds
                       client:(DropboxClient *)client {
     os_unfair_lock_lock(&sLock);
-    // TRAP: never rebuild the sessions under transfers in flight. The client
-    // keys a download by its task's identifier, which counts from 1 in every
-    // session, so a new session's download takes an old one's entry and the
-    // old one's callbacks land on it.
+    // TRAP: an install over a linked fake never links the account again. A
+    // link is an account change. It clears a playlist that reaches into the
+    // mirror, and it moves the account generation under the transfers in
+    // flight. A session swap alone is safe: the old sessions finish their
+    // tasks, and the client keys a transfer by its task object.
     BOOL installed = sItems != nil;
     sRevs = [NSMutableDictionary dictionary];
     sItems = VibeFakeDropboxIndex(directory.URLByStandardizingPath);
