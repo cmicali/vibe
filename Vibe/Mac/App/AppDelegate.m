@@ -10,6 +10,8 @@
 #import "AudioPlayer.h"
 #import "AudioPlayer+Devices.h"
 #import "AudioTrack.h"
+#import "AudioTrackMetadataCache.h"
+#import "AudioWaveformCache.h"
 #import "MainPlayerController.h"
 #import "MainPlayerController+Playlist.h"
 #import "MainPlayerController+Settings.h"
@@ -21,6 +23,7 @@
 #import "OpenRequestCoordinator.h"
 #import "OpenLinkWindowController.h"
 #import "OpenRecentMenuController.h"
+#import "PINCache+VibeAudioCache.h"
 #import "PlaylistController.h"
 #import "PlaylistFile.h"
 #import "NSBundle+BuildInfo.h"
@@ -31,7 +34,6 @@
 #import "FolderAccessManager+GrantPanel.h"
 #import "FolderArtResolver.h"
 #import "FolderArtRules.h"
-#import "LegacyCacheStores.h"
 #import "LinkDropRules.h"
 #import "LinkStore.h"
 #import "StringRules.h"
@@ -204,7 +206,9 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     VibeInstallDebugCommandHook();
 #endif
 
-    VibeRemoveLegacyCacheStoresOffMain();
+    [PINCache removeOtherAudioCacheVersionsKeeping:@[AudioTrackMetadataCache.cacheName, AudioWaveformCache.cacheName]
+                                          rootPath:nil
+                                        completion:nil];
 
     [self.mainPlayerController showWindow:self];
 
