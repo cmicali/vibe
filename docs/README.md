@@ -20,6 +20,7 @@ Every file and directory in `docs/`, with what it holds. The rules for changing 
   - `audio-quality-gaps.md`: gaps in audio quality that an audit of the playback path found, and the order to fix them.
   - `carplay.md`: CarPlay.
   - `vibe-libs.md`: moving the reusable code into the shared `vibe-libs` toolbox.
+  - `vibe-libs-contract-proofs.md`: the tests in Vibe that pin each line of the vibe-libs seam contracts.
   - `cloud-services-order.md`: which cloud file services to handle next, in order.
   - `dropbox-shared-links.md`: browsing a shared Dropbox folder link on iOS.
   - `ios-google-drive.md`: Google Drive as a Files-tab source on iOS.
