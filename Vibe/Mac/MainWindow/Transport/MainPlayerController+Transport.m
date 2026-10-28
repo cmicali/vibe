@@ -70,7 +70,8 @@
 
 - (void)skipByFileSeconds:(NSTimeInterval)fileDelta {
     // Stopped leaves the finished file open, so duration alone looks seekable
-    // with no voice. Validation mirrors this; the bare keys bypass validation.
+    // with no voice. Validation mirrors this. The keys go through validation,
+    // and only the debug verbs bypass it.
     if (!self.playlistController.currentTrack || self.audioPlayer.isStopped) {
         return;
     }

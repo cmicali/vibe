@@ -22,6 +22,7 @@
 #import "AudioTrackMetadataCache.h"
 #import "CloudTransferRegistry.h"
 #import "DropboxMirror.h"
+#import "PlaybackShellRules.h"
 #import "SettingsRules.h"
 #import "UIUpdateTimer.h"
 #if DEBUG
@@ -691,18 +692,19 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
             (int64_t)(kDeferredMetadataFallbackSeconds * NSEC_PER_SEC)),
             dispatch_get_main_queue(), ^{
-        PlaybackController *self = weakSelf;
-        if (self && generation == self->_metadataLoadGeneration) {
-            [self startPendingMetadataLoad];
-        }
+        [weakSelf startPendingMetadataLoadForGeneration:generation];
     });
 }
 
 - (void)startPendingMetadataLoad {
-    if (!_metadataLoadPending) {
+    [self startPendingMetadataLoadForGeneration:_metadataLoadGeneration];
+}
+
+- (void)startPendingMetadataLoadForGeneration:(NSUInteger)generation {
+    if (!VibePlaybackConsumePendingMetadataLoad(&_metadataLoadPending, generation,
+                                                 _metadataLoadGeneration)) {
         return;
     }
-    _metadataLoadPending = NO;
     [_metadataCache loadMetadata:_playlist.tracks];
 }
 
