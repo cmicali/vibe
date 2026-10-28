@@ -42,6 +42,7 @@ static NSData *VibeBenchComponentsUIPixels(NSView *view) {
 
 static void VibeBenchComponentsUIEnsureApplication(void) {
     [NSApplication sharedApplication];
+    VibeBenchComponentsPushThemeFonts();
 }
 
 // Untagged rows, as a folder of unnamed rips lists, plus scripts that fall
