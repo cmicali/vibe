@@ -14,15 +14,17 @@ extern "C" {
 #endif
 
 // Installs a notification hook that dumps the key window (else the main
-// window, else the first visible one) to a PNG. Trigger from a terminal:
+// window, else the first visible one) to a PNG. Trigger it from a terminal.
+// The name starts with the app's bundle identifier, as the channel's does:
 //
 //     notifyutil -p com.commonwealthrecordings.Vibe.debug.screenshot
 //
-// The name starts with the app's bundle identifier, as the channel's does.
-// then read vibe-screenshot.png from the app container's tmp directory. The
-// app is sandboxed, so /tmp is not writable:
+// Then read vibe-screenshot.png from the tmp directory of the app's own
+// container. The app is sandboxed, so /tmp is not writable. A slotted build
+// has its own bundle identifier and container, which
+// `scripts/vibe-env.sh --print VIBE_CONTAINER` prints:
 //
-//     ~/Library/Containers/com.commonwealthrecordings.Vibe/Data/tmp/
+//     <the app's container>/Data/tmp/
 //
 // It renders the window's layer tree in-process, with no window-server
 // capture, so it needs no screen-recording permission and works with the

@@ -138,7 +138,7 @@ static NSString *const kAboutAuthorMailto = @"mailto:chrismicali@gmail.com";
     [self.window performClose:sender];
 }
 
-// The player may have retitled the shared item "Close All Files".
+// The player may have retitled the shared item "Clear Playlist".
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
         menuItem.title = STR_MENU_FILE_CLOSE;

@@ -16,7 +16,7 @@
 
 @implementation OpenLinkWindowController {
     __weak AppDelegate *_appDelegate;
-    // The window and its controls while it is up. A second ⌘U re-fronts it.
+    // The window and its controls while it is up. A second ⌘L re-fronts it.
     NSPanel *_openLinkWindow;
     NSTextField *_openLinkField;
     NSButton *_openLinkButton;
@@ -139,7 +139,7 @@
     [_openLinkWindow performClose:sender];
 }
 
-// The player may have retitled the shared item "Close All Files".
+// The player may have retitled the shared item "Clear Playlist".
 - (BOOL)validateMenuItem:(NSMenuItem *)menuItem {
     if ([menuItem.identifier isEqualToString:kVibeMenuClose]) {
         menuItem.title = STR_MENU_FILE_CLOSE;
