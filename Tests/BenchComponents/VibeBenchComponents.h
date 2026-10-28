@@ -119,6 +119,12 @@ void VibeBenchComponentsNoise(float *samples, size_t count, uint32_t seed);
 // `count` one-byte files in folders of 100, the relative paths returned.
 NSArray<NSString *> *VibeBenchComponentsMakeFiles(NSString *root, NSUInteger count, NSString *extension);
 
+// Pushes the default theme's fonts into Fonts' slots once, as the shell pushes
+// the theme's before any label exists. Unpushed, a slot draws the fallback
+// face at the system size. A benchmark that draws text calls it in prepare.
+// Only those do, because loading the fonts changes later rows' costs.
+void VibeBenchComponentsPushThemeFonts(void);
+
 // With VIBE_BENCH_COMPONENTS_UI_DUMP set to a directory, writes what a UI
 // benchmark's subject draws there, so two builds' pictures can be compared
 // byte for byte.

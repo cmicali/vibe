@@ -30,6 +30,10 @@
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_OBSERVERS
 #import "AudioAnalysisObservers.h"
 #endif
+#if __has_include("Fonts+Theme.h")
+#import "AppTheme.h"
+#import "Fonts+Theme.h"
+#endif
 
 #include <libproc.h>
 #include <mach/mach.h>
@@ -374,6 +378,18 @@ NSString *VibeBenchComponentsTemporaryDirectory(NSString *label) {
     [NSFileManager.defaultManager createDirectoryAtPath:root withIntermediateDirectories:YES attributes:nil error:nil];
     [VibeBenchComponentsTemporaryRoots() addObject:root];
     return root;
+}
+
+// Before Fonts+Theme, Fonts pushed the default theme itself, so every version
+// draws the same text. The default theme, never currentTheme: the settings
+// benchmarks leave a built-in's copy current, with its own fonts.
+void VibeBenchComponentsPushThemeFonts(void) {
+#if __has_include("Fonts+Theme.h")
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        [Fonts applyThemeFonts:[[AppTheme alloc] init]];
+    });
+#endif
 }
 
 void VibeBenchComponentsUIDump(NSString *name, NSData *bytes) {

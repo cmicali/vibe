@@ -74,6 +74,7 @@ static NSTabViewItem *VibeBenchComponentsSettingsPane(VibeBenchComponentsSetting
 
 static void VibeBenchComponentsSettingsEnsureWindow(VibeBenchComponentsSettingsState *state) {
     [NSApplication sharedApplication];
+    VibeBenchComponentsPushThemeFonts();
     if (!state->controller) {
         state->controller = [[SettingsWindowController alloc]
                 initWithPlayerController:(MainPlayerController *_Nonnull)nil];

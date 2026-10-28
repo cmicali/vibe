@@ -64,14 +64,42 @@ struct VibeBenchComponentsSweep {
     NSString *root;
 };
 
+static NSString *VibeBenchComponentsSweepPath(NSString *root, NSUInteger i) {
+    return [root stringByAppendingPathComponent:
+            [NSString stringWithFormat:@"Album %03lu/Track %06lu.mp3", (unsigned long)(i / 12), (unsigned long)i]];
+}
+
+// `count` hard links to `source` at the sweep's paths, made once per process.
+// A real file's cache key is memoized on its first read. A missing file's nil
+// key is not, so every read of it stats and resolves the path again.
+static NSString *VibeBenchComponentsSweepFiles(NSString *source, NSUInteger count) {
+    static NSString *root;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        root = VibeBenchComponentsTemporaryDirectory(@"sweep-files");
+        NSFileManager *files = NSFileManager.defaultManager;
+        for (NSUInteger i = 0; i < count; i++) {
+            NSString *path = VibeBenchComponentsSweepPath(root, i);
+            if (i % 12 == 0) {
+                [files createDirectoryAtPath:path.stringByDeletingLastPathComponent
+                 withIntermediateDirectories:YES attributes:nil error:nil];
+            }
+            // A copy, an APFS clone, where a hard link cannot reach.
+            VibeBenchComponentsRequire([files linkItemAtPath:source toPath:path error:nil]
+                                               || [files copyItemAtPath:source toPath:path error:nil],
+                                       "sweep file not made");
+        }
+    });
+    return root;
+}
+
 // The production loader over `count` local misses, cache reads and the TagLib
 // parse replaced (a copy of one parsed file), until `picks` rows delivered.
 static void VibeBenchComponentsRunSweep(VibeBenchComponentsSweep *sweep, NSUInteger count, NSUInteger picks) {
     NSMutableArray<AudioTrack *> *tracks = [NSMutableArray arrayWithCapacity:count];
     for (NSUInteger i = 0; i < count; i++) {
-        NSString *path = [sweep->root stringByAppendingPathComponent:
-                [NSString stringWithFormat:@"Album %03lu/Track %06lu.mp3", (unsigned long)(i / 12), (unsigned long)i]];
-        [tracks addObject:[AudioTrack withURL:[NSURL fileURLWithPath:path isDirectory:NO]]];
+        NSURL *url = [NSURL fileURLWithPath:VibeBenchComponentsSweepPath(sweep->root, i) isDirectory:NO];
+        [tracks addObject:[AudioTrack withURL:url]];
     }
     VibeBenchComponentsMetadataOwner *owner = [[VibeBenchComponentsMetadataOwner alloc] init];
     owner.parseCoordinator = [[MetadataParseCoordinator alloc] init];
@@ -109,24 +137,27 @@ materializationCoordinator:coordinator
 
 static void VibeBenchComponentsRegisterSweep(void) {
     auto sweep = std::make_shared<VibeBenchComponentsSweep>();
-    auto prepare = [sweep](double units) {
-        return [sweep, units]() -> double {
+    auto prepare = [sweep](double units, BOOL realFiles) {
+        return [sweep, units, realFiles]() -> double {
             NSString *path = VibeBenchComponentsFile(@"mp3-320");
             if (!path) {
                 return -1;
             }
             NSData *displayArt = nil;
             sweep->prototype = [AudioTrackMetadata metadataWithURL:[NSURL fileURLWithPath:path] displayArtData:&displayArt];
-            sweep->root = VibeBenchComponentsTemporaryDirectory(@"sweep");
+            sweep->root = realFiles ? VibeBenchComponentsSweepFiles(path, (NSUInteger)units)
+                                    : VibeBenchComponentsTemporaryDirectory(@"sweep");
             return units;
         };
     };
-    // The whole sweep of a 5,000-row playlist of misses, one pick per file.
-    VibeBenchComponentsAdd("scan", "sweep-5k", "row", prepare(5000), [sweep]() {
+    // The whole sweep of a 5,000-row playlist of real files with no cached
+    // metadata, one pick per file.
+    VibeBenchComponentsAdd("scan", "sweep-5k", "row", prepare(5000, YES), [sweep]() {
         VibeBenchComponentsRunSweep(sweep.get(), 5000, 5000);
     });
-    // The first 200 picks of a 100,000-row sweep, stage 1 included.
-    VibeBenchComponentsAdd("scan", "picks-100k", "pick", prepare(200), [sweep]() {
+    // The first 200 picks of a 100,000-row sweep of paths that do not exist,
+    // stage 1 included.
+    VibeBenchComponentsAdd("scan", "picks-100k", "pick", prepare(200, NO), [sweep]() {
         VibeBenchComponentsRunSweep(sweep.get(), 100000, 200);
     });
 }
