@@ -118,7 +118,7 @@ static void VibeMallocBytes(uint64_t *live, uint64_t *reserved) {
     }
 }
 
-static double VibeProcessUptimeSeconds(void) {
+static double VibeDebugUptimeSeconds(void) {
     int name[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
     struct kinfo_proc info;
     size_t size = sizeof(info);
@@ -204,7 +204,7 @@ NSString *VibeDebugHealthJSON(id<VibeDebugPlayerSurface> surface) {
     process[@"threads"] = @(VibeThreadCount());
     process[@"fileDescriptors"] = @(VibeOpenFileDescriptorCount());
     process[@"machPorts"] = @(VibeMachPortCount());
-    process[@"uptimeSeconds"] = @(VibeProcessUptimeSeconds());
+    process[@"uptimeSeconds"] = @(VibeDebugUptimeSeconds());
 
     AudioPlayer *player = [surface debugPlayer];
 
