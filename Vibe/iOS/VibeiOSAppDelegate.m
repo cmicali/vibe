@@ -47,7 +47,7 @@
 #if DEBUG
     VibeiOSInstallDebugCommandHook();
 #endif
-    [PINCache removeOtherAudioCacheVersionsKeeping:@[AudioTrackMetadataCache.cacheName, AudioWaveformCache.cacheName]
+    [PINCache removeOtherAudioCacheVersionsKeeping:[AudioTrackMetadataCache.cacheNames arrayByAddingObject:AudioWaveformCache.cacheName]
                                           rootPath:nil
                                         completion:nil];
     [self copyWelcomeTrackIfFirstLaunch];
