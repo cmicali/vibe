@@ -25,6 +25,8 @@
 #import "LocationStore.h"
 #import "RecentsStore.h"
 #import "WaveformRendererRegistry.h"
+#import "DebugiOSCapture.h"
+#import "DebugFrameProbe.h"
 
 // What the system's Paste hands its target for copied text. Text that
 // parses as a URL with a scheme is offered as a URL too, as a copied link is.
@@ -35,94 +37,6 @@ static NSItemProvider *VibeDebugPasteProvider(NSString *text) {
         [provider registerObject:url visibility:NSItemProviderRepresentationVisibilityAll];
     }
     return provider;
-}
-
-static UIWindow *VibeDebugKeyWindow(void) {
-    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class]) {
-            continue;
-        }
-        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
-            if (window.isKeyWindow) {
-                return window;
-            }
-        }
-    }
-    return nil;
-}
-
-#pragma mark View tree and screenshot
-
-static NSDictionary *VibeViewDictionary(UIView *view) {
-    NSMutableDictionary *node = [NSMutableDictionary dictionary];
-    node[@"class"] = NSStringFromClass(view.class);
-    node[@"frame"] = NSStringFromCGRect(view.frame);
-    if (view.isHidden) {
-        node[@"hidden"] = @YES;
-    }
-    if (view.alpha < 1.0) {
-        node[@"alpha"] = @(view.alpha);
-    }
-    if ([view isKindOfClass:UILabel.class]) {
-        node[@"text"] = ((UILabel *)view).text ?: @"";
-    }
-    if ([view isKindOfClass:UIButton.class]) {
-        UIButton *button = (UIButton *)view;
-        NSString *label = button.currentTitle ?: button.accessibilityLabel;
-        if (label.length) {
-            node[@"label"] = label;
-        }
-    }
-    if (view.subviews.count) {
-        NSMutableArray *subviews = [NSMutableArray array];
-        for (UIView *subview in view.subviews) {
-            [subviews addObject:VibeViewDictionary(subview)];
-        }
-        node[@"subviews"] = subviews;
-    }
-    return node;
-}
-
-static NSString *VibeViewTreeDump(void) {
-    NSMutableArray *windows = [NSMutableArray array];
-    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class]) {
-            continue;
-        }
-        for (UIWindow *window in ((UIWindowScene *)scene).windows) {
-            [windows addObject:@{
-                @"class": NSStringFromClass(window.class),
-                @"frame": NSStringFromCGRect(window.frame),
-                @"keyWindow": @(window.isKeyWindow),
-                @"rootViewController": NSStringFromClass(window.rootViewController.class) ?: @"",
-                @"contentView": VibeViewDictionary(window),
-            }];
-        }
-    }
-    return VibeJSONString(@{@"windows": windows});
-}
-
-// In-process render of the key window. Blurs render only approximately this
-// way; `simctl io booted screenshot` is the ground truth for pixels.
-static NSString *VibeScreenshotJSON(NSString *commandId) {
-    UIWindow *window = VibeDebugKeyWindow();
-    if (!window) {
-        return VibeErrorJSON(@"no key window");
-    }
-    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
-    UIGraphicsImageRenderer *renderer =
-            [[UIGraphicsImageRenderer alloc] initWithBounds:window.bounds format:format];
-    NSData *png = [renderer PNGDataWithActions:^(UIGraphicsImageRendererContext *context) {
-        [window drawViewHierarchyInRect:window.bounds afterScreenUpdates:NO];
-    }];
-    NSString *path = VibeDebugScreenshotPathForCommand(VibeDebugChannelName(), commandId);
-    if (![png writeToFile:path atomically:YES]) {
-        return VibeErrorJSON(@"could not write %@", path);
-    }
-    return VibeJSONString(@{@"ok": @YES, @"path": path,
-                            @"pointWidth": @(window.bounds.size.width),
-                            @"pointHeight": @(window.bounds.size.height),
-                            @"scale": @(format.scale)});
 }
 
 #pragma mark Search scope
@@ -291,11 +205,11 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds) || seconds <= 0 || seconds > 60) {
                     return VibeErrorJSON(@"usage: sample_frame_rate <seconds (0-60)>");
                 }
-                [RootViewController debugBeginFrameProbeForSeconds:seconds];
+                VibeDebugBeginFrameProbe(seconds);
                 return VibeJSONString(@{@"ok": @YES, @"seconds": @(seconds)});
             }),
             VibeDebugCmd(@"dump_frame_rate", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                return VibeJSONString([RootViewController debugFrameProbeReport]);
+                return VibeJSONString(VibeDebugFrameProbeReport());
             }),
             // The real grant path is the system document picker, another
             // process's UI that neither the channel nor the touch driver can

@@ -19,6 +19,7 @@
 #import "PlaceholderFiles+Debug.h"
 #import "RootViewController.h"
 #import "RootViewController+Debug.h"
+#import "DebugFrameProbe.h"
 
 // The shell adopts VibeDebugPlayerSurface: the one object that reaches both
 // the model and the card.
@@ -57,7 +58,7 @@ static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSStrin
 static void VibeiOSStartLaunchProbes(void) {
     NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
     if ([arguments containsObject:@"--frame-rate-probe"]) {
-        [RootViewController debugBeginFrameProbeForSeconds:0];
+        VibeDebugBeginFrameProbe(0);
     }
     if ([arguments containsObject:@"--dataless-diag"]) {
         [PlaceholderFiles setDatalessDiagnosticsEnabled:YES];

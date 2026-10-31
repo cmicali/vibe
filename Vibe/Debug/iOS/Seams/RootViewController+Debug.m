@@ -34,9 +34,8 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "AudioFX.h"
 #import "VibePlaylist.h"
 
-// A display link on the main run loop for `seconds` (0: until replaced),
-// riding whatever rate the app's own work earns: the probes measure, they
-// must not ask.
+// A display link on the main run loop, riding whatever rate the app's own
+// work earns: the layout probe measures, it must not ask.
 static CADisplayLink *VibeDebugDisplayLink(id target, SEL selector) {
     CADisplayLink *link = [CADisplayLink displayLinkWithTarget:target selector:selector];
     [link addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
@@ -57,81 +56,7 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
     return @[@(insets.top), @(insets.left), @(insets.bottom), @(insets.right)];
 }
 
-// The frame-rate probe: a display link counting the frames the app is
-// granted and how often one ran long. The answer to "is this 60 or 120, and
-// does it hitch" that the simulator cannot give. Class-level: it needs no
-// root, and a phone starts it from a launch flag before there is one.
-static CADisplayLink *sFrameProbe;
-static CFTimeInterval sFrameProbeStartedAt;
-static CFTimeInterval sFrameProbeLastAt;
-static CFTimeInterval sFrameProbeEndsAt;
-static CFTimeInterval sFrameProbeWorstInterval;
-static NSUInteger sFrameProbeFrames;
-static NSUInteger sFrameProbeHitches;
-
-static void VibeFrameProbeResetWindow(CFTimeInterval now) {
-    sFrameProbeStartedAt = now;
-    sFrameProbeLastAt = 0;
-    sFrameProbeWorstInterval = 0;
-    sFrameProbeFrames = 0;
-    sFrameProbeHitches = 0;
-}
-
 @implementation RootViewController (Debug)
-
-+ (void)debugBeginFrameProbeForSeconds:(NSTimeInterval)seconds {
-    [sFrameProbe invalidate];
-    CFTimeInterval now = CACurrentMediaTime();
-    VibeFrameProbeResetWindow(now);
-    sFrameProbeEndsAt = seconds > 0 ? now + seconds : 0;
-    sFrameProbe = VibeDebugDisplayLink(self, @selector(debugProbeFrame:));
-}
-
-+ (void)debugProbeFrame:(CADisplayLink *)link {
-    CFTimeInterval now = link.timestamp;
-    if (sFrameProbeLastAt > 0) {
-        CFTimeInterval interval = now - sFrameProbeLastAt;
-        sFrameProbeWorstInterval = MAX(sFrameProbeWorstInterval, interval);
-        // A frame that took two of the granted periods or more.
-        if (interval >= 2 * (link.targetTimestamp - now) + 0.001) {
-            sFrameProbeHitches++;
-        }
-    }
-    sFrameProbeLastAt = now;
-    sFrameProbeFrames++;
-    // The continuous probe — the launch flag's — logs a window every five
-    // seconds, which the device console relays off a phone (OS_ACTIVITY_DT_MODE).
-    if (sFrameProbeEndsAt == 0 && now - sFrameProbeStartedAt >= 5) {
-        NSDictionary *report = [self debugFrameProbeReport];
-        LogInfo(@"Frame probe: %@ Hz over %@ s, %@ hitches, worst %@ ms",
-                report[@"averageHz"], report[@"seconds"], report[@"hitches"], report[@"worstIntervalMs"]);
-        VibeFrameProbeResetWindow(now);
-    }
-    else if (sFrameProbeEndsAt > 0 && now >= sFrameProbeEndsAt) {
-        [link invalidate];
-        sFrameProbe = nil;
-    }
-}
-
-+ (NSDictionary *)debugFrameProbeReport {
-    CFTimeInterval seconds = (sFrameProbeLastAt ?: CACurrentMediaTime()) - sFrameProbeStartedAt;
-    double hz = seconds > 0 && sFrameProbeFrames > 1 ? (sFrameProbeFrames - 1) / seconds : 0;
-    // 120 only when the app may draw at it: an iPhone caps an app at 60
-    // without CADisableMinimumFrameDurationOnPhone.
-    UIScreen *screen = nil;
-    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-        if ([scene isKindOfClass:UIWindowScene.class]) {
-            screen = ((UIWindowScene *)scene).screen;
-            break;
-        }
-    }
-    return @{@"frames": @(sFrameProbeFrames),
-             @"seconds": @(round(seconds * 100) / 100),
-             @"averageHz": @(round(hz * 10) / 10),
-             @"hitches": @(sFrameProbeHitches),
-             @"worstIntervalMs": @(round(sFrameProbeWorstInterval * 10000) / 10),
-             @"maximumHz": @(screen ? screen.maximumFramesPerSecond : 0)};
-}
 
 // Where the selected tab's chrome and first row sit in the window, with the
 // insets the layout is laid out against, read from the LIVE views: under a
