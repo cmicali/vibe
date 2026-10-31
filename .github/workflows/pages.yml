@@ -2,6 +2,8 @@ name: Pages
 
 # Publish Assets/Web to GitHub Pages. Cloudflare uses the same source directory
 # through a separate local deployment. The page names vibeplayer.app as canonical.
+# Assets/Web/functions holds Cloudflare's Pages Functions. GitHub Pages cannot
+# run them, so the upload leaves them out rather than serving their source.
 on:
   push:
     branches: [main]
@@ -35,9 +37,12 @@ jobs:
 
       - uses: actions/configure-pages@v6
 
+      - name: Copy the site without the Cloudflare Functions
+        run: rsync -a --exclude /functions/ Assets/Web/ site/
+
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: Assets/Web
+          path: site
 
       - id: deploy
         uses: actions/deploy-pages@v5
