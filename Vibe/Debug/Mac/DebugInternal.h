@@ -26,6 +26,7 @@
 #import "DebugMacConsistency.h"
 #import "DebugSettingsUI.h"
 #import "DebugSyntheticInput.h"
+#import "DebugViewTree.h"
 #import "AudioWaveformLoader+Debug.h"
 
 #import "AppDelegate.h"
@@ -62,10 +63,9 @@ NS_ASSUME_NONNULL_BEGIN
 // DebugScreenshot.m — window capture.
 BOOL VibeDumpWindowSnapshot(NSString *path);
 
-// DebugStateDump.m — what the inspection verbs read.
+// DebugStateDump.m — what the inspection verbs read. The view tree and the
+// menus are DebugViewTree.m's.
 NSDictionary *VibeStateDictionary(MainPlayerController *controller);
-NSString *VibeViewTreeDump(void);
-NSArray *VibeMenuArray(NSMenu *menu);
 NSString *VibeClickMenuItem(MainPlayerController *controller, NSString *name);
 NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller);
 NSDictionary *VibeOpenURLWindowState(void);
