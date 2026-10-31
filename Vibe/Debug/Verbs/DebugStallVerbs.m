@@ -20,9 +20,10 @@
 #import "AudioPlayer.h"
 #import "AudioPlayer+Debug.h"
 
-// block_main's bound, well under the stress driver's 20s liveness probe, so a
-// stray block is never mistaken for the hang it imitates.
-static const double kMaxBlockMainSeconds = 5.0;
+// block_render's and block_decoder's bound, the same as vibe-libs' block_main.
+// It is well under the stress driver's 20s liveness probe. A stray block is
+// then never mistaken for the hang it imitates.
+static const double kMaxBlockSeconds = 5.0;
 
 // set_slow_volume's state. The verb writes it on main. The read-ahead hook
 // reads it on read-ahead threads. Both hold the condition's lock. A held read
@@ -149,8 +150,8 @@ NSArray<NSDictionary *> *VibeDebugStallVerbs(void) {
                                      id<VibeDebugPlayerSurface> surface) {
                 double seconds = 0;
                 if (tokens.count != 2 || !VibeParseDouble(tokens[1], &seconds)
-                        || seconds <= 0 || seconds > kMaxBlockMainSeconds) {
-                    return VibeErrorJSON(@"usage: block_render <seconds 0-%g>", kMaxBlockMainSeconds);
+                        || seconds <= 0 || seconds > kMaxBlockSeconds) {
+                    return VibeErrorJSON(@"usage: block_render <seconds 0-%g>", kMaxBlockSeconds);
                 }
                 AudioPlayer *player = surface.debugPlayer;
                 [player debugHoldRenderInside:YES];
@@ -168,8 +169,8 @@ NSArray<NSDictionary *> *VibeDebugStallVerbs(void) {
                                      id<VibeDebugPlayerSurface> surface) {
                 double seconds = 0;
                 if (tokens.count != 2 || !VibeParseDouble(tokens[1], &seconds)
-                        || seconds <= 0 || seconds > kMaxBlockMainSeconds) {
-                    return VibeErrorJSON(@"usage: block_decoder <seconds 0-%g>", kMaxBlockMainSeconds);
+                        || seconds <= 0 || seconds > kMaxBlockSeconds) {
+                    return VibeErrorJSON(@"usage: block_decoder <seconds 0-%g>", kMaxBlockSeconds);
                 }
                 AudioPlayer *player = surface.debugPlayer;
                 [player debugHoldDecoder:YES];

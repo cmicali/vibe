@@ -89,7 +89,7 @@ static void VibeiOSStartLaunchProbes(void) {
 }
 
 void VibeiOSInstallDebugCommandHook(void) {
-    NSArray<NSString *> *duplicates = VibeDebugDuplicateVerbs(VibeDebugiOSTables());
+    __unused NSArray<NSString *> *duplicates = VibeDebugDuplicateVerbs(VibeDebugiOSTables());
     NSCAssert(duplicates.count == 0, @"verbs in two debug tables, which run from the first: %@", duplicates);
     VibeInstallDebugCommandChannel(NSBundle.mainBundle.bundleIdentifier, ^NSString *(NSArray<NSString *> *args, NSString *commandId) {
         return VibeiOSExecuteDebugCommand(args, commandId);

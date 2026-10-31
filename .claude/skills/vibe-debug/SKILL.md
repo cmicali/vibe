@@ -144,7 +144,7 @@ Seven verbs of its own: `settings_open`, `dump_settings_ui`, `settings_click`, `
 
 ## Screenshots and appearance
 
-`dump_screenshot -` renders the layer tree in-process. It needs no permission and works occluded, so default to it for layout, text, color, artwork and waveform checks. It **cannot** show `NSVisualEffectView` materials, the `NSGlassEffectView` chrome or Metal content. Never judge window background, material, tint wash or appearance blending from it. Those need real capture with `scripts/capture-window.sh out.png [pid]` (Screen Recording permission), and `probe-pixel.swift` to assert numerically. Details are in `references/screenshots-and-logs.md`.
+`dump_screenshot -` renders the layer tree in-process. It needs no permission and works occluded, so default to it for layout, text, color, artwork and waveform checks. It draws what sits inside glass, such as the Settings sidebar's rows. It **cannot** show `NSVisualEffectView` materials, the `NSGlassEffectView` chrome or Metal content. Never judge window background, material, tint wash or appearance blending from it. Those need real capture with `scripts/capture-window.sh out.png [pid]` (Screen Recording permission), and `probe-pixel.swift` to assert numerically. Details are in `references/screenshots-and-logs.md`.
 
 `set_appearance light|dark|system` flips the window live (`AppSettings.windowAppearanceStyle`). A theme's color mode (`AppTheme.mode`) is separate and is driven through `import_theme` or `set_theme`. Test both appearances for any color or material change, with real capture for backgrounds. A light window over a dark system is a supported combination.
 

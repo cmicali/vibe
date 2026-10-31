@@ -27,7 +27,7 @@ Every macOS channel verb with its arguments and reply schema, plus the verbs who
 "$V" --debug-cmd dump_timing         # {loads: [...]}: phase timings of recent waveform decodes, newest first. clear_timing empties it
 "$V" --debug-cmd dump_last_playlist  # {exists, rows, currentIndex}: the container mirror (Application Support/<bundle id>/LastPlaylist.m3u). Written only at quit. A relaunch with the setting on restores it parked and publishes no Now Playing until the first real play
 "$V" --debug-cmd dump_theme ["id-or-name"] # {ok, activeTheme?, id?, theme}: no arg is the current working record, divergence included; with one, that theme's stored record
-"$V" --debug-cmd dump_screenshot -   # PNG on stdout, JSON reply on stderr: references/screenshots-and-logs.md
+"$V" --debug-cmd dump_screenshot -   # PNG on stdout, {ok, path, width, height, scale} on stderr: references/screenshots-and-logs.md
 ```
 
 ## Transport, FX and window

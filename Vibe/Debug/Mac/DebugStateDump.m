@@ -2,7 +2,7 @@
 //  DebugStateDump.m
 //  Vibe
 //
-//  What the inspection verbs read: player and UI state, the view tree, menus.
+//  What the inspection verbs read: player and UI state, and the Open URL window.
 //
 
 #import "DebugInternal.h"

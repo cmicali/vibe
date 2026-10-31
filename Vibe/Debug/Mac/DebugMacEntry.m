@@ -91,7 +91,7 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
 }
 
 void VibeInstallDebugCommandHook(void) {
-    NSArray<NSString *> *duplicates = VibeDebugDuplicateVerbs(VibeDebugMacTables());
+    __unused NSArray<NSString *> *duplicates = VibeDebugDuplicateVerbs(VibeDebugMacTables());
     NSCAssert(duplicates.count == 0, @"verbs in two debug tables, which run from the first: %@", duplicates);
     VibeInstallDebugCommandChannel(NSBundle.mainBundle.bundleIdentifier, ^NSString *(NSArray<NSString *> *args, NSString *commandId) {
         return VibeExecuteDebugCommand(args, commandId);
