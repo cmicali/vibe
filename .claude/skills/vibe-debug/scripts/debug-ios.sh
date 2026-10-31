@@ -11,8 +11,8 @@
 #   and prints their replies as one JSON array in order: a poll of six dumps
 #   costs one round trip, not six.
 # Timeout: VIBE_DEBUG_TIMEOUT seconds when set, a fraction allowed; otherwise
-# the verb's own wait in the command tables (Vibe/Debug), when longer than 10;
-# else 10.
+# the verb's own wait in the command tables (Vibe/Debug and vibe-libs'
+# dev/DebugVerbs), when longer than 10; else 10.
 # VIBE_APP_TMP: the app container's tmp, resolved once by a caller that sends
 # many commands (`simctl get_app_container` is most of a round trip). Valid
 # only until the next install, which moves the container.
@@ -57,10 +57,12 @@ fi
 # here went stale, and a slow verb's reply then came after this gave up. A
 # usage may go on in a second literal on the next line. A verb with no entry
 # keeps the default. TRAP: the lookup never fails. Under set -e a failure ends
-# the script with no output.
+# the script with no output. So a table outside the search keeps the default
+# silently: without dev/DebugVerbs, block_main and block_main_deep wait 10 s,
+# not 30.
 ROOT="$(cd "$DIR/../../../.." && pwd)"
 wait_of() {   # <verb>
-    find "$ROOT/Vibe/Debug" \( -name '*.m' -o -name '*.mm' \) -exec env VERB="$1" perl -0777 -ne '
+    find "$ROOT/Vibe/Debug" "$ROOT/vibe-libs/dev/DebugVerbs" \( -name '*.m' -o -name '*.mm' \) -exec env VERB="$1" perl -0777 -ne '
         my $v = quotemeta $ENV{VERB};
         if (/VibeDebugCmd\(\@"$v(?: [^"]*)?"(?:\s*\@"[^"]*")*\s*,\s*([0-9]+)/) { print "$1\n"; exit }
     ' {} + 2>/dev/null | head -1 || true

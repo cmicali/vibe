@@ -28,7 +28,7 @@ extern "C" {
 // per-command response file.
 //
 // The shared table (Vibe/Debug/Verbs/), the standard and input tables
-// (Standard/), and VibeDebugCommandTable (DebugMacVerbs.m and its topic
+// (vibe-libs' dev/DebugVerbs), and VibeDebugCommandTable (DebugMacVerbs.m and its topic
 // tables) are the authoritative verb list: each entry carries its usage
 // string, client wait and handler, and dispatch and the unknown-command reply
 // both derive from them. Usage docs: the vibe-debug skill's
@@ -39,7 +39,7 @@ extern "C" {
 void VibeInstallDebugCommandHook(void);
 
 // The client side, in DebugClientLocalVerbs.m: Vibe's options and local verbs
-// over the client (Channel/DebugClient.h). main() invokes it for
+// over vibe-libs' client (dev/DebugChannel/Mac/DebugClient.h). main() invokes it for
 // `Vibe --debug-cmd ...` before NSApplicationMain, so no second app instance
 // ever starts. Returns the process exit code: 0 ok, 1 no response or I/O
 // failure, 2 command error, 64 usage.
