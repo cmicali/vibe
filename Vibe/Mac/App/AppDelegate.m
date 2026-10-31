@@ -212,7 +212,7 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     VibeInstallDebugCommandHook();
 #endif
 
-    [PINCache removeOtherAudioCacheVersionsKeeping:@[AudioTrackMetadataCache.cacheName, AudioWaveformCache.cacheName]
+    [PINCache removeOtherAudioCacheVersionsKeeping:[AudioTrackMetadataCache.cacheNames arrayByAddingObject:AudioWaveformCache.cacheName]
                                           rootPath:nil
                                         completion:nil];
 

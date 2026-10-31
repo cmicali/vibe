@@ -28,6 +28,10 @@
 @property (nonatomic, strong) MetadataParseCoordinator<AudioTrack *> *parseCoordinator;
 @property (atomic) uint64_t cacheGeneration;
 @property (atomic, strong) id metadataCache;
+// The art's own stores, which a vibe-libs metadata cache has since its three
+// stores. Nil here, as metadataCache is, since the sweep reads no cache.
+@property (atomic, strong) id thumbnailCache;
+@property (atomic, strong) id displayArtCache;
 @end
 
 @implementation VibeBenchComponentsMetadataOwner
