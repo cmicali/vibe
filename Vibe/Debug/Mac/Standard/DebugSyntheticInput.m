@@ -5,15 +5,11 @@
 //  Synthesized input: keyboard, mouse and gestures, and direct row selection.
 //
 
-#import "DebugInternal.h"
-#import "PlaylistTableView.h"
-#import "PitchFaderView.h"
-#import "AppSettings+Mac.h"
-#import "MenuShortcutRules.h"
-#import "ShortcutLayout.h"
-#import "MainPlayerController+Settings.h"
+#import "DebugSyntheticInput.h"
 
 #if DEBUG
+
+#import "DebugWireFormat.h"
 
 #pragma mark Input injection
 
@@ -103,10 +99,13 @@ static BOOL VibeCharacterIsFunctionKey(NSString *chars) {
     return c >= NSUpArrowFunctionKey && c <= NSModeSwitchFunctionKey;
 }
 
-// Any tokens trailing the key name are modifier names, plus the repeat token.
-static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
-                               NSEventModifierFlags *outFlags, BOOL *outRepeat,
-                               NSString **errorJSON) {
+NSNumber *VibeKeyCodeForName(NSString *name) {
+    return VibeKeyCodeMap()[name];
+}
+
+BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
+                        NSEventModifierFlags *outFlags, BOOL *outRepeat,
+                        NSString **errorJSON) {
     NSEventModifierFlags flags = 0;
     BOOL repeat = NO;
     for (NSUInteger i = start; i < tokens.count; i++) {
@@ -141,14 +140,13 @@ static BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
 // key posts a down and an up; key_down and key_up post one edge each, which
 // is how a held Q/W/E/R/T effect key is driven: TransportKeyMonitor decides
 // latch (tap) or revert (hold) on keyUp.
-NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,
-                               BOOL down, BOOL up) {
+NSString *VibeInjectKey(NSWindow *window, NSArray<NSString *> *tokens, BOOL down, BOOL up) {
     NSString *verb = tokens.firstObject;
     if (tokens.count < 2) {
         return VibeErrorJSON(@"usage: %@ <key> [shift|cmd|opt|ctrl|repeat ...]", verb);
     }
     NSString *name = tokens[1].lowercaseString;
-    NSNumber *code = VibeKeyCodeMap()[name];
+    NSNumber *code = VibeKeyCodeForName(name);
     if (code == nil) {
         return VibeErrorJSON(@"unknown key '%@' (a-z, 0-9, period, space, tab, return, esc, delete, forward_delete, up, down, left, right)",
                 tokens[1]);
@@ -173,9 +171,6 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
     // matching reads it — a lowercase char there makes ⇧⌘C match a plain ⌘C
     // equivalent instead of the ⇧⌘C one.
     NSString *charsWithMods = (flags & NSEventModifierFlagShift) ? VibeShiftedKeyCharacters(chars) : chars;
-    // Into the key window, as a real press goes, so a press reaches Open URL's
-    // window while it is key. The player's when no window is key.
-    NSWindow *window = NSApp.keyWindow ?: controller.window;
     void (^post)(NSEventType) = ^(NSEventType type) {
         NSEvent *event = [NSEvent keyEventWithType:type
                                           location:NSZeroPoint
@@ -198,63 +193,13 @@ NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *t
     return VibeJSONString(@{@"ok": @YES, @"posted": verb, @"key": name, @"repeat": @(isRepeat)});
 }
 
-// The pane's write path, keyed by the key names `key` takes.
-NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> *tokens) {
-    if (tokens.count < 3) {
-        return VibeErrorJSON(@"usage: set_shortcut <identifier> <key|none> [shift|cmd|opt|ctrl ...]");
-    }
-    NSString *identifier = tokens[1];
-    if (![VibeShortcutIdentifiers() containsObject:identifier]) {
-        return VibeErrorJSON(@"'%@' has no remappable shortcut (%@)", identifier,
-                             [VibeShortcutIdentifiers() componentsJoinedByString:@", "]);
-    }
-    NSString *name = tokens[2].lowercaseString;
-    VibeShortcut shortcut = kVibeShortcutNone;
-    if (![name isEqualToString:@"none"]) {
-        NSNumber *code = VibeKeyCodeMap()[name];
-        if (code == nil) {
-            return VibeErrorJSON(@"unknown key '%@'", tokens[2]);
-        }
-        NSEventModifierFlags flags = 0;
-        BOOL repeat = NO;
-        NSString *errorJSON = nil;
-        if (!VibeParseModifiers(tokens, 3, &flags, &repeat, &errorJSON)) {
-            return errorJSON;
-        }
-        shortcut = VibeShortcutMake(code.unsignedShortValue, flags);
-    }
-    NSString *loser = nil;
-    switch ([controller assignShortcut:shortcut toCommand:identifier loser:&loser]) {
-        case VibeShortcutAssignmentReserved:
-            return VibeErrorJSON(@"%@ is reserved", VibeShortcutDisplayString(shortcut));
-        case VibeShortcutAssignmentUnusable:
-            return VibeErrorJSON(@"%@ has no name in this layout", tokens[2]);
-        case VibeShortcutAssignmentStored:
-            break;
-    }
-    VibeDebugSettingsRefreshSelectedPane();
-    VibeShortcut stored = VibeShortcutEffective(VibeShortcutTable(), identifier, AppSettings.sharedInstance.shortcutOverrides);
-    return VibeJSONString(@{
-        @"ok": @YES,
-        @"command": identifier,
-        @"shortcut": VibeShortcutDisplayString(stored),
-        @"lost_by": loser ?: [NSNull null],
-    });
-}
-
-NSString *VibeResetShortcuts(MainPlayerController *controller) {
-    [controller setShortcutOverrides:@{}];
-    VibeDebugSettingsRefreshSelectedPane();
-    return VibeJSONString(@{@"ok": @YES});
-}
-
 NSPoint VibeWindowPointForContentPoint(NSWindow *window, double x, double y) {
     NSView *content = window.contentView;
     return [content convertPoint:NSMakePoint(x, content.isFlipped ? y : NSHeight(content.bounds) - y)
                           toView:nil];
 }
 
-static NSPoint VibeContentPointForWindowPoint(NSWindow *window, NSPoint point) {
+NSPoint VibeContentPointForWindowPoint(NSWindow *window, NSPoint point) {
     NSView *content = window.contentView;
     NSPoint local = [content convertPoint:point fromView:nil];
     return NSMakePoint(local.x, content.isFlipped ? local.y : NSHeight(content.bounds) - local.y);
@@ -285,7 +230,7 @@ static NSString *VibeMouseReply(NSString *verb, NSWindow *window, NSPoint locati
 // Activation lands asynchronously and events posted before it are swallowed,
 // so spin the run loop briefly for key status; the reply's windowKey reports
 // whether it took.
-static void VibeMakeWindowKeyForInjection(NSWindow *window) {
+void VibeMakeWindowKeyForInjection(NSWindow *window) {
     if (window.isKeyWindow) {
         return;
     }
@@ -319,7 +264,7 @@ static NSEvent *VibeMouseEvent(NSEventType type, NSPoint location, NSInteger win
 // inside that loop, and the command channel, on the GCD main queue, cannot
 // deliver the matching mouse_up while it spins. Use `click` or `drag`, whose
 // events are all queued before the loop starts.
-NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+NSString *VibeInjectMouse(NSWindow *window, NSArray<NSString *> *tokens) {
     NSString *verb = tokens.firstObject;
     BOOL isClick = [verb isEqualToString:@"click"];
     NSString *usage = isClick
@@ -351,7 +296,6 @@ NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> 
     if (tokens.count > next) {
         return VibeErrorJSON(@"%@", usage);
     }
-    NSWindow *window = controller.window;
     VibeMakeWindowKeyForInjection(window);
     NSPoint location = VibeWindowPointForContentPoint(window, x, y);
     NSInteger windowNumber = window.windowNumber;
@@ -384,7 +328,7 @@ NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> 
 
 // A whole left-button drag queued in one command, the only injection shape
 // that works on tracking-loop controls; see VibeInjectMouse.
-NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+NSString *VibeInjectDrag(NSWindow *window, NSArray<NSString *> *tokens) {
     NSString *usage = @"usage: drag <x1> <y1> <x2> <y2> [steps]";
     double x1 = 0, y1 = 0, x2 = 0, y2 = 0;
     if (tokens.count < 5
@@ -402,7 +346,6 @@ NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *
     if (tokens.count > 6) {
         return VibeErrorJSON(@"%@", usage);
     }
-    NSWindow *window = controller.window;
     VibeMakeWindowKeyForInjection(window);
     NSInteger windowNumber = window.windowNumber;
     NSPoint start = VibeWindowPointForContentPoint(window, x1, y1);
@@ -425,7 +368,7 @@ NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *
 // momentum the coast after the fingers lift. dy is the raw delta, before the
 // user's scrolling direction. No activation: a scroll reaches a window that is
 // not key.
-NSString *VibeInjectScroll(MainPlayerController *controller, NSArray<NSString *> *tokens) {
+NSString *VibeInjectScroll(NSWindow *window, NSArray<NSString *> *tokens) {
     NSString *usage = @"usage: scroll <x> <y> <dy> [lines|pixels] [momentum]";
     double x = 0, y = 0, dy = 0;
     if (tokens.count < 4 || !VibeParseDouble(tokens[1], &x) || !VibeParseDouble(tokens[2], &y)
@@ -445,7 +388,6 @@ NSString *VibeInjectScroll(MainPlayerController *controller, NSArray<NSString *>
             return VibeErrorJSON(@"%@", usage);
         }
     }
-    NSWindow *window = controller.window;
     NSPoint location = VibeWindowPointForContentPoint(window, x, y);
     CGEventRef cg = CGEventCreateScrollWheelEvent2(NULL, pixels ? kCGScrollEventUnitPixel : kCGScrollEventUnitLine,
                                                    1, (int32_t)lround(dy), 0, 0);
@@ -461,89 +403,6 @@ NSString *VibeInjectScroll(MainPlayerController *controller, NSArray<NSString *>
     CFRelease(cg);
     [window sendEvent:event];
     return VibeMouseReply(@"scroll", window, location, x, y);
-}
-
-// Resolves and hit-tests the real control after activation, in the same
-// main-thread turn that queues the whole gesture. The runner checks the
-// resulting pitch; queued events alone are not a pass.
-NSString *VibeTestGesture(MainPlayerController *controller, NSArray<NSString *> *tokens) {
-    BOOL reset = tokens.count == 3 && [tokens[1] isEqualToString:@"pitch-reset"];
-    BOOL drag = tokens.count == 3 && [tokens[1] isEqualToString:@"pitch-drag"];
-    if ((!reset && !drag) || ![tokens.lastObject isEqualToString:@"isolated-desktop"]) {
-        return VibeErrorJSON(@"usage: gesture_test pitch-reset|pitch-drag isolated-desktop (dedicated test Mac or VM only)");
-    }
-    NSWindow *window = controller.window;
-    if (!window.isVisible || !((MainWindow *)window).isPitchPanelShown) {
-        return VibeErrorJSON(@"gesture target unavailable: show the player and pitch panel first");
-    }
-    VibeMakeWindowKeyForInjection(window);
-    if (!window.isKeyWindow) {
-        return VibeErrorJSON(@"gesture target unavailable: player is not key");
-    }
-    [window.contentView layoutSubtreeIfNeeded];
-    PitchFaderView *fader = nil;
-    for (NSView *view in controller.pitchPanel.subviews) {
-        if ([view isKindOfClass:PitchFaderView.class]) {
-            fader = (PitchFaderView *)view;
-            break;
-        }
-    }
-    if (!fader || fader.isHiddenOrHasHiddenAncestor || NSIsEmptyRect(fader.visibleRect)) {
-        return VibeErrorJSON(@"gesture target unavailable: pitch fader is hidden");
-    }
-    NSRect bounds = fader.bounds;
-    NSPoint end = [fader convertPoint:NSMakePoint(NSMidX(bounds), NSMinY(bounds) + NSHeight(bounds) * 0.75) toView:nil];
-    // Reset off-center: a plain scale click must not satisfy the double-click
-    // assertion merely by landing on zero. Drag starts on the centered knob.
-    NSPoint start = reset ? end : [fader convertPoint:NSMakePoint(NSMidX(bounds), NSMidY(bounds)) toView:nil];
-    NSView *content = window.contentView;
-    for (NSValue *value in @[[NSValue valueWithPoint:start], [NSValue valueWithPoint:end]]) {
-        NSPoint point = value.pointValue;
-        if (!NSPointInRect([fader convertPoint:point fromView:nil], fader.visibleRect)
-                || [content hitTest:[content.superview convertPoint:point fromView:nil]] != fader) {
-            return VibeErrorJSON(@"gesture target unavailable: pitch fader is clipped or covered");
-        }
-    }
-    NSPoint from = VibeContentPointForWindowPoint(window, start);
-    NSString *x1 = @(from.x).stringValue, *y1 = @(from.y).stringValue;
-    if (reset) {
-        return VibeInjectMouse(controller, @[@"click", x1, y1, @"left", @"2"]);
-    }
-    NSPoint to = VibeContentPointForWindowPoint(window, end);
-    return VibeInjectDrag(controller, @[@"drag", x1, y1, @(to.x).stringValue, @(to.y).stringValue, @"20"]);
-}
-
-// Selection is a table operation; removal is the shell's transport decision.
-// Neither needs a key window, a visible pane, or a pointer gesture.
-NSString *VibeSelectPlaylistRows(MainPlayerController *controller, NSArray<NSString *> *tokens) {
-    PlaylistTableView *table = controller.playlistController.tableView;
-    if (!table || tokens.count < 2) {
-        return VibeErrorJSON(@"usage: select_rows all|none|<row|current> [row|current ...]");
-    }
-    NSMutableIndexSet *rows = [NSMutableIndexSet indexSet];
-    if (tokens.count == 2 && [tokens[1] isEqualToString:@"all"]) {
-        [rows addIndexesInRange:NSMakeRange(0, (NSUInteger)table.numberOfRows)];
-    }
-    else if (!(tokens.count == 2 && [tokens[1] isEqualToString:@"none"])) {
-        for (NSString *token in [tokens subarrayWithRange:NSMakeRange(1, tokens.count - 1)]) {
-            NSUInteger row = 0;
-            if ([token isEqualToString:@"current"]) {
-                row = controller.playlistController.currentIndex;
-            }
-            else if (!VibeParseNonnegativeInteger(token, &row)) {
-                return VibeErrorJSON(@"select_rows requires nonnegative integer rows or current");
-            }
-            // A replacement or removal may have shortened the list since the
-            // runner chose its rows. Select surviving row numbers, or none.
-            if (row < (NSUInteger)table.numberOfRows) [rows addIndex:row];
-        }
-    }
-    [table selectRowIndexes:rows byExtendingSelection:NO];
-    NSMutableArray<NSNumber *> *selected = [NSMutableArray array];
-    [table.selectedRowIndexes enumerateIndexesUsingBlock:^(NSUInteger row, BOOL *stop) {
-        [selected addObject:@(row)];
-    }];
-    return VibeJSONString(@{@"ok": @YES, @"selectedRows": selected});
 }
 
 #endif

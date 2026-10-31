@@ -197,16 +197,16 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeTestGesture(controller, tokens);
             }),
             VibeDebugCmd(@"click <x> <y> [left|right] [clickCount]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectMouse(controller, tokens);
+                return VibeInjectMouse(controller.window, tokens);
             }),
             VibeDebugCmd(@"mouse_down <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectMouse(controller, tokens);
+                return VibeInjectMouse(controller.window, tokens);
             }),
             VibeDebugCmd(@"mouse_up <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectMouse(controller, tokens);
+                return VibeInjectMouse(controller.window, tokens);
             }),
             VibeDebugCmd(@"mouse_move <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectMouse(controller, tokens);
+                return VibeInjectMouse(controller.window, tokens);
             }),
             VibeDebugCmd(@"file_drag_hover <x> <y>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSyntheticFileDragHover(controller, tokens);
@@ -230,19 +230,22 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 return VibeReorderCancel(controller);
             }),
             VibeDebugCmd(@"drag <x1> <y1> <x2> <y2> [steps]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectDrag(controller, tokens);
+                return VibeInjectDrag(controller.window, tokens);
             }),
             VibeDebugCmd(@"scroll <x> <y> <dy> [lines|pixels] [momentum]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectScroll(controller, tokens);
+                return VibeInjectScroll(controller.window, tokens);
             }),
+            // Into the key window, as a real press goes, so a press reaches
+            // Open URL's window while it is key. The player's when no window
+            // is key.
             VibeDebugCmd(@"key <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectKey(controller, tokens, YES, YES);
+                return VibeInjectKey(NSApp.keyWindow ?: controller.window, tokens, YES, YES);
             }),
             VibeDebugCmd(@"key_down <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectKey(controller, tokens, YES, NO);
+                return VibeInjectKey(NSApp.keyWindow ?: controller.window, tokens, YES, NO);
             }),
             VibeDebugCmd(@"key_up <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectKey(controller, tokens, NO, YES);
+                return VibeInjectKey(NSApp.keyWindow ?: controller.window, tokens, NO, YES);
             }),
             VibeDebugCmd(@"set_shortcut <identifier> <key|none> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSetShortcut(controller, tokens);
