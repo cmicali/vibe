@@ -24,6 +24,7 @@
 #import "DebugConsistency.h"
 #import "DebugHealth.h"
 #import "DebugMacConsistency.h"
+#import "DebugScreenshot.h"
 #import "DebugSettingsUI.h"
 #import "DebugSyntheticInput.h"
 #import "DebugViewTree.h"
@@ -59,9 +60,6 @@
 #import "FolderWalk.h"
 
 NS_ASSUME_NONNULL_BEGIN
-
-// DebugScreenshot.m — window capture.
-BOOL VibeDumpWindowSnapshot(NSString *path);
 
 // DebugStateDump.m — what the inspection verbs read. The view tree and the
 // menus are DebugViewTree.m's.

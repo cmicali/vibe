@@ -13,29 +13,6 @@
 extern "C" {
 #endif
 
-// Installs a notification hook that dumps the key window (else the main
-// window, else the first visible one) to a PNG. Trigger it from a terminal.
-// The name starts with the app's bundle identifier, as the channel's does:
-//
-//     notifyutil -p com.commonwealthrecordings.Vibe.debug.screenshot
-//
-// Then read vibe-screenshot.png from the tmp directory of the app's own
-// container. The app is sandboxed, so /tmp is not writable. A slotted build
-// has its own bundle identifier and container, which
-// `scripts/vibe-env.sh --print VIBE_CONTAINER` prints:
-//
-//     <the app's container>/Data/tmp/
-//
-// It renders the window's layer tree in-process, with no window-server
-// capture, so it needs no screen-recording permission and works with the
-// display asleep or the window occluded. NSGlassEffectView layers cannot
-// render this way: they are hidden, over an appearance-matched flat fill.
-// Hiding them forces a model-tree render, so a glass-bearing window's
-// animations land at their target values; glass-free windows render the
-// presentation tree mid-flight. Metal content (the About window) does not
-// render either.
-void VibeInstallDebugScreenshotHook(void);
-
 // Debug command channel: the Vibe binary doubles as its own CLI client.
 //
 //     .../Vibe.app/Contents/MacOS/Vibe --debug-cmd dump_state

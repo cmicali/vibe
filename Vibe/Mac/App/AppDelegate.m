@@ -47,6 +47,7 @@
 #if DEBUG
 #import "DebugCommonVerbs.h"
 #import "DebugMacEntry.h"
+#import "DebugScreenshot.h"
 #import "OpenBurstCoalescer+Debug.h"
 #import "OpenLinkWindowController+Debug.h"
 #endif
@@ -203,7 +204,11 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     [[AppSettings sharedInstance] applicationDidFinishLaunching];
 
 #if DEBUG
-    VibeInstallDebugScreenshotHook();
+    // `notifyutil -p <bundle id>.debug.screenshot` writes the PNG to the
+    // container's tmp, which `scripts/vibe-env.sh --print VIBE_CONTAINER`
+    // prints. A slotted build has its own bundle id and container.
+    VibeInstallDebugScreenshotHook([NSBundle.mainBundle.bundleIdentifier stringByAppendingString:@".debug.screenshot"],
+                                   [NSTemporaryDirectory() stringByAppendingPathComponent:@"vibe-screenshot.png"]);
     VibeInstallDebugCommandHook();
 #endif
 

@@ -1,21 +1,17 @@
 //
 //  DebugScreenshot.m
-//  Vibe
-//
-//  Window capture: the notifyutil hook and the per-command dump_screenshot path.
+//  vibe-libs
 //
 
-#import "DebugInternal.h"
+#import "DebugScreenshot.h"
 
 #if DEBUG
 
-// The notifyutil hook's fixed output path. dump_screenshot writes a
-// per-command file instead, through VibeDebugScreenshotPathForCommand, so that
-// two clients snapshotting back to back cannot hand one client the other's
-// pixels.
-static NSString *VibeDebugScreenshotPath(void) {
-    return [NSTemporaryDirectory() stringByAppendingPathComponent:@"vibe-screenshot.png"];
-}
+#import <QuartzCore/QuartzCore.h>
+#import <ImageIO/ImageIO.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
+#import <notify.h>
+#import "VibeMacros.h"
 
 // A glass view's hosting layer renders as opaque white in renderInContext:,
 // because its real content is composited by the window server, and it paints
@@ -133,11 +129,11 @@ BOOL VibeDumpWindowSnapshot(NSString *path) {
     return written;
 }
 
-void VibeInstallDebugScreenshotHook(void) {
+void VibeInstallDebugScreenshotHook(NSString *notificationName, NSString *path) {
     static int token;
-    NSString *name = [NSBundle.mainBundle.bundleIdentifier stringByAppendingString:@".debug.screenshot"];
-    notify_register_dispatch(name.UTF8String, &token, dispatch_get_main_queue(), ^(int t) {
-        VibeDumpWindowSnapshot(VibeDebugScreenshotPath());
+    NSString *output = [path copy];
+    notify_register_dispatch(notificationName.UTF8String, &token, dispatch_get_main_queue(), ^(int t) {
+        VibeDumpWindowSnapshot(output);
     });
 }
 
