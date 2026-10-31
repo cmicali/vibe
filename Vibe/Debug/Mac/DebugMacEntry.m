@@ -35,7 +35,7 @@ static VibeDebugStandardOptions *VibeDebugMacStandardOptions(void) {
     return options;
 }
 
-// Looked up in this order. A verb in two tables runs from the first.
+// Looked up in this order. A verb held twice runs from its first spec.
 static NSArray<NSArray<NSDictionary *> *> *VibeDebugMacTables(void) {
     static NSArray<NSArray<NSDictionary *> *> *tables;
     static dispatch_once_t once;
@@ -92,7 +92,7 @@ static NSString *VibeExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *
 
 void VibeInstallDebugCommandHook(void) {
     __unused NSArray<NSString *> *duplicates = VibeDebugDuplicateVerbs(VibeDebugMacTables());
-    NSCAssert(duplicates.count == 0, @"verbs in two debug tables, which run from the first: %@", duplicates);
+    NSCAssert(duplicates.count == 0, @"verbs held twice in the debug tables, which run from their first spec: %@", duplicates);
     VibeInstallDebugCommandChannel(NSBundle.mainBundle.bundleIdentifier, ^NSString *(NSArray<NSString *> *args, NSString *commandId) {
         return VibeExecuteDebugCommand(args, commandId);
     });
