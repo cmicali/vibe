@@ -4,7 +4,7 @@ The `debug-ios.sh` verbs iOS adds or answers differently, the `drive-ios.sh` ges
 
 ## The channel
 
-Same file protocol and one-JSON-object contract as the mac's, with **no CLI client**. The simulator app's container tmp is a plain host directory, so `debug-ios.sh` writes the command file and reads the reply. Exit codes match the mac client (0 ok, 1 no response, 2 command error). Action replies can lag pipeline work, so follow with `dump_state`. App side: `Vibe/Debug/iOS/DebugiOSEntry.m`, `DebugiOSVerbs.m` and `DebugDropboxVerbs.m`, and the standard verbs in `Vibe/Debug/Standard/` and `Vibe/Debug/iOS/Standard/`, over vibe-libs' `dev/DebugChannel/DebugChannel.m`.
+Same file protocol and one-JSON-object contract as the mac's, with **no CLI client**. The simulator app's container tmp is a plain host directory, so `debug-ios.sh` writes the command file and reads the reply. Exit codes match the mac client (0 ok, 1 no response, 2 command error). Action replies can lag pipeline work, so follow with `dump_state`. App side: `Vibe/Debug/iOS/DebugiOSEntry.m`, `DebugiOSVerbs.m` and `DebugDropboxVerbs.m`, and vibe-libs' standard verbs, `dev/DebugVerbs`, over vibe-libs' `dev/DebugChannel/DebugChannel.m`.
 
 ```bash
 S=.claude/skills/vibe-debug/scripts/debug-ios.sh

@@ -3,7 +3,8 @@
 //  Vibe
 //
 //  The input verbs that reach the shell: shortcut remapping, the named gesture
-//  probes, and direct row selection. The posting is DebugSyntheticInput.m's.
+//  probes, and direct row selection. The posting is vibe-libs'
+//  dev/DebugVerbs (DebugSyntheticInput.h).
 //
 
 #import "DebugInternal.h"
