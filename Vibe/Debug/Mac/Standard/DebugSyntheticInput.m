@@ -9,6 +9,8 @@
 
 #if DEBUG
 
+#import "DebugCommandDispatch.h"
+#import "DebugStandardVerbs.h"
 #import "DebugWireFormat.h"
 
 #pragma mark Input injection
@@ -403,6 +405,44 @@ NSString *VibeInjectScroll(NSWindow *window, NSArray<NSString *> *tokens) {
     CFRelease(cg);
     [window sendEvent:event];
     return VibeMouseReply(@"scroll", window, location, x, y);
+}
+
+#pragma mark The input table
+
+static NSWindow *VibeDebugTargetWindow(VibeDebugStandardOptions *options, id controller) {
+    return (options.targetWindow ? options.targetWindow(controller) : nil) ?: NSApp.mainWindow;
+}
+
+NSArray<NSDictionary *> *VibeDebugInputVerbs(VibeDebugStandardOptions *options) {
+    VibeDebugCommandHandler mouse = ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, id controller) {
+        NSWindow *window = VibeDebugTargetWindow(options, controller);
+        return window ? VibeInjectMouse(window, tokens) : VibeErrorJSON(@"no window to aim at");
+    };
+    // Into the key window, as a real press goes, so a press reaches whichever
+    // window is key. The target window when none is.
+    VibeDebugCommandHandler (^key)(BOOL, BOOL) = ^VibeDebugCommandHandler(BOOL down, BOOL up) {
+        return ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, id controller) {
+            NSWindow *window = NSApp.keyWindow ?: VibeDebugTargetWindow(options, controller);
+            return window ? VibeInjectKey(window, tokens, down, up) : VibeErrorJSON(@"no window to post into");
+        };
+    };
+    return @[
+        VibeDebugCmd(@"click <x> <y> [left|right] [clickCount]", 0, mouse),
+        VibeDebugCmd(@"mouse_down <x> <y> [left|right]", 0, mouse),
+        VibeDebugCmd(@"mouse_up <x> <y> [left|right]", 0, mouse),
+        VibeDebugCmd(@"mouse_move <x> <y> [left|right]", 0, mouse),
+        VibeDebugCmd(@"drag <x1> <y1> <x2> <y2> [steps]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, id controller) {
+            NSWindow *window = VibeDebugTargetWindow(options, controller);
+            return window ? VibeInjectDrag(window, tokens) : VibeErrorJSON(@"no window to aim at");
+        }),
+        VibeDebugCmd(@"scroll <x> <y> <dy> [lines|pixels] [momentum]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, id controller) {
+            NSWindow *window = VibeDebugTargetWindow(options, controller);
+            return window ? VibeInjectScroll(window, tokens) : VibeErrorJSON(@"no window to aim at");
+        }),
+        VibeDebugCmd(@"key <key> [mods...]", 0, key(YES, YES)),
+        VibeDebugCmd(@"key_down <key> [mods...]", 0, key(YES, NO)),
+        VibeDebugCmd(@"key_up <key> [mods...]", 0, key(NO, YES)),
+    ];
 }
 
 #endif

@@ -16,7 +16,6 @@
 #import "SettingsRules.h"
 #import "DrawnControls.h"
 #import "VolumeControlView.h"
-#import "MainPlayerController+Menus.h"
 #import "AppDelegate+Debug.h"
 
 #if DEBUG
@@ -284,30 +283,6 @@ NSDictionary *VibeStateDictionary(MainPlayerController *controller) {
     }
     state[@"settings"] = settings;
     return state;
-}
-
-NSString *VibeClickMenuItem(MainPlayerController *controller, NSString *name) {
-    NSMenuItem *item = VibeFindMenuItem(NSApp.mainMenu, name);
-    if (!item) {
-        return VibeErrorJSON(@"no menu item with identifier or title '%@' (run `dump_menu` to list)", name);
-    }
-    // The key monitor's dispatch, so a click proves what a shortcut does.
-    if (![controller performMenuItem:item]) {
-        if (item.hasSubmenu) {
-            return VibeErrorJSON(@"menu item '%@' opens a submenu; click one of its items", item.title);
-        }
-        if (item.isHiddenOrHasHiddenAncestor) {
-            return VibeErrorJSON(@"menu item '%@' is hidden", item.title);
-        }
-        return item.isEnabled
-                ? VibeErrorJSON(@"no responder handled %@", NSStringFromSelector(item.action))
-                : VibeErrorJSON(@"menu item '%@' is disabled", item.title);
-    }
-    return VibeJSONString(@{
-        @"ok": @YES,
-        @"clicked": item.title,
-        @"action": NSStringFromSelector(item.action),
-    });
 }
 
 // A compact reply for the action verbs, enough to assert on without a

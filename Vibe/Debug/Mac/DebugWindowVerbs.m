@@ -31,26 +31,6 @@ NSArray<NSDictionary *> *VibeDebugWindowVerbs(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         table = @[
-            // TRAP: a shell-driven launch lands behind the frontmost app (the
-            // launch's cooperative activate is declined). An occluded window
-            // shows nothing to a real capture and keeps the equalizer bars
-            // off. The channel keeps the app from being napped meanwhile
-            // (vibe-libs' dev/DebugChannel). Ordered front without activating,
-            // so the frontmost app keeps the keyboard. No ordering helps a
-            // sleeping display or a locked screen, where every window reads
-            // occluded. Occlusion settles asynchronously, hence the spin.
-            VibeDebugCmd(@"raise_window", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                NSWindow *window = controller.window;
-                [window orderFrontRegardless];
-                NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:1.0];
-                while (!(window.occlusionState & NSWindowOcclusionStateVisible) && deadline.timeIntervalSinceNow > 0) {
-                    [NSRunLoop.currentRunLoop runMode:NSDefaultRunLoopMode
-                                           beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
-                }
-                return VibeJSONString(@{@"ok": @YES,
-                        @"visible": @((BOOL)((window.occlusionState & NSWindowOcclusionStateVisible) != 0)),
-                        @"displayAsleep": @((BOOL)(CGDisplayIsAsleep(CGMainDisplayID()) != 0))});
-            }),
             VibeDebugCmd(@"set_window_width <body-points> [height-points] [seconds]", 15, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 double bodyPoints = 0, height = controller.window.frame.size.height, seconds = 0;
                 if (tokens.count < 2 || tokens.count > 4 || !VibeParseDouble(tokens[1], &bodyPoints)

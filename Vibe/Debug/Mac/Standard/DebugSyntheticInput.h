@@ -11,7 +11,15 @@
 
 #import <AppKit/AppKit.h>
 
+@class VibeDebugStandardOptions;
+
 NS_ASSUME_NONNULL_BEGIN
+
+// The input table: key, key_down, key_up, click, mouse_down, mouse_up,
+// mouse_move, drag, and scroll. An app opts into it beside the standard
+// table. The mouse verbs and scroll aim at the options' targetWindow. The key
+// verbs post into the key window, or the target window when none is key.
+NSArray<NSDictionary *> *VibeDebugInputVerbs(VibeDebugStandardOptions *options);
 
 // tokens[0] is the verb: key, key_down, or key_up. Posts into window.
 NSString *VibeInjectKey(NSWindow *window, NSArray<NSString *> *tokens, BOOL down, BOOL up);

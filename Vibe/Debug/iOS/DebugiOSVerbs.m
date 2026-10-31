@@ -10,7 +10,6 @@
 #if DEBUG
 
 #import <UIKit/UIKit.h>
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "DebugChannel.h"
 #import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
@@ -25,8 +24,6 @@
 #import "LocationStore.h"
 #import "RecentsStore.h"
 #import "WaveformRendererRegistry.h"
-#import "DebugiOSCapture.h"
-#import "DebugFrameProbe.h"
 
 // What the system's Paste hands its target for copied text. Text that
 // parses as a URL with a scheme is offered as a URL too, as a copied link is.
@@ -116,12 +113,6 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSArray<NSDictionary *> *own = @[
-            VibeDebugCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                return VibeViewTreeDump();
-            }),
-            VibeDebugCmd(@"dump_screenshot", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                return VibeScreenshotJSON(commandId);
-            }),
             VibeDebugCmd(@"dump_art", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString([controller debugArtDictionary]);
             }),
@@ -196,20 +187,6 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             }),
             VibeDebugCmd(@"dump_layout_samples", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 return VibeJSONString([controller debugLayoutSamples]);
-            }),
-            // Frames the app is granted across a gesture, and how many ran
-            // long. On a phone, launch with --frame-rate-probe and read the
-            // same report in the log every five seconds.
-            VibeDebugCmd(@"sample_frame_rate <seconds>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                double seconds = 0;
-                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds) || seconds <= 0 || seconds > 60) {
-                    return VibeErrorJSON(@"usage: sample_frame_rate <seconds (0-60)>");
-                }
-                VibeDebugBeginFrameProbe(seconds);
-                return VibeJSONString(@{@"ok": @YES, @"seconds": @(seconds)});
-            }),
-            VibeDebugCmd(@"dump_frame_rate", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                return VibeJSONString(VibeDebugFrameProbeReport());
             }),
             // The real grant path is the system document picker, another
             // process's UI that neither the channel nor the touch driver can
@@ -423,17 +400,6 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 [browser pasteItemProviders:@[VibeDebugPasteProvider(VibeRestArgument(tokens))]];
                 return VibeJSONString(@{@"ok": @YES});
-            }),
-            // An app-owned clipboard item avoids the cross-app paste permission prompt.
-            VibeDebugCmd(@"set_clipboard <text> | clear", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                if (tokens.count < 2) {
-                    return VibeErrorJSON(@"usage: set_clipboard <text> | clear");
-                }
-                NSString *text = VibeRestArgument(tokens);
-                UIPasteboard.generalPasteboard.items = [text isEqualToString:@"clear"] ? @[] : @[@{
-                    UTTypeUTF8PlainText.identifier: text,
-                }];
-                return VibeJSONString(@{@"ok": @YES, @"changeCount": @(UIPasteboard.generalPasteboard.changeCount)});
             }),
             VibeDebugCmd(@"select_tab <playlist|favorites|files|search>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
                 NSString *identifier = tokens.count > 1 ? tokens[1] : nil;

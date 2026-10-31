@@ -65,7 +65,6 @@ NS_ASSUME_NONNULL_BEGIN
 // DebugStateDump.m — what the inspection verbs read. The view tree and the
 // menus are DebugViewTree.m's.
 NSDictionary *VibeStateDictionary(MainPlayerController *controller);
-NSString *VibeClickMenuItem(MainPlayerController *controller, NSString *name);
 NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller);
 NSDictionary *VibeOpenURLWindowState(void);
 NSString *VibeDriveOpenURLWindow(NSArray<NSString *> *tokens);
