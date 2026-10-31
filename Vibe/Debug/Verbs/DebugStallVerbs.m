@@ -2,8 +2,8 @@
 //  DebugStallVerbs.m
 //  Vibe
 //
-//  The verbs that stall the app on purpose: main, the render, the decoder,
-//  an open and every read-ahead.
+//  The verbs that stall the app on purpose: the render, the decoder, an open
+//  and every read-ahead. The main-thread stalls are the standard table's.
 //
 
 #import "DebugCommonVerbs.h"
@@ -20,26 +20,9 @@
 #import "AudioPlayer.h"
 #import "AudioPlayer+Debug.h"
 
-// Well under the stress driver's 20s liveness probe, so a stray block is never
-// mistaken for the hang it imitates.
+// block_main's bound, well under the stress driver's 20s liveness probe, so a
+// stray block is never mistaken for the hang it imitates.
 static const double kMaxBlockMainSeconds = 5.0;
-
-// Holds main from under `depth` real frames, so a stall-stack sample must span
-// a stack as deep as a layout recursion. Alternating call sites give
-// neighbouring frames different return addresses, as a layout <-> subview
-// recursion does. Not a tail call, or the compiler flattens it into a loop.
-__attribute__((noinline)) static NSUInteger VibeDebugRecurseThenBlock(NSUInteger depth, useconds_t micros,
-                                                                        BOOL alternating) {
-    if (depth == 0) {
-        usleep(micros);
-        return 0;
-    }
-    volatile NSUInteger kept = depth;
-    if (alternating && depth % 2) {
-        return VibeDebugRecurseThenBlock(depth - 1, micros, alternating) + kept + 1;
-    }
-    return VibeDebugRecurseThenBlock(depth - 1, micros, alternating) + kept;
-}
 
 // set_slow_volume's state. The verb writes it on main. The read-ahead hook
 // reads it on read-ahead threads. Both hold the condition's lock. A held read
@@ -146,21 +129,6 @@ NSArray<NSDictionary *> *VibeDebugStallVerbs(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         table = @[
-            VibeDebugCmd(@"block_main_deep <seconds> <depth> [alternating]", 30,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                     id<VibeDebugPlayerSurface> surface) {
-                double seconds = 0, depth = 0;
-                BOOL alternating = tokens.count == 4 && [tokens[3] isEqualToString:@"alternating"];
-                if ((tokens.count != 3 && !alternating) || !VibeParseDouble(tokens[1], &seconds)
-                        || !VibeParseDouble(tokens[2], &depth)
-                        || seconds <= 0 || seconds > kMaxBlockMainSeconds || depth < 0 || depth > 4000) {
-                    return VibeErrorJSON(@"usage: block_main_deep <seconds 0-%g> <depth 0-4000> [alternating]",
-                                         kMaxBlockMainSeconds);
-                }
-                VibeDebugRecurseThenBlock((NSUInteger)depth, (useconds_t)(seconds * 1e6), alternating);
-                return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds), @"depth": @(depth),
-                                        @"alternating": @(alternating)});
-            }),
             // The player's serial queue sleeps, as one stuck behind a slow
             // device call would, for up to 10 s.
             VibeDebugCmd(@"block_player <seconds>", 0,
@@ -210,48 +178,6 @@ NSArray<NSDictionary *> *VibeDebugStallVerbs(void) {
                     [player debugHoldDecoder:NO];
                 });
                 return VibeJSONString(@{@"ok": @YES, @"heldSeconds": @(seconds)});
-            }),
-            // Holds main, then runs a shared verb WITHOUT yielding it: one turn,
-            // not two. It stages a worker's main-queue callback that was raised
-            // before a user action but runs after it, which two channel commands
-            // cannot, since the channel's own intake is on main. Only shared
-            // verbs, because the platform tables are typed to their own
-            // controllers.
-            VibeDebugCmd(@"block_main <seconds> [<verb> ...]", 30,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                     id<VibeDebugPlayerSurface> surface) {
-                double seconds = 0;
-                if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds)
-                        || seconds <= 0 || seconds > kMaxBlockMainSeconds) {
-                    return VibeErrorJSON(@"usage: block_main <seconds 0-%g> [<verb> ...]",
-                                         kMaxBlockMainSeconds);
-                }
-                NSArray<NSString *> *then = tokens.count > 2
-                        ? [tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)] : nil;
-                NSDictionary *spec = then
-                        ? VibeDebugSpecForVerb(VibeDebugCommonCommandTable(), then.firstObject)
-                        : nil;
-                if (then && !spec) {
-                    return VibeErrorJSON(@"block_main can only chain a shared verb, not '%@'",
-                                         then.firstObject);
-                }
-                if ([then.firstObject isEqualToString:@"block_main"]) {
-                    return VibeErrorJSON(@"block_main cannot chain itself");
-                }
-                usleep((useconds_t)(seconds * 1e6));
-                if (!spec) {
-                    return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds)});
-                }
-                VibeDebugCommandHandler handler = spec[@"handler"];
-                NSString *chained = handler(then, commandId, surface);
-                // The chained verb replies asynchronously under this commandId;
-                // a reply here would be a second response.
-                if (!chained) {
-                    return nil;
-                }
-                return VibeJSONString(@{@"ok": @YES, @"blockedSeconds": @(seconds),
-                                        @"then": then.firstObject,
-                                        @"thenReply": chained});
             }),
             // set_fake_cloud shapes stage 1, the download; this holds stage 2,
             // the uncancellable AudioFileHandle call, which a locally backed

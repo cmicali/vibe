@@ -13,29 +13,6 @@
 extern "C" {
 #endif
 
-// Installs a notification hook that dumps the key window (else the main
-// window, else the first visible one) to a PNG. Trigger it from a terminal.
-// The name starts with the app's bundle identifier, as the channel's does:
-//
-//     notifyutil -p com.commonwealthrecordings.Vibe.debug.screenshot
-//
-// Then read vibe-screenshot.png from the tmp directory of the app's own
-// container. The app is sandboxed, so /tmp is not writable. A slotted build
-// has its own bundle identifier and container, which
-// `scripts/vibe-env.sh --print VIBE_CONTAINER` prints:
-//
-//     <the app's container>/Data/tmp/
-//
-// It renders the window's layer tree in-process, with no window-server
-// capture, so it needs no screen-recording permission and works with the
-// display asleep or the window occluded. NSGlassEffectView layers cannot
-// render this way: they are hidden, over an appearance-matched flat fill.
-// Hiding them forces a model-tree render, so a glass-bearing window's
-// animations land at their target values; glass-free windows render the
-// presentation tree mid-flight. Metal content (the About window) does not
-// render either.
-void VibeInstallDebugScreenshotHook(void);
-
 // Debug command channel: the Vibe binary doubles as its own CLI client.
 //
 //     .../Vibe.app/Contents/MacOS/Vibe --debug-cmd dump_state
@@ -50,23 +27,25 @@ void VibeInstallDebugScreenshotHook(void);
 // not post distributed notifications with userInfo — and polls for a
 // per-command response file.
 //
-// VibeDebugCommandTable (DebugMacVerbs.m and its topic tables) merged with
-// the shared table (Vibe/Debug/Verbs/) is the authoritative verb list: each entry carries its
-// usage string, client wait and handler, and dispatch and the unknown-command
-// reply both derive from it. Usage docs: the vibe-debug skill's
+// The shared table (Vibe/Debug/Verbs/), the standard and input tables
+// (Standard/), and VibeDebugCommandTable (DebugMacVerbs.m and its topic
+// tables) are the authoritative verb list: each entry carries its usage
+// string, client wait and handler, and dispatch and the unknown-command reply
+// both derive from them. Usage docs: the vibe-debug skill's
 // references/mac-verbs.md.
 
 // The app side; call it at launch. Installs the channel under the app's bundle
 // identifier, so it listens on <bundle id>.debug.command, on the main queue.
 void VibeInstallDebugCommandHook(void);
 
-// The client side, in DebugClient.m. main() invokes it for
+// The client side, in DebugClientLocalVerbs.m: Vibe's options and local verbs
+// over the client (Channel/DebugClient.h). main() invokes it for
 // `Vibe --debug-cmd ...` before NSApplicationMain, so no second app instance
 // ever starts. Returns the process exit code: 0 ok, 1 no response or I/O
 // failure, 2 command error, 64 usage.
 int VibeDebugCommandClientMain(int argc, const char *argv[]);
 
-// The spec for verb in either table the app dispatches with. The client reads
+// The spec for verb in any table the app dispatches with. The client reads
 // its clientTimeout, so its wait derives from the table the app uses.
 NSDictionary *VibeCommandSpecForVerb(NSString *verb);
 

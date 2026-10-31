@@ -2,8 +2,9 @@
 //  DebugiOSEntry.m
 //  Vibe (iOS)
 //
-//  The iOS dispatcher over the shared and iOS tables. The transport is
-//  DebugChannel.m; the iOS verbs are DebugiOSVerbs.m and its topic table.
+//  The iOS dispatcher over the shared, standard and iOS tables. The transport
+//  is vibe-libs' dev/DebugChannel; the iOS verbs are DebugiOSVerbs.m and its
+//  topic table.
 //
 
 #import "DebugiOSEntry.h"
@@ -15,10 +16,13 @@
 #import "DebugWireFormat.h"
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
+#import "DebugHealth.h"
+#import "DebugStandardVerbs.h"
 #import "PlaceholderFiles.h"
 #import "PlaceholderFiles+Debug.h"
 #import "RootViewController.h"
 #import "RootViewController+Debug.h"
+#import "DebugFrameProbe.h"
 
 // The shell adopts VibeDebugPlayerSurface: the one object that reaches both
 // the model and the card.
@@ -37,17 +41,37 @@ static RootViewController *VibeDebugRootController(void) {
     return nil;
 }
 
+// Looked up in this order. A verb in two tables runs from the first.
+static NSArray<NSArray<NSDictionary *> *> *VibeDebugiOSTables(void) {
+    static NSArray<NSArray<NSDictionary *> *> *tables;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        VibeDebugStandardOptions *options = [VibeDebugStandardOptions new];
+        options.healthExtras = ^NSDictionary *(RootViewController *controller) {
+            return VibeDebugHealthExtras(controller);
+        };
+        options.chainableVerbs = ^NSArray<NSDictionary *> *{
+            return VibeDebugCommonCommandTable();
+        };
+        tables = @[VibeDebugCommonCommandTable(), VibeDebugStandardVerbs(options), VibeiOSCommandTable()];
+    });
+    return tables;
+}
+
 static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *commandId) {
     NSString *verb = tokens.firstObject ?: @"";
     RootViewController *controller = VibeDebugRootController();
     if (!controller) {
         return VibeErrorJSON(@"app not fully launched");
     }
-    NSDictionary *spec = VibeDebugSpecForVerb(VibeDebugCommonCommandTable(), verb)
-            ?: VibeDebugSpecForVerb(VibeiOSCommandTable(), verb);
+    NSDictionary *spec = nil;
+    for (NSArray<NSDictionary *> *table in VibeDebugiOSTables()) {
+        if ((spec = VibeDebugSpecForVerb(table, verb))) {
+            break;
+        }
+    }
     if (!spec) {
-        return VibeDebugUnknownCommandReply(verb,
-                @[VibeDebugCommonCommandTable(), VibeiOSCommandTable()], nil);
+        return VibeDebugUnknownCommandReply(verb, VibeDebugiOSTables(), nil);
     }
     return ((VibeDebugCommandHandler)spec[@"handler"])(tokens, commandId, controller);
 }
@@ -57,7 +81,7 @@ static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSStrin
 static void VibeiOSStartLaunchProbes(void) {
     NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
     if ([arguments containsObject:@"--frame-rate-probe"]) {
-        [RootViewController debugBeginFrameProbeForSeconds:0];
+        VibeDebugBeginFrameProbe(0);
     }
     if ([arguments containsObject:@"--dataless-diag"]) {
         [PlaceholderFiles setDatalessDiagnosticsEnabled:YES];

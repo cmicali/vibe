@@ -70,20 +70,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
                 out[@"windowAppearance"] = controller.window.effectiveAppearance.isDark ? @"dark" : @"light";
                 return VibeJSONString(out);
             }),
-            VibeDebugCmd(@"dump_view_tree", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeViewTreeDump();
-            }),
-            VibeDebugCmd(@"dump_menu", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeJSONString(@{@"menu": VibeMenuArray(NSApp.mainMenu)});
-            }),
-            VibeDebugCmd(@"dump_screenshot [- | <label>]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                // The arguments are the client's; see DebugClient.m.
-                NSString *path = VibeDebugScreenshotPathForCommand(VibeDebugChannelName(), commandId);
-                if (!VibeDumpWindowSnapshot(path)) {
-                    return VibeErrorJSON(@"screenshot failed to render or write; see app log");
-                }
-                return VibeJSONString(@{@"path": path});
-            }),
             VibeDebugCmd(@"settings_open [pane [light|dark|system]]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsOpen(tokens);
             }),
@@ -104,13 +90,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             }),
             VibeDebugCmd(@"settings_resize <width> <height>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeDebugSettingsResize(tokens);
-            }),
-            VibeDebugCmd(@"click_menu <identifier-or-title>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                if (tokens.count < 2) {
-                    return VibeErrorJSON(@"usage: click_menu <identifier-or-title>");
-                }
-                // The rest of the tokens, so titles with spaces work unquoted.
-                return VibeClickMenuItem(controller, VibeRestArgument(tokens));
             }),
             VibeDebugCmd(@"open_url_window <text> | open | cancel | close", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 if (tokens.count < 2) {
@@ -196,18 +175,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             VibeDebugCmd(@"gesture_test pitch-reset|pitch-drag isolated-desktop", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeTestGesture(controller, tokens);
             }),
-            VibeDebugCmd(@"click <x> <y> [left|right] [clickCount]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectMouse(controller, tokens);
-            }),
-            VibeDebugCmd(@"mouse_down <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectMouse(controller, tokens);
-            }),
-            VibeDebugCmd(@"mouse_up <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectMouse(controller, tokens);
-            }),
-            VibeDebugCmd(@"mouse_move <x> <y> [left|right]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectMouse(controller, tokens);
-            }),
             VibeDebugCmd(@"file_drag_hover <x> <y>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSyntheticFileDragHover(controller, tokens);
             }),
@@ -228,21 +195,6 @@ NSArray<NSDictionary *> *VibeDebugCommandTable(void) {
             }),
             VibeDebugCmd(@"reorder_cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeReorderCancel(controller);
-            }),
-            VibeDebugCmd(@"drag <x1> <y1> <x2> <y2> [steps]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectDrag(controller, tokens);
-            }),
-            VibeDebugCmd(@"scroll <x> <y> <dy> [lines|pixels] [momentum]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectScroll(controller, tokens);
-            }),
-            VibeDebugCmd(@"key <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectKey(controller, tokens, YES, YES);
-            }),
-            VibeDebugCmd(@"key_down <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectKey(controller, tokens, YES, NO);
-            }),
-            VibeDebugCmd(@"key_up <key> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
-                return VibeInjectKey(controller, tokens, NO, YES);
             }),
             VibeDebugCmd(@"set_shortcut <identifier> <key|none> [mods...]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, MainPlayerController *controller) {
                 return VibeSetShortcut(controller, tokens);

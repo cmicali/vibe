@@ -1,27 +1,39 @@
 //
 //  DebugClient.m
-//  Vibe
+//  vibe-libs
 //
 
-#import "DebugMacEntry.h"
+#import "DebugClient.h"
 
 #if DEBUG
 
 #import <notify.h>
+#import <stdio.h>
 #import <unistd.h>
-#import "AppSettings.h"
-#import "AppSettings+Mac.h"
 #import "DebugWireFormat.h"
-#import "DebugCommonVerbs.h"
 
-// The CLI half of the debug command channel. The local verbs (sleep, script,
-// scan_bpm, scan_key, clear_disk_caches, set_analysis) run in this process;
-// everything else rides the transport DebugMacEntry.h describes.
+@implementation VibeDebugClientOptions
+
+- (instancetype)init {
+    if ((self = [super init])) {
+        _channel = NSBundle.mainBundle.bundleIdentifier ?: @"";
+        _displayName = NSProcessInfo.processInfo.processName;
+        _messagePrefix = NSProcessInfo.processInfo.processName;
+        _fileVerbs = @[];
+    }
+    return self;
+}
+
+@end
+
+// sleep and script run in this process, and so does each of the app's local
+// verbs. Everything else rides the transport: the command file, the
+// notification, and the poll for the reply.
 
 #pragma mark Client side
 
 // Script-mode replies are re-serialized compact — one line per command — so
-// script output is real NDJSON a wrapper can line-split (run-script.sh does).
+// script output is real NDJSON a wrapper can line-split.
 // Top-level replies keep the human-friendly pretty print.
 static void VibeClientPrintReply(NSString *json, BOOL inScript) {
     if (inScript) {
@@ -39,10 +51,10 @@ static void VibeClientPrintReply(NSString *json, BOOL inScript) {
 }
 
 // Prints one command's reply and returns its exit code. inScript switches the
-// verbs whose I/O cannot compose with NDJSON output: dump_screenshot carries
-// the PNG as base64 instead of raw bytes, and the stdin scan forms and nested
-// script are rejected.
-static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
+// verbs whose I/O cannot compose with NDJSON output: a file verb carries its
+// file as base64 instead of raw bytes, and a nested script is rejected.
+static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript, VibeDebugClientOptions *options,
+                                 const char *flag) {
     @autoreleasepool {
         // Client-side pause, for scripts: the app's main thread never sleeps.
         if ([args.firstObject isEqualToString:@"sleep"]) {
@@ -50,7 +62,7 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             BOOL valid = args.count == 2 && VibeParseDouble(args[1], &seconds)
                     && seconds > 0 && seconds <= 600;
             if (!valid) {
-                fprintf(stderr, "usage: Vibe --debug-cmd sleep <seconds 0-600>\n");
+                fprintf(stderr, "usage: %s %s sleep <seconds 0-600>\n", options.displayName.UTF8String, flag);
                 return 64;
             }
             usleep((useconds_t)(seconds * 1e6));
@@ -58,95 +70,16 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             return 0;
         }
         if (inScript && [args.firstObject isEqualToString:@"script"]) {
-            fprintf(stderr, "vibe: scripts cannot nest\n");
+            fprintf(stderr, "%s: scripts cannot nest\n", options.messagePrefix.UTF8String);
             return 64;
         }
-        // The stdin form stages the bytes in this process's own container
-        // tmp: a shell cp into ~/Library/Containers/<id>/ trips macOS 14+
-        // app-data protection, while inherited fds cross the sandbox freely.
-        // The staged file has no extension; CoreAudio identifies the format
-        // by content.
-        BOOL isScanBPM = [args.firstObject isEqualToString:@"scan_bpm"];
-        if (isScanBPM || [args.firstObject isEqualToString:@"scan_key"]) {
-            const char *verb = args.firstObject.UTF8String;
-            NSString *(*scan)(NSString *) = isScanBPM ? VibeDebugBPMScanJSON : VibeDebugKeyScanJSON;
-            NSString *json = nil;
-            if (args.count == 2 && [args[1] isEqualToString:@"-"]) {
-                if (inScript) {
-                    // The script source may itself be riding stdin.
-                    fprintf(stderr, "vibe: %s - (stdin) is not available inside a script — pass a file path\n", verb);
-                    return 64;
-                }
-                NSData *audio = [NSFileHandle.fileHandleWithStandardInput readDataToEndOfFile];
-                if (audio.length == 0) {
-                    fprintf(stderr, "vibe: empty stdin — usage: Vibe --debug-cmd %s - < file\n", verb);
-                    return 64;
-                }
-                NSString *staged = [NSTemporaryDirectory() stringByAppendingPathComponent:
-                        [NSString stringWithFormat:@"analysis-scan-%@", NSUUID.UUID.UUIDString]];
-                if (![audio writeToFile:staged atomically:YES]) {
-                    fprintf(stderr, "vibe: cannot write %s\n", staged.fileSystemRepresentation);
-                    return 1;
-                }
-                json = scan(staged);
-                [NSFileManager.defaultManager removeItemAtPath:staged error:nil];
+        if (options.localVerb) {
+            int status = options.localVerb(args, inScript, ^(NSString *json) {
+                VibeClientPrintReply(json, inScript);
+            });
+            if (status >= 0) {
+                return status;
             }
-            else if (args.count == 2) {
-                json = scan(args[1]);
-            }
-            else {
-                fprintf(stderr, "usage: Vibe --debug-cmd %s <file | ->\n", verb);
-                return 64;
-            }
-            VibeClientPrintReply(json, inScript);
-            NSDictionary *reply = [NSJSONSerialization JSONObjectWithData:
-                    [json dataUsingEncoding:NSUTF8StringEncoding] ?: NSData.data
-                                                                  options:0
-                                                                    error:nil];
-            return reply[@"error"] != nil ? 2 : 0;
-        }
-        // In-process for the same container-ownership reason (a shell rm -rf
-        // into the container prompts). Only with no app running: deleting
-        // under a live app races its open caches, which is why clear-caches.sh
-        // checks pgrep and uses the channel's clear_caches instead.
-        if ([args.firstObject isEqualToString:@"clear_disk_caches"]) {
-            NSString *caches = NSSearchPathForDirectoriesInDomains(
-                    NSCachesDirectory, NSUserDomainMask, YES).firstObject;
-            NSFileManager *fm = NSFileManager.defaultManager;
-            NSMutableArray<NSString *> *cleared = [NSMutableArray array];
-            for (NSString *name in [fm contentsOfDirectoryAtPath:caches error:nil]) {
-                if ([name hasPrefix:@"com.pinterest.PINDiskCache."]
-                        && [fm removeItemAtPath:[caches stringByAppendingPathComponent:name] error:nil]) {
-                    [cleared addObject:name];
-                }
-            }
-            VibeClientPrintReply(VibeJSONString(@{@"ok": @YES, @"cleared": cleared}), inScript);
-            return 0;
-        }
-        // A prefs write from the CLI process. AppSettings reads these from
-        // defaults on every access, so a running app's next waveform decode
-        // sees them with no relaunch — A/B timing of the analyzers without
-        // the UI.
-        if ([args.firstObject isEqualToString:@"set_analysis"]) {
-            BOOL on = args.count == 3 && [args[2] isEqualToString:@"on"];
-            BOOL off = args.count == 3 && [args[2] isEqualToString:@"off"];
-            BOOL isBPM = args.count == 3 && [args[1] isEqualToString:@"bpm"];
-            BOOL isKey = args.count == 3 && [args[1] isEqualToString:@"key"];
-            if ((!on && !off) || (!isBPM && !isKey)) {
-                fprintf(stderr, "usage: Vibe --debug-cmd set_analysis <bpm|key> <on|off>\n");
-                return 64;
-            }
-            if (isBPM) {
-                AppSettings.sharedInstance.analyzeBPM = on;
-            }
-            else {
-                AppSettings.sharedInstance.analyzeKey = on;
-            }
-            [NSUserDefaults.standardUserDefaults synchronize];
-            VibeClientPrintReply(VibeJSONString(@{@"ok": @YES,
-                                                  @"analyzeBPM": @(AppSettings.sharedInstance.analyzeBPM),
-                                                  @"analyzeKey": @(AppSettings.sharedInstance.analyzeKey)}), inScript);
-            return 0;
         }
         NSString *commandId = NSUUID.UUID.UUIDString;
         // One array element per argv entry, never joined and re-tokenized, so
@@ -156,13 +89,13 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
             @"args": args,
         };
         // Same bundle ID + sandbox entitlements as the app, so NSTemporaryDirectory()
-        // resolves to the same container tmp the app-side handler reads. The
-        // bundle ID also names the channel, as the app installs it.
-        NSString *channel = NSBundle.mainBundle.bundleIdentifier;
+        // resolves to the same container tmp the app-side handler reads.
+        NSString *channel = options.channel;
         NSData *data = [NSJSONSerialization dataWithJSONObject:payload options:0 error:nil];
         NSString *commandPath = VibeDebugCommandPath(channel, commandId);
         if (![data writeToFile:commandPath atomically:YES]) {
-            fprintf(stderr, "vibe: cannot write %s\n", commandPath.fileSystemRepresentation);
+            fprintf(stderr, "%s: cannot write %s\n", options.messagePrefix.UTF8String,
+                    commandPath.fileSystemRepresentation);
             return 1;
         }
         notify_post(VibeDebugCommandNotificationName(channel).UTF8String);
@@ -170,12 +103,12 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
         NSString *responsePath = VibeDebugResponsePath(channel, commandId);
         NSFileManager *fileManager = NSFileManager.defaultManager;
         // Slow verbs declare their own wait in the table the app dispatches
-        // with. Everything else gets 5s, or VIBE_DEBUG_TIMEOUT: a script
-        // driving the failure fixtures (the bit-perfect verifier) knows the
-        // app's main thread waits out a dead device for longer than that.
-        NSTimeInterval timeout = [VibeCommandSpecForVerb(args.firstObject)[@"clientTimeout"] doubleValue];
-        if (timeout <= 0) {
-            timeout = [NSProcessInfo.processInfo.environment[@"VIBE_DEBUG_TIMEOUT"] doubleValue];
+        // with. Everything else gets 5s, or the environment's: a script
+        // driving a failure fixture may know the app's main thread waits out
+        // a dead device for longer than that.
+        NSTimeInterval timeout = options.waitForVerb ? options.waitForVerb(args.firstObject) : 0;
+        if (timeout <= 0 && options.timeoutEnvironmentKey) {
+            timeout = [NSProcessInfo.processInfo.environment[options.timeoutEnvironmentKey] doubleValue];
         }
         if (timeout <= 0) {
             timeout = 5;
@@ -198,23 +131,22 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
                                                                       options:0
                                                                         error:nil];
                 BOOL failed = ![reply isKindOfClass:NSDictionary.class] || reply[@"error"] != nil;
-                // Only this process may read the PNG: it lives in the app
+                // Only this process may read the file: it lives in the app
                 // container, and another process reading it trips macOS 14+
                 // app-data protection, while the inherited stdout fd crosses
-                // the sandbox freely. `dump_screenshot -` writes raw PNG bytes
-                // to stdout and the JSON reply to stderr. In a script the reply
-                // line carries the PNG as base64 plus any label, which
-                // run-script.sh decodes to numbered files.
-                if (!failed && [args.firstObject isEqualToString:@"dump_screenshot"]
+                // the sandbox freely. `<verb> -` writes the raw bytes to
+                // stdout and the JSON reply to stderr. In a script the reply
+                // line carries the bytes as base64 plus any label.
+                if (!failed && [options.fileVerbs containsObject:args.firstObject]
                             && (inScript || [args containsObject:@"-"])) {
                     NSString *pngPath = [reply[@"path"] isKindOfClass:NSString.class] ? reply[@"path"] : nil;
                     NSData *png = pngPath ? [NSData dataWithContentsOfFile:pngPath] : nil;
-                    // Consumed here, or the per-command PNGs pile up all run.
+                    // Consumed here, or the per-command files pile up all run.
                     if (pngPath) {
                         [fileManager removeItemAtPath:pngPath error:nil];
                     }
                     if (png.length == 0) {
-                        fprintf(stderr, "vibe: no screenshot at %s\n",
+                        fprintf(stderr, "%s: no file at %s\n", options.messagePrefix.UTF8String,
                                 pngPath.fileSystemRepresentation ?: "(no path in reply)");
                         return 2;
                     }
@@ -249,7 +181,8 @@ static int VibeDebugClientRunOne(NSArray<NSString *> *args, BOOL inScript) {
         [fileManager removeItemAtPath:commandPath error:nil];
         // Tenths for a wait that is not whole, or 0.5 s prints as 0 s.
         int decimals = timeout == floor(timeout) ? 0 : 1;
-        fprintf(stderr, "vibe: no response after %.*fs — is a debug build of Vibe running?\n", decimals, timeout);
+        fprintf(stderr, "%s: no response after %.*fs — is a debug build of %s running?\n",
+                options.messagePrefix.UTF8String, decimals, timeout, options.displayName.UTF8String);
         return 1;
     }
 }
@@ -306,7 +239,7 @@ static NSArray<NSString *> *VibeTokenizeScriptLine(NSString *line, NSString **er
 // are skipped. Output is one JSON reply per command (NDJSON). Stops at the
 // first failing command and returns its exit code, so a script doubles as a
 // test: exit 0 means every command succeeded.
-static int VibeDebugClientRunScript(NSString *source) {
+static int VibeDebugClientRunScript(NSString *source, VibeDebugClientOptions *options, const char *flag) {
     NSUInteger lineNumber = 0;
     for (NSString *rawLine in [source componentsSeparatedByString:@"\n"]) {
         lineNumber++;
@@ -318,15 +251,16 @@ static int VibeDebugClientRunScript(NSString *source) {
         NSString *error = nil;
         NSArray<NSString *> *tokens = VibeTokenizeScriptLine(line, &error);
         if (!tokens) {
-            fprintf(stderr, "vibe: script line %lu: %s\n", (unsigned long)lineNumber, error.UTF8String);
+            fprintf(stderr, "%s: script line %lu: %s\n", options.messagePrefix.UTF8String,
+                    (unsigned long)lineNumber, error.UTF8String);
             return 64;
         }
         if (tokens.count == 0) {
             continue;
         }
-        int status = VibeDebugClientRunOne(tokens, YES);
+        int status = VibeDebugClientRunOne(tokens, YES, options, flag);
         if (status != 0) {
-            fprintf(stderr, "vibe: script line %lu failed (exit %d): %s\n",
+            fprintf(stderr, "%s: script line %lu failed (exit %d): %s\n", options.messagePrefix.UTF8String,
                     (unsigned long)lineNumber, status,
                     [tokens componentsJoinedByString:@" "].UTF8String);
             return status;
@@ -335,19 +269,21 @@ static int VibeDebugClientRunScript(NSString *source) {
     return 0;
 }
 
-int VibeDebugCommandClientMain(int argc, const char *argv[]) {
+int VibeDebugClientMain(int argc, const char *argv[], VibeDebugClientOptions *options) {
     @autoreleasepool {
+        const char *flag = argc >= 2 ? argv[1] : "";
+        const char *name = options.displayName.UTF8String;
         NSMutableArray<NSString *> *args = [NSMutableArray array];
         for (int i = 2; i < argc; i++) {
             [args addObject:@(argv[i])];
         }
         if (args.count == 0) {
-            fprintf(stderr, "usage: Vibe --debug-cmd <command> [args...]\n");
+            fprintf(stderr, "usage: %s %s <command> [args...]\n", name, flag);
             return 64;
         }
         if ([args.firstObject isEqualToString:@"script"]) {
             if (args.count != 2) {
-                fprintf(stderr, "usage: Vibe --debug-cmd script <file | ->\n");
+                fprintf(stderr, "usage: %s %s script <file | ->\n", name, flag);
                 return 64;
             }
             NSString *source;
@@ -362,14 +298,14 @@ int VibeDebugCommandClientMain(int argc, const char *argv[]) {
             }
             if (!source) {
                 // Usually the sandbox: this process can't read arbitrary user
-                // paths (same as argv audio files). stdin always crosses.
-                fprintf(stderr, "vibe: cannot read script '%s' (sandbox?) — use: script - < %s\n",
-                        [args[1] UTF8String], [args[1] UTF8String]);
+                // paths (as with argv files). stdin always crosses.
+                fprintf(stderr, "%s: cannot read script '%s' (sandbox?) — use: script - < %s\n",
+                        options.messagePrefix.UTF8String, [args[1] UTF8String], [args[1] UTF8String]);
                 return 64;
             }
-            return VibeDebugClientRunScript(source);
+            return VibeDebugClientRunScript(source, options, flag);
         }
-        return VibeDebugClientRunOne(args, NO);
+        return VibeDebugClientRunOne(args, NO, options, flag);
     }
 }
 

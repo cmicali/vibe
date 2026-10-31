@@ -23,8 +23,12 @@
 #import "DebugCommonVerbs.h"
 #import "DebugConsistency.h"
 #import "DebugHealth.h"
+#import "DebugProcessHealth.h"
 #import "DebugMacConsistency.h"
+#import "DebugScreenshot.h"
 #import "DebugSettingsUI.h"
+#import "DebugSyntheticInput.h"
+#import "DebugViewTree.h"
 #import "AudioWaveformLoader+Debug.h"
 
 #import "AppDelegate.h"
@@ -58,27 +62,16 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// DebugScreenshot.m — window capture.
-BOOL VibeDumpWindowSnapshot(NSString *path);
-
-// DebugStateDump.m — what the inspection verbs read.
+// DebugStateDump.m — what the inspection verbs read. The view tree and the
+// menus are DebugViewTree.m's.
 NSDictionary *VibeStateDictionary(MainPlayerController *controller);
-NSString *VibeViewTreeDump(void);
-NSArray *VibeMenuArray(NSMenu *menu);
-NSString *VibeClickMenuItem(MainPlayerController *controller, NSString *name);
 NSDictionary *VibeActionSummaryDictionary(MainPlayerController *controller);
 NSDictionary *VibeOpenURLWindowState(void);
 NSString *VibeDriveOpenURLWindow(NSArray<NSString *> *tokens);
 
-// DebugInput.m — synthesized input and row selection.
-NSPoint VibeWindowPointForContentPoint(NSWindow *window, double x, double y);
-NSString *VibeInjectKey(MainPlayerController *controller, NSArray<NSString *> *tokens,
-                        BOOL down, BOOL up);
+// DebugShellInput.m — shortcut remapping, gesture probes, and row selection.
 NSString *VibeSetShortcut(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeResetShortcuts(MainPlayerController *controller);
-NSString *VibeInjectMouse(MainPlayerController *controller, NSArray<NSString *> *tokens);
-NSString *VibeInjectDrag(MainPlayerController *controller, NSArray<NSString *> *tokens);
-NSString *VibeInjectScroll(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeTestGesture(MainPlayerController *controller, NSArray<NSString *> *tokens);
 NSString *VibeSelectPlaylistRows(MainPlayerController *controller, NSArray<NSString *> *tokens);
 

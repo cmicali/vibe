@@ -21,17 +21,12 @@
 #import "AppSettings.h"
 #import "SettingsRules.h"
 #import "AppStats.h"
-#import "NSBundle+BuildInfo.h"
 #import "MusicalKey.h"
 #import "AudioPlayer.h"
 #import "AudioPlayer+Debug.h"
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
-#import "VibeWorkTally.h"
 
-#if TARGET_OS_OSX
-#import <AppKit/AppKit.h>
-#endif
 
 BOOL VibeDebugLaunchSilent(void) {
     return [NSProcessInfo.processInfo.arguments containsObject:@"--silent"];
@@ -158,38 +153,9 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSArray<NSDictionary *> *own = @[
-            VibeDebugCmd(@"work_tally <begin|end>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                                                  id<VibeDebugPlayerSurface> surface) {
-                if (tokens.count == 2 && [tokens[1] isEqualToString:@"begin"]) {
-                    VibeWorkTallyBeginWindow("debug");
-                    return VibeJSONString(@{@"ok": @YES});
-                }
-                if (tokens.count == 2 && [tokens[1] isEqualToString:@"end"]) {
-                    return VibeJSONString(VibeWorkTallyTakeWindow());
-                }
-                return VibeErrorJSON(@"usage: work_tally <begin|end>");
-            }),
             VibeDebugCmd(@"dump_state", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                        id<VibeDebugPlayerSurface> surface) {
                 return VibeJSONString(surface.debugStateDictionary);
-            }),
-            // Which build answered: two instances race for the channel, and a
-            // stale one replies like a fresh one. A slotted build has its own
-            // bundle id, executable and channel.
-            VibeDebugCmd(@"dump_build", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                                       id<VibeDebugPlayerSurface> surface) {
-                NSBundle *bundle = NSBundle.mainBundle;
-                NSString *channel = VibeDebugChannelName();
-                return VibeJSONString(@{
-                    @"bundleId": bundle.bundleIdentifier ?: NSNull.null,
-                    @"executable": bundle.executablePath.lastPathComponent ?: NSNull.null,
-                    @"channel": channel ? VibeDebugCommandNotificationName(channel) : NSNull.null,
-                    @"version": bundle.vibeVersionString,
-                    @"git": bundle.vibeGitString,
-                    @"built": bundle.vibeBuildTimeString,
-                    @"pid": @(NSProcessInfo.processInfo.processIdentifier),
-                    @"path": bundle.bundlePath,
-                });
             }),
             VibeDebugCmd(@"dump_stats", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                        id<VibeDebugPlayerSurface> surface) {
@@ -372,13 +338,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     @"violations": violations,
                 });
             }),
-            // See DebugHealth.h. Reads the player's counts on its serial
-            // queue, so a wedged queue times this out rather than answering
-            // from stale state.
-            VibeDebugCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                                         id<VibeDebugPlayerSurface> surface) {
-                return VibeDebugHealthJSON(surface);
-            }),
             // Sample dump_health right after it for a reading taken at rest.
             VibeDebugCmd(@"quiesce", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                      id<VibeDebugPlayerSurface> surface) {
@@ -386,25 +345,6 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
                     VibeWriteDebugResponse(commandId, response);
                 });
                 return nil; // response written by the poll
-            }),
-            // Ends the app without a signal, the only way to end one Xcode is
-            // debugging (the debugger traps SIGTERM), and on macOS the only
-            // exit that runs applicationWillTerminate:'s AppStats flush. The
-            // reply is written first because nothing survives to write it; the
-            // exit is deferred so the calling drain finishes.
-            VibeDebugCmd(@"quit", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
-                                                 id<VibeDebugPlayerSurface> surface) {
-                VibeWriteDebugResponse(commandId, VibeJSONString(@{@"ok": @YES, @"quitting": @YES}));
-                run_on_main_thread({
-#if TARGET_OS_OSX
-                    [NSApp terminate:nil];
-#else
-                    // UIKit has no terminate; the simulator test loop wants
-                    // exactly this.
-                    exit(0);
-#endif
-                });
-                return nil; // written above, before the app goes away
             }),
         ];
         table = [[[own arrayByAddingObjectsFromArray:VibeDebugStallVerbs()]
