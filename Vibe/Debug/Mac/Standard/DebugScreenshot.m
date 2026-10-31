@@ -36,7 +36,7 @@ BOOL VibeDumpWindowSnapshot(NSString *path) {
     if (!window) {
         // Front to back, not creation order: with the app inactive both
         // keyWindow and mainWindow are nil, and NSApp.windows would hand back
-        // the player even while the settings or about window sits in front.
+        // the first window made even while another sits in front.
         for (NSWindow *candidate in NSApp.orderedWindows) {
             if (candidate.isVisible && candidate.contentView) {
                 window = candidate;
@@ -63,7 +63,7 @@ BOOL VibeDumpWindowSnapshot(NSString *path) {
     CGContextScaleCTM(ctx, scale, scale);
     // With the glass layers hidden below, their region renders transparent, so
     // paint an appearance-matched proxy background first. Dark-mode content —
-    // white text and waveform at low alpha — then keeps the window's real
+    // white text and drawing at low alpha — then keeps the window's real
     // contrast polarity rather than flattening onto white.
     NSAppearanceName match = [window.effectiveAppearance
             bestMatchFromAppearancesWithNames:@[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]];

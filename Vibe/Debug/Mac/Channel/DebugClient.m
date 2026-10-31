@@ -33,7 +33,7 @@
 #pragma mark Client side
 
 // Script-mode replies are re-serialized compact — one line per command — so
-// script output is real NDJSON a wrapper can line-split (run-script.sh does).
+// script output is real NDJSON a wrapper can line-split.
 // Top-level replies keep the human-friendly pretty print.
 static void VibeClientPrintReply(NSString *json, BOOL inScript) {
     if (inScript) {
@@ -298,7 +298,7 @@ int VibeDebugClientMain(int argc, const char *argv[], VibeDebugClientOptions *op
             }
             if (!source) {
                 // Usually the sandbox: this process can't read arbitrary user
-                // paths (same as argv audio files). stdin always crosses.
+                // paths (as with argv files). stdin always crosses.
                 fprintf(stderr, "%s: cannot read script '%s' (sandbox?) — use: script - < %s\n",
                         options.messagePrefix.UTF8String, [args[1] UTF8String], [args[1] UTF8String]);
                 return 64;

@@ -71,7 +71,7 @@ static NSString *VibeImageDigest(NSImage *image) {
 }
 
 NSArray *VibeMenuArray(NSMenu *menu) {
-    // Delegate-built menus (Output, Open Recent, Themes) populate only when
+    // Delegate-built menus, such as Open Recent, populate only when
     // displayed, and [menu update] alone does not call menuNeedsUpdate:.
     if ([menu.delegate respondsToSelector:@selector(menuNeedsUpdate:)]) {
         [menu.delegate menuNeedsUpdate:menu];
@@ -99,8 +99,8 @@ NSArray *VibeMenuArray(NSMenu *menu) {
             node[@"action"] = NSStringFromSelector(item.action);
         }
         node[@"enabled"] = @(item.isEnabled);
-        // Still in itemArray but not on screen, e.g. Convert with conversion
-        // disabled in Settings.
+        // Still in itemArray but not on screen, such as an item a setting
+        // switches off.
         if (item.isHidden) {
             node[@"hidden"] = @YES;
         }

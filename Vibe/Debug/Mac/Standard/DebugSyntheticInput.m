@@ -1,8 +1,9 @@
 //
-//  DebugInput.m
-//  Vibe
+//  DebugSyntheticInput.m
+//  vibe-libs
 //
-//  Synthesized input: keyboard, mouse and gestures, and direct row selection.
+//  Synthesized input: the key, mouse, drag, and scroll posting, and the input
+//  table.
 //
 
 #import "DebugSyntheticInput.h"
@@ -15,16 +16,17 @@
 
 #pragma mark Input injection
 
-// Synthesized NSEvents posted into the app's own event queue. Unlike the
-// direct-action verbs they exercise real event dispatch, local monitors such
-// as TransportKeyMonitor and view mouse handling included; unlike CGEvent
-// injection through input.swift they need no Accessibility permission. Mouse
-// injection still activates the window, and handlers can start native
-// file/window dragging: app-local events are not containment.
+// Synthesized NSEvents posted into the app's own event queue. Unlike verbs
+// that call an action directly, they exercise real event dispatch, local
+// event monitors and view mouse handling included. Unlike CGEvent injection,
+// they need no Accessibility permission. Mouse injection still activates the
+// window, and handlers can start native file/window dragging: app-local
+// events are not containment.
 //
 // Two limits against real window-server events: tracking areas and hover
 // effects do not fire, since the window server drives those, and the events
-// are processed after the reply is written, so poll dump_state for the result.
+// are processed after the reply is written, so poll the app's state for the
+// result.
 //
 // Mouse coordinates are content-view points with a top-left origin, the frame
 // dump_screenshot renders: its pixels divided by the backing scale.
@@ -112,8 +114,8 @@ BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
     BOOL repeat = NO;
     for (NSUInteger i = start; i < tokens.count; i++) {
         NSString *mod = tokens[i].lowercaseString;
-        // Hardware key repeat, not a modifier flag: several handlers gate on
-        // it (a held delete takes one row; the effect keys ignore repeats).
+        // Hardware key repeat, not a modifier flag: a handler may gate on it,
+        // as one that takes a single step per press does.
         if ([mod isEqualToString:@"repeat"]) {
             repeat = YES;
         }
@@ -140,8 +142,8 @@ BOOL VibeParseModifiers(NSArray<NSString *> *tokens, NSUInteger start,
 }
 
 // key posts a down and an up; key_down and key_up post one edge each, which
-// is how a held Q/W/E/R/T effect key is driven: TransportKeyMonitor decides
-// latch (tap) or revert (hold) on keyUp.
+// is how a held key is driven: a handler that latches on a tap and reverts on
+// a hold decides on key up.
 NSString *VibeInjectKey(NSWindow *window, NSArray<NSString *> *tokens, BOOL down, BOOL up) {
     NSString *verb = tokens.firstObject;
     if (tokens.count < 2) {

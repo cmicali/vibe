@@ -49,8 +49,8 @@ static NSUInteger VibeMachPortCount(void) {
     return nameCount;
 }
 
-// A leaked AudioFileHandle or an unclosed cache handle shows here long before it
-// shows in the footprint.
+// A leaked file handle or an unclosed cache shows here long before it shows in
+// the footprint.
 // TRAP: the NULL-buffer sizing call is not a count. It answers the size of the
 // descriptor TABLE, which grows with peak concurrency and never shrinks, so
 // every burst of parallel opens would read as a permanent leak. Fetch the
