@@ -23,6 +23,7 @@
 #import "DebugCommonVerbs.h"
 #import "DebugConsistency.h"
 #import "DebugHealth.h"
+#import "DebugProcessHealth.h"
 #import "DebugMacConsistency.h"
 #import "DebugScreenshot.h"
 #import "DebugSettingsUI.h"

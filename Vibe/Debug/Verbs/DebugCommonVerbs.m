@@ -18,6 +18,7 @@
 #import "DebugChannel.h"
 #import "DebugConsistency.h"
 #import "DebugHealth.h"
+#import "DebugProcessHealth.h"
 #import "AppSettings.h"
 #import "SettingsRules.h"
 #import "AppStats.h"
@@ -377,7 +378,11 @@ NSArray<NSDictionary *> *VibeDebugCommonCommandTable(void) {
             // from stale state.
             VibeDebugCmd(@"dump_health", 10, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,
                                                          id<VibeDebugPlayerSurface> surface) {
-                return VibeDebugHealthJSON(surface);
+                NSDictionary *process = VibeDebugProcessHealth();
+                NSMutableDictionary *reply = [VibeDebugHealthExtras(surface) mutableCopy];
+                reply[@"ok"] = @YES;
+                reply[@"process"] = process;
+                return VibeJSONString(reply);
             }),
             // Sample dump_health right after it for a reading taken at rest.
             VibeDebugCmd(@"quiesce", 20, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId,

@@ -28,6 +28,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "SearchViewController.h"
 #import "DebugCommonVerbs.h"
 #import "DebugHealth.h"
+#import "DebugProcessHealth.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "AudioFX.h"
