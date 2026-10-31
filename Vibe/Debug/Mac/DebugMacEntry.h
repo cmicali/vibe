@@ -27,23 +27,25 @@ extern "C" {
 // not post distributed notifications with userInfo — and polls for a
 // per-command response file.
 //
-// VibeDebugCommandTable (DebugMacVerbs.m and its topic tables) merged with
-// the shared table (Vibe/Debug/Verbs/) is the authoritative verb list: each entry carries its
-// usage string, client wait and handler, and dispatch and the unknown-command
-// reply both derive from it. Usage docs: the vibe-debug skill's
+// The shared table (Vibe/Debug/Verbs/), the standard and input tables
+// (Standard/), and VibeDebugCommandTable (DebugMacVerbs.m and its topic
+// tables) are the authoritative verb list: each entry carries its usage
+// string, client wait and handler, and dispatch and the unknown-command reply
+// both derive from them. Usage docs: the vibe-debug skill's
 // references/mac-verbs.md.
 
 // The app side; call it at launch. Installs the channel under the app's bundle
 // identifier, so it listens on <bundle id>.debug.command, on the main queue.
 void VibeInstallDebugCommandHook(void);
 
-// The client side, in DebugClient.m. main() invokes it for
+// The client side, in DebugClientLocalVerbs.m: Vibe's options and local verbs
+// over the client (Channel/DebugClient.h). main() invokes it for
 // `Vibe --debug-cmd ...` before NSApplicationMain, so no second app instance
 // ever starts. Returns the process exit code: 0 ok, 1 no response or I/O
 // failure, 2 command error, 64 usage.
 int VibeDebugCommandClientMain(int argc, const char *argv[]);
 
-// The spec for verb in either table the app dispatches with. The client reads
+// The spec for verb in any table the app dispatches with. The client reads
 // its clientTimeout, so its wait derives from the table the app uses.
 NSDictionary *VibeCommandSpecForVerb(NSString *verb);
 
