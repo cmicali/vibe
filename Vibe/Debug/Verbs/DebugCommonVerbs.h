@@ -4,8 +4,9 @@
 //
 //  The verbs both platforms answer identically, written once against
 //  VibeDebugPlayerSurface. A verb lands here only when the surface is enough
-//  to implement it; each platform's table is this one plus its own. The verbs
-//  are split by topic, one file each.
+//  to implement it. Each dispatcher looks a verb up here, then in vibe-libs'
+//  standard tables, then in its own. The verbs are split by topic, one file
+//  each.
 //
 
 #if DEBUG

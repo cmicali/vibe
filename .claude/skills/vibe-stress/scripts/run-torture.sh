@@ -77,7 +77,8 @@ echo "  exe: $exe"
 echo "  verified: intended binary"
 
 # As in launch.sh: an occluded window shows nothing to a real capture and keeps
-# the equalizer bars off (raise_window's TRAP in DebugWindowVerbs.m).
+# the equalizer bars off (raise_window's TRAP, in vibe-libs'
+# dev/DebugVerbs/Mac/DebugStandardMacVerbs.m).
 raised=$("$VIBE_BIN" --debug-cmd raise_window 2>/dev/null)
 if printf '%s' "$raised" | jq -e '.visible' >/dev/null 2>&1; then
     echo "  window: raised, visible"

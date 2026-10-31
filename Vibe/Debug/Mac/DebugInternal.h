@@ -10,10 +10,6 @@
 
 #import <AppKit/AppKit.h>
 #import <QuartzCore/QuartzCore.h>
-#import <ImageIO/ImageIO.h>
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
-#import <MediaPlayer/MediaPlayer.h>
-#import <notify.h>
 
 #import "DebugMacEntry.h"
 #import "DebugWireFormat.h"
@@ -25,7 +21,6 @@
 #import "DebugHealth.h"
 #import "DebugProcessHealth.h"
 #import "DebugMacConsistency.h"
-#import "DebugScreenshot.h"
 #import "DebugSettingsUI.h"
 #import "DebugSyntheticInput.h"
 #import "DebugViewTree.h"
