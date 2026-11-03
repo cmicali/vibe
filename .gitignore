@@ -69,8 +69,8 @@ __pycache__/
 # App Store Connect API keys must never be committed, wherever they're dropped.
 *.p8
 
-# Local Wrangler state.
-/.wrangler/
+# Local Wrangler state, under the directory deploy-web.sh runs it in.
+.wrangler/
 
 # Claude
 .claude/worktrees/

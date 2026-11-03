@@ -62,7 +62,7 @@ A second iOS target, `VibeClip`, built from the shared subsystems and one screen
 
 Use the current host-specific rules in vibe-libs' `files/ShareLinks`. They own share-link rewriting, naming and error classification. Recheck provider behavior before building the service.
 
-Keep Pages Functions outside the static tree. GitHub Pages serves only static files. Verify the KV binding and token permissions in each Cloudflare environment. Serve the AASA file as JSON without a redirect and check it through Apple's CDN on the production domain.
+Keep Pages Functions in `Assets/Web/functions/`. wrangler compiles that directory and does not upload it. GitHub Pages runs no Functions. Verify the KV binding and token permissions in each Cloudflare environment. Serve the AASA file as JSON without a redirect and check it through Apple's CDN on the production domain.
 
 The macOS and iOS targets share `com.commonwealthrecordings.Vibe`. Confirm their signed application identifiers before writing the AASA entry.
 

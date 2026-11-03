@@ -2,8 +2,9 @@
 
 The Vibe marketing page: static HTML, one stylesheet, and images. There is no
 build step and nothing to install. Copy the folder to any static host and it
-works. On Cloudflare, two Pages Functions in the repo root's `functions/` also
-count update checks (Update checks, below).
+works. On Cloudflare, the two Pages Functions in `functions/` also count update
+checks (Update checks, below). Neither host serves them as files. wrangler
+compiles them and skips them on upload, and `pages.yml` leaves them out.
 
 ```
 index.html              the page
@@ -14,6 +15,7 @@ img/                    app icon renditions and screenshots, PNG and WebP
 _headers, _redirects    Cloudflare Pages rules; GitHub Pages ignores both
 appcast.xml             the update feed for the universal direct download
 appcast-arm64.xml       the same for the arm64-only one; github-release.sh writes both
+functions/              the Cloudflare Pages Functions that count update checks
 robots.txt, sitemap.xml, llms.txt
 ```
 
@@ -129,7 +131,7 @@ It works on Cloudflare only, like `/support`. GitHub Pages ignores
 `make github-release` repoints the page, publishes the release and then runs
 `deploy-web.sh` itself (the `vibe-release` skill). Run `make deploy-web` by hand
 only to retry, or to publish a page change between releases. It refuses when
-`Assets/Web` or `functions/` differs from `origin/main`. Push the change first.
+`Assets/Web` differs from `origin/main`. Push the change first.
 `make deploy-web ARGS="--dry-run"` checks the download link and lists the files
 without uploading, and needs no credentials.
 
