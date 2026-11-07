@@ -4,7 +4,7 @@
 
 ## The row
 
-**`AudioTrack` is one row: a file whole, or a cue sheet's window of one.** It holds the row's installed metadata, its analyzed tempo and key, and the sheet's names. `bpm` and `key` are the one home of the rule that tags beat analysis. `displayTitle` and `displayArtist` are the one place a track is named (root `AGENTS.md`).
+**`AudioTrack` is one row: a file whole, or a cue sheet's window of one.** It holds the row's installed metadata, its analyzed tempo and key, and the sheet's names. `bpm` and `key` are the one home of the rule that tags beat analysis. `displayTitle` and `displayArtist` are the one place a track is named (root `AGENTS.md`). Its title, artist, and length come from vibe-libs' row rules (`media/Metadata`'s `VibeTrackDisplay.h`), which another app shares: the sheet's names win over the image's tags, and a window with an end is its own length.
 
 **It adopts `VibePlayableItem` (vibe-libs' `audio/AudioTypes`), which is all the player and the caches read of it.** That is its URL, its window in CD frames, `sourceKey` and `cacheKey`. `sourceKey` is fixed at init, so a per-tick comparison allocates nothing. `cacheKey` is memoized and stamped with `NSURL.cacheKeyGeneration`, so a download that installs another version retires every memo at once. The window's arithmetic is `CueWindowMath.h`, in the same piece, which the CUE reader shares.
 
