@@ -6,17 +6,18 @@
 #import <QuartzCore/QuartzCore.h> // CATransition for the state fade
 #import "PlaylistDropZoneView.h"
 #import "NSView+DarkMode.h"
-#import "NSImage+Util.h"
 #import "Fonts.h"
+#import "VibeDropWellsView.h"
 #import "VibeStrings.h"
 
 #pragma mark - Layout
 
+// The rest well sits where vibe-libs' drag-over wells do.
 static const CGFloat kWellInset = 20;        // well edge from the pane edge
 static const CGFloat kWellCornerRadius = 10;
 static const CGFloat kWellStrokeWidth = 2;
 static const CGFloat kWellDashLength = 6;    // 6 on / 6 off, round caps
-static const CGFloat kWellGap = 16;          // between the two drag-over wells
+static const CGFloat kWellLabelInset = 12;   // label text from the well border
 
 // The rest state: two stacked lines.
 static const CGFloat kRestLineGap = 8;
@@ -26,13 +27,12 @@ static const CGFloat kKeycapPaddingV = 2;
 static const CGFloat kKeycapCornerRadius = 4;
 static const CGFloat kKeycapGap = 5;         // after "or press"
 
-// The drag-over wells: an SF Symbol above the label.
-static const CGFloat kDropIconPointSize = 26;
-static const CGFloat kDropIconLabelGap = 10;
-static const CGFloat kWellLabelInset = 12;   // label text from the well border
-
 // The swap between rest and drag-over: a fast fade, deliberately not springy.
 static const CFTimeInterval kStateFadeDuration = 0.12;
+
+// The wells' identifiers, which the drop resolves to an action.
+static NSString *const kReplaceWell = @"replace";
+static NSString *const kAddWell = @"add";
 
 #pragma mark - Palette
 
@@ -45,8 +45,8 @@ static NSColor *HexColor(uint32_t rgb) {
                                alpha:1.0];
 }
 
-// A child canvas so the drawing composites above the blur subview; the parent
-// keeps all state and drawing.
+// A child canvas for the rest well, above the wells view; the parent keeps
+// all state and drawing.
 @class PlaylistDropZoneView;
 
 @interface PlaylistDropZoneCanvas : NSView
@@ -70,18 +70,14 @@ static NSColor *HexColor(uint32_t rgb) {
 @end
 
 @implementation PlaylistDropZoneView {
-    BOOL _dragActive;
-    PlaylistDropWellAction _hoveredWell; // None while over neither well
-    NSVisualEffectView *_blurView;       // over the rows during drag-over
+    // The drag-over wells, their blur over the rows, and their light.
+    VibeDropWellsView *_wellsView;
     PlaylistDropZoneCanvas *_canvas;
-    // Tinted symbols by name and color: drag-over redraws at mouse-move rate.
-    NSMutableDictionary<NSString *, NSImage *> *_symbolCache;
 }
 
 - (instancetype)initWithFrame:(NSRect)frameRect {
     self = [super initWithFrame:frameRect];
     if (self) {
-        _symbolCache = [NSMutableDictionary new];
         _playlistEmpty = YES;
         self.wantsLayer = YES;
         // The compact layout squashes the pane to zero height, and views do not
@@ -89,13 +85,20 @@ static NSColor *HexColor(uint32_t rgb) {
         // header.
         self.clipsToBounds = YES;
 
-        _blurView = [[NSVisualEffectView alloc] initWithFrame:self.bounds];
-        _blurView.blendingMode = NSVisualEffectBlendingModeWithinWindow;
-        _blurView.material = NSVisualEffectMaterialHUDWindow;
-        _blurView.state = NSVisualEffectStateActive;
-        _blurView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
-        _blurView.hidden = YES;
-        [self addSubview:_blurView];
+        _wellsView = [[VibeDropWellsView alloc] initWithFrame:self.bounds];
+        _wellsView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
+        // This view fades its own layer, the rest well's swap with them.
+        _wellsView.fadesStateChanges = NO;
+        VibeDropWellsStyle *style = [[VibeDropWellsStyle alloc] init];
+        style.strokeColor = HexColor(0x62646E);
+        style.hoverStrokeColor = HexColor(0x9FA4B4);
+        style.hoverFillColor = [NSColor colorWithWhite:1 alpha:0.05];
+        style.contentColor = HexColor(0x75777F);
+        style.hoverContentColor = HexColor(0xC6C8D0);
+        style.font = [Fonts font:14];
+        _wellsView.style = style;
+        [self addSubview:_wellsView];
+        [self updateWells];
 
         _canvas = [[PlaylistDropZoneCanvas alloc] initWithFrame:self.bounds];
         _canvas.zone = self;
@@ -115,7 +118,7 @@ static NSColor *HexColor(uint32_t rgb) {
         return;
     }
     _playlistEmpty = playlistEmpty;
-    [self updateBlur];
+    [self updateWells];
     _canvas.needsDisplay = YES;
 }
 
@@ -127,8 +130,18 @@ static NSColor *HexColor(uint32_t rgb) {
     _canvas.needsDisplay = YES;
 }
 
-- (void)updateBlur {
-    _blurView.hidden = !(_dragActive && !_playlistEmpty);
+// Replace against add is meaningless with no rows: an empty playlist shows
+// one full-width add well, with no blur, since there are no rows to read
+// against.
+- (void)updateWells {
+    VibeDropWell *add = [VibeDropWell wellWithIdentifier:kAddWell
+                                                   title:STR_LABEL_PLAYLIST_DROP_ADD
+                                              symbolName:@"plus"];
+    VibeDropWell *replace = [VibeDropWell wellWithIdentifier:kReplaceWell
+                                                       title:STR_LABEL_PLAYLIST_DROP_REPLACE
+                                                  symbolName:@"arrow.triangle.2.circlepath"];
+    _wellsView.wells = _playlistEmpty ? @[add] : @[replace, add];
+    _wellsView.showsBlur = !_playlistEmpty;
 }
 
 #pragma mark - Geometry
@@ -143,27 +156,11 @@ static NSColor *HexColor(uint32_t rgb) {
     return NSInsetRect(self.bounds, kWellInset, kWellInset);
 }
 
-- (NSRect)wellRectForAction:(PlaylistDropWellAction)action {
-    NSRect inset = [self fullWellRect];
-    if (_playlistEmpty) {
-        return action == PlaylistDropWellActionAdd ? inset : NSZeroRect;
-    }
-    CGFloat width = floor((NSWidth(inset) - kWellGap) / 2);
-    if (action == PlaylistDropWellActionReplace) {
-        return NSMakeRect(NSMinX(inset), NSMinY(inset), width, NSHeight(inset));
-    }
-    // Right-anchored, so the rounding slack lands in the gap, not at the edge.
-    return NSMakeRect(NSMaxX(inset) - width, NSMinY(inset), width, NSHeight(inset));
-}
-
-- (PlaylistDropWellAction)wellActionAtPoint:(NSPoint)point {
-    if (NSPointInRect(point, [self wellRectForAction:PlaylistDropWellActionAdd])) {
+static PlaylistDropWellAction ActionOfWell(NSString *identifier) {
+    if ([identifier isEqualToString:kAddWell]) {
         return PlaylistDropWellActionAdd;
     }
-    if (NSPointInRect(point, [self wellRectForAction:PlaylistDropWellActionReplace])) {
-        return PlaylistDropWellActionReplace;
-    }
-    return PlaylistDropWellActionNone;
+    return [identifier isEqualToString:kReplaceWell] ? PlaylistDropWellActionReplace : PlaylistDropWellActionNone;
 }
 
 #pragma mark - Drag-over tracking
@@ -172,27 +169,19 @@ static NSColor *HexColor(uint32_t rgb) {
     if (![self isEffectivelyVisible]) {
         return;
     }
-    PlaylistDropWellAction hovered = [self wellActionAtPoint:[self convertPoint:point fromView:nil]];
-    if (_dragActive && hovered == _hoveredWell) {
-        return;
-    }
-    if (!_dragActive) {
+    if (!_wellsView.dragActive) {
         [self addStateFade]; // entering drag-over; hover moves redraw plainly
+        _canvas.needsDisplay = YES;
     }
-    _dragActive = YES;
-    _hoveredWell = hovered;
-    [self updateBlur];
-    _canvas.needsDisplay = YES;
+    [_wellsView fileDragUpdatedAtWindowPoint:point];
 }
 
 - (void)fileDragEnded {
-    if (!_dragActive) {
+    if (!_wellsView.dragActive) {
         return;
     }
-    _dragActive = NO;
-    _hoveredWell = PlaylistDropWellActionNone;
     [self addStateFade];
-    [self updateBlur];
+    [_wellsView fileDragEnded];
     _canvas.needsDisplay = YES;
 }
 
@@ -200,7 +189,7 @@ static NSColor *HexColor(uint32_t rgb) {
     if (![self isEffectivelyVisible]) {
         return PlaylistDropWellActionNone;
     }
-    return [self wellActionAtPoint:[self convertPoint:point fromView:nil]];
+    return ActionOfWell([_wellsView wellIdentifierAtWindowPoint:point]);
 }
 
 - (void)addStateFade {
@@ -217,7 +206,7 @@ static NSColor *HexColor(uint32_t rgb) {
 // table is never shadowed.
 - (NSView *)hitTest:(NSPoint)point {
     NSPoint local = [self convertPoint:point fromView:self.superview];
-    if (_playlistEmpty && !_dragActive && [self isEffectivelyVisible] &&
+    if (_playlistEmpty && !_wellsView.dragActive && [self isEffectivelyVisible] &&
         NSPointInRect(local, [self fullWellRect])) {
         return self;
     }
@@ -269,35 +258,19 @@ static NSColor *HexColor(uint32_t rgb) {
 
 - (void)drawCanvas {
     // The clip alone would still show slivers of off-center content
-    // mid-resize.
-    if (![self isEffectivelyVisible]) {
+    // mid-resize. The drag-over wells are the wells view's.
+    if (![self isEffectivelyVisible] || _wellsView.dragActive || !_playlistEmpty) {
         return;
     }
-    if (_dragActive) {
-        if (!_playlistEmpty) {
-            [self drawDropWell:PlaylistDropWellActionReplace
-                        symbol:@"arrow.triangle.2.circlepath"
-                         label:STR_LABEL_PLAYLIST_DROP_REPLACE];
-        }
-        [self drawDropWell:PlaylistDropWellActionAdd
-                    symbol:@"plus"
-                     label:STR_LABEL_PLAYLIST_DROP_ADD];
-    }
-    else if (_playlistEmpty) {
-        [self drawRestWell];
-    }
+    [self drawRestWell];
 }
 
 // One path, so the dash pattern runs evenly through the corners.
-static void strokeWellBorder(NSRect wellRect, NSColor *strokeColor, NSColor *fillColor) {
+static void strokeWellBorder(NSRect wellRect, NSColor *strokeColor) {
     NSRect r = NSInsetRect(wellRect, kWellStrokeWidth / 2, kWellStrokeWidth / 2);
     NSBezierPath *path = [NSBezierPath bezierPathWithRoundedRect:r
                                                          xRadius:kWellCornerRadius
                                                          yRadius:kWellCornerRadius];
-    if (fillColor) {
-        [fillColor setFill];
-        [path fill];
-    }
     path.lineWidth = kWellStrokeWidth;
     path.lineCapStyle = NSLineCapStyleRound;
     CGFloat dash[2] = { kWellDashLength, kWellDashLength };
@@ -320,7 +293,7 @@ static void drawTextCenteredAt(NSAttributedString *text, CGFloat centerX, CGFloa
 
 - (void)drawRestWell {
     NSRect well = [self fullWellRect];
-    strokeWellBorder(well, HexColor(0x62646E), nil);
+    strokeWellBorder(well, HexColor(0x62646E));
 
     NSAttributedString *line1 = [[NSAttributedString alloc]
             initWithString:STR_LABEL_PLAYLIST_DRAG_HINT
@@ -373,49 +346,6 @@ static void drawTextCenteredAt(NSAttributedString *text, CGFloat centerX, CGFloa
     [keycap stroke];
     [keycapText drawAtPoint:NSMakePoint(NSMidX(keycapRect) - keycapTextSize.width / 2,
                                         NSMidY(keycapRect) - keycapTextSize.height / 2)];
-}
-
-- (void)drawDropWell:(PlaylistDropWellAction)action
-              symbol:(NSString *)symbolName
-               label:(NSString *)label {
-    BOOL hovered = (_hoveredWell == action);
-    NSRect well = [self wellRectForAction:action];
-    strokeWellBorder(well,
-                     hovered ? HexColor(0x9FA4B4) : HexColor(0x62646E),
-                     hovered ? [NSColor colorWithWhite:1 alpha:0.05] : nil);
-
-    NSColor *contentColor = hovered ? HexColor(0xC6C8D0) : HexColor(0x75777F);
-    NSImage *icon = [self symbolImage:symbolName color:contentColor];
-    NSAttributedString *text = [[NSAttributedString alloc]
-            initWithString:label
-                attributes:textAttributes([Fonts font:14], contentColor)];
-
-    NSSize iconSize = icon.size;
-    NSSize textSize = text.size;
-    CGFloat totalHeight = iconSize.height + kDropIconLabelGap + textSize.height;
-    CGFloat textY = NSMidY(well) - totalHeight / 2;
-    CGFloat iconY = textY + textSize.height + kDropIconLabelGap;
-
-    [icon drawInRect:NSMakeRect(NSMidX(well) - iconSize.width / 2, iconY,
-                                iconSize.width, iconSize.height)
-            fromRect:NSZeroRect
-           operation:NSCompositingOperationSourceOver
-            fraction:1.0
-      respectFlipped:YES
-               hints:nil];
-    drawTextCenteredAt(text, NSMidX(well), textY, NSWidth(well) - 2 * kWellLabelInset);
-}
-
-- (NSImage *)symbolImage:(NSString *)name color:(NSColor *)color {
-    NSString *key = [NSString stringWithFormat:@"%@/%@", name, color];
-    NSImage *image = _symbolCache[key];
-    if (!image) {
-        image = [NSImage symbolNamed:name pointSize:kDropIconPointSize
-                              weight:NSFontWeightMedium palette:@[color]
-            accessibilityDescription:nil];
-        _symbolCache[key] = image;
-    }
-    return image;
 }
 
 @end

@@ -144,7 +144,7 @@ targets:
     type: application
     platform: macOS
     # vibe-libs' pieces, compiled in as this target's own sources.
-    # SettingsWindow, Shortcuts, AppOpening, SandboxAccess, and Updates are
+    # SettingsWindow, Shortcuts, DropWells, AppOpening, SandboxAccess, and Updates are
     # macOS only, so VibeiOS never lists them. Updates lists Sparkle, which
     # links and embeds the framework. The vendored libraries carry their own
     # flags. Metadata's parse reads TagLib's own types, and the FLAC converter
@@ -159,7 +159,7 @@ targets:
                 VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsSettingsWindow, VibeLibsShortcuts,
-                VibeLibsAppOpening, VibeLibsSandboxAccess, VibeLibsNowPlaying, VibeLibsUpdates, VibeLibsDebugChannel,
+                VibeLibsDropWells, VibeLibsAppOpening, VibeLibsSandboxAccess, VibeLibsNowPlaying, VibeLibsUpdates, VibeLibsDebugChannel,
                 VibeLibsDebugVerbs, VibeLibsVorbis,
                 VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
                 VibeLibsDrFlac, VibeLibsDrWav]
@@ -761,6 +761,7 @@ targets:
       - path: vibe-libs/ui/Controls/Mac/PitchControlPanel.m
       - path: vibe-libs/ui/Controls/Mac/PitchFaderView.m
       - path: Vibe/Playlist/Mac/PlaylistDropZoneView.m
+      - path: vibe-libs/ui/DropWells/Mac/VibeDropWellsView.m   # the drop zone's drag-over wells
       - path: vibe-libs/ui/Shortcuts/Mac/ShortcutLayout.m   # +Settings names a shortcut under the layout
       - path: Vibe/Mac/MainWindow/Transport/MainPlayerController+Transport.m
       - path: Vibe/Playlist/Mac/PlaylistController.m
@@ -882,6 +883,8 @@ targets:
           - "$(SRCROOT)/vibe-libs/audio/FX"
           # The indicators' header-only activity and animation rules.
           - "$(SRCROOT)/vibe-libs/ui/Controls"
+          # The drop zone's drag-over wells.
+          - "$(SRCROOT)/vibe-libs/ui/DropWells/Mac"
           # The views' accessibility contract.
           - "$(SRCROOT)/vibe-libs/waveform/WaveformView"
           # The styles: the theme, the zoom math, the renderers, the level
