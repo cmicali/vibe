@@ -976,6 +976,7 @@ targetTemplates:
       - path: vibe-libs/files/HTTP/VibeFakeHTTPProtocol.m   # HTTPStub's serving engine
       - path: Vibe/Playlist/AudioTrack.m
       - path: vibe-libs/media/Metadata/NSURL+FilenameTitle.m
+      - path: vibe-libs/media/Metadata/VibeTrackDisplay.m   # the row's title, artist, and length
       # The render path's -O2, anchored in VibeAudioTests' list, which YAML reads first.
       - path: vibe-libs/audio/DSP/AudioResampler.mm
       - path: vibe-libs/audio/FX/AudioFX.m

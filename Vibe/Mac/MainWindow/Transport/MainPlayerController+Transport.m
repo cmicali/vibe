@@ -224,6 +224,9 @@
             return STR_SETTINGS_BIT_PERFECT_EXCLUSIVE_REFUSED;
         case VibeBitPerfectStatusSourceLossy:
             return STR_SETTINGS_BIT_PERFECT_LOSSY;
+        // Vibe's rows carry no file gain, so the player never reports it.
+        case VibeBitPerfectStatusFileGain:
+            break;
     }
     return @"";
 }

@@ -6,11 +6,11 @@
 #import "AudioTrack.h"
 #import "FilePaths.h"
 #import "AudioTrackMetadata.h"
-#import "CueWindowMath.h"
 #import "Formatters.h"
 #import "NSURL+FilenameTitle.h"
 #import "NSURL+Hash.h"
 #import "VibePlaylistEntry.h"
+#import "VibeTrackDisplay.h"
 #import "VibeStrings.h"
 
 #include <stdatomic.h>
@@ -172,26 +172,13 @@
     return key;
 }
 
+// The window's names win over the image's tags (vibe-libs' VibeTrackDisplay.h).
 - (NSString *)title {
-    if (_cueRowTitle) {
-        return _cueRowTitle;
-    }
-    if (self.metadata.title.length > 0) {
-        return self.metadata.title;
-    }
-    return self.url.filenameTitle ?: @"";
+    return VibeTrackTitle(self.metadata, self.url, _cueRowTitle) ?: self.url.filenameTitle ?: @"";
 }
 
 - (NSString *)artist {
-    if (_cuePerformer.length > 0) {
-        return _cuePerformer;
-    }
-    if (self.metadata.artist.length > 0) {
-        return self.metadata.artist;
-    }
-    else {
-        return @"";
-    }
+    return VibeTrackArtist(self.metadata, _cuePerformer) ?: @"";
 }
 
 - (VibeImage *)cachedArt {
@@ -229,11 +216,7 @@
     if (duration >= 0) {
         return duration;
     }
-    if (_cueEnd > _cueStart) {
-        return (NSTimeInterval)(_cueEnd - _cueStart) / kVibeCDFramesPerSecond;
-    }
-    NSTimeInterval file = self.metadata.duration;
-    return _cueStart > 0 && file > 0 ? MAX(0, file - (NSTimeInterval)_cueStart / kVibeCDFramesPerSecond) : file;
+    return VibeTrackDuration(self.metadata, _cueStart, _cueEnd);
 }
 
 - (void)setDuration:(NSTimeInterval)len {
