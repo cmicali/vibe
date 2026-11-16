@@ -47,8 +47,7 @@ check_text() { # <lang> <dir>
 check_captions() { # <label> <lang> <platform> <screenshots.json> <shot ids…>
     local label="$1" lang="$2" plat="$3" json="$4"
     shift 4
-    local id h s canvas hscale
-    hscale="$(headline_scale "$plat")"
+    local id h s canvas
     jq -e 'type == "array"' "$json" >/dev/null 2>&1 || { err "$label: $json is not a JSON array"; return; }
     for id in "$@"; do
         h="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .headline // empty' "$json")"
@@ -62,10 +61,10 @@ check_captions() { # <label> <lang> <platform> <screenshots.json> <shot ids…>
             [ -n "$s" ] || { err "$label: shot '$id' missing subhead"; continue; }
         fi
         # --lang is the language (it picks font and line breaking), not the
-        # label. Each canvas has its own type size and width cap.
+        # label. The compositor picks each canvas's type size and measure.
         for canvas in $(canvases "$plat"); do
             "$COMPOSE_BIN" --measure --lang "$lang" --headline "$h" --subhead "$s" \
-                --canvas "$canvas" --headline-scale "$hscale" \
+                --canvas "$canvas" \
                 || err "$label: shot '$id' captions do not fit $canvas"
         done
     done
@@ -84,15 +83,6 @@ canvases() {
     case "$1" in
         macos) echo "2880x1800" ;;
         ios)   echo "1290x2796 2048x2732" ;;
-    esac
-}
-
-# Must match appstore-generate-store-screenshots.sh's HEADLINE_SCALE, or the
-# fit check passes copy that fails the build.
-headline_scale() {
-    case "$1" in
-        ios) echo 1.9 ;;
-        *)   echo 1.0 ;;
     esac
 }
 

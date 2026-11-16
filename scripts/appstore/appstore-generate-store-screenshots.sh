@@ -1,6 +1,6 @@
 #!/bin/bash
-# Build the App Store screenshots by compositing the window captures in
-# Assets/readme/ onto generated backgrounds.
+# Build the App Store screenshots by compositing the captures in
+# Assets/readme/ into frames (compose-app-store-overlay.swift has the design).
 #
 #   scripts/appstore/appstore-generate-store-screenshots.sh [--platform macos|ios] [lang]
 #   scripts/appstore/appstore-generate-store-screenshots.sh --all [--platform macos|ios]
@@ -19,7 +19,7 @@
 # so re-capture first if the UI changed. appstore-capture-app-screenshots.sh
 # instead photographs the window over a staged desktop, so the Liquid Glass
 # shows a real backdrop, but only at its captured size; this upscales the
-# capture ~1.6x so the window fills the canvas.
+# capture ~1.7x so the window spans the canvas.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -48,12 +48,11 @@ if [ "${1:-}" = --creative ]; then
         "$ROOT/Assets/readme/screenshot-ios-iphone-seek.png"
     # GitHub's social preview, uploaded by hand under the repo's Settings >
     # General: 1280x640, and under GitHub's 1 MB cap, which the PNG is not.
-    # The repo card shows only rows 78-562, the band GitHub's template marks,
-    # so the block is centred in that band with 63px clear above the text and
-    # below the window; --block-y offsets the space above the headline's caps,
-    # which the compositor's own centring counts as part of the block.
+    # The repo card shows only rows 78-562, the band GitHub's template marks.
+    # --block-y lifts the block into that band, with about 50px clear above
+    # the headline's caps and below the window.
     "$COMPOSE_BIN" "$ROOT/Assets/readme/screenshot-basic.png" "$OUT/github-social-preview.png" \
-        --canvas 1280x640 --width 0.70 --block-y 0.47 --headline Vibe --headline-scale 2.0 \
+        --canvas 1280x640 --width 0.70 --block-y 0.20 --headline Vibe --headline-scale 2.0 \
         --subhead "A fast, minimal player for your music files" --subhead-scale 1.48
     sips -s format jpeg -s formatOptions 90 "$OUT/github-social-preview.png" \
         --out "$OUT/github-social-preview.jpg" >/dev/null
@@ -112,12 +111,6 @@ prepare_out() { # <dir>
     rm -f "$OUT"/*.png
 }
 
-# SF Symbols drawn above the player headline; empty draws no row. The FX row
-# is "dial.min,dial.max.fill,water.waves,repeat,repeat.circle" (Q-W-E-R-T), and
-# any names here must match the FX menu's in Vibe/Mac/Menu/MainMenuBuilder.m so
-# the shot shows the app's own glyphs.
-PLAYER_GLYPHS=""
-
 # iOS captions are headline-only; an empty subhead makes the compositor drop
 # the line.
 caption() { # <id> <headline|subhead>
@@ -130,7 +123,7 @@ caption() { # <id> <headline|subhead>
     printf '%s' "$v"
 }
 
-shot() { # <id> <source> <output> [glyphs] [wash-color]
+shot() { # <id> <source> <output> [ground]
     if [ ! -f "$IN/$2" ]; then
         if [ "$PLATFORM" = ios ]; then
             # generate-readme-screenshots.sh is macOS-only.
@@ -142,36 +135,32 @@ shot() { # <id> <source> <output> [glyphs] [wash-color]
         fi
         exit 1
     fi
-    local wash=() canvas=() hscale=() centre=()
-    [ -n "${CENTER_TEXT:-}" ] && centre=(--center-text)
-    [ -n "${5:-}" ] && wash=(--wash-color "$5")
+    local ground=() canvas=()
+    [ -n "${4:-}" ] && ground=(--ground "$4")
     [ -n "${CANVAS:-}" ] && canvas=(--canvas "$CANVAS")
-    [ -n "${HEADLINE_SCALE:-}" ] && hscale=(--headline-scale "$HEADLINE_SCALE")
     "$COMPOSE_BIN" "$IN/$2" "$OUT/$3" --lang "$L" \
         --headline "$(caption "$1" headline)" \
         --subhead "$(caption "$1" subhead)" \
-        --glyphs "${4:-}" ${wash[@]+"${wash[@]}"} ${canvas[@]+"${canvas[@]}"} \
-        ${hscale[@]+"${hscale[@]}"} ${centre[@]+"${centre[@]}"}
+        ${ground[@]+"${ground[@]}"} ${canvas[@]+"${canvas[@]}"}
 }
 
 # iOS: one directory per ASC screenshot set, since iPhone (APP_IPHONE_67) and
 # iPad (APP_IPAD_PRO_3GEN_129) are separate sets. Each canvas is its set's
-# exact size, which is also the simulator's native size.
+# exact size, which is also the simulator's native size. The compositor lays
+# out a portrait canvas as a device screen under a headline.
 if [ "$PLATFORM" = ios ]; then
-    # At the size the store draws a phone shot, a second, smaller line is
-    # unreadable, so the headline alone carries it at nearly twice nominal.
-    # appstore-validate-copy.sh's headline_scale must match, or its fit check
-    # passes copy that fails here.
-    HEADLINE_SCALE="${HEADLINE_SCALE:-1.9}"
-    # One- and two-line headlines sit side by side, so the device is pinned
-    # and the text centred above it; otherwise the phone jumps between shots.
-    CENTER_TEXT=1
     for device in iphone:1290x2796 ipad:2048x2732; do
         DEV="${device%%:*}"; CANVAS="${device##*:}"
         prepare_out "${OUT_DIR:-$ROOT/Assets/app-store/screenshots/$L/ios/$DEV}"
         shot player   "screenshot-ios-$DEV-player.png"   01-player.png
         shot seek     "screenshot-ios-$DEV-seek.png"     02-seek.png
-        shot playlist "screenshot-ios-$DEV-playlist.png" 03-playlist.png
+        # The only fixed ground. The list is black with a dozen small covers,
+        # so the capture has no colour of its own. E0D8C8 is the paper of the
+        # playing row's cover.
+        #
+        # TRAP: eyedropped from demo-music/artwork/. Change the playing track
+        # and resample it, or drop the argument.
+        shot playlist "screenshot-ios-$DEV-playlist.png" 03-playlist.png E0D8C8
         shot widget   "screenshot-ios-$DEV-widget.png"   04-widget.png
     done
     echo "done — $ROOT/Assets/app-store/screenshots/$L/ios"
@@ -182,16 +171,9 @@ prepare_out "${OUT_DIR:-$ROOT/Assets/app-store/screenshots/$L/macos}"
 
 # The leading number is the store's display order: the uploader sends each
 # set in file-name order.
-shot player   screenshot-basic.png          01-player.png   "$PLAYER_GLYPHS"
+shot player   screenshot-basic.png          01-player.png
 shot playlist screenshot-playlist.png       02-playlist.png
-# The only fixed background: this track's art is a red hat on green, and the
-# derived red wash fought the orange waveform. 5C9488 is the art's own green,
-# which solidWash halves to #2E4A44.
-#
-# TRAP: 5C9488 is eyedropped from FOLDER_TRACK_THEMES's artwork
-# (generate-readme-screenshots.sh). Change that track and resample it, or drop
-# the argument.
-shot themes   screenshot-themes.png         03-themes.png   ""              5C9488
+shot themes   screenshot-themes.png         03-themes.png
 # The compact pitch capture: a playlist under the fader would compete with
 # shot 02.
 shot pitch    screenshot-pitch.png          04-pitch.png
