@@ -53,17 +53,13 @@ check_captions() { # <label> <lang> <platform> <screenshots.json> <shot ids…>
         h="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .headline // empty' "$json")"
         s="$(jq -r --arg id "$id" 'first(.[] | select(.id == $id)) | .subhead // empty' "$json")"
         [ -n "$h" ] || { err "$label: shot '$id' missing headline"; continue; }
-        # iOS captions are headline-only, enforced both ways: a subhead in one
-        # locale would render, laying that locale out unlike the rest.
-        if [ "$plat" = ios ]; then
-            [ -z "$s" ] || err "$label: shot '$id' has a subhead; iOS captions are headline-only"
-        else
-            [ -n "$s" ] || { err "$label: shot '$id' missing subhead"; continue; }
-        fi
+        # Captions are headline-only, enforced both ways: a subhead in one
+        # locale would never render, and would read as if it did.
+        [ -z "$s" ] || err "$label: shot '$id' has a subhead; captions are headline-only"
         # --lang is the language (it picks font and line breaking), not the
         # label. The compositor picks each canvas's type size and measure.
         for canvas in $(canvases "$plat"); do
-            "$COMPOSE_BIN" --measure --lang "$lang" --headline "$h" --subhead "$s" \
+            "$COMPOSE_BIN" --measure --lang "$lang" --headline "$h" \
                 --canvas "$canvas" \
                 || err "$label: shot '$id' captions do not fit $canvas"
         done

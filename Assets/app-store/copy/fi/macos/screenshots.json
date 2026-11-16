@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Nopea, pelkistetty soitin musiikkitiedostoillesi",
-    "subhead": "MP3, FLAC, AIFF, WAV ja muut. Klikkaa aaltomuotoa ja hyppää haluamaasi kohtaan."
+    "headline": "Nopea, pelkistetty soitin musiikkitiedostoillesi"
   },
   {
     "id": "playlist",
-    "headline": "Pudota kansio, musiikki soi",
-    "subhead": "Kansikuvat, tagit ja BPM luetaan taustalla ja pidetään välimuistissa."
+    "headline": "Pudota kansio, musiikki soi"
   },
   {
     "id": "themes",
-    "headline": "Teemat",
-    "subhead": "Muokkaa ulkoasua kattavalla teemaeditorilla."
+    "headline": "Teemat"
   },
   {
     "id": "pitch",
-    "headline": "DJ tuntee olonsa kotoisaksi",
-    "subhead": "Levysoitintyylinen pitch-säädin, tahtitarkat hypyt ja performance-FX."
+    "headline": "DJ tuntee olonsa kotoisaksi"
   }
 ]

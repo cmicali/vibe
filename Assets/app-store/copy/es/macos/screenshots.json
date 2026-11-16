@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Un reproductor rápido y minimalista para tu música",
-    "subhead": "MP3, FLAC, AIFF, WAV y más. Haz clic en la forma de onda para saltar."
+    "headline": "Un reproductor rápido y minimalista para tu música"
   },
   {
     "id": "playlist",
-    "headline": "Suelta una carpeta y a sonar",
-    "subhead": "Carátulas, etiquetas y BPM leídos en segundo plano y guardados en caché."
+    "headline": "Suelta una carpeta y a sonar"
   },
   {
     "id": "themes",
-    "headline": "Temas",
-    "subhead": "Personaliza el aspecto con un editor de temas completo."
+    "headline": "Temas"
   },
   {
     "id": "pitch",
-    "headline": "Los DJs se sentirán en casa",
-    "subhead": "Fader de pitch estilo giradiscos, saltos por compases y FX."
+    "headline": "Los DJs se sentirán en casa"
   }
 ]

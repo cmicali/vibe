@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Gyors, minimalista lejátszó a zenei fájljaidhoz",
-    "subhead": "MP3, FLAC, AIFF, WAV és több más. Kattints a hullámformára a tekeréshez."
+    "headline": "Gyors, minimalista lejátszó a zenei fájljaidhoz"
   },
   {
     "id": "playlist",
-    "headline": "Húzz be egy mappát, és szól",
-    "subhead": "Borítók, tagek és BPM a háttérben beolvasva, gyorsítótárazva."
+    "headline": "Húzz be egy mappát, és szól"
   },
   {
     "id": "themes",
-    "headline": "Témák",
-    "subhead": "Szabd testre a megjelenést egy részletes témaszerkesztővel."
+    "headline": "Témák"
   },
   {
     "id": "pitch",
-    "headline": "A DJ-k otthon érzik magukat",
-    "subhead": "Gramofonszerű pitch-csúszka, ütempontos ugrások és FX."
+    "headline": "A DJ-k otthon érzik magukat"
   }
 ]

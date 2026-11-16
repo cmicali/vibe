@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Brz, minimalistički player za vaše glazbene datoteke",
-    "subhead": "MP3, FLAC, AIFF, WAV i drugi. Kliknite valni oblik za premotavanje."
+    "headline": "Brz, minimalistički player za vaše glazbene datoteke"
   },
   {
     "id": "playlist",
-    "headline": "Ispustite mapu i svira",
-    "subhead": "Omoti, oznake i BPM učitavaju se u pozadini i keširaju za brzinu."
+    "headline": "Ispustite mapu i svira"
   },
   {
     "id": "themes",
-    "headline": "Teme",
-    "subhead": "Prilagodite izgled opsežnim uređivačem tema."
+    "headline": "Teme"
   },
   {
     "id": "pitch",
-    "headline": "DJ-i će biti kao doma",
-    "subhead": "Pitch fader kao na gramofonu, skokovi po taktovima i FX."
+    "headline": "DJ-i će biti kao doma"
   }
 ]

@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Szybki, minimalistyczny odtwarzacz Twoich plików muzycznych",
-    "subhead": "MP3, FLAC, AIFF, WAV i inne. Kliknij kształt fali, aby przewinąć."
+    "headline": "Szybki, minimalistyczny odtwarzacz Twoich plików muzycznych"
   },
   {
     "id": "playlist",
-    "headline": "Upuść teczkę i graj",
-    "subhead": "Okładki, tagi i BPM wczytywane w tle i buforowane dla szybkości."
+    "headline": "Upuść teczkę i graj"
   },
   {
     "id": "themes",
-    "headline": "Motywy",
-    "subhead": "Dostosuj wygląd za pomocą rozbudowanego edytora motywów."
+    "headline": "Motywy"
   },
   {
     "id": "pitch",
-    "headline": "DJ-e poczują się jak w domu",
-    "subhead": "Suwak pitcha jak w gramofonie, skoki o takty i FX."
+    "headline": "DJ-e poczują się jak w domu"
   }
 ]

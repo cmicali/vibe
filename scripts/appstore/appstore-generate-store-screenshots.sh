@@ -111,15 +111,12 @@ prepare_out() { # <dir>
     rm -f "$OUT"/*.png
 }
 
-# iOS captions are headline-only; an empty subhead makes the compositor drop
-# the line.
-caption() { # <id> <headline|subhead>
+# A caption is one headline. A second, smaller line is unreadable at the size
+# the store draws a screenshot, and it mostly repeated what the window shows.
+caption() { # <id>
     local v
-    v="$(jq -r --arg id "$1" --arg f "$2" \
-        'first(.[] | select(.id == $id)) | .[$f] // empty' "$COPY")"
-    if [ -z "$v" ] && ! { [ "$PLATFORM" = ios ] && [ "$2" = subhead ]; }; then
-        echo "missing or empty $2 for shot '$1' in $COPY" >&2; exit 1
-    fi
+    v="$(jq -r --arg id "$1" 'first(.[] | select(.id == $id)) | .headline // empty' "$COPY")"
+    [ -n "$v" ] || { echo "missing or empty headline for shot '$1' in $COPY" >&2; exit 1; }
     printf '%s' "$v"
 }
 
@@ -139,8 +136,7 @@ shot() { # <id> <source> <output> [ground]
     [ -n "${4:-}" ] && ground=(--ground "$4")
     [ -n "${CANVAS:-}" ] && canvas=(--canvas "$CANVAS")
     "$COMPOSE_BIN" "$IN/$2" "$OUT/$3" --lang "$L" \
-        --headline "$(caption "$1" headline)" \
-        --subhead "$(caption "$1" subhead)" \
+        --headline "$(caption "$1")" \
         ${ground[@]+"${ground[@]}"} ${canvas[@]+"${canvas[@]}"}
 }
 

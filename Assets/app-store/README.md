@@ -27,11 +27,11 @@ screenshots/<lang>/ios/iphone/   composited 1290x2796 shots
 screenshots/<lang>/ios/ipad/     composited 2048x2732 shots
 ```
 
-`screenshots.json` is an ordered array of `{id, headline, subhead}`. The shot ids are per platform: `player`, `playlist`, `themes` and `pitch` on macOS, and `player`, `seek`, `playlist` and `widget` on iOS. `scripts/appstore/appstore-generate-store-screenshots.sh` defines them and maps each to a capture and an output file. The captions are the only per-language part.
+`screenshots.json` is an ordered array of `{id, headline}`. The shot ids are per platform: `player`, `playlist`, `themes` and `pitch` on macOS, and `player`, `seek`, `playlist` and `widget` on iOS. `scripts/appstore/appstore-generate-store-screenshots.sh` defines them and maps each to a capture and an output file. The captions are the only per-language part.
 
 **The frame's design lives in `scripts/appstore/compose-app-store-overlay.swift`.** The ground is one flat colour taken from the capture, so a frame takes the colour of its track's artwork. The caption is set flush left on the window's left edge. A mac window spans 90% of the canvas, and a tall one runs off the bottom edge. A short mac window gets a larger headline. A device screen is pinned in place under room for two headline lines. The script passes a fixed ground only where the capture has no colour of its own.
 
-**iOS captions carry no subhead**, and `appstore-validate-copy` rejects one. At the size the store draws a phone screenshot, a second line is unreadable. So the headline runs at 1.6x nominal and says the whole thing. iPhone and iPad share the captions but are **separate ASC screenshot sets** (`APP_IPHONE_67`, `APP_IPAD_PRO_3GEN_129`), so iOS has a directory per device. The iPad set is required, because `TARGETED_DEVICE_FAMILY` is `1,2`.
+**A caption is one headline with no subhead**, and `appstore-validate-copy` rejects one. At the size the store draws a screenshot, a second line is unreadable. So the headline runs large and says the whole thing: 1.55x nominal on macOS and 1.6x on iOS. iPhone and iPad share the captions but are **separate ASC screenshot sets** (`APP_IPHONE_67`, `APP_IPAD_PRO_3GEN_129`), so iOS has a directory per device. The iPad set is required, because `TARGETED_DEVICE_FAMILY` is `1,2`.
 
 Keep the copy specific to each platform. Key analysis, the pitch fader, folder art, conversion and bit-perfect output are macOS-only. BPM analysis and DJ FX run on both platforms.
 

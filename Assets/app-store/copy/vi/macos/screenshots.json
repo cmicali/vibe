@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Trình phát nhanh, tối giản cho tệp nhạc của bạn",
-    "subhead": "MP3, FLAC, AIFF, WAV và hơn nữa. Bấm vào dạng sóng để tua."
+    "headline": "Trình phát nhanh, tối giản cho tệp nhạc của bạn"
   },
   {
     "id": "playlist",
-    "headline": "Thả thư mục vào, nhạc phát ngay",
-    "subhead": "Ảnh bìa, tag và BPM đọc ở chế độ nền, lưu đệm để mở nhanh."
+    "headline": "Thả thư mục vào, nhạc phát ngay"
   },
   {
     "id": "themes",
-    "headline": "Chủ đề",
-    "subhead": "Tuỳ chỉnh giao diện bằng trình soạn chủ đề đầy đủ."
+    "headline": "Chủ đề"
   },
   {
     "id": "pitch",
-    "headline": "DJ sẽ thấy như ở nhà",
-    "subhead": "Thanh pitch kiểu turntable, tua chính xác theo ô nhịp và FX biểu diễn."
+    "headline": "DJ sẽ thấy như ở nhà"
   }
 ]

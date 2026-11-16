@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "En snabb, minimalistisk spelare för dina musikfiler",
-    "subhead": "MP3, FLAC, AIFF, WAV med mera. Klicka på vågformen för att söka."
+    "headline": "En snabb, minimalistisk spelare för dina musikfiler"
   },
   {
     "id": "playlist",
-    "headline": "Släpp en mapp och spela direkt",
-    "subhead": "Omslag, taggar och BPM läses i bakgrunden och cachas för snabbhet."
+    "headline": "Släpp en mapp och spela direkt"
   },
   {
     "id": "themes",
-    "headline": "Teman",
-    "subhead": "Anpassa utseendet med en komplett temaredigerare."
+    "headline": "Teman"
   },
   {
     "id": "pitch",
-    "headline": "DJs känner sig hemma",
-    "subhead": "Pitchfader som på en skivspelare, taktfasta hopp och performance-FX."
+    "headline": "DJs känner sig hemma"
   }
 ]

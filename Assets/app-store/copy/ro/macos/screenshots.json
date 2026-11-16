@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Un player rapid și minimalist pentru fișierele tale de muzică",
-    "subhead": "MP3, FLAC, AIFF, WAV și altele. Clic pe forma de undă pentru a sări oriunde."
+    "headline": "Un player rapid și minimalist pentru fișierele tale de muzică"
   },
   {
     "id": "playlist",
-    "headline": "Plasezi un dosar, muzica pornește",
-    "subhead": "Coperți, taguri și BPM citite în fundal și păstrate în cache."
+    "headline": "Plasezi un dosar, muzica pornește"
   },
   {
     "id": "themes",
-    "headline": "Teme",
-    "subhead": "Personalizează aspectul cu un editor de teme complet."
+    "headline": "Teme"
   },
   {
     "id": "pitch",
-    "headline": "DJ-ii se vor simți ca acasă",
-    "subhead": "Fader de pitch ca pe platan, salturi în măsuri și FX."
+    "headline": "DJ-ii se vor simți ca acasă"
   }
 ]
