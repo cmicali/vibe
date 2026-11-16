@@ -45,6 +45,10 @@ let CANVAS_H = 1800
 // it. The README captures are 1450-1650px wide, so this upscales ~1.6-1.8x,
 // which the 2x source takes without visible softening.
 let WINDOW_W_FRAC = 0.90  // --width overrides
+// The text starts this many margins from the top. A short window's stack sits
+// this far down the room it leaves, a little under the middle.
+let LANDSCAPE_TOP_MARGINS = 1.5
+let SHORT_STACK_Y = 0.56  // --block-y overrides
 
 // A portrait canvas holds a full-screen device capture. The screen is pinned
 // this far from the bottom, and the text starts this far from the top. Both
@@ -684,14 +688,14 @@ func compose(
     } else {
         let scale = frame.width / Double(rawWin.w)
         win = resized(rawWin, w: Int(frame.width), h: Int(Double(rawWin.h) * scale))
-        // The capitals' tops sit on the margin, not the line box's.
+        // The capitals' tops sit on the line, not the line box's.
         let overshoot = layout.first.map { Double($0.font.ascender - $0.font.capHeight) } ?? 0
-        textTop = frame.left - overshoot
+        textTop = frame.left * LANDSCAPE_TOP_MARGINS - overshoot
         windowTop = textTop + blockH + gap
         // A tall window runs off the bottom edge, which is what lets it be
-        // this wide. A short one leaves room, and the stack is centred in it.
+        // this wide. A short one leaves room, and the stack sits in it.
         if short {
-            textTop = (Double(canvasH) - blockH - gap - Double(win.h)) * (blockY ?? 0.5)
+            textTop = (Double(canvasH) - blockH - gap - Double(win.h)) * (blockY ?? SHORT_STACK_Y)
             windowTop = textTop + blockH + gap
         }
     }
