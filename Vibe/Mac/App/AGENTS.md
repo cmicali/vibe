@@ -108,8 +108,4 @@ It is two calls because of two threads. `VibeDebugInfoSnapshot` reads on main wh
 
 ## The Dock tile
 
-**`NSDockTile+Util`**: the Dock tile and the app icon behind it.
-- `setDockIcon:shaped:` composes artwork onto the icon grid off main. With the theme's App icon shape off, it installs the picture as it is.
-- `setAppIcon:shaped:` composes a theme's custom icon synchronously on main and assigns `NSApp.applicationIconImage`. The Dock, app switcher and About surfaces read that image. Nil resets to the bundle icon.
-- `resetToAppIcon` puts the application's icon back in the tile. It reads the icon live, so a custom icon shows through.
-- The file's `TRAP:`s are the authority. One view is installed for good and only its image swaps, since detaching and re-installing a view leaks a 256KB dock-tile context per transition. Assigning `applicationIconImage` replaces the tile's content view, so every install re-attaches ours. **Each custom-icon-then-reset round trip of `applicationIconImage` also leaks one 256KB context inside AppKit's setter**, so `setAppIcon:shaped:` assigns only on a change.
+**`NSDockTile+Util`** is the Dock tile and the app icon behind it. It lives in vibe-libs' `core/Graphics/Mac`, whose `AGENTS.md` has its calls and its traps. `ArtworkDisplayController.applyDockIcon` and `MainPlayerController.applyAppIcon` are its callers here.
