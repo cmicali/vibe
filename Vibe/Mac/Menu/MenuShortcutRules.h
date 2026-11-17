@@ -21,7 +21,7 @@ static inline NSArray<NSArray *> *VibeShortcutTable(void) {
     dispatch_once(&once, ^{
         NSEventModifierFlags cmd = NSEventModifierFlagCommand;
         table = @[
-            @[kVibeMenuPlay,              @(VibeShortcutMake(49, 0))],   // Space
+            @[kVibeMenuPlay,              @(VibeShortcutMake(kVibeKeyCodeSpace, 0))],
             @[kVibeMenuPreviousTrack,     @(VibeShortcutMake(11, 0))],   // B
             @[kVibeMenuNextTrack,         @(VibeShortcutMake(45, 0))],   // N
             @[kVibeMenuPlaySelected,      @(VibeShortcutMake(kVibeKeyCodeReturn, 0))],
@@ -40,7 +40,7 @@ static inline NSArray<NSArray *> *VibeShortcutTable(void) {
             @[kVibeMenuFXReverb,          @(VibeShortcutMake(14, 0))],   // E
             @[kVibeMenuFXDelay,           @(VibeShortcutMake(15, 0))],   // R
             @[kVibeMenuFXShortDelay,      @(VibeShortcutMake(17, 0))],   // T
-            @[kVibeMenuShowPlaylist,      @(VibeShortcutMake(48, 0))],   // Tab
+            @[kVibeMenuShowPlaylist,      @(VibeShortcutMake(kVibeKeyCodeTab, 0))],
             @[kVibeMenuShowPitch,         @(VibeShortcutMake(35, 0))],   // P
             @[VibeWindowSizeMenuIdentifier(VibeWindowSizePresetSmall),   @(kVibeShortcutNone)],
             @[VibeWindowSizeMenuIdentifier(VibeWindowSizePresetDefault), @(kVibeShortcutNone)],
