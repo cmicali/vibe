@@ -44,7 +44,7 @@ The model is vibe-libs' `media/PlayQueue`. Its `AGENTS.md` holds the rules a cal
 
 The walk is vibe-libs' `media/FolderScan`. Its `AGENTS.md` holds its rules: the handlers, the order parameter, links, one file's entries, and a sheet's claims in a walk. This section is what Vibe adds.
 
-**Vibe makes its rows from the walk's entries** (The row, above). `expandAndFilterList:sortedBy:completion:` completes on its worker, so the caller makes its rows there and then goes to main.
+**Vibe makes its rows from the walk's entries** (The row, above). The mac opens through the batched walk, `expandAndFilterList:sortedBy:progress:batch:completion:`. Each batch arrives on the walk's worker, so the caller makes its rows there and then goes to main. The open plays the first entry and appends the rest as they arrive (`Mac/App/AGENTS.md`).
 
 **The mac installs the walk's handlers at launch** (`AppDelegate`). iOS installs none.
 - The playlist folder grant is vibe-libs' `files/SandboxAccess` grant panel, which the mac's app delegate installs as the walk's handler (`Mac/App/AGENTS.md`).
