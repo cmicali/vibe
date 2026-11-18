@@ -443,10 +443,14 @@ static void VibeAfterLaunch(dispatch_block_t block) {
 - (OpenRequestToken *)beginOpenRequestAppending:(BOOL)append fromURLs:(NSArray<NSURL *> *)urls {
     [self.mainPlayerController spendWelcomeTrack];
     __weak AppDelegate *weakSelf = self;
+    // A walk's finish after its parts holds no rows, and found something.
+    __block NSUInteger delivered = 0;
     OpenRequestToken *token = [OpenRequestCoordinator.sharedCoordinator
             beginRequestAppending:append
                          delivery:^(NSArray<AudioTrack *> *rows, NSUInteger folders, BOOL appending) {
+                             delivered += rows.count;
                              [weakSelf deliverExpandedRows:rows folderCount:folders appending:appending
+                                              foundNothing:delivered == 0
                                                   fromURLs:urls];
                          }];
     // After the supersession, so a superseded open delivers nothing. Its
@@ -481,15 +485,35 @@ static void VibeAfterLaunch(dispatch_block_t block) {
     // Bookmark while the open's sandbox grant is live.
     [self.folderAccessManager noteOpenedURLs:urls];
     // Read on main; the walk reads no setting itself. The rows are made on
-    // the expansion worker, off main.
+    // the expansion worker, off main. The walk's first entry plays before the
+    // rest is sorted. Shuffle gathers the whole walk, so its first track is a
+    // random one.
+    OpenRequestCoordinator *coordinator = OpenRequestCoordinator.sharedCoordinator;
+    BOOL inParts = !AppSettings.sharedInstance.shuffleEnabled;
+    NSMutableArray<AudioTrack *> *gathered = [NSMutableArray array];
+    NSProgress *progress = [NSProgress discreteProgressWithTotalUnitCount:-1];
     [FolderWalk expandAndFilterList:urls
                            sortedBy:AppSettings.sharedInstance.folderOpenSort
-                         completion:^(NSArray<VibePlaylistEntry *> *entries, NSUInteger folderCount) {
+                           progress:progress
+                              batch:^(NSArray<VibePlaylistEntry *> *entries) {
         NSArray<AudioTrack *> *rows = [AudioTrack rowsForEntries:entries];
+        if (!inParts) {
+            [gathered addObjectsFromArray:rows];
+            return;
+        }
         run_on_main_thread({
-            [OpenRequestCoordinator.sharedCoordinator finishRequest:token
-                                                               rows:rows
-                                                        folderCount:folderCount];
+            // A newer open stops this walk listing a slow share.
+            if (![coordinator isRequestCurrent:token]) {
+                [progress cancel];
+                return;
+            }
+            [coordinator deliverPartOfRequest:token rows:rows];
+        });
+    }
+                         completion:^(NSUInteger folderCount) {
+        NSArray<AudioTrack *> *rows = [gathered copy];
+        run_on_main_thread({
+            [coordinator finishRequest:token rows:rows folderCount:folderCount];
         });
     }];
 }
@@ -497,12 +521,13 @@ static void VibeAfterLaunch(dispatch_block_t block) {
 - (void)deliverExpandedRows:(NSArray<AudioTrack *> *)rows
                 folderCount:(NSUInteger)folderCount
                   appending:(BOOL)append
+               foundNothing:(BOOL)foundNothing
                    fromURLs:(NSArray<NSURL *> *)urls {
     [[AppStats sharedInstance] recordOpenedFiles:rows.count folders:folderCount];
     // Nothing playable must not wipe the playlist. The empty header names an
     // opened playlist, extension kept so it reads as the sheet rather than its
     // album, and the launch grace ends, or the header would stay blank.
-    if (rows.count == 0) {
+    if (foundNothing) {
         NSString *playlist = nil;
         for (NSURL *url in urls) {
             if ([VibePlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]) {
@@ -512,10 +537,10 @@ static void VibeAfterLaunch(dispatch_block_t block) {
         }
         [self.mainPlayerController revealEmptyStateNamingPlaylist:playlist];
     }
-    else if (append) {
+    else if (rows.count > 0 && append) {
         [self.mainPlayerController addTracks:rows];
     }
-    else {
+    else if (rows.count > 0) {
         [self.mainPlayerController play:rows];
     }
     // After the play, which takes the strip for its own open. A drop
