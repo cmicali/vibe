@@ -240,7 +240,7 @@ This is done in the Cloudflare dashboard, and only once.
    counts, below):
 
    ```bash
-   curl -s -o /dev/null -w '%{http_code}\n' -A 'Vibe/0-test Sparkle/2.10.0' \
+   curl -s -o /dev/null -w '%{http_code}\n' -A 'Vibe/0-test Sparkle/2.10.1' \
        'https://vibeplayer.app/appcast.xml?os=0.0&arch=test&channel=test'
    ```
 
