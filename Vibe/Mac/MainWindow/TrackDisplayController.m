@@ -14,9 +14,9 @@
 #import "Formatters.h"
 #import "Fonts+Theme.h"
 #import "MusicalKey.h"
+#import "MusicalKeyColor.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
-#import "NSView+DarkMode.h"
 
 @implementation TrackDisplayController {
     __weak WaveformView *_waveformView;
@@ -86,34 +86,6 @@ static void setStringValueIfChanged(NSTextField *field, NSString *value) {
         _cornerTextAttributes = attributes;
     }
     return _cornerTextAttributes;
-}
-
-// One hue per Camelot number, anchored so 1 is green, approximating the
-// printed wheel: compatible keys land in neighboring hues and a relative
-// major/minor pair shares one. Never full brightness, which reads as garish
-// beside the dimmed corner text.
-static const CGFloat kCamelotHueOfNumberOne = 1.0 / 3.0;
-
-static NSColor *camelotColor(NSInteger key) {
-    NSInteger number = VibeMusicalKeyCamelotNumber(key);
-    if (number < 1 || number > 12) {
-        return nil; // no key, or coloring switched off
-    }
-    static NSColor *palette[13];
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        for (NSInteger i = 1; i <= 12; i++) {
-            CGFloat hue = fmod(kCamelotHueOfNumberOne + (CGFloat)(i - 1) / 12.0, 1.0);
-            palette[i] = [NSColor colorWithName:nil dynamicProvider:^NSColor *(NSAppearance *appearance) {
-                BOOL dark = appearance.isDark;
-                return [NSColor colorWithHue:hue
-                                  saturation:dark ? 0.62 : 0.90
-                                  brightness:dark ? 0.82 : 0.60
-                                       alpha:1.0];
-            }];
-        }
-    });
-    return palette[number];
 }
 
 // Menu order: Q, W, E, R, T, then shuffle and repeat, then the lock, last,
@@ -351,7 +323,7 @@ static NSArray<NSString *> *fxSymbolNames(VibeFXDisplayState state) {
     NSMutableAttributedString *line =
             [[NSMutableAttributedString alloc] initWithString:text
                                                   attributes:self.cornerTextAttributes];
-    NSColor *keyColor = camelotColor(colorKey);
+    NSColor *keyColor = VibeMusicalKeyCamelotColor(colorKey);
     if (keyColor && keyText.length > 0) {
         // The suffix: tempoLineWithBPM:keyText: puts the key last.
         NSRange range = NSMakeRange(text.length - keyText.length, keyText.length);
