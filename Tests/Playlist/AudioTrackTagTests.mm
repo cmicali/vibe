@@ -25,7 +25,7 @@
 - (void)setUp {
     [super setUp];
     _dir = VibeTagFixtureDirectory();
-    _art = VibeImageOfColor(300, 0.8, 0.2, 0.3, NO);
+    _art = VibeImageOfColor(300, 0.8, 0.2, 0.3, UTTypePNG);
 }
 
 - (void)tearDown {

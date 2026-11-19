@@ -738,6 +738,8 @@ targets:
       - path: vibe-libs/waveform/WaveformLoading/AudioWaveformCache.mm   # over a store of the test's own (initWithRootPath:)
       - path: vibe-libs/waveform/WaveformLoading/AudioWaveformCache+Debug.mm   # the decode pace the loader reads
       - path: vibe-libs/files/DiskCache/PINCache+VibeAudioCache.m
+      - path: vibe-libs/files/DiskCache/VibeCacheStore.m   # the waveform cache's store
+      - path: vibe-libs/waveform/WaveformLoading/VibeWaveformStore.mm
       - path: vibe-libs/core/Common/NSURL+FileIdentity.m   # AudioFileConverter+Sandbox's same-file test
       - path: vibe-libs/waveform/WaveformLoading/AudioWaveformLoader+Debug.m   # the decode timings the loader records
       - path: Vibe/Mac/Convert/AudioFileConverter.m
@@ -839,6 +841,9 @@ targets:
           - "$(inherited)"
           - "-framework"
           - "XCTest"
+          # The waveform cache's store, over the system's SQLite, as
+          # vibe-libs' VibeLibsDiskCache template links it for the apps.
+          - "-lsqlite3"
         LD_RUNPATH_SEARCH_PATHS:
           - "$(inherited)"
           - "@loader_path/../Frameworks"
@@ -950,7 +955,9 @@ targets:
       - path: Tests/Playlist/AudioTrackTagTests.mm   # the row over the real parse
       - path: vibe-libs/media/Metadata/AudioTrackMetadata.mm
       - path: vibe-libs/media/Tags/TagLibAudioFile.mm
-      - path: vibe-libs/media/Metadata/NSString+CPPStrings.mm
+      - path: vibe-libs/media/Tags/NSString+CPPStrings.mm
+      - path: vibe-libs/media/Tags/VibeTagFields.m
+      - path: vibe-libs/media/Tags/VibeCheckedFileStream.mm
       - path: vibe-libs/media/Metadata/Artwork/ArchivedArtShare.m   # a picture's archived forms, shared by bytes
       - path: vibe-libs/core/Common/VibeMaterializing.m   # the parse and the cover read run with it off
     settings:
