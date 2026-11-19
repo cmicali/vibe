@@ -952,6 +952,7 @@ targets:
       - path: vibe-libs/media/Tags/TagLibAudioFile.mm
       - path: vibe-libs/media/Tags/NSString+CPPStrings.mm
       - path: vibe-libs/media/Tags/VibeTagFields.m
+      - path: vibe-libs/media/Tags/VibeCheckedFileStream.mm
       - path: vibe-libs/media/Metadata/Artwork/ArchivedArtShare.m   # a picture's archived forms, shared by bytes
       - path: vibe-libs/core/Common/VibeMaterializing.m   # the parse and the cover read run with it off
     settings:
