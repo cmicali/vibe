@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "为你的音乐文件打造的快速极简播放器",
-    "subhead": "支持 MP3、FLAC、AIFF、WAV 等格式。点按波形即可跳转。"
+    "headline": "为你的音乐文件打造的快速极简播放器"
   },
   {
     "id": "playlist",
-    "headline": "拖入文件夹，即刻播放",
-    "subhead": "封面、标签和 BPM 在后台读取并缓存，下次打开更快。"
+    "headline": "拖入文件夹或播放列表"
   },
   {
     "id": "themes",
-    "headline": "主题",
-    "subhead": "用功能齐全的主题编辑器自定义外观。"
+    "headline": "主题"
   },
   {
     "id": "pitch",
-    "headline": "DJ 的熟悉手感",
-    "subhead": "唱机式音高推子、按小节跳转，还有表演 FX。"
+    "headline": "DJ 的熟悉手感"
   }
 ]

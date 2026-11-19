@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "En hurtig, minimalistisk afspiller til dine musikfiler",
-    "subhead": "MP3, FLAC, AIFF, WAV og mere. Klik på bølgeformen for at spole."
+    "headline": "En hurtig, minimalistisk afspiller til dine musikfiler"
   },
   {
     "id": "playlist",
-    "headline": "Slip en mappe, og musikken spiller",
-    "subhead": "Artwork, tags og BPM læses i baggrunden og caches, så det går hurtigt."
+    "headline": "Slip en mappe eller spilleliste"
   },
   {
     "id": "themes",
-    "headline": "Temaer",
-    "subhead": "Tilpas udseendet med en komplet temaeditor."
+    "headline": "Temaer"
   },
   {
     "id": "pitch",
-    "headline": "DJs vil føle sig hjemme",
-    "subhead": "Pitchfader som på en pladespiller, taktfaste hop og performance-FX."
+    "headline": "DJs vil føle sig hjemme"
   }
 ]

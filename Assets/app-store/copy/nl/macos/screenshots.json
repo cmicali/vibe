@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Een snelle, minimalistische speler voor je muziekbestanden",
-    "subhead": "MP3, FLAC, AIFF, WAV en meer. Klik op de golfvorm en spring naar elk punt."
+    "headline": "Een snelle, minimalistische speler voor je muziekbestanden"
   },
   {
     "id": "playlist",
-    "headline": "Sleep een map, muziek speelt",
-    "subhead": "Artwork, tags en BPM worden op de achtergrond gelezen en gecachet voor snelheid."
+    "headline": "Sleep een map of afspeellijst"
   },
   {
     "id": "themes",
-    "headline": "Thema’s",
-    "subhead": "Pas het uiterlijk aan met een uitgebreide thema-editor."
+    "headline": "Thema’s"
   },
   {
     "id": "pitch",
-    "headline": "DJs voelen zich thuis",
-    "subhead": "Pitchfader als op een draaitafel, maatvaste sprongen en performance-FX."
+    "headline": "DJs voelen zich thuis"
   }
 ]

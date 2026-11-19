@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Un lettore veloce ed essenziale per i tuoi file musicali",
-    "subhead": "MP3, FLAC, AIFF, WAV e altro. Clicca sulla forma d’onda per spostarti."
+    "headline": "Un lettore veloce ed essenziale per i tuoi file musicali"
   },
   {
     "id": "playlist",
-    "headline": "Trascina una cartella e si parte",
-    "subhead": "Copertine, tag e BPM letti in background e salvati in cache."
+    "headline": "Trascina una cartella o una playlist"
   },
   {
     "id": "themes",
-    "headline": "Temi",
-    "subhead": "Personalizza l’aspetto con un editor di temi completo."
+    "headline": "Temi"
   },
   {
     "id": "pitch",
-    "headline": "I DJ si sentiranno a casa",
-    "subhead": "Fader del pitch stile giradischi, salti a battute e FX."
+    "headline": "I DJ si sentiranno a casa"
   }
 ]

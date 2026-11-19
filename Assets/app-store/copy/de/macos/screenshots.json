@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Ein schneller, minimalistischer Player für deine Musikdateien",
-    "subhead": "MP3, FLAC, AIFF, WAV und mehr. Ein Klick in die Wellenform springt an die Stelle."
+    "headline": "Ein schneller, minimalistischer Player für deine Musikdateien"
   },
   {
     "id": "playlist",
-    "headline": "Ordner ablegen, Musik hören",
-    "subhead": "Artwork, Tags und BPM werden im Hintergrund gelesen und für Tempo gecacht."
+    "headline": "Ordner oder Wiedergabeliste ablegen"
   },
   {
     "id": "themes",
-    "headline": "Themes",
-    "subhead": "Pass das Aussehen mit einem umfassenden Theme-Editor an."
+    "headline": "Themes"
   },
   {
     "id": "pitch",
-    "headline": "DJs fühlen sich zu Hause",
-    "subhead": "Tempo-Regler im Turntable-Stil, taktgenaue Sprünge und Performance-FX."
+    "headline": "DJs fühlen sich zu Hause"
   }
 ]

@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Um player rápido e minimalista para seus arquivos de música",
-    "subhead": "MP3, FLAC, AIFF, WAV e mais. Clique na forma de onda para navegar."
+    "headline": "Um player rápido e minimalista para seus arquivos de música"
   },
   {
     "id": "playlist",
-    "headline": "Solte uma pasta e dê o play",
-    "subhead": "Capas, tags e BPM lidos em segundo plano e guardados em cache."
+    "headline": "Solte uma pasta ou playlist"
   },
   {
     "id": "themes",
-    "headline": "Temas",
-    "subhead": "Personalize a aparência com um editor de temas completo."
+    "headline": "Temas"
   },
   {
     "id": "pitch",
-    "headline": "DJ vai se sentir em casa",
-    "subhead": "Fader de pitch estilo toca-discos, saltos por compassos e FX."
+    "headline": "DJ vai se sentir em casa"
   }
 ]
