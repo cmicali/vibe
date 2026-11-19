@@ -6,7 +6,7 @@
 #import "AudioFixtures.h"
 
 NSData *VibeSquarePNG(NSInteger side) {
-    return VibeImageOfColor((size_t)side, 0, 0, 0, NO);
+    return VibeImageOfColor((size_t)side, 0, 0, 0, UTTypePNG);
 }
 
 @implementation AppThemeTestCase
