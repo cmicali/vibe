@@ -62,6 +62,8 @@ The uploader accepts Prepare for Submission, Ready for Review, Waiting for Revie
 
 **Release notes are not a field on a platform's first version.** ASC answers `Attribute 'whatsNew' cannot be edited at this time` and fails the run at its first locale, having written nothing. The tool sees that the platform has no other version, leaves the attribute out, and prints that `whats-new.txt` is not uploaded for that platform. Under Universal Purchase this is the normal case for a newly added platform.
 
+A screenshot uploads only when no processed screenshot in its set has the same checksum. The tool then waits for App Store Connect to process every upload. The skill explains the stall it works around, and when to pass `--skip-screenshots`.
+
 ## 5. Deploy the build
 
 ```bash
