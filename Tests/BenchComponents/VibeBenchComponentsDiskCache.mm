@@ -2,14 +2,22 @@
 //  VibeBenchComponentsDiskCache.mm
 //  VibeBenchComponents
 //
-//  PINDiskCache on Vibe's terms: hits, writes, a full cache's writes and a
-//  launch's open.
+//  The disk cache on Vibe's terms: hits, writes, a full cache's writes, a
+//  launch's open, and a usage count. A version with vibe-libs' SQLite store
+//  measures the store, and an older one PINDiskCache, under the same names,
+//  so the page compares the two.
 //
 
 #import "VibeBenchComponents.h"
 
+#if __has_include("VibeCacheStore.h")
+#import "VibeCacheStore.h"
+#define VIBE_BENCH_COMPONENTS_CACHE_STORE 1
+#else
 #import <PINCache/PINDiskCache.h>
 #import <PINOperation/PINOperation.h>
+#define VIBE_BENCH_COMPONENTS_CACHE_STORE 0
+#endif
 #import "AudioWaveform.h"
 #import "AudioWaveformLoader.h"
 #import "AudioTrackMetadata.h"
@@ -33,8 +41,12 @@
 // MARK: - The disk cache
 
 struct VibeBenchComponentsDiskCache {
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+    VibeCacheStore *cache;
+#else
     PINDiskCache *cache;
     PINOperationQueue *queue;
+#endif
     NSString *root;
     std::vector<NSString *> keys;
     NSUInteger next = 0;
@@ -43,6 +55,16 @@ struct VibeBenchComponentsDiskCache {
 #endif
 };
 
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+// The store over the directory, with Vibe's terms: the byte limit, and the
+// default age from the last use.
+static VibeCacheStore *VibeBenchComponentsMakeDiskCache(NSString *root, NSUInteger byteLimit) {
+    VibeCacheStore *store = [[VibeCacheStore alloc] initWithDirectory:[root stringByAppendingPathComponent:@"bench"]];
+    VibeBenchComponentsRequire(store != nil, "disk cache open failed");
+    store.byteLimit = byteLimit;
+    return store;
+}
+#else
 // Vibe's audio caches' terms: least recently used, not TTL, an age limit.
 static PINDiskCache *VibeBenchComponentsMakeDiskCache(NSString *root, PINOperationQueue *queue, NSUInteger byteLimit) {
     return [[PINDiskCache alloc] initWithName:@"bench" prefix:@"com.vibe.perf" rootPath:root
@@ -50,6 +72,58 @@ static PINDiskCache *VibeBenchComponentsMakeDiskCache(NSString *root, PINOperati
                                operationQueue:queue ttlCache:NO byteLimit:byteLimit
                                      ageLimit:6 * 30 * 24 * 3600
                              evictionStrategy:PINCacheEvictionStrategyLeastRecentlyUsed];
+}
+#endif
+
+// Files an object. The store keeps bytes, so it files a blob as it is, and
+// archives any other object as PINCache's serializer did. PINCache archives
+// every object.
+static void VibeBenchComponentsCachePut(VibeBenchComponentsDiskCache *state, id object, NSString *key) {
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+    NSData *data = [object isKindOfClass:NSData.class] ? (NSData *)object
+            : [NSKeyedArchiver archivedDataWithRootObject:object requiringSecureCoding:NO error:nil];
+    [state->cache setData:data forKey:key format:1 sharedName:nil];
+#else
+    [state->cache setObject:object forKey:key];
+#endif
+}
+
+// Reads an object back, a blob as it is or an object unarchived, as
+// PINCache's deserializer did. nil on a miss.
+static id VibeBenchComponentsCacheGet(VibeBenchComponentsDiskCache *state, NSString *key, BOOL archived) {
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+    VibeCacheHit *hit = [state->cache hitForKey:key format:1];
+    if (!hit || !archived) return hit.data;
+    NSKeyedUnarchiver *unarchiver = [[NSKeyedUnarchiver alloc] initForReadingFromData:hit.data error:nil];
+    unarchiver.requiresSecureCoding = NO;
+    id object = [unarchiver decodeObjectForKey:NSKeyedArchiveRootObjectKey];
+    [unarchiver finishDecoding];
+    return object;
+#else
+    return [state->cache objectForKey:key];
+#endif
+}
+
+static BOOL VibeBenchComponentsCacheHas(VibeBenchComponentsDiskCache *state, NSString *key) {
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+    return [state->cache hasEntryForKey:key];
+#else
+    return [state->cache containsObjectForKey:key];
+#endif
+}
+
+// Waits for the work a read or a write left queued: PINCache's re-dates and
+// trims, or the store's.
+static void VibeBenchComponentsCacheSettle(VibeBenchComponentsDiskCache *state) {
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+    dispatch_semaphore_t done = dispatch_semaphore_create(0);
+    [state->cache performAfterQueuedWork:^{
+        dispatch_semaphore_signal(done);
+    }];
+    dispatch_semaphore_wait(done, DISPATCH_TIME_FOREVER);
+#else
+    [state->queue waitUntilAllOperationsAreFinished];
+#endif
 }
 
 // A metadata archive's size.
@@ -66,15 +140,19 @@ static NSData *VibeBenchComponentsEntryData(NSUInteger seed) {
 
 static void VibeBenchComponentsFillDiskCache(VibeBenchComponentsDiskCache *state, NSUInteger count, NSUInteger byteLimit) {
     state->root = VibeBenchComponentsTemporaryDirectory(@"pincache");
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+    state->cache = VibeBenchComponentsMakeDiskCache(state->root, byteLimit);
+#else
     state->queue = [[PINOperationQueue alloc] initWithMaxConcurrentOperations:10];
     state->cache = VibeBenchComponentsMakeDiskCache(state->root, state->queue, byteLimit);
+#endif
     for (NSUInteger i = 0; i < count; i++) {
         NSString *key = [NSString stringWithFormat:@"%lu-%llu-%040lu", (unsigned long)(4000000 + i),
                                                    1700000000000000ull + i, (unsigned long)i];
-        [state->cache setObject:VibeBenchComponentsEntryData(i) forKey:key];
+        VibeBenchComponentsCachePut(state, VibeBenchComponentsEntryData(i), key);
         state->keys.push_back(key);
     }
-    [state->queue waitUntilAllOperationsAreFinished];
+    VibeBenchComponentsCacheSettle(state);
 }
 
 static void VibeBenchComponentsRegisterDiskCache(void) {
@@ -105,8 +183,8 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
                 }
 #endif
                 VibeBenchComponentsFillDiskCache(disk.get(), 0, 1024 * 1024 * 1024);
-                [disk->cache setObject:*waveform forKey:@"waveform"];
-                [disk->queue waitUntilAllOperationsAreFinished];
+                VibeBenchComponentsCachePut(disk.get(), *waveform, @"waveform");
+                VibeBenchComponentsCacheSettle(disk.get());
                 return 100;
             };
             for (const char *operation : {"read", "write", "snapshot", "read-draw", "snapshot-draw"}) {
@@ -122,11 +200,11 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
                     for (int i = 0; i < 100; i++) {
                         @autoreleasepool {
                             if (op == "write") {
-                                [disk->cache setObject:*waveform forKey:@"waveform"];
+                                VibeBenchComponentsCachePut(disk.get(), *waveform, @"waveform");
                             } else {
                                 CodableAudioWaveform *result;
                                 if (op == "read" || op == "read-draw") {
-                                    result = (CodableAudioWaveform *)[disk->cache objectForKey:@"waveform"];
+                                    result = (CodableAudioWaveform *)VibeBenchComponentsCacheGet(disk.get(), @"waveform", YES);
                                 } else {
 #if VIBE_BENCH_COMPONENTS_WAVEFORM_SUMMARY
                                     result = [[CodableAudioWaveform alloc] initWithWaveform:disk->waveformBuilder->snapshot()];
@@ -172,7 +250,7 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
                             }
                         }
                     }
-                    [disk->queue waitUntilAllOperationsAreFinished];
+                    VibeBenchComponentsCacheSettle(disk.get());
                 });
             }
             VibeBenchComponentsAdd("waveform-cache", std::string("fresh-write") + (bands ? "-bands" : "-plain") +
@@ -209,19 +287,19 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
 #endif
                 VibeBenchComponentsRequire(*metadata != nil, "metadata archive fixture failed");
                 VibeBenchComponentsFillDiskCache(disk.get(), 0, 1024 * 1024 * 1024);
-                [disk->cache setObject:*metadata forKey:@"metadata"];
-                [disk->queue waitUntilAllOperationsAreFinished];
+                VibeBenchComponentsCachePut(disk.get(), *metadata, @"metadata");
+                VibeBenchComponentsCacheSettle(disk.get());
                 return 100;
             }, [disk, metadata, op]() {
                 for (int i = 0; i < 100; i++) {
                     @autoreleasepool {
-                        if (op == "write") [disk->cache setObject:*metadata forKey:@"metadata"];
-                        else VibeBenchComponentsRequire([disk->cache objectForKey:@"metadata"] != nil,
+                        if (op == "write") VibeBenchComponentsCachePut(disk.get(), *metadata, @"metadata");
+                        else VibeBenchComponentsRequire(VibeBenchComponentsCacheGet(disk.get(), @"metadata", YES) != nil,
                                                         "metadata archive read failed");
                     }
                 }
-                [disk->queue waitUntilAllOperationsAreFinished];
-                VibeBenchComponentsRequire([disk->cache containsObjectForKey:@"metadata"], "metadata cache write failed");
+                VibeBenchComponentsCacheSettle(disk.get());
+                VibeBenchComponentsRequire(VibeBenchComponentsCacheHas(disk.get(), @"metadata"), "metadata cache write failed");
             });
         }
     }
@@ -233,9 +311,9 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
         return 300;
     }, [hits]() {
         for (NSString *key : hits->keys) {
-            VibeBenchComponentsRequire([hits->cache objectForKey:key] != nil, "disk cache hit missed");
+            VibeBenchComponentsRequire(VibeBenchComponentsCacheGet(hits.get(), key, NO) != nil, "disk cache hit missed");
         }
-        [hits->queue waitUntilAllOperationsAreFinished];
+        VibeBenchComponentsCacheSettle(hits.get());
     });
 
     // The same hits from four threads at once, as the stage-1 workers read.
@@ -247,10 +325,10 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
         VibeBenchComponentsDiskCache *state = parallel.get();
         dispatch_apply(4, dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^(size_t worker) {
             for (NSString *key : state->keys) {
-                VibeBenchComponentsRequire([state->cache objectForKey:key] != nil, "parallel disk cache hit missed");
+                VibeBenchComponentsRequire(VibeBenchComponentsCacheGet(state, key, NO) != nil, "parallel disk cache hit missed");
             }
         });
-        [state->queue waitUntilAllOperationsAreFinished];
+        VibeBenchComponentsCacheSettle(state);
     });
 
     // Writes of new entries under the limit, as a sweep of misses makes them.
@@ -262,9 +340,9 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
         VibeBenchComponentsDiskCache *state = writes.get();
         for (int i = 0; i < 300; i++) {
             NSUInteger n = state->next++;
-            [state->cache setObject:VibeBenchComponentsEntryData(n) forKey:[NSString stringWithFormat:@"w-%lu", (unsigned long)n]];
+            VibeBenchComponentsCachePut(state, VibeBenchComponentsEntryData(n), [NSString stringWithFormat:@"w-%lu", (unsigned long)n]);
         }
-        [state->queue waitUntilAllOperationsAreFinished];
+        VibeBenchComponentsCacheSettle(state);
     });
 
     // Writes into a cache already at its byte limit: 1,500 entries, each
@@ -272,29 +350,63 @@ static void VibeBenchComponentsRegisterDiskCache(void) {
     auto full = std::make_shared<VibeBenchComponentsDiskCache>();
     VibeBenchComponentsAdd("pincache", "write-300-at-limit", "write", [full]() -> double {
         VibeBenchComponentsFillDiskCache(full.get(), 1500, 0);
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+        full->cache.byteLimit = full->cache.usage.bytes;
+#else
         full->cache.byteLimit = full->cache.byteCount;
+#endif
         return 300;
     }, [full]() {
         VibeBenchComponentsDiskCache *state = full.get();
         for (int i = 0; i < 300; i++) {
             NSUInteger n = state->next++;
-            [state->cache setObject:VibeBenchComponentsEntryData(n) forKey:[NSString stringWithFormat:@"f-%lu", (unsigned long)n]];
+            VibeBenchComponentsCachePut(state, VibeBenchComponentsEntryData(n), [NSString stringWithFormat:@"f-%lu", (unsigned long)n]);
         }
-        [state->queue waitUntilAllOperationsAreFinished];
+        VibeBenchComponentsCacheSettle(state);
     });
 
-    // A launch: a new cache over 2,000 entries, until its disk state is known.
+    // A launch: a new cache over 2,000 entries, until it can answer. The
+    // store's open reads its database, and PINCache's counts its files.
     auto open = std::make_shared<VibeBenchComponentsDiskCache>();
     VibeBenchComponentsAdd("pincache", "open-2000", "entry", [open]() -> double {
         VibeBenchComponentsFillDiskCache(open.get(), 2000, 1024 * 1024 * 1024);
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+        // One store a directory at a time.
+        [open->cache close];
+#endif
         return 2000;
     }, [open]() {
         VibeBenchComponentsDiskCache *state = open.get();
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+        VibeCacheStore *cache = VibeBenchComponentsMakeDiskCache(state->root, 1024 * 1024 * 1024);
+        VibeBenchComponentsRequire(cache.usage.entries == 2000, "disk cache open lost entries");
+        [cache close];
+#else
         PINDiskCache *cache = VibeBenchComponentsMakeDiskCache(state->root, state->queue, 1024 * 1024 * 1024);
         [cache enumerateObjectsWithBlock:^(NSString *key, NSURL *fileURL, BOOL *stop) {
             *stop = YES;
         }];
         [state->queue waitUntilAllOperationsAreFinished];
+#endif
+    });
+
+    // A usage count over 2,000 entries, as Settings shows it: the store's
+    // sum, or PINCache's walk of its files.
+    auto usage = std::make_shared<VibeBenchComponentsDiskCache>();
+    VibeBenchComponentsAdd("pincache", "usage-2000", "entry", [usage]() -> double {
+        VibeBenchComponentsFillDiskCache(usage.get(), 2000, 1024 * 1024 * 1024);
+        return 2000;
+    }, [usage]() {
+        VibeBenchComponentsDiskCache *state = usage.get();
+#if VIBE_BENCH_COMPONENTS_CACHE_STORE
+        VibeBenchComponentsRequire(state->cache.usage.entries == 2000, "disk cache usage miscounted");
+#else
+        __block NSUInteger entries = 0;
+        [state->cache enumerateObjectsWithBlock:^(NSString *key, NSURL *fileURL, BOOL *stop) {
+            entries++;
+        }];
+        VibeBenchComponentsRequire(entries == 2000, "disk cache usage miscounted");
+#endif
     });
 }
 
