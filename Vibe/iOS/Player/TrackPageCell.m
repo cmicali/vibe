@@ -5,12 +5,10 @@
 
 #import "TrackPageCell.h"
 #import "FXPadView.h"
-#import "Formatters.h"
 #import "OutputRouteView.h"
-#import "SettingsRules.h"
 #import "UIImage+Blur.h"
 #import "UIImage+DominantColor.h"
-#import "VibeStrings.h"
+#import "VibePlayerCardHost.h"
 #import "WaveformScrubberView.h"
 
 static const CGFloat kCellWaveformHeight = 180;
@@ -113,6 +111,19 @@ static NSAttributedString *SpinnerRoom(UIFont *font) {
     NSTextAttachment *room = [NSTextAttachment textAttachmentWithImage:clear];
     room.bounds = CGRectMake(0, 0, kCellSpinnerGap + SpinnerSide(font), 1);
     return [NSAttributedString attributedStringWithAttachment:room];
+}
+
+static NSString *RepeatSymbolName(VibeRepeatMode mode) {
+    return mode == VibeRepeatModeOne ? @"repeat.1" : @"repeat";
+}
+
+static NSString *RepeatTitle(VibeRepeatMode mode) {
+    switch (mode) {
+        case VibeRepeatModeAll: return VibePlayerCardLabelText(VibePlayerCardLabelRepeatAll);
+        case VibeRepeatModeOne: return VibePlayerCardLabelText(VibePlayerCardLabelRepeatOne);
+        case VibeRepeatModeOff: break;
+    }
+    return VibePlayerCardLabelText(VibePlayerCardLabelRepeatOff);
 }
 
 @implementation TrackPageCell {
@@ -270,7 +281,7 @@ static NSAttributedString *SpinnerRoom(UIFont *font) {
 
         _waveformView = [[WaveformScrubberView alloc] initWithFrame:CGRectZero];
         _waveformView.translatesAutoresizingMaskIntoConstraints = NO;
-        _waveformView.accessibilityLabel = STR_A11Y_WAVEFORM;
+        _waveformView.accessibilityLabel = VibePlayerCardLabelText(VibePlayerCardLabelWaveform);
         [content addSubview:_waveformView];
 
         _elapsedLabel = [self makeTimeLabel];
@@ -305,12 +316,12 @@ static NSAttributedString *SpinnerRoom(UIFont *font) {
         [content addSubview:_fxPadView];
 
         _shuffleButton = [self makeTransportButton];
-        _shuffleButton.accessibilityLabel = STR_TRANSPORT_SHUFFLE;
+        _shuffleButton.accessibilityLabel = VibePlayerCardLabelText(VibePlayerCardLabelShuffle);
         _previousButton = [self makeTransportButton];
-        _previousButton.accessibilityLabel = STR_TRANSPORT_PREVIOUS;
+        _previousButton.accessibilityLabel = VibePlayerCardLabelText(VibePlayerCardLabelPrevious);
         _playPauseButton = [self makeTransportButton];
         _nextButton = [self makeTransportButton];
-        _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
+        _nextButton.accessibilityLabel = VibePlayerCardLabelText(VibePlayerCardLabelNext);
         _repeatButton = [self makeTransportButton];
         _shuffleWidth = [_shuffleButton.widthAnchor constraintEqualToConstant:kTransportFlankButtonSide];
         _transportSide = [_transportView.heightAnchor constraintEqualToConstant:kTransportButtonSide];
@@ -943,8 +954,8 @@ static UIImage *TransportGradientImage(void) {
     // the pager stays locked (the scrubber's release trap, Player/AGENTS.md).
     [_fxPadView cancelInteraction];
     [_waveformView prepareForWaveformLoad];
-    _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
-    _remainingTimeControl.text = STR_LABEL_TIME_UNKNOWN;
+    _elapsedLabel.text = VibePlayerCardLabelText(VibePlayerCardLabelTimeUnknown);
+    _remainingTimeControl.text = VibePlayerCardLabelText(VibePlayerCardLabelTimeUnknown);
     [self setGlyphPlaying:NO];
     [self setNextEnabled:YES];
 }
@@ -954,7 +965,7 @@ static UIImage *TransportGradientImage(void) {
     [self setGlyph:(playing ? @"pause.fill" : @"play.fill")
           onButton:_playPauseButton
          pointSize:kCellGlyphPointSize * (_compactActive ? kCellGlyphScaleCompact : 1)];
-    _playPauseButton.accessibilityLabel = playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
+    _playPauseButton.accessibilityLabel = playing ? VibePlayerCardLabelText(VibePlayerCardLabelPause) : VibePlayerCardLabelText(VibePlayerCardLabelPlay);
 }
 
 // The three at the layout's size; the compact row is the mac's 31pt play.
@@ -984,9 +995,9 @@ static UIImage *TransportGradientImage(void) {
     _flankShuffleEnabled = shuffleEnabled;
     _flankRepeatMode = repeatMode;
     [self setFlankGlyph:@"shuffle" active:shuffleEnabled onButton:_shuffleButton];
-    [self setFlankGlyph:VibeRepeatModeSymbolName(repeatMode) active:repeatMode != VibeRepeatModeOff
+    [self setFlankGlyph:RepeatSymbolName(repeatMode) active:repeatMode != VibeRepeatModeOff
                onButton:_repeatButton];
-    _repeatButton.accessibilityLabel = VibeRepeatModeTitle(repeatMode);
+    _repeatButton.accessibilityLabel = RepeatTitle(repeatMode);
     // Shown flanks say it themselves; applyShuffleRepeatShown re-applies on a flip.
     if (_shuffleButton.hidden) {
         [self applyFileInfoText];
@@ -1014,12 +1025,12 @@ static UIImage *TransportGradientImage(void) {
 // ends the line.
 - (void)applyFileInfoText {
     BOOL buffering = _buffering && [self bufferingTakesFileInfoLine];
-    NSString *fileInfo = buffering ? STR_LABEL_BUFFERING : _fileInfo;
+    NSString *fileInfo = buffering ? VibePlayerCardLabelText(VibePlayerCardLabelBuffering) : _fileInfo;
     NSString *tempoInfo = buffering && !_landscapeActive ? nil : _tempoInfo;
     BOOL stacked = _landscapeActive && fileInfo.length > 0 && tempoInfo.length > 0;
     NSString *line = stacked
             ? [NSString stringWithFormat:@"%@\n%@", fileInfo, tempoInfo]
-            : [[Formatters sharedInstance] infoLineFromFields:@[fileInfo ?: @"", tempoInfo ?: @""]];
+            : [VibePlayerCardInstalledHost() playerCardInfoLineFromFields:@[fileInfo ?: @"", tempoInfo ?: @""]];
     BOOL shuffleGlyph = _shuffleButton.hidden && _flankShuffleEnabled;
     BOOL repeatGlyph = _shuffleButton.hidden && _flankRepeatMode != VibeRepeatModeOff;
     if (!shuffleGlyph && !repeatGlyph && !buffering) {
@@ -1043,10 +1054,10 @@ static UIImage *TransportGradientImage(void) {
             [spoken addObject:name];
         };
         if (shuffleGlyph) {
-            lead(@"shuffle", STR_TRANSPORT_SHUFFLE);
+            lead(@"shuffle", VibePlayerCardLabelText(VibePlayerCardLabelShuffle));
         }
         if (repeatGlyph) {
-            lead(VibeRepeatModeSymbolName(_flankRepeatMode), VibeRepeatModeTitle(_flankRepeatMode));
+            lead(RepeatSymbolName(_flankRepeatMode), RepeatTitle(_flankRepeatMode));
         }
         NSMutableAttributedString *body = [[NSMutableAttributedString alloc] initWithString:line];
         if (buffering) {
@@ -1074,11 +1085,11 @@ static UIImage *TransportGradientImage(void) {
 // Otherwise it stands in for the artist, whose line the band always keeps.
 - (void)applyArtistText {
     if (_buffering && ![self bufferingTakesFileInfoLine]) {
-        NSMutableAttributedString *text = [[NSMutableAttributedString alloc] initWithString:STR_LABEL_BUFFERING
+        NSMutableAttributedString *text = [[NSMutableAttributedString alloc] initWithString:VibePlayerCardLabelText(VibePlayerCardLabelBuffering)
                 attributes:@{NSFontAttributeName: _artistLabel.font, NSForegroundColorAttributeName: _artistLabel.textColor}];
         [text appendAttributedString:SpinnerRoom(_artistLabel.font)];
         _artistLabel.attributedText = text;
-        _artistLabel.accessibilityLabel = STR_LABEL_BUFFERING;
+        _artistLabel.accessibilityLabel = VibePlayerCardLabelText(VibePlayerCardLabelBuffering);
     }
     else {
         _artistLabel.text = _artist;

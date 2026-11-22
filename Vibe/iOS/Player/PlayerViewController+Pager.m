@@ -10,15 +10,11 @@
 #import "PlayerViewControllerInternal.h"
 #import "PlayerViewController+Delivery.h"
 
-#import "AppSettings.h"
 #import "AudioTrackMetadata.h"
 #import "FXPadView.h"
-#import "Formatters.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
-#import "WaveformRendererRegistry.h"
 #import "WaveformScrubberView.h"
-#import "WaveformTheme+Settings.h"
 #import "PlaceholderFiles.h"
 
 // At one, a quick second swipe outruns the fetch (a file read and a decode)
@@ -38,22 +34,8 @@ static const NSTimeInterval kProgrammaticScrollHoldCeilingSeconds = 1.5;
 
 #pragma mark - Per-page waveforms
 
-// The playhead line is the style's default until the switch is touched
-// (Settings/AGENTS.md), decided here as the widget decides its own.
 - (void)applyWaveformSettingsToCell:(TrackPageCell *)cell {
-    AppSettings *settings = AppSettings.sharedInstance;
-    WaveformScrubberView *view = cell.waveformView;
-    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:settings.waveformStyle];
-    // A global block, so the assignment costs nothing.
-    view.themeProvider = ^WaveformTheme *(BOOL isDark, UIColor *artworkColor) {
-        return [WaveformTheme themeForSettings:AppSettings.sharedInstance widget:NO isDark:isDark
-                                  artworkColor:artworkColor];
-    };
-    view.centered = [settings waveformCenteredForWidget:NO];
-    view.drawsPlayheadLine = [WaveformRendererRegistry
-            drawsPlayheadLineForIdentifier:style chosen:[settings waveformPlayheadLineForWidget:NO]];
-    [view syncWaveformStyle:style];
-    [view syncWaveformTheme];
+    [VibePlayerCardInstalledHost() playerCardConfigureWaveformView:cell.waveformView];
 }
 
 - (TrackPageCell *)cellAtIndex:(NSUInteger)index {
@@ -290,36 +272,27 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 }
 
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index {
+    id<VibePlayerCardHost> host = VibePlayerCardInstalledHost();
     id<VibePlayerCardItem> track = [_playlist trackAtIndex:index];
     BOOL current = index == _playlist.currentIndex;
     NSString *errorText = _playback.errorText;
     BOOL showError = current && errorText != nil;
-    BOOL showsInfo = AppSettings.sharedInstance.showFileInfo;
     // Full-size art or the placeholder, never the soft 128px thumbnail.
     [cell configureWithTitle:track.displayTitle
                   titleColor:[UIColor labelColor]
                       artist:(showError ? errorText : (track.displayArtist ?: @""))
                  artistColor:(showError ? [UIColor systemRedColor]
                                         : [UIColor secondaryLabelColor])
-                    fileInfo:(showsInfo ? [Formatters.sharedInstance fileInfoLineForMetadata:track.metadata] : nil)
-                   tempoInfo:(showsInfo ? [self tempoInfoLineForTrack:track] : nil)
+                    fileInfo:[host playerCardFileInfoForItem:track]
+                   tempoInfo:[host playerCardTempoForItem:track]
                    buffering:(current && !showError && _playback.bufferingNoticeShown)
                          art:[self artworkForPageAtIndex:index]];
     [self applyPlayOrderToCell:cell atIndex:index];
     [cell setOutputRouteKind:_playback.outputRouteKind
                   deviceName:_playback.outputRouteName];
-    // The pad follows the setting, which the Playback screen's write carries
-    // here through the display notification.
-    [cell setFXPadShown:AppSettings.sharedInstance.audioFXEnabled];
-    [cell setShuffleRepeatShown:AppSettings.sharedInstance.showShuffleRepeat];
-}
-
-// The mac's second info line: the tempo — the tag, or the analysis the
-// waveform load ran — and the key. Tagged only, in Camelot, the mac's default
-// notation: key analysis and the notation setting are macOS-only.
-- (NSString *)tempoInfoLineForTrack:(id<VibePlayerCardItem>)track {
-    return [[Formatters sharedInstance] tempoLineWithBPM:track.bpm
-                                                 keyText:VibeMusicalKeyCamelotName(track.key)];
+    // A settings change reaches here through reloadSettings.
+    [cell setFXPadShown:host.playerCardShowsFXPad];
+    [cell setShuffleRepeatShown:host.playerCardShowsShuffleRepeat];
 }
 
 - (UICollectionViewCell *)collectionView:(UICollectionView *)collectionView

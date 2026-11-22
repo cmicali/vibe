@@ -30,14 +30,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
       didFailWaveformForIndex:(NSUInteger)index;
 
-// A tempo for `track`, forwarded as delivered: matched by what it sounds, not
-// page, since a track can occupy several rows, and never held — the model
-// stamps it and the delay taps follow at once; a page repaints only when the
-// tempo it shows changed, through the metadata event. No key: key detection
-// is macOS-only.
+// The decode pass's analysis results for `track`, forwarded as delivered. They
+// match by what the track sounds, not by page, since a track can occupy
+// several rows. They are never held, so the model stamps a tempo and the delay
+// taps follow at once. A page repaints only when the tempo it shows changed,
+// through the metadata event.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
-              didDetectBPM:(float)bpm
-                  forTrack:(id<VibePlayableItem>)track;
+            didLoadAnalysis:(NSDictionary<NSString *, id> *)results
+                   forTrack:(id<VibePlayableItem>)track;
 
 @end
 

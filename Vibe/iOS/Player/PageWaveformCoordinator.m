@@ -4,7 +4,6 @@
 //
 
 #import "PageWaveformCoordinator.h"
-#import "AudioAnalysisObservers.h"
 #import "AudioWaveformCache.h"
 #import "AudioWorkScheduler.h"
 
@@ -197,15 +196,11 @@
     [_delegate pageWaveformCoordinator:self didFailWaveformForIndex:failedIndex];
 }
 
-// Straight through: the track is the match, and the hold does not apply. The
-// tempo only: key detection is macOS-only.
+// Straight through: the track is the match, and the hold does not apply.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache
             didLoadResults:(NSDictionary<NSString *, id> *)results
                   forTrack:(id<VibePlayableItem>)track {
-    float bpm = [AudioBPMAnalyzer tempoInResults:results];
-    if (bpm > 0) {
-        [_delegate pageWaveformCoordinator:self didDetectBPM:bpm forTrack:track];
-    }
+    [_delegate pageWaveformCoordinator:self didLoadAnalysis:results forTrack:track];
 }
 
 @end

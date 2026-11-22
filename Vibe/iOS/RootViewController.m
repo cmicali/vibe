@@ -5,6 +5,7 @@
 
 #import "RootViewControllerInternal.h"
 
+#import "AppSettings.h"
 #import "AudioTrack+TrackRow.h"
 #import "AudioTrackMetadata.h"
 #import "CueFolderGrantPrompt.h"
@@ -120,6 +121,11 @@ static NSString *const kTabSearch = @"search";
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(thumbnailDidLoad:)
                                                name:AudioTrackMetadataThumbnailDidLoadNotification
+                                             object:nil];
+    // The card reads no setting itself, so the notification reaches it here.
+    [NSNotificationCenter.defaultCenter addObserver:_player
+                                           selector:@selector(reloadSettings)
+                                               name:VibeDisplaySettingsDidChangeNotification
                                              object:nil];
     [self refreshMiniPlayer];
     [self syncTabSurfaces];

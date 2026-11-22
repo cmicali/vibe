@@ -5,18 +5,29 @@
 
 #import "VibeiOSAppDelegate.h"
 #import "AppSettings.h"
+#import "AudioAnalysisObservers.h"
 #import "AudioError.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
 #import "DropboxMirror+Shared.h"
+#import "Formatters.h"
 #import "LinkStore.h"
 #import "LocationStore.h"
 #import "NSBundle+BuildInfo.h"
 #import "PINCache+VibeAudioCache.h"
+#import "VibePlayerCardHost.h"
+#import "VibeStrings.h"
+#import "WaveformRendererRegistry.h"
+#import "WaveformScrubberView.h"
+#import "WaveformTheme+Settings.h"
 #if DEBUG
 #import "DebugCommonVerbs.h"
 #import "DebugiOSEntry.h"
 #endif
+
+// The now-playing card asks the app for its words, formats and settings.
+@interface VibeiOSAppDelegate () <VibePlayerCardHost>
+@end
 
 @implementation VibeiOSAppDelegate
 
@@ -31,6 +42,8 @@
     // makes it.
     VibeDebugApplyLaunchFlags();
 #endif
+    // Before any scene makes its card.
+    VibePlayerCardInstallHost(self);
     // Before any scene names a folder.
     LocationStore.deviceModelName = UIDevice.currentDevice.localizedModel;
     // Before the scene restores a playlist, which may name a mirror file or a
@@ -73,6 +86,98 @@
             LogWarn(@"Welcome track not copied: %@", error.localizedDescription);
         }
     });
+}
+
+#pragma mark - VibePlayerCardHost
+
+- (NSString *)playerCardLabel:(VibePlayerCardLabel)label {
+    switch (label) {
+        case VibePlayerCardLabelTimeUnknown: return STR_LABEL_TIME_UNKNOWN;
+        case VibePlayerCardLabelBuffering: return STR_LABEL_BUFFERING;
+        case VibePlayerCardLabelMinimize: return STR_A11Y_PLAYER_MINIMIZE;
+        case VibePlayerCardLabelOutputRoute: return STR_A11Y_PLAYER_OUTPUT_ROUTE;
+        case VibePlayerCardLabelWaveform: return STR_A11Y_WAVEFORM;
+        case VibePlayerCardLabelTime: return STR_SETTINGS_SECTION_TIME;
+        case VibePlayerCardLabelShuffle: return STR_TRANSPORT_SHUFFLE;
+        case VibePlayerCardLabelPrevious: return STR_TRANSPORT_PREVIOUS;
+        case VibePlayerCardLabelNext: return STR_TRANSPORT_NEXT;
+        case VibePlayerCardLabelPlay: return STR_TRANSPORT_PLAY;
+        case VibePlayerCardLabelPause: return STR_TRANSPORT_PAUSE;
+        case VibePlayerCardLabelRepeatOff: return STR_TRANSPORT_REPEAT_OFF;
+        case VibePlayerCardLabelRepeatAll: return STR_TRANSPORT_REPEAT_ALL;
+        case VibePlayerCardLabelRepeatOne: return STR_TRANSPORT_REPEAT_ONE;
+    }
+    return @"";
+}
+
+- (NSString *)playerCardDuration:(NSTimeInterval)duration {
+    return [Formatters.sharedInstance durationStringFromTimeInterval:duration];
+}
+
+- (NSString *)playerCardFileInfoForItem:(id<VibePlayerCardItem>)item {
+    if (!AppSettings.sharedInstance.showFileInfo) {
+        return nil;
+    }
+    return [Formatters.sharedInstance fileInfoLineForMetadata:item.metadata];
+}
+
+// The mac's second info line: the tempo, tagged or analyzed, and the key.
+// Tagged only, in Camelot, the mac's default notation. Key analysis and the
+// notation setting are macOS-only.
+- (NSString *)playerCardTempoForItem:(id<VibePlayerCardItem>)item {
+    if (!AppSettings.sharedInstance.showFileInfo) {
+        return nil;
+    }
+    return [Formatters.sharedInstance tempoLineWithBPM:item.bpm keyText:VibeMusicalKeyCamelotName(item.key)];
+}
+
+- (NSString *)playerCardInfoLineFromFields:(NSArray<NSString *> *)fields {
+    return [Formatters.sharedInstance infoLineFromFields:fields];
+}
+
+- (BOOL)playerCardShowsRemainingTime {
+    return AppSettings.sharedInstance.showRemainingTime;
+}
+
+- (void)setPlayerCardShowsRemainingTime:(BOOL)shows {
+    AppSettings.sharedInstance.showRemainingTime = shows;
+}
+
+- (BOOL)playerCardShowsFXPad {
+    return AppSettings.sharedInstance.audioFXEnabled;
+}
+
+- (BOOL)playerCardShowsShuffleRepeat {
+    return AppSettings.sharedInstance.showShuffleRepeat;
+}
+
+// The playhead line is the style's default until the switch is touched
+// (Settings/AGENTS.md), decided here as the widget decides its own.
+- (void)playerCardConfigureWaveformView:(WaveformScrubberView *)view {
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:settings.waveformStyle];
+    // A global block, so the assignment costs nothing.
+    view.themeProvider = ^WaveformTheme *(BOOL isDark, UIColor *artworkColor) {
+        return [WaveformTheme themeForSettings:AppSettings.sharedInstance widget:NO isDark:isDark
+                                  artworkColor:artworkColor];
+    };
+    view.centered = [settings waveformCenteredForWidget:NO];
+    view.drawsPlayheadLine = [WaveformRendererRegistry
+            drawsPlayheadLineForIdentifier:style chosen:[settings waveformPlayheadLineForWidget:NO]];
+    [view syncWaveformStyle:style];
+    [view syncWaveformTheme];
+}
+
+// No key observer: key detection is macOS-only. The bands are for the card's
+// style or the widget's, which bakes from the card's waveform. A nil widget
+// style is the card's.
+- (VibeWaveformAnalysis)playerCardWaveformAnalysis {
+    AppSettings *settings = AppSettings.sharedInstance;
+    return (VibeWaveformAnalysis){
+        .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.waveformStyle]
+              || [WaveformRendererRegistry readsBandsForIdentifier:settings.widgetWaveformStyle],
+        .observers = settings.analyzeBPM ? @[AudioBPMAnalyzer.waveformObserver] : @[],
+    };
 }
 
 @end

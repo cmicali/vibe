@@ -12,6 +12,7 @@
 #import "PlayerViewController.h"
 #import "FXPadView.h"
 #import "OutputRouteView.h"
+#import "VibePlayerCardHost.h"
 #import "VibePlayerCardPlayback.h"
 
 @class AudioWaveformCache;

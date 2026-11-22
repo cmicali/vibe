@@ -5,7 +5,7 @@
 
 #import "TrackPageViews.h"
 
-#import "VibeStrings.h"
+#import "VibePlayerCardHost.h"
 
 void VibeConfigureTimeLabel(UILabel *label) {
     label.font = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleSubheadline]
@@ -17,7 +17,7 @@ void VibeConfigureTimeLabel(UILabel *label) {
     [label setContentCompressionResistancePriority:UILayoutPriorityRequired
                                            forAxis:UILayoutConstraintAxisVertical];
     label.textColor = [UIColor secondaryLabelColor];
-    label.text = STR_LABEL_TIME_UNKNOWN;
+    label.text = VibePlayerCardLabelText(VibePlayerCardLabelTimeUnknown);
     label.translatesAutoresizingMaskIntoConstraints = NO;
 }
 
@@ -40,9 +40,9 @@ void VibeConfigureTimeLabel(UILabel *label) {
             [_label.topAnchor constraintGreaterThanOrEqualToAnchor:self.topAnchor],
         ]];
         self.isAccessibilityElement = YES;
-        self.accessibilityLabel = STR_SETTINGS_SECTION_TIME;
+        self.accessibilityLabel = VibePlayerCardLabelText(VibePlayerCardLabelTime);
         self.accessibilityTraits = UIAccessibilityTraitButton;
-        self.text = STR_LABEL_TIME_UNKNOWN;
+        self.text = VibePlayerCardLabelText(VibePlayerCardLabelTimeUnknown);
         __weak TrackPageTimeControl *weakSelf = self;
         [self registerForTraitChanges:@[UITraitPreferredContentSizeCategory.class]
                           withHandler:^(id<UITraitEnvironment> environment,

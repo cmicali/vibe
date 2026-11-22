@@ -12,6 +12,14 @@
 
 @implementation PlaybackShellRulesTests
 
+// An undetectable tempo reads as 0 (AudioBPMAnalyzer tempoInResults:) and
+// stamps nothing.
+- (void)testOnlyAFoundTempoIsStamped {
+    XCTAssertTrue(VibePlaybackStampsDetectedTempo(128));
+    XCTAssertFalse(VibePlaybackStampsDetectedTempo(0));
+    XCTAssertFalse(VibePlaybackStampsDetectedTempo(-1));
+}
+
 // On the first row, Previous restarts a loaded track. With nothing loaded
 // there is nothing to restart, even before an asynchronous stop lands.
 - (void)testPreviousIsAvailableOnTheFirstRowOnlyWithATrackLoaded {

@@ -11,13 +11,12 @@
 #import "PlayerViewController+Pager.h"
 
 #import "AudioWaveformCache.h"
-#import "Formatters.h"
 #import "PlaceholderFiles.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 #import "WaveformZoomMath.h"
 
-// iOS-only, so not AppSettings.
+// The card's own state, not a setting of the host's.
 static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 
 @implementation PlayerViewController (Delivery)
@@ -49,12 +48,12 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     [[self cellAtIndex:index].waveformView hideLoadingIndicator];
 }
 
-// The tempo is the model's to stamp and feed the taps; the page hears it back
-// as the metadata event. No key: key detection is macOS-only.
+// The results are the model's to read, stamp and feed the taps. The page hears
+// a tempo back as the metadata event.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
-              didDetectBPM:(float)bpm
-                  forTrack:(id<VibePlayableItem>)track {
-    [_playback noteDetectedBPM:bpm forTrack:track];
+            didLoadAnalysis:(NSDictionary<NSString *, id> *)results
+                   forTrack:(id<VibePlayableItem>)track {
+    [_playback noteWaveformAnalysis:results forTrack:track];
 }
 
 #pragma mark - WaveformScrubberViewDelegate
@@ -84,7 +83,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
         return;
     }
     _scrubLabelSecond = second;
-    _elapsedLabel.text = [[Formatters sharedInstance] durationStringFromTimeInterval:position];
+    _elapsedLabel.text = [VibePlayerCardInstalledHost() playerCardDuration:position];
     _remainingTimeControl.text = VibeRightTimeText(position, duration);
 }
 

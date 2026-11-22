@@ -49,8 +49,8 @@
 @interface RecordingCoordinatorDelegate : NSObject <PageWaveformCoordinatorDelegate>
 @property (nonatomic, strong) NSMutableArray<NSNumber *> *updatedIndexes;
 @property (nonatomic, strong) NSMutableArray<NSNumber *> *failedIndexes;
-@property (nonatomic, strong) NSMutableArray<NSURL *> *tempoURLs;
-@property (nonatomic, strong) NSMutableArray<NSNumber *> *tempos;
+@property (nonatomic, strong) NSMutableArray<NSURL *> *analysisURLs;
+@property (nonatomic, strong) NSMutableArray<NSDictionary *> *analyses;
 @end
 
 @implementation RecordingCoordinatorDelegate
@@ -59,16 +59,16 @@
     if (self) {
         _updatedIndexes = [NSMutableArray array];
         _failedIndexes = [NSMutableArray array];
-        _tempoURLs = [NSMutableArray array];
-        _tempos = [NSMutableArray array];
+        _analysisURLs = [NSMutableArray array];
+        _analyses = [NSMutableArray array];
     }
     return self;
 }
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)coordinator
-                   didDetectBPM:(float)bpm
-                       forTrack:(AudioTrack *)track {
-    [_tempoURLs addObject:track.url];
-    [_tempos addObject:@(bpm)];
+                didLoadAnalysis:(NSDictionary<NSString *, id> *)results
+                       forTrack:(id<VibePlayableItem>)track {
+    [_analysisURLs addObject:track.url];
+    [_analyses addObject:results];
 }
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)coordinator
               didUpdateWaveform:(CodableAudioWaveform *)waveform
@@ -315,21 +315,20 @@ static AudioTrack *VibeCueRow(NSUInteger start, NSUInteger end) {
     XCTAssertFalse([_coordinator isCompleteAtIndex:4]);
 }
 
-// A tempo is forwarded as delivered — with its track, untargeted and unheld —
-// because the model matches it across every row, not by page. An
-// undetectable one, and the key, are not forwarded.
-- (void)testTempoIsForwardedByTrackWhateverThePageAndHold {
+// Analysis results are forwarded as delivered, with their track, untargeted
+// and unheld, because the model matches them across every row, not by page.
+// The model reads the tempo (PlaybackShellRulesTests).
+- (void)testAnalysisIsForwardedByTrackWhateverThePageAndHold {
     [_coordinator requestIndex:3 track:_tracks[3]];
     _coordinator.held = YES;
     id<AudioWaveformCacheDelegate> coordinator = (id<AudioWaveformCacheDelegate>)_coordinator;
     NSString *tempo = AudioBPMAnalyzer.waveformObserver.identifier;
     NSString *key = AudioKeyAnalyzer.waveformObserver.identifier;
-    [coordinator audioWaveformCache:(AudioWaveformCache *)_cache didLoadResults:@{tempo: @0.0f, key: @9}
-                           forTrack:_tracks[4]];
-    [coordinator audioWaveformCache:(AudioWaveformCache *)_cache didLoadResults:@{tempo: @128.0f}
-                           forTrack:_tracks[5]];
-    XCTAssertEqualObjects(_delegate.tempoURLs, @[_tracks[5].url]);
-    XCTAssertEqualObjects(_delegate.tempos, @[@128]);
+    NSDictionary *first = @{tempo: @0.0f, key: @9}, *second = @{tempo: @128.0f};
+    [coordinator audioWaveformCache:(AudioWaveformCache *)_cache didLoadResults:first forTrack:_tracks[4]];
+    [coordinator audioWaveformCache:(AudioWaveformCache *)_cache didLoadResults:second forTrack:_tracks[5]];
+    XCTAssertEqualObjects(_delegate.analysisURLs, (@[_tracks[4].url, _tracks[5].url]));
+    XCTAssertEqualObjects(_delegate.analyses, (@[first, second]));
 }
 
 - (void)testFullDeliveryMarksThePageComplete {
