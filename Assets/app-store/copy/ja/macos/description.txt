@@ -10,7 +10,7 @@ Vibeは小さく速く作られています。
 ファイルやフォルダをドロップするだけ — ディスクからも、iCloud DriveやDropboxからも — すぐに再生が始まります。再構築するデータベースも、管理するライブラリもありません。
 
 Vibe独自のオーディオエンジン
-MP3、AAC、MP4/M4A、MP2、AIFF、WAV、FLACを、高品質なサンプルレート変換を備えたVibe独自のCoreAudioエンジンで再生します。
+MP3、AAC、MP4/M4A、MP2、AIFF、WAV、FLAC、WavPack、Monkey's Audio、DSD (DSF)を、高品質なサンプルレート変換を備えたVibe独自のCoreAudioエンジンで再生します。
 
 ビットパーフェクトモード
 ビットパーフェクトモードは、デバイスが対応している場合、ファイルのサンプルレートに合わせます。排他モードはデバイスをVibe専用にします。

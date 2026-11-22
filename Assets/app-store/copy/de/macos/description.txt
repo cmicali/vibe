@@ -10,7 +10,7 @@ Spielt einfach deine Dateien
 Lege eine Datei oder einen Ordner ab — von deiner Festplatte, aus iCloud Drive oder Dropbox — und sie spielt. Keine Datenbank, die neu aufgebaut werden muss, und keine Mediathek, die gepflegt werden will.
 
 Vibes eigene Audio-Engine
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV und FLAC, abgespielt über Vibes eigene CoreAudio-Engine mit hochwertiger Abtastratenkonvertierung.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, FLAC, WavPack, Monkey's Audio und DSD (DSF), abgespielt über Vibes eigene CoreAudio-Engine mit hochwertiger Abtastratenkonvertierung.
 
 Bit-perfekter Modus
 Der bit-perfekte Modus übernimmt die Abtastrate der Datei, wenn das Gerät sie unterstützt. Der exklusive Modus reserviert das Gerät für Vibe.

@@ -13,8 +13,6 @@ direct-download Mac app only.
 | --- | --- | --- |
 | TagLib | `vibe-libs/third_party/taglib/` | Mozilla Public License 1.1 (see the election below) |
 | UTF8-CPP | `vibe-libs/third_party/taglib/toolkit/utf8-cpp.*` | Boost-style permissive |
-| PINCache | `vibe-libs/third_party/PINCache/` | Apache License 2.0; modified |
-| PINOperation | `vibe-libs/third_party/PINOperation/` | Apache License 2.0; modified |
 | r8brain-free-src | `vibe-libs/third_party/r8brain/` | MIT |
 | PFFFT (double) | `vibe-libs/third_party/r8brain/fft/` | FFTPACK (BSD-style) |
 | dr_mp3 | `vibe-libs/third_party/dr_mp3/` | MIT No Attribution (or public domain, at the recipient's choice); modified |
@@ -23,6 +21,9 @@ direct-download Mac app only.
 | libogg | `vibe-libs/third_party/ogg/` | BSD 3-Clause |
 | libvorbis | `vibe-libs/third_party/vorbis/` | BSD 3-Clause |
 | Sparkle | `vibe-libs/third_party/Sparkle/` | MIT, with its bundled components' permissive notices |
+| libwavpack | `vibe-libs/third_party/wavpack/` | BSD 3-Clause |
+| Monkey's Audio SDK | `vibe-libs/third_party/monkeys_audio/` | BSD 3-Clause; modified |
+| RSA Data Security MD5 | `vibe-libs/third_party/monkeys_audio/MACLib/MD5.*` | RSA's MD5 license (permissive, with attribution) |
 
 ## The libraries in vibe-libs
 

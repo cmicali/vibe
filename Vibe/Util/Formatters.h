@@ -39,8 +39,9 @@
 // The key is always the LAST field: the mac colors it as the line's suffix.
 - (NSString *)tempoLineWithBPM:(double)bpm keyText:(NSString *)keyText;
 // The codec line both screens render: file type, bitrate (lossy only) and
-// sample rate, each only when present (a zero rate is stored as nil). Empty
-// with no fileType, so an unscanned track's nil metadata reads as empty.
+// sample rate, each only when present (a zero rate is stored as nil). A DSD
+// rate reads as its name, "DSD64" to "DSD512". Empty with no fileType, so an
+// unscanned track's nil metadata reads as empty.
 - (NSString *)fileInfoLineForMetadata:(AudioTrackMetadata *)metadata;
 
 // The pitch readout: "+3.2%", "−3.2%" (U+2212), "0.0%", per locale.

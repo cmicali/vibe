@@ -83,7 +83,8 @@ STALL_PROBE_MS = 2000
 # PlayableExtensions.ordered, in its order: the cue reader probes a missing
 # FILE's other spellings in it, and make-cue-corpus.py resolves them the same
 # way. The runner tests hold this to the source.
-AUDIO_SUFFIXES = (".wav", ".wave", ".bwf", ".w64", ".aif", ".aiff", ".flac", ".caf",
+AUDIO_SUFFIXES = (".wav", ".wave", ".bwf", ".w64", ".aif", ".aiff", ".aifc", ".afc",
+                  ".flac", ".wv", ".ape", ".dsf", ".caf",
                   ".m4a", ".mp4", ".qta", ".m4b", ".m4r", ".aac", ".adts",
                   ".ogg", ".oga", ".opus", ".mp3", ".mp2")
 PLAYLIST_SUFFIXES = {".m3u", ".m3u8", ".cue"}   # VibePlaylistFile.isPlaylistExtension:

@@ -4,7 +4,7 @@ This directory holds the iOS app shell: the app and scene delegates, the tab she
 
 **A playlist starts from an opened folder, file or playlist file and can hold additions.** The user picks a folder or file in the app's own browser, the Files tab. Its sources are Dropbox (`Loading/iOS/Dropbox/AGENTS.md`), the app's Documents, and each location granted once through the system folder picker (iCloud Drive, a drive, any other Files provider). There are three `UITab`s, Playlist, Favorites and Files, with `UISearchTab`'s circle beside the capsule. A mini player strip sits in the tab bar's `bottomAccessory`, and the now-playing card presents up from it. Opening anything replaces the playlist, starts playing, selects the Playlist tab and presents the card. A single file played alone keeps its current tab. An active Search tab also keeps the selection. **Add to Playlist** appends tracks without touching playback, the tab or the card. An Add onto nothing is an Open.
 
-This directory is the shell only. The iOS halves of shared subsystems are documented beside them: `Loading/iOS/Dropbox/` (the Dropbox account and its mirror) and `Util/iOS/`. The scrubber is vibe-libs' `waveform/WaveformView`. Here, `Files/` (the Files tab, with its Locations and Recents stores), `Player/` (the card), `Search/` (Favorites, Search and the Favorites store), `Settings/` and `Widget/` (the app side of the Home Screen widget) each have their own `AGENTS.md`.
+This directory is the shell only. The iOS halves of shared subsystems are documented beside them: `Loading/iOS/Dropbox/` (Vibe's Dropbox mirror, over vibe-libs' `files/Dropbox`) and `Util/iOS/`. The scrubber is vibe-libs' `waveform/WaveformView`. Here, `Files/` (the Files tab, with its Locations and Recents stores), `Player/` (the card), `Search/` (Favorites, Search and the Favorites store), `Settings/` and `Widget/` (the app side of the Home Screen widget) each have their own `AGENTS.md`.
 
 **Layout keys off view aspect, not device orientation.** On iPad it keys off height too: a short window takes the card's compact layouts (`Player/AGENTS.md`). iPad is a resizable window in all orientations, with a 320×200 minimum through `sizeRestrictions` in `VibeiOSSceneDelegate`. The system can impose a larger minimum.
 
@@ -88,13 +88,9 @@ The scene's root: a `UITabBarController` child, the mini player in its `bottomAc
 
 Foreground-inactive counts as off: the scene delegate's foreground-active bit drives the Playlist tab's surface and the card's display link. The custom card transition supplies what a presentation would. Reduce Motion settles at once, the card is the modal accessibility surface while up, and completion moves VoiceOver focus.
 
-## MiniPlayerView
+## The mini player
 
-The accessory's content: the 128px thumbnail, title over artist, play/pause and next (`forward.end.fill`, the mac's glyph). It draws a `VibeTrackRow` (`Files/VibeTrackRow.h`), which the shell fills from the displayed track (`AudioTrack+TrackRow`). The shell also pushes the controls' VoiceOver labels. The strip reads no model, setting or string. Targets are large and glyphs small (`kGlyphPointSize`). When `traitCollection.tabAccessoryEnvironment` says the bar collapsed it inline, the artist line is dropped. There is no playhead bar, which fits 48pt only by crowding the art and labels.
-
-**TRAP: the strip is 48pt, not negotiable.** `UITabAccessory` frames its content at a fixed height and ignores `intrinsicContentSize` and height constraints, with no logged conflict. A taller strip means giving up the accessory, and with it Liquid Glass, inline collapse and the automatic safe-area inset.
-
-**TRAP: the row needs a designated give, and the simulator never shows it.** On device the accessory reports width zero on at least one pass. The row's required content needs 162pt, so UIKit breaks a constraint and logs it. The art's leading inset is `UILayoutPriorityRequired - 1`. Any new required constraint across the row reopens this.
+The accessory's content is vibe-libs' `MiniPlayerView` (`ui/Rows`): the thumbnail, title over artist, play or pause, and next. `RootViewController` fills its `VibeTrackRow` from the displayed track (`AudioTrack+TrackRow`) and pushes the controls' VoiceOver labels. The strip's two traps, its fixed 48 pt height and its designated give, are in `ui/Rows/AGENTS.md`.
 
 ## The Files tab
 
@@ -102,7 +98,7 @@ The browser, Recents, Open URL…, the paste row and the pickers are `Files/AGEN
 
 ## PlaylistViewController
 
-The Playlist tab: number (the shared `EqualizerIndicatorView` on the playing row), artwork, title over artist, duration. Each row is a `PlaylistTrackCell`. It draws a `VibeTrackRow` that `rowAtIndex:` fills from the track (`AudioTrack+TrackRow`), with the number and the playing marker. It reads no model, setting or string. The loading bar is pushed on its own (`loading`), because a transfer changes without the row. The cell skips a render whose row is unchanged. **Selecting a row plays it and stays here.** Expanding the card is the strip's job. A track change scrolls the list to the playing row, or leaves that for when it shows. **Under shuffle the list holds still**, since following a jumping play order would lose the user's place on every track. Number and duration take the artist line's text style, so they scale together under Dynamic Type. The folder name goes on `navigationItem.title`, not `self.title`, which is also the tab's title.
+The Playlist tab: number (the shared `EqualizerIndicatorView` on the playing row), artwork, title over artist, duration. Each row is a `PlaylistTrackCell`, from vibe-libs' `ui/Rows`. It draws a `VibeTrackRow` that `rowAtIndex:` fills from the track (`AudioTrack+TrackRow`), with the number and the playing marker. The loading bar is pushed on its own (`loading`), because a transfer changes without the row. **Selecting a row plays it and stays here.** Expanding the card is the strip's job. A track change scrolls the list to the playing row, or leaves that for when it shows. **Under shuffle the list holds still**, since following a jumping play order would lose the user's place on every track. The folder name goes on `navigationItem.title`, not `self.title`, which is also the tab's title.
 
 **TRAP: UIKit displays a prepared cell without re-running `cellForRowAtIndexPath:`.** A thumbnail or metadata delivery in that window repaints nothing, so the Playlist tab re-renders each cell in `willDisplayCell:`. **TRAP: rendering in place does not re-measure an automatic-dimension row**, so a row whose height moved takes an empty `performBatchUpdates:`.
 

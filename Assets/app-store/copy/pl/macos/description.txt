@@ -10,7 +10,7 @@ Po prostu odtwarza Twoje pliki
 Upuść plik albo folder — z dysku, z iCloud Drive lub z Dropboxa — i gra. Nie ma bazy danych do przebudowania ani biblioteki do pielęgnowania.
 
 Własny silnik audio Vibe
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC — odtwarzane przez własny silnik CoreAudio Vibe z wysokiej jakości konwersją częstotliwości próbkowania.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, FLAC, WavPack, Monkey's Audio i DSD (DSF) — odtwarzane przez własny silnik CoreAudio Vibe z wysokiej jakości konwersją częstotliwości próbkowania.
 
 Tryb bit-perfect
 Tryb bit-perfect ustawia częstotliwość próbkowania pliku, jeśli urządzenie ją obsługuje. Tryb wyłączny rezerwuje urządzenie dla Vibe.

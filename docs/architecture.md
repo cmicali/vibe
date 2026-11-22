@@ -24,7 +24,7 @@ Vibe/
   Audio/               how Vibe hosts vibe-libs' player, and the audio features beside it
   Loading/             the app's own transfers: links and Dropbox
     Net/               Open URL's link store
-    iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
+    iOS/Dropbox/       Vibe's one Dropbox mirror, over vibe-libs' files/Dropbox (iOS)
   Playlist/            the playlist row
     Mac/               the playlist table and the last-playlist store (macOS)
   Util/                Vibe's helpers with no feature
@@ -77,7 +77,7 @@ The playback engine is vibe-libs' `audio/Player`, and `Vibe/Audio/` hosts it. Th
 The DJ effects, the meter, and the fades are vibe-libs' (below). `vibe-libs/audio/Player/AGENTS.md` says how the player hosts the effects, the pitch fader's stage, and the meter. Each other feature beside the engine has its own directory and doc:
 
 - **The metadata**: vibe-libs' `media/Metadata`. `AudioTrackMetadataCache` is the facade over tags, their disk cache, and the playlist scan. `AudioTrackMetadataLoader` is the scan behind it. Tags are read through TagLib by vibe-libs' `TagLibAudioFile`, in `media/Tags`. `Artwork/` holds `AudioTrackArtwork` and `EmbeddedThumbnailCache`. `Artwork/FolderArt/FolderArtResolver` finds a cover beside the files, on macOS. Docs: `vibe-libs/media/Metadata/AGENTS.md`, and `Audio/AGENTS.md` for how the shells drive it.
-- **The waveform's data** is vibe-libs'. `waveform/WaveformLoading`'s `AudioWaveformLoader` decodes a file into an `AudioWaveform`, and feeds each mono block to the observers its request lists. Its `AudioWaveformCache` owns the loaders and stores the results on disk through PINCache. The summary is `waveform/Waveform`'s. How Vibe wires them is in `Audio/AGENTS.md`. Docs: `vibe-libs/waveform/WaveformLoading/AGENTS.md` and `vibe-libs/waveform/Waveform/AGENTS.md`.
+- **The waveform's data** is vibe-libs'. `waveform/WaveformLoading`'s `AudioWaveformLoader` decodes a file into an `AudioWaveform`, and feeds each mono block to the observers its request lists. Its `AudioWaveformCache` owns the loaders and stores the results on disk through `files/DiskCache`. The summary is `waveform/Waveform`'s. How Vibe wires them is in `Audio/AGENTS.md`. Docs: `vibe-libs/waveform/WaveformLoading/AGENTS.md` and `vibe-libs/waveform/Waveform/AGENTS.md`.
 
 ### Loading
 
@@ -105,7 +105,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### The iOS shell
 
-`Vibe/iOS/` is the iPhone and iPad app shell. The playlist starts from a folder, file, or playlist file and can hold additions. `PlaybackController` is the model. It owns the `AudioPlayer`, the `VibePlaylist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Player/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The iOS halves of shared subsystems live with those subsystems, such as `Loading/iOS/Dropbox/`. The scrubber is vibe-libs' `waveform/WaveformView`. Read next: `Vibe/iOS/AGENTS.md`.
+`Vibe/iOS/` is the iPhone and iPad app shell. The playlist starts from a folder, file, or playlist file and can hold additions. `PlaybackController` is the model. It owns the `AudioPlayer`, the `VibePlaylist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`, from vibe-libs' `ui/Rows`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Player/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The iOS halves of shared subsystems live with those subsystems, such as `Loading/iOS/Dropbox/`. The scrubber is vibe-libs' `waveform/WaveformView`. Read next: `Vibe/iOS/AGENTS.md`.
 
 ### The widget
 
@@ -125,6 +125,8 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 `ui/DropWells` holds the mac's drop wells, which the playlist pane's `PlaylistDropZoneView` shows over the rows while files are dragged over the window.
 
+`ui/Rows` holds the iOS track row, the file row pieces, and the mini player strip. They draw a `VibeTrackRow` that the app fills from `AudioTrack`.
+
 `files/HTTP` holds the ranged HTTP transfers. `files/RemoteFiles` keeps a file on a server as a local placeholder, fetched by range. `files/ShareLinks` holds the rules for opening a web link, the share links it turns into direct URLs, and the stand-in for a web server. `system/NowPlaying` holds the bridge to the system's Now Playing info and remote commands. `system/AppOpening` holds the mac's open coalescer and coordinator. `system/Updates` holds `VibeUpdater`, Sparkle for the direct download. `dev/DebugChannel` holds the debug channel's transport, the command and reply files. `dev/iOSDriver` holds the touch driver for the iOS simulator. AppOpening and Updates are macOS only too. Only the mac app lists them. iOSDriver is iOS only. Only the `VibeiOSDriver` target lists it.
 
 **The tempo and key analyzers ride the waveform's decode pass as observers**, so neither reads the file a second time. They are `AudioBPMAnalyzer` and `AudioKeyAnalyzer`, in `audio/Analysis`. The app's `Playlist/AudioAnalysisObservers.h` joins them to the decode, and each shell attaches them. Key detection runs on macOS only. Doc: `Playlist/AGENTS.md`.
@@ -133,7 +135,7 @@ Every move the plan listed is done (`docs/future/vibe-libs.md`). `make project` 
 
 ### Third-party code
 
-There is no package manager. Vendored code is vibe-libs' `third_party/`: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, and the prebuilt Sparkle framework, each a piece of its own. Its template carries its compiler flags. Both apps compile every one but Sparkle, which only the mac app reaches, through `system/Updates`. The three dr_ libraries carry fixes of Vibe's own. Read the piece's `AGENTS.md` before changing one. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
+There is no package manager. Vendored code is vibe-libs' `third_party/`: a subset of TagLib, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, libwavpack, the Monkey's Audio SDK, and the prebuilt Sparkle framework, each a piece of its own. Its template carries its compiler flags. Both apps compile every one but Sparkle, which only the mac app reaches, through `system/Updates`. The three dr_ libraries and the Monkey's Audio SDK carry fixes of Vibe's own. Read the piece's `AGENTS.md` before changing one. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
 
 ### Tests, resources, and scripts
 
@@ -193,7 +195,7 @@ Read `vibe-libs/files/FileLoading/AGENTS.md` ("One claim, two stages" and "The t
 
 ### 4. AudioFileHandle
 
-`AudioFileHandle` (`vibe-libs/audio/Decode/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV, W64, RF64 and AIFF to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). MPEG goes to dr_mp3, and the handle frames it itself (`AudioFileHandle+MPEG.m`). Each answers the file's facts itself. Any other file opens CoreAudio's parser for its facts (`openParserWithError:`), and Apple's decoders play it. AAC, ALAC and Opus are such files. A file those decoders refuse reaches the parser too. Playback refuses it there unless it holds a coding none of them decodes, such as GSM in a WAV.
+`AudioFileHandle` (`vibe-libs/audio/Decode/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV, W64, RF64, AIFF, and AIFF-C to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). WavPack goes to libwavpack, Monkey's Audio to its SDK, and DSF to vibe-libs' own DSD filters, which also take DSD in WavPack. MPEG goes to dr_mp3, and the handle frames it itself (`AudioFileHandle+MPEG.m`). Each answers the file's facts itself. Any other file opens CoreAudio's parser for its facts (`openParserWithError:`), and Apple's decoders play it. AAC, ALAC and Opus are such files. A file those decoders refuse reaches the parser too. Playback refuses it there unless it holds a coding none of them decodes, such as GSM in a WAV.
 
 A handle reads its bytes in one of three ways:
 
@@ -280,7 +282,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | Playing a file that is still downloading | `vibe-libs/files/FileLoading/AGENTS.md` (CloudFileAvailability) | `vibe-libs/files/FileLoading/Transfer/CloudFileAvailability.m` |
 | Files on a network share | `vibe-libs/files/FileLoading/AGENTS.md` (The network-mount read-ahead) | `vibe-libs/files/FileLoading/Transfer/NetworkReadAhead.m` |
 | Open URL and links | `Loading/Net/AGENTS.md`, vibe-libs' `files/ShareLinks/AGENTS.md`, `Mac/App/AGENTS.md` | `Loading/Net/LinkStore.m` |
-| Dropbox on iOS | `Loading/iOS/Dropbox/AGENTS.md` | `Loading/iOS/Dropbox/DropboxMirror.m` |
+| Dropbox on iOS | `Loading/iOS/Dropbox/AGENTS.md`, `vibe-libs/files/Dropbox/AGENTS.md` | `vibe-libs/files/Dropbox/DropboxMirror.m` |
 | Tags, the metadata cache, or the scan | `vibe-libs/media/Metadata/AGENTS.md`, `vibe-libs/media/Tags/AGENTS.md` | `vibe-libs/media/Metadata/AudioTrackMetadataLoader.m`, `vibe-libs/media/Tags/TagLibAudioFile.mm` |
 | Artwork and row thumbnails | `vibe-libs/media/Metadata/AGENTS.md` | `vibe-libs/media/Metadata/Artwork/AudioTrackArtwork.m` |
 | Cover images beside the files | `vibe-libs/media/Metadata/AGENTS.md` (Folder art), `Audio/AGENTS.md` | `vibe-libs/media/Metadata/Artwork/FolderArt/FolderArtResolver.m` |
