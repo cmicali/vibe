@@ -10,7 +10,7 @@ Pur și simplu îți redă fișierele
 Trage un fișier sau un folder — de pe disc, din iCloud Drive sau din Dropbox — și pornește. Nu există bază de date de reconstruit și nicio bibliotecă de întreținut.
 
 Motorul audio propriu Vibe
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV și FLAC, redate prin motorul CoreAudio propriu al Vibe, cu conversie a ratei de eșantionare de înaltă calitate.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, FLAC, WavPack, Monkey's Audio și DSD (DSF), redate prin motorul CoreAudio propriu al Vibe, cu conversie a ratei de eșantionare de înaltă calitate.
 
 Mod bit-perfect
 Modul bit-perfect folosește rata de eșantionare a fișierului dacă dispozitivul o acceptă. Modul exclusiv rezervă dispozitivul pentru Vibe.

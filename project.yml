@@ -318,6 +318,11 @@ targets:
               - "com.sony.wave64"
               - "public.mp2"
               - "com.apple.quicktime-audio"
+              - "public.aifc-audio"
+              - "com.commonwealthrecordings.afc-audio"
+              - "org.videolan.wv"
+              - "org.videolan.ape"
+              - "com.sony.dsf"
           # .m4b, which conforms to neither MPEG-4 claim either. Alternate:
           # Vibe plays an audiobook but never asks to take them from Books.
           - &audiobook-document-type
@@ -346,7 +351,7 @@ targets:
               - "org.xiph.flac"
 
         # Neither system has a UTI for cue sheets (they read as dyn.*).
-        UTExportedTypeDeclarations: &cue-sheet-export
+        UTExportedTypeDeclarations: &vibe-exports
           - UTTypeIdentifier: "com.commonwealthrecordings.cue-sheet"
             UTTypeDescription: "CUE Sheet"
             UTTypeConformsTo:
@@ -354,11 +359,22 @@ targets:
             UTTypeTagSpecification:
               public.filename-extension:
                 - "cue"
+          # .afc, Apple's other AIFF-C spelling. The system's AIFF-C type
+          # names only .aifc, and an import cannot add a tag to it.
+          - UTTypeIdentifier: "com.commonwealthrecordings.afc-audio"
+            UTTypeConformsTo:
+              - "public.aifc-audio"
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - "afc"
 
         # Imported, so the system's own declaration wins where there is one;
         # an older system has none, and .ogg would read as dyn.* there. No
         # description, which would be a catalog key for every language.
-        UTImportedTypeDeclarations: &ogg-audio-import
+        # The system has no type for WavPack, Monkey's Audio, or DSF. These
+        # identifiers are the ones other players declare (VLC's for .wv and
+        # .ape), so an app on the same Mac that exports one agrees with them.
+        UTImportedTypeDeclarations: &audio-imports
           - UTTypeIdentifier: "org.xiph.ogg-audio"
             UTTypeConformsTo:
               - "public.audio"
@@ -369,6 +385,30 @@ targets:
                 - "opus"
               public.mime-type:
                 - "audio/ogg"
+          - UTTypeIdentifier: "org.videolan.wv"
+            UTTypeConformsTo:
+              - "public.audio"
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - "wv"
+              public.mime-type:
+                - "audio/x-wavpack"
+          - UTTypeIdentifier: "org.videolan.ape"
+            UTTypeConformsTo:
+              - "public.audio"
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - "ape"
+              public.mime-type:
+                - "audio/x-ape"
+          - UTTypeIdentifier: "com.sony.dsf"
+            UTTypeConformsTo:
+              - "public.audio"
+            UTTypeTagSpecification:
+              public.filename-extension:
+                - "dsf"
+              public.mime-type:
+                - "audio/x-dsf"
 
     settings:
       groups: [vibe-version]
@@ -543,8 +583,8 @@ targets:
             LSItemContentTypes: *audio-content-types
           - *audiobook-document-type
           - *cue-sheet-document-type
-        UTExportedTypeDeclarations: *cue-sheet-export
-        UTImportedTypeDeclarations: *ogg-audio-import
+        UTExportedTypeDeclarations: *vibe-exports
+        UTImportedTypeDeclarations: *audio-imports
     settings:
       groups: [vibe-version]
       base:
@@ -959,6 +999,8 @@ targets:
       - path: vibe-libs/media/Tags/NSString+CPPStrings.mm
       - path: vibe-libs/media/Tags/VibeTagFields.m
       - path: vibe-libs/media/Tags/VibeCheckedFileStream.mm
+      - path: vibe-libs/media/Tags/VibeTagWriter.mm   # the rating test writes the fields it reads back
+      - path: vibe-libs/media/Tags/VibeAudioDigest.mm   # the writer's check that the audio is unchanged
       - path: vibe-libs/media/Metadata/Artwork/ArchivedArtShare.m   # a picture's archived forms, shared by bytes
       - path: vibe-libs/core/Common/VibeMaterializing.m   # the parse and the cover read run with it off
     settings:
@@ -982,7 +1024,7 @@ targetTemplates:
     # AudioTypes, and the vendored resampler and decoders with the flags the
     # apps build them with.
     templates: [VibeLibsAudioTypes, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav,
-                VibeLibsVorbis]
+                VibeLibsVorbis, VibeLibsWavpack, VibeLibsMonkeysAudio]
     sources:
       - path: vibe-libs/Tests/files/HTTP/HTTPStub.m   # the link tests' host, and a link played over it
       - path: vibe-libs/files/ShareLinks/VibeFakeHTTP.m     # the link tests' fake web server
@@ -1001,6 +1043,15 @@ targetTemplates:
       - path: vibe-libs/audio/Decode/AudioFileHandle.m
       - path: vibe-libs/audio/Decode/AudioFileHandle+MPEG.m
       - path: vibe-libs/audio/Decode/AudioFileHandle+Stream.m
+      - path: vibe-libs/audio/Decode/AudioFileHandle+WavPack.m
+      - path: vibe-libs/audio/Decode/AudioFileHandle+APE.m
+      - path: vibe-libs/audio/Decode/VibeAPEDecoder.cpp
+      - path: vibe-libs/audio/Decode/AudioFileHandle+DSD.m
+      # The DSD parser and converter, at -O3 as Decode's template builds them.
+      - path: vibe-libs/audio/Decode/VibeDSDToPCM.c
+        compilerFlags: ["-O3"]
+      - path: vibe-libs/audio/Decode/VibeDSF.c
+        compilerFlags: ["-O3"]
       - path: vibe-libs/files/FileLoading/Transfer/NetworkReadAhead.m
       - path: vibe-libs/audio/Decode/AudioFileHandle+Debug.m   # the read-ahead tests' mount rule and read hook
       - path: vibe-libs/Tests/Support/VibeReadAheadScript.m   # the script of those tests' reads

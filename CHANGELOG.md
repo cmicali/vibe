@@ -1,3 +1,8 @@
+# v1.18
+
+* Added WavPack, Monkey's Audio, DSD (DSF) and AIFF-C playback
+* Fixed MP3s with a damaged stretch stopping early and showing no waveform
+
 # v1.17
 
 * Changed MP3, FLAC, WAV, AIFF and Ogg Vorbis files to always play with Vibe's own decoders

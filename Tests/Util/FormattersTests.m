@@ -3,6 +3,7 @@
 
 #import "Formatters.h"
 #import "FakeTrackMetadata.h"
+#import "VibeDSD.h"
 #import "VibeStrings.h"
 
 @interface FormattersTests : XCTestCase
@@ -233,6 +234,12 @@
                           ([_formatters infoLineFromFields:@[@"FLAC", rate]]));
     fake.sampleRate = nil;
     XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:metadata], @"FLAC");
+    // A DSD file states its DSD rate, in either family.
+    fake.fileType = @"DSD";
+    fake.sampleRate = @(kVibeDSD64Rate);
+    XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:metadata], @"DSD | DSD64");
+    fake.sampleRate = @(kVibeDSD64Rate48k * 8);
+    XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:metadata], @"DSD | DSD512");
 }
 
 @end

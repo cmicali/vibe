@@ -4,15 +4,17 @@ Guidance for any coding agent working in this repository.
 
 Vibe is a native music player for macOS (`Vibe` target) and iOS (`VibeiOS` target), written in Objective-C and Objective-C++.
 
-Playback uses CoreAudio, AudioToolbox and AVFoundation plus five vendored libraries, and no other third-party audio code. Each is a piece under vibe-libs' `third_party/`:
+Playback uses CoreAudio, AudioToolbox and AVFoundation plus seven vendored libraries, and no other third-party audio code. Each is a piece under vibe-libs' `third_party/`:
 
 - **r8brain-free-src** resamples every file whose rate is not the output's.
 - **dr_mp3** decodes MP3, MP2 and MP1.
 - **dr_flac** decodes FLAC.
 - **dr_wav** decodes WAV, W64, RF64 and AIFF.
 - **libvorbis**, with libogg's page reader, decodes Ogg Vorbis.
+- **libwavpack** decodes WavPack.
+- **The Monkey's Audio SDK** decodes Monkey's Audio.
 
-The three dr_ libraries carry fixes of Vibe's own. Each piece's `AGENTS.md` lists them. The four decoders run inside the audio file handle, vibe-libs' `audio/Decode`. The resampler is vibe-libs' `audio/DSP`. `docs/audio-quality.md` has the measurements behind each choice.
+DSD in a DSF or a WavPack file goes to PCM through vibe-libs' own filters, in `audio/Decode` (vibe-libs' `docs/dsd-to-pcm.md`). The three dr_ libraries carry fixes of Vibe's own, and so does the Monkey's Audio SDK. Each piece's `AGENTS.md` lists them. The six decoders run inside the audio file handle, vibe-libs' `audio/Decode`. The resampler is vibe-libs' `audio/DSP`. `docs/audio-quality.md` has the measurements behind each choice.
 
 The playable formats are listed once, in vibe-libs' `audio/AudioTypes` (`PlayableExtensions`). FLAC in Ogg is refused at the parser open, because CoreAudio truncates it (vibe-libs' `audio/Decode/AudioFileHandle.m`).
 
@@ -122,7 +124,7 @@ Every directory directly under `Vibe/` except `Mac/` and `iOS/` is a shared subs
 - **`Vibe/Util/`** — Vibe's own featureless helpers, with `Mac/` and `iOS/` halves. Those another app could use are in vibe-libs' `core/Common`. **`Vibe/Debug/`** — the debug channel, with `Mac/` and `iOS/` command tables.
 - **`Vibe/Mac/`** — the macOS app shell, one directory per piece: `App/` (application object, open funnel, the folder grants' owner, stats, the debug info report), `MainWindow/` (`MainPlayerController`; layout and chrome are its `LAYOUT.md`; `Transport/` carries its own doc), `Menu/` (the menu bar and Vibe's command table, over vibe-libs' `ui/Shortcuts`), `Controls/` (the artwork view; the pitch controls and the other mac controls are vibe-libs' `ui/Controls`), `Settings/` (Vibe's panes and window subclass, over vibe-libs' `ui/SettingsWindow`; the Keyboard Shortcuts pane is `ui/Shortcuts`'; `Themes/` is the theme list and editor), `About/`, `Convert/` (the FLAC converter and its file round trip, with a doc).
 - **`Vibe/iOS/`** — the iPhone/iPad app shell: `PlaybackController` (the model), the tab shell, the Playlist tab and the mini player; `Files/` is the Files tab's browser and Recents, `Player/` the now-playing card, `Search/` Favorites and search, `Settings/` the settings screens, `Widget/` the widget's app side, each with a doc. The top-level `VibeWidget/` is the widget extension, with its own doc. The iOS halves of shared subsystems live under those subsystems, not here.
-- **`vibe-libs/third_party/`** — the vendored TagLib subset, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, and the prebuilt Sparkle framework. Each is a piece with its own template, flags, license, and `AGENTS.md`. The dr_ libraries, PINCache, and PINOperation carry changes of Vibe's own. TagLib carries packaging edits. Each piece's doc lists them. Both app targets compile every one but Sparkle, which only the mac app reaches, through `system/Updates`.
+- **`vibe-libs/third_party/`** — the vendored TagLib subset, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, libwavpack, the Monkey's Audio SDK, and the prebuilt Sparkle framework. Each is a piece with its own template, flags, license, and `AGENTS.md`. The dr_ libraries and the Monkey's Audio SDK carry changes of Vibe's own. TagLib carries packaging edits. Each piece's doc lists them. Both app targets compile every one but Sparkle, which only the mac app reaches, through `system/Updates`.
 
 ## Cross-directory guarantees
 

@@ -37,8 +37,9 @@ methods above will play.
 
 FORMATS
 
-MP3, MP2, AAC, M4A, MP4, AIFF/AIF, WAV/WAVE/BWF, FLAC, CAF and W64. Playback uses Vibe’s CoreAudio and AudioToolbox engine,
-r8brain sample-rate conversion, and the dr_mp3, dr_flac and dr_wav decoders.
+MP3, MP2, AAC, M4A, MP4, AIFF/AIF, AIFF-C, WAV/WAVE/BWF, FLAC, WavPack, Monkey’s Audio, DSF, CAF and W64. Playback uses Vibe’s
+CoreAudio and AudioToolbox engine, r8brain sample-rate conversion, the dr_mp3, dr_flac and dr_wav decoders, libwavpack,
+the Monkey’s Audio SDK, and Vibe’s own DSD-to-PCM filters.
 
 THE HOME-SCREEN WIDGET
 
