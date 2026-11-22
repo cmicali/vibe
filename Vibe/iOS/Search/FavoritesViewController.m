@@ -102,7 +102,7 @@ static NSString *const kFavoriteCellIdentifier = @"favorite";
     // Nil, not empty, so the row draws one line.
     content.secondaryText = favorite.location.length > 0 ? favorite.location : nil;
     [content vibeApplyFileNameStyle];
-    [content vibeApplyFileIconForName:nil folder:YES art:nil];
+    [content vibeApplyFileIconForFolder:YES playlist:NO art:nil];
     [cell vibeApplyRowContent:content opening:[self favoriteIsOpening:favorite]];
     return cell;
 }

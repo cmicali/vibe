@@ -40,7 +40,7 @@ One streaming walk into memory, then a latest-wins filter per query off main.
 
 ## FavoritesStore and FavoritesViewController
 
-Starred folders, drawn as the Files tab draws a folder row (`FileRow`'s `vibeApplyFileIconForName:folder:art:` and `vibeApplyFileNameStyle`). **Play and Add go through `openFavorite:appending:`**, which resolves the bookmark off main, deselects, and alerts on an unreachable folder. A tap replaces through `PlaybackController`'s `confirmReplacing…` funnel with a replace token. An Add hands the folder to `addURLs:token:`. **A Dropbox favorite with no song directly inside opens in the Files tab** (`showDirectoryHandler`), where its subfolders are, after it is listed from Dropbox.
+Starred folders, drawn as the Files tab draws a folder row (`FileRow`'s `vibeApplyFileIconForFolder:playlist:art:` and `vibeApplyFileNameStyle`). **Play and Add go through `openFavorite:appending:`**, which resolves the bookmark off main, deselects, and alerts on an unreachable folder. A tap replaces through `PlaybackController`'s `confirmReplacing…` funnel with a replace token. An Add hands the folder to `addURLs:token:`. **A Dropbox favorite with no song directly inside opens in the Files tab** (`showDirectoryHandler`), where its subfolders are, after it is listed from Dropbox.
 
 **Both tokens are taken before the resolve** (`addRequestToken`, `replaceRequestTokenOpening:`). The resolve is provider IPC, and a request judged only when it finishes would act on whatever the user opened while waiting (`../AGENTS.md`). The token proves staleness and nothing else, so a Files Add made later but resolved sooner still lands first.
 

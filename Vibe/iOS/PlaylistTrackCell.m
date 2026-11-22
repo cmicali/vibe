@@ -5,8 +5,6 @@
 
 #import "PlaylistTrackCell.h"
 
-#import "AudioTrack.h"
-#import "AudioTrackMetadata.h"
 #import "EqualizerIndicatorView.h"
 #import "FileRow.h"
 #import "LoadingIndicatorMath.h"
@@ -18,17 +16,13 @@
     LoadingIndicatorView    *_loadingView;
     UIImageView *_artView;
     UILabel     *_titleLabel;
-    UILabel     *_artistLabel;
+    UILabel     *_subtitleLabel;
     UILabel     *_durationLabel;
     UIStackView *_textStack;
-    BOOL         _playing;
-    // What renderTrack: last drew from, held strongly so an identity cannot
-    // be reused by another object.
-    AudioTrack         *_renderedTrack;
-    AudioTrackMetadata *_renderedMetadata;
-    UIImage            *_renderedThumbnail;
-    NSString           *_renderedDuration;
-    NSUInteger          _renderedNumber;
+    // What renderRow: last drew, a copy, so the caller's later edits to its
+    // row cannot match it. Holding the thumbnail strongly keeps its identity
+    // from being reused by another image.
+    VibeTrackRow *_renderedRow;
 }
 
 - (instancetype)initWithStyle:(UITableViewCellStyle)style
@@ -50,7 +44,7 @@
 - (void)build {
     UIView *content = self.contentView;
 
-    // The artist line's text style, so the columns scale together.
+    // The subtitle's text style, so the columns scale together.
     UIFont *numbers = [[UIFontMetrics metricsForTextStyle:UIFontTextStyleFootnote]
             scaledFontForFont:[UIFont monospacedDigitSystemFontOfSize:13
                                                                weight:UIFontWeightRegular]];
@@ -88,14 +82,14 @@
     _titleLabel.textColor = UIColor.labelColor;
     _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
 
-    _artistLabel = [[UILabel alloc] init];
-    _artistLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
-    _artistLabel.adjustsFontForContentSizeCategory = YES;
-    _artistLabel.textColor = UIColor.secondaryLabelColor;
-    _artistLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _subtitleLabel = [[UILabel alloc] init];
+    _subtitleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+    _subtitleLabel.adjustsFontForContentSizeCategory = YES;
+    _subtitleLabel.textColor = UIColor.secondaryLabelColor;
+    _subtitleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
 
     // Negative: a label's height carries its font's leading.
-    UIStackView *text = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _artistLabel]];
+    UIStackView *text = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _subtitleLabel]];
     text.axis = UILayoutConstraintAxisVertical;
     text.alignment = UIStackViewAlignmentLeading;
     text.spacing = -2;
@@ -195,41 +189,28 @@
 // Precedence: loading bar, equalizer, number.
 - (void)resolveGutter {
     _loadingView.active = _loading;
-    _numberLabel.hidden = _loading || _playing;
-    _indicatorView.hidden = _loading || !_playing;
+    _numberLabel.hidden = _loading || _renderedRow.playing;
+    _indicatorView.hidden = _loading || !_renderedRow.playing;
 }
 
-- (BOOL)renderTrack:(AudioTrack *)track
-             number:(NSUInteger)number
-            playing:(BOOL)playing {
+- (BOOL)renderRow:(VibeTrackRow *)row {
     // Every appearance renders twice, since willDisplayCell: re-renders a
-    // prepared cell, and the second usually finds nothing changed. These are
-    // all the row draws from.
-    AudioTrackMetadata *metadata = track.metadata;
-    UIImage *thumbnail = track.cachedThumbnail;
-    NSString *duration = track.durationString;
-    if (track == _renderedTrack && metadata == _renderedMetadata && thumbnail == _renderedThumbnail
-            && [duration isEqualToString:_renderedDuration] && number == _renderedNumber
-            && playing == _playing) {
+    // prepared cell, and the second usually finds nothing changed.
+    if ([row isEqual:_renderedRow]) {
         return NO;
     }
-    _renderedTrack = track;
-    _renderedMetadata = metadata;
-    _renderedThumbnail = thumbnail;
-    _renderedDuration = duration;
-    _renderedNumber = number;
-    _numberLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)number];
-    _playing = playing;
+    _renderedRow = [row copy];
+    _numberLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)row.number];
     [self resolveGutter];
-    _artView.image = thumbnail ?: VibeFileTileImage(NO);
-    _durationLabel.text = duration;
-    _titleLabel.text = track.displayTitle ?: @"";
+    _artView.image = row.thumbnail ?: VibeFileTileImage(NO);
+    _durationLabel.text = row.durationText;
+    _titleLabel.text = row.title ?: @"";
     // Hidden rather than blank, so the title centres on its own.
-    NSString *artist = track.displayArtist;
-    BOOL hidden = artist.length == 0;
-    BOOL heightMoved = hidden != _artistLabel.isHidden;
-    _artistLabel.text = artist ?: @"";
-    _artistLabel.hidden = hidden;
+    NSString *subtitle = row.subtitle;
+    BOOL hidden = subtitle.length == 0;
+    BOOL heightMoved = hidden != _subtitleLabel.isHidden;
+    _subtitleLabel.text = subtitle ?: @"";
+    _subtitleLabel.hidden = hidden;
     return heightMoved;
 }
 

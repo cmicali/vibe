@@ -5,7 +5,7 @@
 
 #import "PlaylistViewController.h"
 
-#import "AudioTrack.h"
+#import "AudioTrack+TrackRow.h"
 #import "FilesRootViewController.h"
 #import "AudioTrackMetadata.h"
 #import "CloudTransferRegistry.h"
@@ -289,16 +289,20 @@ static NSString *const kTrackCellIdentifier = @"track";
     return (NSInteger)_playlist.count;
 }
 
+- (VibeTrackRow *)rowAtIndex:(NSUInteger)index {
+    VibeTrackRow *row = [_playlist trackAtIndex:index].trackRow;
+    row.number = index + 1;
+    row.playing = index == _playlist.currentIndex;
+    return row;
+}
+
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
     PlaylistTrackCell *cell = [tableView dequeueReusableCellWithIdentifier:kTrackCellIdentifier
                                                               forIndexPath:indexPath];
     NSUInteger index = (NSUInteger)indexPath.row;
-    BOOL playing = index == _playlist.currentIndex && _playlist.count > 0;
     cell.levelSource = _playback;
-    [cell renderTrack:[_playlist trackAtIndex:index]
-               number:index + 1
-              playing:playing];
+    [cell renderRow:[self rowAtIndex:index]];
     [self syncLoadingForCell:cell trackIndex:index];
     [self syncEqualizerActivityForCell:cell];
     return cell;
@@ -314,9 +318,7 @@ forRowAtIndexPath:(NSIndexPath *)indexPath {
         // Re-render here; the art read is a non-blocking cache lookup.
         NSUInteger index = (NSUInteger)indexPath.row;
         if (index < _playlist.count) {
-            [(PlaylistTrackCell *)cell renderTrack:[_playlist trackAtIndex:index]
-                                            number:index + 1
-                                           playing:index == _playlist.currentIndex];
+            [(PlaylistTrackCell *)cell renderRow:[self rowAtIndex:index]];
             [self syncLoadingForCell:(PlaylistTrackCell *)cell trackIndex:index];
         }
         [self syncEqualizerActivityForCell:(PlaylistTrackCell *)cell];
@@ -403,10 +405,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     if (!cell) {
         return;
     }
-    BOOL playing = index == _playlist.currentIndex;
-    BOOL heightMoved = [cell renderTrack:[_playlist trackAtIndex:index]
-                                  number:index + 1
-                                 playing:playing];
+    BOOL heightMoved = [cell renderRow:[self rowAtIndex:index]];
     [self syncEqualizerActivityForCell:cell];
     // TRAP: rendering in place does NOT re-measure an automatic-dimension row.
     // An artist line arriving with metadata outgrows the row at accessibility

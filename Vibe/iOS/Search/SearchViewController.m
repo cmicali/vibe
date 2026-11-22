@@ -18,6 +18,7 @@
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "VibePlaylist.h"
+#import "VibePlaylistFile.h"
 #import "FavoritesStore.h"
 #import "LocationStore.h"
 #import "UIViewController+Alert.h"
@@ -519,7 +520,7 @@ static const NSUInteger kMaxFileResults = 200;
     }
     AudioTrack *track = [_playlist trackAtIndex:_matches[(NSUInteger)indexPath.row].unsignedIntegerValue];
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    [content vibeApplyFileIconForName:track.url.lastPathComponent folder:NO art:track.cachedThumbnail];
+    [content vibeApplyFileIconForFolder:NO playlist:NO art:track.cachedThumbnail];
     content.text = track.displayTitle;
     content.secondaryText = track.displayArtist;
     content.textProperties.numberOfLines = 1;
@@ -542,7 +543,9 @@ static const NSUInteger kMaxFileResults = 200;
                                       reuseIdentifier:identifier];
     }
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
-    [content vibeApplyFileIconForName:name folder:isFolder art:nil];
+    [content vibeApplyFileIconForFolder:isFolder
+                               playlist:[VibePlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]
+                                    art:nil];
     content.text = name;
     content.secondaryText = folder;
     [content vibeApplyFileNameStyle];
