@@ -212,11 +212,12 @@
     }
     // Next renders the new header before scrolling to its cell. Keep
     // this on one main turn, so the arriving page must draw at once.
-    VibePlaylist *livePlaylist = _playlist;
+    VibePlaylist *livePlaylist = (VibePlaylist *)_playlist;
+    PlaybackController *playback = (PlaybackController *)_playback;
     BOOL shuffled = livePlaylist.shuffleEnabled;
     // It walks the active order: the shuffle history and its cursor.
     NSArray<AudioTrack *> *neighborhood = livePlaylist.neighborhoodTracks;
-    NSDictionary *effects = _playback.debugPlayer.fx.intentSnapshot[@"stages"];
+    NSDictionary *effects = playback.debugPlayer.fx.intentSnapshot[@"stages"];
     VibePlaylist *previewPlaylist = [[VibePlaylist alloc] init];
     [previewPlaylist replaceAllWithTracks:livePlaylist.tracks startingAtIndex:neighbor];
     BOOL immediate = NO;
@@ -237,7 +238,7 @@
     }
     BOOL stateKept = livePlaylist.shuffleEnabled == shuffled
             && [neighborhood isEqual:livePlaylist.neighborhoodTracks]
-            && [effects isEqual:_playback.debugPlayer.fx.intentSnapshot[@"stages"]]
+            && [effects isEqual:playback.debugPlayer.fx.intentSnapshot[@"stages"]]
             && livePlaylist.currentIndex == current;
     completion(@{@"ok": @(immediate && stateKept),
                  @"immediateWaveform": @(immediate), @"playbackStateKept": @(stateKept)});

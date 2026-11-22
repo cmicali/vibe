@@ -9,10 +9,8 @@
 #import "PlayerViewController+Pager.h"
 #import "PlayerViewControllerInternal.h"
 #import "PlayerViewController+Delivery.h"
-#import "PlaybackController+NowPlaying.h"
 
 #import "AppSettings.h"
-#import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "FXPadView.h"
 #import "Formatters.h"
@@ -101,14 +99,14 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 
 // The row now at index while it sounds what track did, matched as the
 // coordinator matches: page and sourceKey. nil once it does not.
-- (AudioTrack *)trackAtIndex:(NSUInteger)index matching:(AudioTrack *)track {
-    AudioTrack *current = [_playlist trackAtIndex:index];
+- (id<VibePlayerCardItem>)trackAtIndex:(NSUInteger)index matching:(id<VibePlayerCardItem>)track {
+    id<VibePlayerCardItem> current = [_playlist trackAtIndex:index];
     return [current.sourceKey isEqualToString:track.sourceKey] ? current : nil;
 }
 
 - (void)requestCurrentWaveform {
     NSUInteger index = _playlist.currentIndex;
-    AudioTrack *track = [_playlist trackAtIndex:index];
+    id<VibePlayerCardItem> track = [_playlist trackAtIndex:index];
     if (!track) {
         return;
     }
@@ -127,7 +125,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
         if (!strongSelf || waits || strongSelf->_playlist.currentIndex != index) {
             return;
         }
-        AudioTrack *current = [strongSelf trackAtIndex:index matching:track];
+        id<VibePlayerCardItem> current = [strongSelf trackAtIndex:index matching:track];
         if (!current) {
             return;
         }
@@ -135,15 +133,14 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
     });
 }
 
-- (void)requestWaveformAtIndex:(NSUInteger)index track:(AudioTrack *)track {
+- (void)requestWaveformAtIndex:(NSUInteger)index track:(id<VibePlayerCardItem>)track {
     [_waveformCoordinator requestIndex:index track:track];
     // TRAP: a page whose waveform is complete starts no load and DELIVERS
     // NOTHING, and a track change clears the widget's strip, so returning to a
     // played track would leave the widget blank. Offer the cached envelope; the
     // model drops an offer for any track but the current one.
     if ([_waveformCoordinator isCompleteAtIndex:index]) {
-        [_playback offerWaveformToWidget:[_waveformCoordinator snapshotAtIndex:index]
-                                forTrack:track];
+        [_playback noteCompleteWaveform:[_waveformCoordinator snapshotAtIndex:index] forTrack:track];
     }
 }
 
@@ -161,7 +158,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
                               animated:![_waveformCoordinator isCompleteAtIndex:index]];
         return;
     }
-    AudioTrack *track = [_playlist trackAtIndex:index];
+    id<VibePlayerCardItem> track = [_playlist trackAtIndex:index];
     if (index == _playback.currentIndex || !track) {
         [cell.waveformView showLoadingIndicator];
         return;
@@ -289,11 +286,11 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 }
 
 - (UIImage *)artworkForPageAtIndex:(NSUInteger)index {
-    return [_playlist trackAtIndex:index].cachedArt ?: [UIImage imageNamed:@"record-bg"];
+    return [_playlist trackAtIndex:index].metadata.cachedArt ?: [UIImage imageNamed:@"record-bg"];
 }
 
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index {
-    AudioTrack *track = [_playlist trackAtIndex:index];
+    id<VibePlayerCardItem> track = [_playlist trackAtIndex:index];
     BOOL current = index == _playlist.currentIndex;
     NSString *errorText = _playback.errorText;
     BOOL showError = current && errorText != nil;
@@ -320,7 +317,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 // The mac's second info line: the tempo — the tag, or the analysis the
 // waveform load ran — and the key. Tagged only, in Camelot, the mac's default
 // notation: key analysis and the notation setting are macOS-only.
-- (NSString *)tempoInfoLineForTrack:(AudioTrack *)track {
+- (NSString *)tempoInfoLineForTrack:(id<VibePlayerCardItem>)track {
     return [[Formatters sharedInstance] tempoLineWithBPM:track.bpm
                                                  keyText:VibeMusicalKeyCamelotName(track.key)];
 }
@@ -453,7 +450,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 
 // A commit or a replacement can land mid-decode: the page must still be in the
 // window AND hold the track the load was started for.
-- (BOOL)artStillWantedForTrack:(AudioTrack *)track atIndex:(NSUInteger)index {
+- (BOOL)artStillWantedForTrack:(id<VibePlayerCardItem>)track atIndex:(NSUInteger)index {
     return NSLocationInRange(index, [self artWindow]) &&
            [_playlist trackAtIndex:index] == track;
 }
@@ -461,7 +458,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 // Metadata first, on the PRIORITY lane: the art dispatch hangs off the
 // metadata object, which behind a cloud folder's sweep can be minutes away.
 - (void)prefetchPageAtIndex:(NSUInteger)index {
-    AudioTrack *track = [_playlist trackAtIndex:index];
+    id<VibePlayerCardItem> track = [_playlist trackAtIndex:index];
     if (!track) {
         return;
     }
@@ -479,9 +476,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
         }
         [self->_artHeldPages addIndex:index];
         [self refreshPageAtIndex:index];
-        if ([self->_playlist isCurrentTrack:track]) {
-            [self->_playback publishNowPlaying];
-        }
+        [self->_playback noteLoadedArtForTrack:track];
     }];
 }
 
@@ -495,7 +490,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 
 // Zero for a stale entry, which then drops out of the set.
 - (NSUInteger)artBytesAtIndex:(NSUInteger)index {
-    CGImageRef image = [_playlist trackAtIndex:index].cachedArt.CGImage;
+    CGImageRef image = [_playlist trackAtIndex:index].metadata.cachedArt.CGImage;
     return image ? CGImageGetBytesPerRow(image) * CGImageGetHeight(image) : 0;
 }
 

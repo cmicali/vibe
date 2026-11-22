@@ -3,13 +3,13 @@
 //  Vibe (iOS)
 //
 //  The now-playing card: the track pager and the chrome over it. It observes
-//  PlaybackController and owns no playback state.
+//  the playback it is made with and owns no playback state.
 //
 
 #import <UIKit/UIKit.h>
 
-@class PlaybackController;
 @class PlayerViewController;
+@protocol VibePlayerCardPlayback;
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -29,7 +29,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface PlayerViewController : UIViewController
 
-- (instancetype)initWithPlayback:(PlaybackController *)playback NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithPlayback:(id<VibePlayerCardPlayback>)playback NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)initWithNibName:(nullable NSString *)nibName

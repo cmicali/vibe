@@ -6,7 +6,7 @@ The scrubber itself is vibe-libs' `waveform/WaveformView` (its `AGENTS.md`, iOS/
 
 ## PlayerViewController
 
-The track pager and the chrome over it. It observes `PlaybackController` and owns no playback state. **Only the settled page commits** (`commitVisiblePage`, `+Pager`). Pages appearing switch nothing. Asynchronous results land in `+Delivery`, except metadata, which is the model's `PlaybackObserver` event.
+The track pager and the chrome over it. It owns no playback state. **The card names no model class of Vibe's.** It reads the four protocols in `VibePlayerCardPlayback.h`. `PlaybackController` adopts the playback protocol. `VibePlaylist` and `AudioTrack` adopt the queue and item protocols in categories with no code (`PlaybackController.h`). `PlaybackObserver` refines the card's observer, so one broadcast reaches every screen. **Only the settled page commits** (`commitVisiblePage`, `+Pager`). Pages appearing switch nothing. Asynchronous results land in `+Delivery`, except metadata, which is the model's `playback:didLoadMetadataForTrack:` event.
 
 **`presented` gates a keep-alive card.** Minimized, the card still lays out and reloads. So `commitVisiblePage` must not run, or a playlist replacement settles a scroll nobody made, and neither may the playhead display link. The link reads the `sceneActive` the scene delegate supplies, never process-wide notifications.
 
@@ -87,4 +87,4 @@ Waveform bookkeeping between `AudioWaveformCache` and the cells. The cache has o
 
 **The slow-open state is the model's `currentOpenSlow`.** Every edge re-applies it to the visible pages (`applyPlaybackLoadingToVisiblePages`), and `willDisplayCell:` to each arriving page, so no page keeps a stale shimmer. The playback open hydrates the destination rather than clearing it. A track change cancels held scrubs and pinches, keeping the pixels and dropping the pending seek.
 
-**Only the current track's waveform reaches the widget.** `PlaybackController.offerWaveformToWidget:forTrack:` drops any other track's. **TRAP: a complete cached page delivers nothing on request**, and a track change clears the widget's strip, so `requestCurrentWaveform` must still offer its snapshot.
+**Only the current track's waveform reaches the widget.** The card hands every complete waveform to `noteCompleteWaveform:forTrack:`, and `PlaybackController` drops any other track's. A page's loaded art goes to `noteLoadedArtForTrack:` the same way, and the model republishes Now Playing when that track is current. **TRAP: a complete cached page delivers nothing on request**, and a track change clears the widget's strip, so `requestCurrentWaveform` must still offer its snapshot.

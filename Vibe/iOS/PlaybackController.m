@@ -570,8 +570,11 @@ static const NSUInteger kUIUpdateHz = 3;
     _player.fx.delayTapBPM = _playlist.currentTrack.bpm;
 }
 
-- (void)noteDetectedBPM:(float)bpm forTrack:(AudioTrack *)analyzed {
-    [_playlist stampTracksSounding:analyzed usingBlock:^(AudioTrack *track) {
+// Stamped on every row sounding the analyzed track's window, each redrawn, the
+// delay taps refed. The match closes the race with a track change.
+- (void)noteDetectedBPM:(float)bpm forTrack:(id<VibePlayableItem>)analyzed {
+    // The match reads only the URL and sourceKey.
+    [_playlist stampTracksSounding:(AudioTrack *)analyzed usingBlock:^(AudioTrack *track) {
         float shown = track.bpm;
         track.detectedBPM = bpm;
         // Only a tempo that changed what the row shows: the delivery repeats
@@ -640,9 +643,25 @@ static const NSUInteger kUIUpdateHz = 3;
     }
 }
 
+// The priority metadata lane.
 - (void)loadMetadataNowForTrack:(AudioTrack *)track {
     if (track) {
         [_metadataCache loadMetadataNow:track];
+    }
+}
+
+// Reused for the widget's strip rather than a second decode.
+- (void)noteCompleteWaveform:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track {
+    // A neighbor page's preview would replace the current track's offer
+    // before the widget publishes that track.
+    if ([_playlist isCurrentTrack:track]) {
+        [_widgetPublisher offerWaveform:waveform forTrack:track];
+    }
+}
+
+- (void)noteLoadedArtForTrack:(AudioTrack *)track {
+    if ([_playlist isCurrentTrack:track]) {
+        [self publishNowPlaying];
     }
 }
 
@@ -847,4 +866,11 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     }];
 }
 
+@end
+
+// Every selector the protocols name is already the class's own.
+@implementation AudioTrack (VibePlayerCard)
+@end
+
+@implementation VibePlaylist (VibePlayerCard)
 @end

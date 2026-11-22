@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 //  Waveforms target their page. Scrub events target the bound view.
-//  Metadata arrives through PlaybackObserver.
+//  Metadata arrives through VibePlayerCardObserver.
 //
 
 #import "PlayerViewController.h"

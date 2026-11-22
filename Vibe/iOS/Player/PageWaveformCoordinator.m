@@ -5,7 +5,6 @@
 
 #import "PageWaveformCoordinator.h"
 #import "AudioAnalysisObservers.h"
-#import "AudioTrack.h"
 #import "AudioWaveformCache.h"
 #import "AudioWorkScheduler.h"
 
@@ -27,7 +26,7 @@
     // Owed after the hold; the target clears at once so the settle can retry.
     NSMutableIndexSet *_heldFailures;
     // The track of each pending read, kept and dropped with its token.
-    NSMutableDictionary<NSNumber *, AudioTrack *> *_prefetchTracks;
+    NSMutableDictionary<NSNumber *, id<VibePlayableItem>> *_prefetchTracks;
     NSMutableDictionary<NSNumber *, AudioWorkToken *> *_prefetchTokens;
 }
 
@@ -73,7 +72,7 @@
     }];
 }
 
-- (void)requestIndex:(NSUInteger)index track:(AudioTrack *)track {
+- (void)requestIndex:(NSUInteger)index track:(id<VibePlayableItem>)track {
     if (_held) {
         return;
     }
@@ -90,7 +89,7 @@
     [_cache loadWaveformForTrack:track];
 }
 
-- (void)prefetchIndex:(NSUInteger)index track:(AudioTrack *)track {
+- (void)prefetchIndex:(NSUInteger)index track:(id<VibePlayableItem>)track {
     if (_held || [self isCompleteAtIndex:index] || _prefetchTracks[@(index)] == track) {
         return;
     }
@@ -163,7 +162,7 @@
 
 - (void)audioWaveform:(CodableAudioWaveform *)waveform
           didLoadData:(float)percentLoaded
-             forTrack:(AudioTrack *)track {
+             forTrack:(id<VibePlayableItem>)track {
     if (_targetIndex == NSNotFound || ![track.sourceKey isEqualToString:_targetKey]) {
         return;
     }
@@ -183,7 +182,7 @@
     [_delegate pageWaveformCoordinator:self didUpdateWaveform:waveform forIndex:index];
 }
 
-- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(AudioTrack *)track {
+- (void)audioWaveformCache:(AudioWaveformCache *)cache didFailToLoadForTrack:(id<VibePlayableItem>)track {
     if (_targetIndex == NSNotFound || ![track.sourceKey isEqualToString:_targetKey]) {
         return;
     }
@@ -202,7 +201,7 @@
 // tempo only: key detection is macOS-only.
 - (void)audioWaveformCache:(AudioWaveformCache *)cache
             didLoadResults:(NSDictionary<NSString *, id> *)results
-                  forTrack:(AudioTrack *)track {
+                  forTrack:(id<VibePlayableItem>)track {
     float bpm = [AudioBPMAnalyzer tempoInResults:results];
     if (bpm > 0) {
         [_delegate pageWaveformCoordinator:self didDetectBPM:bpm forTrack:track];
