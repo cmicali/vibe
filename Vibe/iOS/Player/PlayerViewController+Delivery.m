@@ -48,8 +48,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     [[self cellAtIndex:index].waveformView hideLoadingIndicator];
 }
 
-// The results are the model's to read, stamp and feed the taps. The page hears
-// a tempo back as the metadata event.
+// The model's to read. The page hears a tempo back as the metadata event.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
             didLoadAnalysis:(NSDictionary<NSString *, id> *)results
                    forTrack:(id<VibePlayableItem>)track {

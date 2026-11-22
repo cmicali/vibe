@@ -122,9 +122,8 @@ static NSString *const kTabSearch = @"search";
                                            selector:@selector(thumbnailDidLoad:)
                                                name:AudioTrackMetadataThumbnailDidLoadNotification
                                              object:nil];
-    // The card reads no setting itself, so the notification reaches it here.
-    [NSNotificationCenter.defaultCenter addObserver:_player
-                                           selector:@selector(reloadSettings)
+    [NSNotificationCenter.defaultCenter addObserver:self
+                                           selector:@selector(displaySettingsDidChange)
                                                name:VibeDisplaySettingsDidChangeNotification
                                              object:nil];
     [self refreshMiniPlayer];
@@ -133,6 +132,11 @@ static NSString *const kTabSearch = @"search";
 
 - (void)dealloc {
     [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+// The card reads no setting itself.
+- (void)displaySettingsDidChange {
+    [_player reloadSettings];
 }
 
 - (void)thumbnailDidLoad:(NSNotification *)notification {

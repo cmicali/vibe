@@ -92,8 +92,6 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
         [_waveformCache invalidateWithCompletion:nil];
         [NSUserDefaults.standardUserDefaults setBool:YES forKey:kWaveformTempoBackfillKey];
     }
-    // Asked once per request, so a settings change lands on the next load
-    // with nothing to republish.
     id<VibePlayerCardHost> host = VibePlayerCardInstalledHost();
     _waveformCache.analysisProvider = ^VibeWaveformAnalysis{
         return [host playerCardWaveformAnalysis];

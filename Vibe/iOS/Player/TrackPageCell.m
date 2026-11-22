@@ -117,15 +117,6 @@ static NSString *RepeatSymbolName(VibeRepeatMode mode) {
     return mode == VibeRepeatModeOne ? @"repeat.1" : @"repeat";
 }
 
-static NSString *RepeatTitle(VibeRepeatMode mode) {
-    switch (mode) {
-        case VibeRepeatModeAll: return VibePlayerCardLabelText(VibePlayerCardLabelRepeatAll);
-        case VibeRepeatModeOne: return VibePlayerCardLabelText(VibePlayerCardLabelRepeatOne);
-        case VibeRepeatModeOff: break;
-    }
-    return VibePlayerCardLabelText(VibePlayerCardLabelRepeatOff);
-}
-
 @implementation TrackPageCell {
     // Blurred ONCE into an image (UIImage+Blur), not a UIVisualEffectView,
     // whose live filter re-blurs every frame of a swipe.
@@ -997,7 +988,7 @@ static UIImage *TransportGradientImage(void) {
     [self setFlankGlyph:@"shuffle" active:shuffleEnabled onButton:_shuffleButton];
     [self setFlankGlyph:RepeatSymbolName(repeatMode) active:repeatMode != VibeRepeatModeOff
                onButton:_repeatButton];
-    _repeatButton.accessibilityLabel = RepeatTitle(repeatMode);
+    _repeatButton.accessibilityLabel = [VibePlayerCardInstalledHost() playerCardRepeatTitle:repeatMode];
     // Shown flanks say it themselves; applyShuffleRepeatShown re-applies on a flip.
     if (_shuffleButton.hidden) {
         [self applyFileInfoText];
@@ -1057,7 +1048,7 @@ static UIImage *TransportGradientImage(void) {
             lead(@"shuffle", VibePlayerCardLabelText(VibePlayerCardLabelShuffle));
         }
         if (repeatGlyph) {
-            lead(RepeatSymbolName(_flankRepeatMode), RepeatTitle(_flankRepeatMode));
+            lead(RepeatSymbolName(_flankRepeatMode), [VibePlayerCardInstalledHost() playerCardRepeatTitle:_flankRepeatMode]);
         }
         NSMutableAttributedString *body = [[NSMutableAttributedString alloc] initWithString:line];
         if (buffering) {

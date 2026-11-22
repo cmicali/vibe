@@ -36,14 +36,13 @@ typedef NS_ENUM(NSInteger, VibePlayerCardLabel) {
     VibePlayerCardLabelNext,
     VibePlayerCardLabelPlay,
     VibePlayerCardLabelPause,
-    VibePlayerCardLabelRepeatOff,
-    VibePlayerCardLabelRepeatAll,
-    VibePlayerCardLabelRepeatOne,
 };
 
 @protocol VibePlayerCardHost <NSObject>
 
 - (NSString *)playerCardLabel:(VibePlayerCardLabel)label;
+// The repeat button's VoiceOver label, which names the mode it is in.
+- (NSString *)playerCardRepeatTitle:(VibeRepeatMode)mode;
 
 // A track time, such as 3:05.
 - (NSString *)playerCardDuration:(NSTimeInterval)duration;

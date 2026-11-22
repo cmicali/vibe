@@ -15,6 +15,7 @@
 #import "LocationStore.h"
 #import "NSBundle+BuildInfo.h"
 #import "PINCache+VibeAudioCache.h"
+#import "SettingsRules.h"
 #import "VibePlayerCardHost.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
@@ -103,11 +104,12 @@
         case VibePlayerCardLabelNext: return STR_TRANSPORT_NEXT;
         case VibePlayerCardLabelPlay: return STR_TRANSPORT_PLAY;
         case VibePlayerCardLabelPause: return STR_TRANSPORT_PAUSE;
-        case VibePlayerCardLabelRepeatOff: return STR_TRANSPORT_REPEAT_OFF;
-        case VibePlayerCardLabelRepeatAll: return STR_TRANSPORT_REPEAT_ALL;
-        case VibePlayerCardLabelRepeatOne: return STR_TRANSPORT_REPEAT_ONE;
     }
     return @"";
+}
+
+- (NSString *)playerCardRepeatTitle:(VibeRepeatMode)mode {
+    return VibeRepeatModeTitle(mode);
 }
 
 - (NSString *)playerCardDuration:(NSTimeInterval)duration {
