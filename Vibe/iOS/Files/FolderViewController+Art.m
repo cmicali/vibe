@@ -4,7 +4,6 @@
 //
 
 #import "FolderViewControllerInternal.h"
-#import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 
 // Rows past each end of the screen whose art is asked for with the visible ones.
@@ -40,19 +39,19 @@ static const NSInteger kArtRowMargin = 20;
     }
     first = MAX(0, first - kArtRowMargin);
     last = MIN((NSInteger)_files.count - 1, last + kArtRowMargin);
-    NSMutableArray<AudioTrack *> *parse = [NSMutableArray array];
-    NSMutableArray<AudioTrack *> *cacheOnly = [NSMutableArray array];
+    NSMutableArray<id<AudioTrackMetadataHolder>> *parse = [NSMutableArray array];
+    NSMutableArray<id<AudioTrackMetadataHolder>> *cacheOnly = [NSMutableArray array];
     for (NSInteger row = first; row <= last; row++) {
         NSURL *url = _files[(NSUInteger)row];
         if (![_songFiles containsObject:url]) {
             continue;
         }
-        AudioTrack *track = _artTracks[url];
+        id<AudioTrackMetadataHolder> track = _artTracks[url];
         if (!track) {
             if (!_artTracks) {
                 _artTracks = [NSMutableDictionary dictionary];
             }
-            track = [AudioTrack withURL:url];
+            track = [_host artHolderForFileURL:url];
             _artTracks[url] = track;
         }
         if (track.metadata) {
@@ -95,7 +94,7 @@ static const NSInteger kArtRowMargin = 20;
 
 // The tags landed; the row's next draw asks for the thumbnail, whose pixels
 // arrive by the notification below.
-- (void)didLoadMetadata:(AudioTrack *)track {
+- (void)didLoadMetadata:(id<AudioTrackMetadataHolder>)track {
     [self redrawVisibleRowsShowing:track.metadata];
 }
 

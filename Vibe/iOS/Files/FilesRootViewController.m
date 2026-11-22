@@ -399,7 +399,6 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     __weak FilesRootViewController *weakSelf = self;
     FolderViewController *folder = [[FolderViewController alloc] initWithHost:_host
                                                                  directoryURL:url
-                                                                    appending:_appending
                                                                 stackArtCache:^AudioTrackMetadataCache *{
         return [weakSelf stackArtCache];
     }

@@ -4,10 +4,7 @@
 //
 
 #import "FolderViewControllerInternal.h"
-#import "AppSettings.h"
 #import "FileRow.h"
-#import "SettingsRules.h"
-#import "VibeStrings.h"
 
 @implementation FolderViewController (Actions)
 
@@ -22,7 +19,7 @@
     if ([self isSelecting]) {
         NSUInteger count = self.tableView.indexPathsForSelectedRows.count;
         _addSelectedItem.enabled = count > 0;
-        self.navigationItem.title = [NSString stringWithFormat:STR_BROWSER_SELECTED_COUNT, (unsigned long)count];
+        self.navigationItem.title = [_host selectionTitleForCount:count];
         self.navigationItem.rightBarButtonItems = @[_doneItem, _addSelectedItem];
         self.navigationItem.leftBarButtonItem = _selectAllItem;
         self.navigationItem.hidesBackButton = YES;
@@ -44,9 +41,7 @@
         _playItem.target = _hasSongs ? self : nil;
         _playItem.action = _hasSongs ? @selector(openDirectory) : NULL;
         [items addObject:_playItem];
-        // Not in the add sheet: with Close the bar has no room, and the
-        // order is a setting the Files tab changes.
-        if (!_appending) {
+        if (_host.showsSortMenu) {
             [items addObject:_sortItem];
         }
     }
@@ -54,20 +49,21 @@
 }
 
 // Built when opened, so its check follows a change made on another screen.
-// The title says what the choice reaches: it is the one folder-open setting,
-// not this folder's view.
+// The title says what the choice reaches: the host's one sort, not this
+// folder's view.
 - (UIMenu *)sortMenu {
     __weak FolderViewController *weakSelf = self;
+    id<VibeBrowserHost> host = _host;
     UIDeferredMenuElement *choices = [UIDeferredMenuElement elementWithUncachedProvider:
             ^(void (^completion)(NSArray<UIMenuElement *> *)) {
-        VibeFolderOpenSort current = AppSettings.sharedInstance.folderOpenSort;
+        VibeFolderOpenSort current = host.folderSort;
         NSMutableArray<UIAction *> *actions = [NSMutableArray array];
         for (VibeFolderOpenSort sort = VibeFolderOpenSortName; sort <= VibeFolderOpenSortAsReceived; sort++) {
-            UIAction *action = [UIAction actionWithTitle:VibeFolderOpenSortDisplayName(sort)
+            UIAction *action = [UIAction actionWithTitle:[host titleForSort:sort]
                                                    image:nil
                                               identifier:nil
                                                  handler:^(UIAction *a) {
-                AppSettings.sharedInstance.folderOpenSort = sort;
+                host.folderSort = sort;
                 [weakSelf reloadFromDisk];
             }];
             action.state = sort == current ? UIMenuElementStateOn : UIMenuElementStateOff;
@@ -75,7 +71,7 @@
         }
         completion(actions);
     }];
-    return [UIMenu menuWithTitle:STR_SETTINGS_FOLDER_SORT_LABEL children:@[choices]];
+    return [UIMenu menuWithTitle:[host label:VibeBrowserLabelSortMenuTitle] children:@[choices]];
 }
 
 - (void)toggleSelecting {

@@ -11,8 +11,6 @@
 #import "AudioTrackMetadataCache.h"
 #import "VibeBrowserHost.h"
 
-@class AudioTrack;
-
 typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     VibeBrowserSectionFolders = 0,
     VibeBrowserSectionFiles,
@@ -22,7 +20,6 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
 @interface FolderViewController () <UISearchResultsUpdating, VibeBrowserHostObserver> {
     id<VibeBrowserHost> _host;
     NSURL *_directoryURL;
-    BOOL _appending;
 
     // A directory's whole listing, in the folder-open order. Which of the
     // files are Dropbox placeholders, and each file's size, are found with the
@@ -73,7 +70,7 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     // The not-local songs already looked up, so a miss is asked once per
     // listing.
     NSMutableSet<NSURL *> *_cacheOnlyAsked;
-    NSMutableDictionary<NSURL *, AudioTrack *> *_artTracks;
+    NSMutableDictionary<NSURL *, id<AudioTrackMetadataHolder>> *_artTracks;
 
     // TRAP: a row swipe sets isEditing too; only the Select button's is multi-select.
     BOOL _swipingRow;

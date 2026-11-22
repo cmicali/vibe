@@ -5,8 +5,6 @@
 
 #import "FolderViewControllerInternal.h"
 
-#import "AppSettings.h"
-#import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
 #import "BrowserRules.h"
@@ -18,9 +16,6 @@
 #import "LocationStore.h"
 #import "PlaceholderFiles.h"
 #import "VibePlaylistFile.h"
-#import "SettingsRules.h"
-#import "UIViewController+Alert.h"
-#import "VibeStrings.h"
 
 static NSString *const kItemCellIdentifier = @"item";
 
@@ -43,7 +38,6 @@ static const NSUInteger kFilterThreshold = 12;
 
 - (instancetype)initWithHost:(id<VibeBrowserHost>)host
                 directoryURL:(NSURL *)directoryURL
-                   appending:(BOOL)appending
                stackArtCache:(AudioTrackMetadataCache *(^)(void))stackArtCache
                 highlighting:(NSURL *)file
                   holdsScope:(BOOL)holdsScope {
@@ -51,7 +45,6 @@ static const NSUInteger kFilterThreshold = 12;
     if (self) {
         _host = host;
         _directoryURL = [directoryURL copy];
-        _appending = appending;
         _stackArtCache = [stackArtCache copy];
         _highlightURL = [file copy];
         _holdsScope = holdsScope;
@@ -82,13 +75,13 @@ static const NSUInteger kFilterThreshold = 12;
                                            selector:@selector(dropboxDownloadsDidChange:)
                                                name:VibeDropboxDownloadsDidChangeNotification
                                              object:nil];
-    if (_appending) {
+    if (_host.showsCloseButton) {
         _closeItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose
                                                                    target:self
                                                                    action:@selector(dismissSheet)];
     }
     self.navigationItem.title = _title;
-    self.navigationItem.prompt = _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : nil;
+    self.navigationItem.prompt = _host.prompt;
     self.navigationItem.largeTitleDisplayMode = UINavigationItemLargeTitleDisplayModeNever;
     self.tableView.allowsMultipleSelectionDuringEditing = YES;
     // A tap is this folder alone, never its subfolders: the root of a
@@ -111,18 +104,18 @@ static const NSUInteger kFilterThreshold = 12;
     _addSelectedItem.accessibilityLabel = selectionAction.title;
     _sortItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"arrow.up.arrow.down"]
                                                   menu:[self sortMenu]];
-    _sortItem.accessibilityLabel = STR_BROWSER_SORT;
+    _sortItem.accessibilityLabel = [_host label:VibeBrowserLabelSort];
     // "Select", not the system's "Edit": nothing here is edited. A glyph,
     // since the word beside two others truncates the folder's name.
     _selectItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"checkmark.circle"]
                                                    style:UIBarButtonItemStylePlain
                                                   target:self
                                                   action:@selector(toggleSelecting)];
-    _selectItem.accessibilityLabel = STR_BROWSER_SELECT;
+    _selectItem.accessibilityLabel = [_host label:VibeBrowserLabelSelect];
     _doneItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone
                                                               target:self
                                                               action:@selector(toggleSelecting)];
-    _selectAllItem = [[UIBarButtonItem alloc] initWithTitle:STR_MENU_EDIT_SELECT_ALL
+    _selectAllItem = [[UIBarButtonItem alloc] initWithTitle:[_host label:VibeBrowserLabelSelectAll]
                                                       style:UIBarButtonItemStylePlain
                                                      target:self
                                                      action:@selector(selectAllRows)];
@@ -131,7 +124,7 @@ static const NSUInteger kFilterThreshold = 12;
     _filter = [[UISearchController alloc] initWithSearchResultsController:nil];
     _filter.searchResultsUpdater = self;
     _filter.obscuresBackgroundDuringPresentation = NO;
-    _filter.searchBar.placeholder = STR_BROWSER_FILTER;
+    _filter.searchBar.placeholder = [_host label:VibeBrowserLabelFilter];
     // TRAP: always shown, never hidden on scroll. A search bar that
     // collapses re-lays the bar out on the appearance callbacks the card's
     // expand and dismiss forward by hand, and the folder jumped under the
@@ -217,7 +210,7 @@ static const NSUInteger kFilterThreshold = 12;
 - (void)reloadFromDisk {
     uint64_t generation = ++_listingGeneration;
     NSURL *directory = _directoryURL;
-    VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
+    VibeFolderOpenSort sort = _host.folderSort;
     __weak FolderViewController *weakSelf = self;
     // Off main: a granted location can be a provider's folder, whose listing
     // is IPC that can take seconds.
@@ -375,12 +368,12 @@ static const NSUInteger kFilterThreshold = 12;
         case VibeBrowserFolderEmptyStateUnavailable:
             empty = [UIContentUnavailableConfiguration emptyConfiguration];
             empty.image = [UIImage systemImageNamed:@"wifi.exclamationmark"];
-            empty.text = STR_BROWSER_DROPBOX_UNAVAILABLE;
+            empty.text = [_host label:VibeBrowserLabelUnavailable];
             break;
         case VibeBrowserFolderEmptyStateEmpty:
             empty = [UIContentUnavailableConfiguration emptyConfiguration];
             empty.image = [UIImage systemImageNamed:@"music.note"];
-            empty.text = STR_ERROR_FOLDER_EMPTY;
+            empty.text = [_host label:VibeBrowserLabelEmptyFolder];
             break;
     }
     self.contentUnavailableConfiguration = empty;
@@ -420,23 +413,30 @@ static const NSUInteger kFilterThreshold = 12;
             return;
         }
         strongSelf->_walkingSubfolders = NO;
+        id<VibeBrowserHost> host = strongSelf->_host;
         if (folders.count == 0) {
-            [strongSelf vibePresentAlertWithTitle:strongSelf->_title message:STR_ERROR_FOLDER_EMPTY];
+            [strongSelf presentAlertWithMessage:[host label:VibeBrowserLabelEmptyFolder] then:nil];
             return;
         }
         if (!capped) {
             open(folders);
             return;
         }
-        UIAlertController *alert = [UIAlertController
-                alertControllerWithTitle:strongSelf->_title
-                                 message:[NSString stringWithFormat:STR_BROWSER_SUBFOLDERS_CAPPED,
-                                                  (unsigned long)kMaximumSubfolderTracks]
-                          preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK style:UIAlertActionStyleDefault
-                                                handler:^(UIAlertAction *action) { open(folders); }]];
-        [strongSelf presentViewController:alert animated:YES completion:nil];
+        [strongSelf presentAlertWithMessage:[host subfoldersCappedMessageForLimit:kMaximumSubfolderTracks] then:^{
+            open(folders);
+        }];
     }];
+}
+
+// Titled with the folder's name. then runs on OK.
+- (void)presentAlertWithMessage:(NSString *)message then:(nullable dispatch_block_t)then {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:_title
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:[_host label:VibeBrowserLabelOK]
+                                              style:UIAlertActionStyleDefault
+                                            handler:then ? ^(UIAlertAction *action) { then(); } : nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 // One folder per turn. A Dropbox folder is listed from Dropbox first: the
@@ -453,7 +453,7 @@ static const NSUInteger kFilterThreshold = 12;
     }
     NSURL *directory = pending.firstObject;
     [pending removeObjectAtIndex:0];
-    VibeFolderOpenSort sort = AppSettings.sharedInstance.folderOpenSort;
+    VibeFolderOpenSort sort = _host.folderSort;
     __weak FolderViewController *weakSelf = self;
     dispatch_block_t list = ^{
         dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
@@ -536,7 +536,6 @@ static const NSUInteger kFilterThreshold = 12;
 - (void)pushDirectory:(NSURL *)url {
     FolderViewController *folder = [[FolderViewController alloc] initWithHost:_host
                                                                  directoryURL:url
-                                                                    appending:_appending
                                                                 stackArtCache:_stackArtCache
                                                                  highlighting:nil
                                                                    holdsScope:NO];
@@ -604,7 +603,7 @@ static const NSUInteger kFilterThreshold = 12;
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     // A relist that failed over rows already here: they may be out of date.
     if (section == VibeBrowserSectionFiles && _refreshError && !self.isEmpty) {
-        return STR_BROWSER_DROPBOX_UNAVAILABLE;
+        return [_host label:VibeBrowserLabelUnavailable];
     }
     return nil;
 }
@@ -632,7 +631,7 @@ static const NSUInteger kFilterThreshold = 12;
     BOOL isFolder = indexPath.section == VibeBrowserSectionFolders;
     [content vibeApplyFileIconForFolder:isFolder
                                playlist:VibeBrowserIsPlaylistName(url.lastPathComponent)
-                                    art:[_artTracks[url] cachedThumbnail]];
+                                    art:[_artTracks[url].metadata cachedThumbnail]];
     NSString *path = [_standardizedPath stringByAppendingPathComponent:url.lastPathComponent];
     EqualizerIndicatorView *equalizer = [cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]
             ? (EqualizerIndicatorView *)cell.accessoryView : nil;

@@ -1,16 +1,21 @@
 // A folder screen over a host that is not Vibe's: its bar draws the host's
-// actions, a file's tap goes to the host, and a row's swipe hands the row's
-// URL to the host's selection action after lifting the row. The host here
-// offers Import, as another app's would.
+// actions and words, a file's tap goes to the host, and a row's swipe hands
+// the row's URL to the host's selection action after lifting the row. The
+// host here offers Import in a sheet, as another app's would.
 
 #import "IOSSimTestCase.h"
 
+#import "AudioTrack.h"
 #import "FolderViewControllerInternal.h"
 
 @interface FakeBrowserHost : NSObject <VibeBrowserHost>
 @property (nonatomic, copy, nullable) NSString *playingPath;
 @property (nonatomic, copy, nullable) NSString *openingPath;
 @property (nonatomic) BOOL audioOutputActive;
+@property (nonatomic, copy, nullable) NSString *prompt;
+@property (nonatomic) BOOL showsCloseButton;
+@property (nonatomic) BOOL showsSortMenu;
+@property (nonatomic) VibeFolderOpenSort folderSort;
 @property (nonatomic, readonly) NSMutableArray<NSURL *> *tapped;
 @property (nonatomic, readonly) NSMutableArray<NSArray<NSURL *> *> *imported;
 @end
@@ -39,6 +44,26 @@
         }];
     }
     return self;
+}
+
+- (NSString *)label:(VibeBrowserLabel)label {
+    return [NSString stringWithFormat:@"label %ld", (long)label];
+}
+
+- (NSString *)selectionTitleForCount:(NSUInteger)count {
+    return [NSString stringWithFormat:@"%lu to import", (unsigned long)count];
+}
+
+- (NSString *)subfoldersCappedMessageForLimit:(NSUInteger)limit {
+    return @"capped";
+}
+
+- (NSString *)titleForSort:(VibeFolderOpenSort)sort {
+    return @"sort";
+}
+
+- (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url {
+    return [AudioTrack withURL:url];
 }
 
 - (id<EqualizerLevelSource>)levelSource {
@@ -91,10 +116,11 @@
         [bytes writeToURL:[_directory URLByAppendingPathComponent:name] atomically:YES];
     }
     _host = [[FakeBrowserHost alloc] init];
+    _host.prompt = @"Import to Library";
+    _host.showsCloseButton = YES;
     _importsAtLift = -1;
     _folder = [[FolderViewController alloc] initWithHost:_host
                                             directoryURL:_directory
-                                               appending:NO
                                            stackArtCache:^AudioTrackMetadataCache *{
         return nil;
     }
@@ -128,6 +154,16 @@
 - (void)testTheBarDrawsTheHostsActions {
     NSArray<NSString *> *labels = [_folder.navigationItem.rightBarButtonItems valueForKey:@"accessibilityLabel"];
     XCTAssertTrue([labels containsObject:@"Import Folder"], @"%@", labels);
+}
+
+- (void)testTheScreenTakesTheHostsWordsAndLook {
+    XCTAssertEqualObjects(_folder.navigationItem.prompt, @"Import to Library");
+    NSArray<UIBarButtonItem *> *items = _folder.navigationItem.rightBarButtonItems;
+    NSArray<NSString *> *labels = [items valueForKey:@"accessibilityLabel"];
+    XCTAssertTrue([labels containsObject:[_host label:VibeBrowserLabelSelect]], @"%@", labels);
+    XCTAssertFalse([labels containsObject:[_host label:VibeBrowserLabelSort]], @"%@", labels);
+    [_folder toggleSelecting];
+    XCTAssertEqualObjects(_folder.navigationItem.title, @"0 to import");
 }
 
 - (void)testAFileTapGoesToTheHost {

@@ -5,11 +5,14 @@
 
 #import "PlaybackBrowserHost.h"
 
+#import "AppSettings.h"
+#import "AudioTrack.h"
+#import "BrowserRules.h"
 #import "FavoritesStore.h"
 #import "FilePaths.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
-#import "BrowserRules.h"
+#import "SettingsRules.h"
 #import "VibePlaylistFile.h"
 #import "VibeStrings.h"
 
@@ -47,6 +50,63 @@
         [playback addObserver:self];
     }
     return self;
+}
+
+#pragma mark - How the screens look and read
+
+- (NSString *)label:(VibeBrowserLabel)label {
+    switch (label) {
+        case VibeBrowserLabelSelect:        return STR_BROWSER_SELECT;
+        case VibeBrowserLabelSelectAll:     return STR_MENU_EDIT_SELECT_ALL;
+        case VibeBrowserLabelSort:          return STR_BROWSER_SORT;
+        // The Settings row's string: the menu writes the one folder-open
+        // setting, not this folder's view.
+        case VibeBrowserLabelSortMenuTitle: return STR_SETTINGS_FOLDER_SORT_LABEL;
+        case VibeBrowserLabelFilter:        return STR_BROWSER_FILTER;
+        case VibeBrowserLabelEmptyFolder:   return STR_ERROR_FOLDER_EMPTY;
+        case VibeBrowserLabelUnavailable:   return STR_BROWSER_DROPBOX_UNAVAILABLE;
+        case VibeBrowserLabelOK:            return STR_BUTTON_OK;
+    }
+    return @"";
+}
+
+- (NSString *)selectionTitleForCount:(NSUInteger)count {
+    return [NSString stringWithFormat:STR_BROWSER_SELECTED_COUNT, (unsigned long)count];
+}
+
+- (NSString *)subfoldersCappedMessageForLimit:(NSUInteger)limit {
+    return [NSString stringWithFormat:STR_BROWSER_SUBFOLDERS_CAPPED, (unsigned long)limit];
+}
+
+// The add sheet says what a tap in it does, and it is modal.
+- (NSString *)prompt {
+    return _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : nil;
+}
+
+- (BOOL)showsCloseButton {
+    return _appending;
+}
+
+// Not in the add sheet: with Close the bar has no room, and the order is a
+// setting the Files tab changes.
+- (BOOL)showsSortMenu {
+    return !_appending;
+}
+
+- (VibeFolderOpenSort)folderSort {
+    return AppSettings.sharedInstance.folderOpenSort;
+}
+
+- (void)setFolderSort:(VibeFolderOpenSort)folderSort {
+    AppSettings.sharedInstance.folderOpenSort = folderSort;
+}
+
+- (NSString *)titleForSort:(VibeFolderOpenSort)sort {
+    return VibeFolderOpenSortDisplayName(sort);
+}
+
+- (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url {
+    return [AudioTrack withURL:url];
 }
 
 #pragma mark - What the rows show
