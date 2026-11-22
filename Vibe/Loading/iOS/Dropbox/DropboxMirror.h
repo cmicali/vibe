@@ -1,6 +1,6 @@
 //
 //  DropboxMirror.h
-//  Vibe (iOS)
+//  vibe-libs
 //
 //  The linked Dropbox account as local files, so everything that plays,
 //  tags, waveforms and caches a file works on Dropbox unchanged. Lazy: a
@@ -29,26 +29,17 @@ NS_ASSUME_NONNULL_BEGIN
 // when a relist discards downloaded bytes.
 extern NSNotificationName const VibeDropboxDownloadsDidChangeNotification;
 extern NSString *const VibeDropboxDownloadsBytesKey;
-// The saved download budget, an iOS-owned key: the shared mirror starts from
-// it (VibeDropboxDownloadBudgetIndex), and Settings writes it, then sets
-// downloadBudget.
-extern NSString *const VibeDropboxDownloadBudgetKey;
 
 @interface DropboxMirror : RemotePlaceholderStore
 
-- (instancetype)initWithClient:(HTTPTransferClient *)client
-                       rootURL:(NSURL *)rootURL
-                indexAttribute:(NSString *)indexAttribute
-                downloadBudget:(long long)downloadBudget NS_UNAVAILABLE;
-
-// The app's one mirror over the one client. A singleton because the remote
-// fetch, installed at launch, must reach the same instance every screen does.
-@property (class, nonatomic, readonly) DropboxMirror *shared;
-
-// rootURL holds one directory per account; the tests pass a temp directory.
-// Past downloadBudget bytes of downloads, the oldest go back to placeholders.
+// The store's initializer, with the client typed. rootURL holds one
+// directory per account. indexAttribute names the xattr each directory's
+// index is kept in, so it must never change for an app's mirror already on
+// disk. Past downloadBudget bytes of downloads, the oldest go back to
+// placeholders.
 - (instancetype)initWithClient:(DropboxClient *)client
                        rootURL:(NSURL *)rootURL
+                indexAttribute:(NSString *)indexAttribute
                 downloadBudget:(long long)downloadBudget NS_DESIGNATED_INITIALIZER;
 
 @property (nonatomic, readonly) DropboxClient *client;

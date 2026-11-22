@@ -5,7 +5,7 @@
 
 #import "DropboxSearch.h"
 
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "DropboxRules.h"
 #import "PlaceholderFiles.h"
 

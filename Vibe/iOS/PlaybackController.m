@@ -21,7 +21,7 @@
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
 #import "CloudTransferRegistry.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "PlaybackShellRules.h"
 #import "SettingsRules.h"
 #import "UIUpdateTimer.h"
