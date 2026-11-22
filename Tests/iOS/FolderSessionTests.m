@@ -6,7 +6,7 @@
 
 #import "AudioTrack.h"
 #import "DropboxClientInternal.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "DropboxStubProtocol.h"
 #import "FavoritesStore.h"
 #import "FilePaths.h"

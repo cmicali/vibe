@@ -13,7 +13,7 @@
 #import "DebugWireFormat.h"
 #import "AudioTrack.h"
 #import "CloudFileMaterializer.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "VibeFakeDropbox.h"
 #import "PlaceholderFiles.h"
 #import "VibePlaylist.h"

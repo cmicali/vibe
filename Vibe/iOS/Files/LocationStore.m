@@ -6,7 +6,7 @@
 #import "LocationStore.h"
 #import "FilePaths.h"
 
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "FileSearchRules.h"
 #import "LocationStoreInternal.h"
 #import "VibeStrings.h"

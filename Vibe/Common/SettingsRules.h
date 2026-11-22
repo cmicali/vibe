@@ -406,6 +406,27 @@ static inline BOOL VibeSettingsAreAtDefaults(NSDictionary<NSString *, id> *_Null
     return YES;
 }
 
+// The sizes the Dropbox downloads may reach before the oldest go back to
+// placeholders, smallest first. The default is 10 GB.
+static const NSInteger kVibeDropboxDownloadBudgets[] = {
+    1000L * 1000 * 1000, 2000L * 1000 * 1000, 5000L * 1000 * 1000,
+    10000L * 1000 * 1000, 20000L * 1000 * 1000, 50000L * 1000 * 1000,
+};
+static const size_t kVibeDropboxDownloadBudgetCount = sizeof(kVibeDropboxDownloadBudgets) / sizeof(kVibeDropboxDownloadBudgets[0]);
+static const size_t kVibeDropboxDefaultDownloadBudgetIndex = 3;
+
+// A saved budget's place among the choices: absent (0), the default's; off
+// the list, the nearest's (VibeNearestPreset).
+static inline size_t VibeDropboxDownloadBudgetIndex(NSInteger saved) {
+    NSInteger budget = saved > 0 ? VibeNearestPreset(saved, kVibeDropboxDownloadBudgets, kVibeDropboxDownloadBudgetCount)
+                                 : kVibeDropboxDownloadBudgets[kVibeDropboxDefaultDownloadBudgetIndex];
+    size_t index = 0;
+    while (kVibeDropboxDownloadBudgets[index] != budget) {
+        index++;
+    }
+    return index;
+}
+
 #if TARGET_OS_OSX
 // Release builds reveal the Advanced pane's Audio readout after
 // kVibeAudioPathRevealClicks clicks on the Version row, each within

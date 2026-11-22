@@ -7,7 +7,7 @@
 #import "AppSettings.h"
 #import "AppStats.h"
 #import "AudioTrack.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "FavoritesStore.h"
 #import "FileSearchRules.h"
 #import "FolderSessionRules.h"

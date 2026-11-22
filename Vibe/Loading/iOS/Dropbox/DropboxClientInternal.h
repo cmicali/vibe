@@ -1,6 +1,6 @@
 //
 //  DropboxClientInternal.h
-//  Vibe (iOS)
+//  vibe-libs
 //
 //  What the tests and the debug channel reach past a real sign-in with.
 //
