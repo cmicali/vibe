@@ -5,9 +5,7 @@
 
 #import "FolderViewControllerInternal.h"
 #import "AppSettings.h"
-#import "FavoritesStore.h"
 #import "FileRow.h"
-#import "VibePlaylistFile.h"
 #import "SettingsRules.h"
 #import "VibeStrings.h"
 
@@ -112,8 +110,7 @@
 
 #pragma mark - Selection
 
-// A file plays alone and a folder opens, here as in Search and Recents; the
-// long press has Play in Folder.
+// A folder opens. A file is the host's.
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     if (tableView.isEditing) {
         [self refreshBarItems];
@@ -127,13 +124,8 @@
     if (indexPath.section == VibeBrowserSectionFolders) {
         [self pushDirectory:url];
     }
-    // A second tap on the row still opening gives it up.
-    else if ([[_standardizedPath stringByAppendingPathComponent:url.lastPathComponent]
-                     isEqualToString:_playback.openingPath]) {
-        [_playback cancelOpening];
-    }
     else {
-        [self openURLs:@[url] inFolder:NO];
+        [_host screen:self didTapFile:url];
     }
 }
 
@@ -145,7 +137,7 @@
 
 #pragma mark - Row actions
 
-// For Select and the swipe's Add. Nothing here is deleted.
+// For Select and the swipe's action. Nothing here is deleted.
 - (BOOL)tableView:(UITableView *)tableView canEditRowAtIndexPath:(NSIndexPath *)indexPath {
     return YES;
 }
@@ -155,7 +147,7 @@
     return UITableViewCellEditingStyleNone;
 }
 
-// A context menu is never the only road to Add.
+// A context menu is never the only road to the selection's action.
 - (UISwipeActionsConfiguration *)tableView:(UITableView *)tableView
         leadingSwipeActionsConfigurationForRowAtIndexPath:(NSIndexPath *)indexPath {
     NSURL *url = [self itemAtIndexPath:indexPath];
@@ -163,15 +155,15 @@
         return nil;
     }
     __weak FolderViewController *weakSelf = self;
+    VibeBrowserAction *selection = _host.selectionAction;
     UIContextualAction *add = [UIContextualAction
             contextualActionWithStyle:UIContextualActionStyleNormal
-                                title:STR_MENU_CONTEXT_ADD_TO_PLAYLIST
+                                title:selection.title
                               handler:^(UIContextualAction *action, UIView *source, void (^completion)(BOOL)) {
-        [weakSelf liftRowsAtIndexPaths:@[indexPath]];
-        [weakSelf addURLs:@[url]];
+        [weakSelf performAction:selection onRowAtIndexPath:indexPath url:url];
         completion(YES);
     }];
-    add.image = [UIImage systemImageNamed:@"text.badge.plus"];
+    add.image = [UIImage systemImageNamed:selection.symbol];
     add.backgroundColor = UIColor.tintColor;
     UISwipeActionsConfiguration *config = [UISwipeActionsConfiguration configurationWithActions:@[add]];
     config.performsFirstActionWithFullSwipe = YES;
@@ -190,31 +182,14 @@
         return nil;
     }
     BOOL folder = indexPath.section == VibeBrowserSectionFolders;
-    BOOL appendingSheet = _appending;
+    id<VibeBrowserHost> host = _host;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
         NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
-        if (!appendingSheet) {
-            [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
-                [weakSelf openURLs:@[url] inFolder:NO];
-            })];
-            // An M3U is never a row of its folder, so there is nothing to
-            // select in it.
-            if (!folder && ![VibePlaylistFile isM3UExtension:url.pathExtension.lowercaseString]) {
-                [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
-                    [weakSelf openURLs:@[url] inFolder:YES];
-                })];
-            }
-        }
-        [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
-            [weakSelf liftRowsAtIndexPaths:@[indexPath]];
-            [weakSelf addURLs:@[url]];
-        })];
-        if (folder && !appendingSheet && ![FavoritesStore.shared containsFolderURL:url]) {
-            NSString *title = [NSString stringWithFormat:STR_MENU_CONTEXT_ADD_FAVORITE, VibeAppName()];
-            [items addObject:VibeMenuAction(title, @"star", ^{
-                [weakSelf favoriteFolder:url];
+        for (VibeBrowserAction *action in [host menuActionsForURL:url isFolder:folder]) {
+            [items addObject:VibeMenuAction(action.title, action.symbol, ^{
+                [weakSelf performAction:action onRowAtIndexPath:indexPath url:url];
             })];
         }
         return [UIMenu menuWithTitle:@"" children:items];

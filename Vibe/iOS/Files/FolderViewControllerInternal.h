@@ -9,7 +9,9 @@
 
 #import "FolderViewController.h"
 #import "AudioTrackMetadataCache.h"
-#import "PlaybackController.h"
+#import "VibeBrowserHost.h"
+
+@class AudioTrack;
 
 typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     VibeBrowserSectionFolders = 0,
@@ -17,8 +19,8 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     VibeBrowserSectionCount,
 };
 
-@interface FolderViewController () <UISearchResultsUpdating, PlaybackObserver> {
-    PlaybackController *_playback;
+@interface FolderViewController () <UISearchResultsUpdating, VibeBrowserHostObserver> {
+    id<VibeBrowserHost> _host;
     NSURL *_directoryURL;
     BOOL _appending;
 
@@ -91,11 +93,9 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
 - (BOOL)isEmpty;
 - (NSURL *)itemAtIndexPath:(NSIndexPath *)indexPath;
 - (void)openDirectory;
-- (void)addURLs:(NSArray<NSURL *> *)urls;
-- (void)openURLs:(NSArray<NSURL *> *)urls inFolder:(BOOL)inFolder;
 - (void)liftRowsAtIndexPaths:(NSArray<NSIndexPath *> *)indexPaths;
+- (void)performAction:(VibeBrowserAction *)action onRowAtIndexPath:(NSIndexPath *)indexPath url:(NSURL *)url;
 - (void)pushDirectory:(NSURL *)url;
-- (void)favoriteFolder:(NSURL *)url;
 
 @end
 

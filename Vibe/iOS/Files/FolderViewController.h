@@ -6,30 +6,30 @@
 //  folders, then its M3U playlists, then its playable files. The root
 //  (FilesRootViewController) pushes the first, and each pushes the next.
 //
-//  Every open goes through PlaybackController's roads, so nothing about
-//  opening is reimplemented here.
+//  What a row shows and what its actions do come from the stack's host
+//  (VibeBrowserHost.h).
 //
 
 #import <UIKit/UIKit.h>
 
 @class AudioTrackMetadataCache;
-@class PlaybackController;
+@protocol VibeBrowserHost;
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface FolderViewController : UITableViewController
 
-// Appending is the add sheet: every action appends, and the sheet closes
-// after it. stackArtCache answers the stack's one metadata cache. It is
+// Appending is the add sheet: Close at every level, the sheet's prompt, and
+// no sort menu. The host's actions add there. stackArtCache answers the stack's one metadata cache. It is
 // asked only once a row needs art. Open Folder hands the last screen of its
 // stack the file to highlight, and a screen for a folder no source covers
 // holds its scope (holdsScope), stopped when the screen goes.
-- (instancetype)initWithPlayback:(PlaybackController *)playback
-                    directoryURL:(NSURL *)directoryURL
-                       appending:(BOOL)appending
-                   stackArtCache:(AudioTrackMetadataCache *(^)(void))stackArtCache
-                    highlighting:(nullable NSURL *)file
-                      holdsScope:(BOOL)holdsScope NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithHost:(id<VibeBrowserHost>)host
+                directoryURL:(NSURL *)directoryURL
+                   appending:(BOOL)appending
+               stackArtCache:(AudioTrackMetadataCache *(^)(void))stackArtCache
+                highlighting:(nullable NSURL *)file
+                  holdsScope:(BOOL)holdsScope NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithStyle:(UITableViewStyle)style NS_UNAVAILABLE;
 - (instancetype)initWithNibName:(nullable NSString *)nibName
                          bundle:(nullable NSBundle *)bundle NS_UNAVAILABLE;
