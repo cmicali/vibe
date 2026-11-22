@@ -492,7 +492,7 @@ targets:
                 VibeLibsFileLoading, VibeLibsHTTP, VibeLibsRemoteFiles, VibeLibsShareLinks, VibeLibsDropbox, VibeLibsDecode,
                 VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
-                VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsNowPlaying, VibeLibsDebugChannel,
+                VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsRows, VibeLibsNowPlaying, VibeLibsDebugChannel,
                 VibeLibsDebugVerbs, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache,
                 VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
