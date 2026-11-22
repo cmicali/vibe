@@ -489,8 +489,8 @@ targets:
     # VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, and VibeLibsTaglib:
     # see the Vibe target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
-                VibeLibsFileLoading, VibeLibsHTTP, VibeLibsRemoteFiles, VibeLibsShareLinks, VibeLibsDecode, VibeLibsPlayer,
-                VibeLibsWaveform, VibeLibsWaveformLoading,
+                VibeLibsFileLoading, VibeLibsHTTP, VibeLibsRemoteFiles, VibeLibsShareLinks, VibeLibsDropbox, VibeLibsDecode,
+                VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsNowPlaying, VibeLibsDebugChannel,
                 VibeLibsDebugVerbs, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache,
@@ -842,9 +842,13 @@ targets:
       - path: Vibe/iOS/Search/DropboxSearch.m
       - path: Vibe/iOS/Widget/VibeWidgetState.m
       - path: Vibe/Common/AppStats.m   # FolderSession counts opens
-      - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
-      - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
+      - path: vibe-libs/files/Dropbox/DropboxClient.m
+      - path: vibe-libs/files/Dropbox/DropboxMirror.m
       - path: Vibe/Loading/iOS/Dropbox/DropboxMirror+Shared.m   # the shell tests swap its shared mirror
+      # The Dropbox tests' harness and HTTP boundary, which the search's
+      # Dropbox tests and the shell's tests share.
+      - path: vibe-libs/Tests/files/Dropbox/DropboxMirrorTestCase.m
+      - path: vibe-libs/Tests/files/Dropbox/DropboxStubProtocol.m
       - path: vibe-libs/waveform/WaveformStyles/WaveformTheme.m
       - path: Vibe/Common/WaveformTheme+Settings.m
       - path: vibe-libs/waveform/WaveformStyles/WaveformMorphEngine.mm
@@ -907,6 +911,8 @@ targets:
           - "$(SRCROOT)/vibe-libs/files/ShareLinks"
           - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
+          - "$(SRCROOT)/vibe-libs/files/Dropbox"
+          - "$(SRCROOT)/vibe-libs/Tests/files/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/vibe-libs/files/SandboxAccess/Mac"
           - "$(SRCROOT)/Vibe/Playlist"

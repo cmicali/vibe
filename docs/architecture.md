@@ -24,7 +24,7 @@ Vibe/
   Audio/               how Vibe hosts vibe-libs' player, and the audio features beside it
   Loading/             the app's own transfers: links and Dropbox
     Net/               Open URL's link store
-    iOS/Dropbox/       the Dropbox account and its local mirror (iOS)
+    iOS/Dropbox/       Vibe's one Dropbox mirror, over vibe-libs' files/Dropbox (iOS)
   Playlist/            the playlist row
     Mac/               the playlist table and the last-playlist store (macOS)
   Util/                Vibe's helpers with no feature
@@ -280,7 +280,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | Playing a file that is still downloading | `vibe-libs/files/FileLoading/AGENTS.md` (CloudFileAvailability) | `vibe-libs/files/FileLoading/Transfer/CloudFileAvailability.m` |
 | Files on a network share | `vibe-libs/files/FileLoading/AGENTS.md` (The network-mount read-ahead) | `vibe-libs/files/FileLoading/Transfer/NetworkReadAhead.m` |
 | Open URL and links | `Loading/Net/AGENTS.md`, vibe-libs' `files/ShareLinks/AGENTS.md`, `Mac/App/AGENTS.md` | `Loading/Net/LinkStore.m` |
-| Dropbox on iOS | `Loading/iOS/Dropbox/AGENTS.md` | `Loading/iOS/Dropbox/DropboxMirror.m` |
+| Dropbox on iOS | `Loading/iOS/Dropbox/AGENTS.md`, `vibe-libs/files/Dropbox/AGENTS.md` | `vibe-libs/files/Dropbox/DropboxMirror.m` |
 | Tags, the metadata cache, or the scan | `vibe-libs/media/Metadata/AGENTS.md`, `vibe-libs/media/Tags/AGENTS.md` | `vibe-libs/media/Metadata/AudioTrackMetadataLoader.m`, `vibe-libs/media/Tags/TagLibAudioFile.mm` |
 | Artwork and row thumbnails | `vibe-libs/media/Metadata/AGENTS.md` | `vibe-libs/media/Metadata/Artwork/AudioTrackArtwork.m` |
 | Cover images beside the files | `vibe-libs/media/Metadata/AGENTS.md` (Folder art), `Audio/AGENTS.md` | `vibe-libs/media/Metadata/Artwork/FolderArt/FolderArtResolver.m` |
