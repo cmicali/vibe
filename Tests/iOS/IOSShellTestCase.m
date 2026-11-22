@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 #import "DropboxClient.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "DropboxStubProtocol.h"
 #import "FavoritesStore.h"
 #import "FolderSession.h"
@@ -30,6 +30,7 @@ static void VibeInstallShellSingletons(void) {
                 initWithClient:client
                        rootURL:[NSURL fileURLWithPath:[VibeTestProcessRoot() stringByAppendingPathComponent:@"Dropbox"]
                                           isDirectory:YES]
+                indexAttribute:@"vibe-libs.dropbox.test"
                 downloadBudget:8];
         method_setImplementation(class_getClassMethod(DropboxMirror.class, @selector(shared)),
                                  imp_implementationWithBlock(^DropboxMirror *(id self) { return mirror; }));

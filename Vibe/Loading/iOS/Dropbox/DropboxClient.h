@@ -1,6 +1,6 @@
 //
 //  DropboxClient.h
-//  Vibe (iOS)
+//  vibe-libs
 //
 //  The Dropbox account and the HTTP calls made as it: PKCE sign-in, the
 //  refresh token in the Keychain, the access token in memory, and a JSON call
@@ -44,18 +44,17 @@ static inline NSError *VibeDropboxMakeError(VibeDropboxError code, NSString *des
 // Posted on main when the account is linked, unlinked or renamed.
 extern NSNotificationName const VibeDropboxAccountDidChangeNotification;
 
-// The app's Keychain service for the refresh token.
-extern NSString *const VibeDropboxKeychainService;
-// The Info.plist key that holds the app key.
-extern NSString *const VibeDropboxAppKeyInfoKey;
-
 @interface DropboxClient : HTTPTransferClient
 
 - (instancetype)init NS_UNAVAILABLE;
 + (instancetype)new NS_UNAVAILABLE;
 - (instancetype)initWithConfiguration:(NSURLSessionConfiguration *)configuration NS_UNAVAILABLE;
 
-// keychainService nil keeps the account in memory only (the tests).
+// appKey is the app's Dropbox app key. The sign-in redirects to its
+// db-<appKey> scheme, which Dropbox grants every app without registration.
+// keychainService names the app's Keychain item for the refresh token. nil
+// keeps the account in memory only (the tests). The client never waits for
+// connectivity, whatever the configuration says.
 - (instancetype)initWithAppKey:(NSString *)appKey
                keychainService:(nullable NSString *)keychainService
                  configuration:(NSURLSessionConfiguration *)configuration NS_DESIGNATED_INITIALIZER;

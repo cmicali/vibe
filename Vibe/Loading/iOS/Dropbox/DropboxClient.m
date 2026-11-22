@@ -1,6 +1,6 @@
 //
 //  DropboxClient.m
-//  Vibe (iOS)
+//  vibe-libs
 //
 
 #import "DropboxClientInternal.h"
@@ -10,12 +10,11 @@
 
 #import "DropboxRules.h"
 #import "HTTPTransferRules.h"
+#import "VibeMacros.h"
 
-NSErrorDomain const VibeDropboxErrorDomain = @"com.commonwealthrecordings.Vibe.Dropbox";
+NSErrorDomain const VibeDropboxErrorDomain = @"vibe-libs.dropbox";
 NSNotificationName const VibeDropboxAccountDidChangeNotification =
         @"VibeDropboxAccountDidChangeNotification";
-NSString *const VibeDropboxKeychainService = @"com.commonwealthrecordings.Vibe.dropbox";
-NSString *const VibeDropboxAppKeyInfoKey = @"VibeDropboxAppKey";
 
 // An access token this close to its expiry is refreshed instead of used.
 static const NSTimeInterval kAccessTokenMargin = 60;
@@ -91,6 +90,9 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
 - (instancetype)initWithAppKey:(NSString *)appKey
                keychainService:(NSString *)keychainService
                  configuration:(NSURLSessionConfiguration *)configuration {
+    configuration = [configuration copy];
+    // Fail fast offline: a waiting request holds a materialization lane.
+    configuration.waitsForConnectivity = NO;
     self = [super initWithConfiguration:configuration];
     if (self) {
         _appKey = [appKey copy];
@@ -373,7 +375,7 @@ typedef void (^VibeDropboxTokenWaiter)(NSString *_Nullable token, uint64_t accou
     }];
 }
 
-// The display name for Settings. A failure leaves it nil and the account
+// The account's display name. A failure leaves it nil and the account
 // linked: the name is decoration.
 - (void)refreshAccountNameWithCompletion:(dispatch_block_t)completion {
     os_unfair_lock_lock(&_lock);

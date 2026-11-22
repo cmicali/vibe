@@ -6,7 +6,7 @@
 #import "FavoritesViewController.h"
 
 #import "AppSettings.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "FavoritesStore.h"
 #import "FileRow.h"
 #import "PlaybackController.h"

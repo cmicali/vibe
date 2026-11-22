@@ -8,7 +8,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "BrowserRules.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "DropboxRules.h"
 #import "DropboxSearch.h"
 #import "FileRow.h"

@@ -10,7 +10,7 @@
 #import "AudioTrackMetadataCache.h"
 #import "BrowserRules.h"
 #import "DocumentTypes.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "FileRow.h"
 #import "FileSearchRules.h"
 #import "FilePaths.h"
