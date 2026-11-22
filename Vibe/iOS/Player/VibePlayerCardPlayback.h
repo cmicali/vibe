@@ -36,8 +36,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (VibeMusicalKey)key;
 @end
 
-// The rows the pager pages through. The card holds the queue apart from the
-// player, so a debug preview can swap it.
+// The rows the pager pages through.
 @protocol VibePlayerCardQueue <NSObject>
 - (NSUInteger)count;
 - (nullable id<VibePlayerCardItem>)trackAtIndex:(NSUInteger)index;
@@ -153,9 +152,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark What the card noticed
 
-// The waveform decode detected a tempo for track. The card hears it back as
-// the metadata event when the row's tempo changed.
-- (void)noteDetectedBPM:(float)bpm forTrack:(id<VibePlayerCardItem>)track;
+// The waveform decode detected a tempo for what track sounds. The card hears
+// it back as the metadata event when a row's tempo changed.
+- (void)noteDetectedBPM:(float)bpm forTrack:(id<VibePlayableItem>)track;
 // One track's tags ahead of any sweep. A no-op once the track is parsed.
 - (void)loadMetadataNowForTrack:(nullable id<VibePlayerCardItem>)track;
 // A page's complete waveform, for a track that may no longer be current.

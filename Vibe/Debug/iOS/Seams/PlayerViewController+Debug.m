@@ -212,7 +212,6 @@
     }
     // Next renders the new header before scrolling to its cell. Keep
     // this on one main turn, so the arriving page must draw at once.
-    // Vibe's own model, under the card's protocols.
     VibePlaylist *livePlaylist = (VibePlaylist *)_playlist;
     PlaybackController *playback = (PlaybackController *)_playback;
     BOOL shuffled = livePlaylist.shuffleEnabled;

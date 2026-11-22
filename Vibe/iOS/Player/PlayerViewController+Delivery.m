@@ -54,8 +54,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
               didDetectBPM:(float)bpm
                   forTrack:(id<VibePlayableItem>)track {
-    // The cache hands back the item the card asked with.
-    [_playback noteDetectedBPM:bpm forTrack:(id<VibePlayerCardItem>)track];
+    [_playback noteDetectedBPM:bpm forTrack:track];
 }
 
 #pragma mark - WaveformScrubberViewDelegate

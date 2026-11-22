@@ -12,7 +12,6 @@
 #import "PlayerViewController.h"
 #import "FXPadView.h"
 #import "OutputRouteView.h"
-#import "PlayerScreenRules.h"
 #import "VibePlayerCardPlayback.h"
 
 @class AudioWaveformCache;
@@ -31,7 +30,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 @interface PlayerViewController () <FXPadViewDelegate, OutputRouteViewDelegate,
         UIGestureRecognizerDelegate, VibePlayerCardObserver> {
     id<VibePlayerCardPlayback> _playback;
-    // _playback's, held because every data-source callback reads it.
+    // _playback's, held apart so the debug seam's transition check can swap it.
     id<VibePlayerCardQueue> _playlist;
 
     UICollectionView        *_pagesView;

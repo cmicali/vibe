@@ -16,8 +16,6 @@
 
 #import "AudioTrack.h"
 #import "EqualizerLevelSource.h"
-#import "OutputRouteRules.h"
-#import "PlayerScreenRules.h"
 #import "VibePlaylist.h"
 #import "VibePlayerCardPlayback.h"
 
@@ -172,24 +170,6 @@ NS_ASSUME_NONNULL_BEGIN
 // AudioFXMath.h's: y the low kill's cutoff, x the reverb's level and, past
 // the onset, the 1/8-note delay's.
 - (void)setFXPadPosition:(CGPoint)position engaged:(BOOL)engaged;
-
-// The decode pass detected a tempo for `track`: stamped on every row sounding
-// it (VibePlaylist.stampTracksSounding:usingBlock:), each redrawn, the delay taps
-// refed. The match closes the race with a track change.
-- (void)noteDetectedBPM:(float)bpm forTrack:(AudioTrack *)track;
-
-// The priority metadata lane, for one track's tags ahead of the sweep. A
-// no-op once the track is parsed.
-- (void)loadMetadataNowForTrack:(nullable AudioTrack *)track;
-
-// The card's complete waveform, reused for the widget's strip rather than a
-// second decode. Dropped unless the track is current. The publisher matches
-// it to the widget's track.
-- (void)noteCompleteWaveform:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track;
-
-// The card's full-size art landed. Now Playing republishes when the track is
-// current.
-- (void)noteLoadedArtForTrack:(AudioTrack *)track;
 
 @end
 
