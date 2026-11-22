@@ -90,7 +90,7 @@ Foreground-inactive counts as off: the scene delegate's foreground-active bit dr
 
 ## MiniPlayerView
 
-The accessory's content: the 128px thumbnail, title over artist, play/pause and next (`forward.end.fill`, the mac's glyph). It draws a `VibeTrackRow` (`Files/FileRow.h`), which the shell fills from the displayed track (`AudioTrack+TrackRow`). The shell also pushes the controls' VoiceOver labels. The strip reads no model, setting or string. Targets are large and glyphs small (`kGlyphPointSize`). When `traitCollection.tabAccessoryEnvironment` says the bar collapsed it inline, the artist line is dropped. There is no playhead bar, which fits 48pt only by crowding the art and labels.
+The accessory's content: the 128px thumbnail, title over artist, play/pause and next (`forward.end.fill`, the mac's glyph). It draws a `VibeTrackRow` (`Files/VibeTrackRow.h`), which the shell fills from the displayed track (`AudioTrack+TrackRow`). The shell also pushes the controls' VoiceOver labels. The strip reads no model, setting or string. Targets are large and glyphs small (`kGlyphPointSize`). When `traitCollection.tabAccessoryEnvironment` says the bar collapsed it inline, the artist line is dropped. There is no playhead bar, which fits 48pt only by crowding the art and labels.
 
 **TRAP: the strip is 48pt, not negotiable.** `UITabAccessory` frames its content at a fixed height and ignores `intrinsicContentSize` and height constraints, with no logged conflict. A taller strip means giving up the accessory, and with it Liquid Glass, inline collapse and the automatic safe-area inset.
 

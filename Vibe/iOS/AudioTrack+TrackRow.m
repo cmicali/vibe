@@ -5,7 +5,7 @@
 
 #import "AudioTrack+TrackRow.h"
 
-#import "FileRow.h"
+#import "VibeTrackRow.h"
 
 @implementation AudioTrack (TrackRow)
 
