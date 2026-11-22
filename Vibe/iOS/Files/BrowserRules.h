@@ -3,7 +3,7 @@
 //  Vibe (iOS)
 //
 //  The Files tab's decisions: the root's rows, a folder's empty state, a
-//  row's long press, and the URLs Recents names.
+//  row's long press, a row's tile, and the URLs Recents names.
 //  Header-only and Foundation-only so the macOS suite can test it.
 //
 
@@ -12,7 +12,14 @@
 
 #import <Foundation/Foundation.h>
 
+#import "VibePlaylistFile.h"
+
 NS_ASSUME_NONNULL_BEGIN
+
+// A CUE sheet or an M3U by its name, which takes the playlist tile.
+static inline BOOL VibeBrowserIsPlaylistName(NSString *_Nullable name) {
+    return [VibePlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString];
+}
 
 #pragma mark - The root's rows
 

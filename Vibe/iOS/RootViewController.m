@@ -5,7 +5,7 @@
 
 #import "RootViewControllerInternal.h"
 
-#import "AudioTrack.h"
+#import "AudioTrack+TrackRow.h"
 #import "AudioTrackMetadata.h"
 #import "CueFolderGrantPrompt.h"
 #import "FavoritesViewController.h"
@@ -132,7 +132,7 @@ static NSString *const kTabSearch = @"search";
 - (void)thumbnailDidLoad:(NSNotification *)notification {
     AudioTrack *displayed = _playback.displayedTrack;
     if (displayed.metadata == notification.object) {
-        [_miniPlayer renderTrack:displayed];
+        [_miniPlayer renderRow:displayed.trackRow];
     }
 }
 
@@ -227,6 +227,10 @@ static NSString *const kTabSearch = @"search";
 - (void)buildMiniPlayer {
     _miniPlayer = [[MiniPlayerView alloc] initWithFrame:CGRectZero];
     _miniPlayer.delegate = self;
+    [_miniPlayer setAccessibilityLabelsForExpand:STR_SETTINGS_NOW_PLAYING_SECTION
+                                            play:STR_TRANSPORT_PLAY
+                                           pause:STR_TRANSPORT_PAUSE
+                                            next:STR_TRANSPORT_NEXT];
 }
 
 - (void)buildCard {
@@ -358,7 +362,7 @@ static NSString *const kTabSearch = @"search";
 - (void)refreshMiniPlayer {
     BOOL wanted = VibeMiniPlayerVisible(_playback.screenState);
     if (wanted) {
-        [_miniPlayer renderTrack:_playback.displayedTrack];
+        [_miniPlayer renderRow:_playback.displayedTrack.trackRow];
         [_miniPlayer setPlaying:_playback.isPlaying];
     }
     if (wanted == _miniWanted) {
@@ -834,7 +838,7 @@ static NSString *const kTabSearch = @"search";
 
 - (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track {
     if ([playback.playlist isCurrentTrack:track]) {
-        [_miniPlayer renderTrack:playback.displayedTrack];
+        [_miniPlayer renderRow:playback.displayedTrack.trackRow];
     }
 }
 
