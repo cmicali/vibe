@@ -77,7 +77,7 @@ The playback engine is vibe-libs' `audio/Player`, and `Vibe/Audio/` hosts it. Th
 The DJ effects, the meter, and the fades are vibe-libs' (below). `vibe-libs/audio/Player/AGENTS.md` says how the player hosts the effects, the pitch fader's stage, and the meter. Each other feature beside the engine has its own directory and doc:
 
 - **The metadata**: vibe-libs' `media/Metadata`. `AudioTrackMetadataCache` is the facade over tags, their disk cache, and the playlist scan. `AudioTrackMetadataLoader` is the scan behind it. Tags are read through TagLib by vibe-libs' `TagLibAudioFile`, in `media/Tags`. `Artwork/` holds `AudioTrackArtwork` and `EmbeddedThumbnailCache`. `Artwork/FolderArt/FolderArtResolver` finds a cover beside the files, on macOS. Docs: `vibe-libs/media/Metadata/AGENTS.md`, and `Audio/AGENTS.md` for how the shells drive it.
-- **The waveform's data** is vibe-libs'. `waveform/WaveformLoading`'s `AudioWaveformLoader` decodes a file into an `AudioWaveform`, and feeds each mono block to the observers its request lists. Its `AudioWaveformCache` owns the loaders and stores the results on disk through PINCache. The summary is `waveform/Waveform`'s. How Vibe wires them is in `Audio/AGENTS.md`. Docs: `vibe-libs/waveform/WaveformLoading/AGENTS.md` and `vibe-libs/waveform/Waveform/AGENTS.md`.
+- **The waveform's data** is vibe-libs'. `waveform/WaveformLoading`'s `AudioWaveformLoader` decodes a file into an `AudioWaveform`, and feeds each mono block to the observers its request lists. Its `AudioWaveformCache` owns the loaders and stores the results on disk through `files/DiskCache`. The summary is `waveform/Waveform`'s. How Vibe wires them is in `Audio/AGENTS.md`. Docs: `vibe-libs/waveform/WaveformLoading/AGENTS.md` and `vibe-libs/waveform/Waveform/AGENTS.md`.
 
 ### Loading
 
@@ -133,7 +133,7 @@ Every move the plan listed is done (`docs/future/vibe-libs.md`). `make project` 
 
 ### Third-party code
 
-There is no package manager. Vendored code is vibe-libs' `third_party/`: a subset of TagLib, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, libwavpack, the Monkey's Audio SDK, and the prebuilt Sparkle framework, each a piece of its own. Its template carries its compiler flags. Both apps compile every one but Sparkle, which only the mac app reaches, through `system/Updates`. The three dr_ libraries carry fixes of Vibe's own. Read the piece's `AGENTS.md` before changing one. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
+There is no package manager. Vendored code is vibe-libs' `third_party/`: a subset of TagLib, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, libwavpack, the Monkey's Audio SDK, and the prebuilt Sparkle framework, each a piece of its own. Its template carries its compiler flags. Both apps compile every one but Sparkle, which only the mac app reaches, through `system/Updates`. The three dr_ libraries and the Monkey's Audio SDK carry fixes of Vibe's own. Read the piece's `AGENTS.md` before changing one. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
 
 ### Tests, resources, and scripts
 

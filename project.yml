@@ -371,10 +371,9 @@ targets:
         # Imported, so the system's own declaration wins where there is one;
         # an older system has none, and .ogg would read as dyn.* there. No
         # description, which would be a catalog key for every language.
-        # The system declares no type for WavPack, Monkey's Audio, or DSF.
-        # Their identifiers are the ones the apps that declare them use (VLC
-        # for .wv and .ape, Sony's namespace for .dsf), so an app on the same
-        # Mac that exports one agrees with these.
+        # The system has no type for WavPack, Monkey's Audio, or DSF. These
+        # identifiers are the ones other players declare (VLC's for .wv and
+        # .ape), so an app on the same Mac that exports one agrees with them.
         UTImportedTypeDeclarations: &audio-imports
           - UTTypeIdentifier: "org.xiph.ogg-audio"
             UTTypeConformsTo:
@@ -1048,7 +1047,7 @@ targetTemplates:
       - path: vibe-libs/audio/Decode/AudioFileHandle+APE.m
       - path: vibe-libs/audio/Decode/VibeAPEDecoder.cpp
       - path: vibe-libs/audio/Decode/AudioFileHandle+DSD.m
-      # The DSD parser and converter, at the -O3 Decode's template gives them.
+      # The DSD parser and converter, at -O3 as Decode's template builds them.
       - path: vibe-libs/audio/Decode/VibeDSDToPCM.c
         compilerFlags: ["-O3"]
       - path: vibe-libs/audio/Decode/VibeDSF.c
