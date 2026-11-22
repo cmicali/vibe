@@ -90,7 +90,7 @@ Foreground-inactive counts as off: the scene delegate's foreground-active bit dr
 
 ## MiniPlayerView
 
-The accessory's content: the 128px thumbnail, title over artist, play/pause and next (`forward.end.fill`, the mac's glyph). Targets are large and glyphs small (`kGlyphPointSize`). When `traitCollection.tabAccessoryEnvironment` says the bar collapsed it inline, the artist line is dropped. There is no playhead bar, which fits 48pt only by crowding the art and labels.
+The accessory's content: the 128px thumbnail, title over artist, play/pause and next (`forward.end.fill`, the mac's glyph). It draws a `VibeTrackRow` (`Files/FileRow.h`), which the shell fills from the displayed track (`AudioTrack+TrackRow`). The shell also pushes the controls' VoiceOver labels. The strip reads no model, setting or string. Targets are large and glyphs small (`kGlyphPointSize`). When `traitCollection.tabAccessoryEnvironment` says the bar collapsed it inline, the artist line is dropped. There is no playhead bar, which fits 48pt only by crowding the art and labels.
 
 **TRAP: the strip is 48pt, not negotiable.** `UITabAccessory` frames its content at a fixed height and ignores `intrinsicContentSize` and height constraints, with no logged conflict. A taller strip means giving up the accessory, and with it Liquid Glass, inline collapse and the automatic safe-area inset.
 
@@ -102,7 +102,7 @@ The browser, Recents, Open URL…, the paste row and the pickers are `Files/AGEN
 
 ## PlaylistViewController
 
-The Playlist tab: number (the shared `EqualizerIndicatorView` on the playing row), artwork, title over artist, duration. Each row is a `PlaylistTrackCell`. **Selecting a row plays it and stays here.** Expanding the card is the strip's job. A track change scrolls the list to the playing row, or leaves that for when it shows. **Under shuffle the list holds still**, since following a jumping play order would lose the user's place on every track. Number and duration take the artist line's text style, so they scale together under Dynamic Type. The folder name goes on `navigationItem.title`, not `self.title`, which is also the tab's title.
+The Playlist tab: number (the shared `EqualizerIndicatorView` on the playing row), artwork, title over artist, duration. Each row is a `PlaylistTrackCell`. It draws a `VibeTrackRow` that `rowAtIndex:` fills from the track (`AudioTrack+TrackRow`), with the number and the playing marker. It reads no model, setting or string. The loading bar is pushed on its own (`loading`), because a transfer changes without the row. The cell skips a render whose row is unchanged. **Selecting a row plays it and stays here.** Expanding the card is the strip's job. A track change scrolls the list to the playing row, or leaves that for when it shows. **Under shuffle the list holds still**, since following a jumping play order would lose the user's place on every track. Number and duration take the artist line's text style, so they scale together under Dynamic Type. The folder name goes on `navigationItem.title`, not `self.title`, which is also the tab's title.
 
 **TRAP: UIKit displays a prepared cell without re-running `cellForRowAtIndexPath:`.** A thumbnail or metadata delivery in that window repaints nothing, so the Playlist tab re-renders each cell in `willDisplayCell:`. **TRAP: rendering in place does not re-measure an automatic-dimension row**, so a row whose height moved takes an empty `performBatchUpdates:`.
 

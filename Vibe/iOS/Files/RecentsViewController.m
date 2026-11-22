@@ -109,7 +109,9 @@ static NSString *const kRecentCellIdentifier = @"item";
     // container it names, and then says nothing a user would recognize.
     content.secondaryText = item[@"location"];
     [content vibeApplyFileNameStyle];
-    [content vibeApplyFileIconForName:path folder:[item[@"folder"] boolValue] art:nil];
+    [content vibeApplyFileIconForFolder:[item[@"folder"] boolValue]
+                               playlist:VibeBrowserIsPlaylistName(path)
+                                    art:nil];
     [cell vibeApplyRowContent:content opening:[VibeComparablePath(path) isEqualToString:_playback.openingPath]];
     return cell;
 }

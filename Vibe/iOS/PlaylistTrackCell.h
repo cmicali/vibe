@@ -7,17 +7,18 @@
 
 #import "EqualizerLevelSource.h"
 
-@class AudioTrack;
+@class VibeTrackRow;
 
 NS_ASSUME_NONNULL_BEGIN
 
 static const CGFloat kEstimatedRowHeight = 64;
-static const CGFloat kNumberColumnWidth = 26;
-static const CGFloat kArtTextGap = 14;
 
-// The mac playlist table's four columns in one row.
+// The mac playlist table's four columns in one row. It draws the values it is
+// given and reads no model, setting or string.
 @interface PlaylistTrackCell : UITableViewCell
-// Set at dequeue: the table mints the cell and it never sees the model.
+// Where the separator starts: under the text, past the gutter and the art.
+@property (class, nonatomic, readonly) CGFloat separatorLeadingInset;
+// Set at dequeue: the table mints the cell.
 @property (nonatomic, weak, nullable) id<EqualizerLevelSource> levelSource;
 @property (nonatomic) BOOL equalizerAudioOutputActive;
 @property (nonatomic) BOOL equalizerPresentationVisible;
@@ -26,9 +27,7 @@ static const CGFloat kArtTextGap = 14;
 @property (nonatomic) float loadingProgress;
 // YES when the row's height can have moved; a caller rendering in place then
 // owes the table a height pass (refreshVisibleRowAtIndex:).
-- (BOOL)renderTrack:(AudioTrack *)track
-             number:(NSUInteger)number
-            playing:(BOOL)playing;
+- (BOOL)renderRow:(VibeTrackRow *)row;
 @end
 
 NS_ASSUME_NONNULL_END

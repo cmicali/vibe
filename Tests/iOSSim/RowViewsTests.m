@@ -5,7 +5,7 @@
 #import "IOSSimTestCase.h"
 
 #import "FilePaths.h"
-#import "AudioTrack.h"
+#import "AudioTrack+TrackRow.h"
 #import "CloudTransferRegistryInternal.h"
 #import "EqualizerIndicatorView.h"
 #import "FileRow.h"
@@ -71,15 +71,45 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
     return cell;
 }
 
+static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
+    VibeTrackRow *row = track.trackRow;
+    row.numberText = [NSString stringWithFormat:@"%lu", (unsigned long)number];
+    row.playing = playing;
+    return row;
+}
+
 - (void)testATaggedRowShowsTitleArtistNumberAndDuration {
     PlaylistTrackCell *cell = [self cell];
     AudioTrack *track = [self trackNamed:@"a.mp3" title:@"Song" artist:@"Band" duration:125];
-    [cell renderTrack:track number:7 playing:NO];
+    [cell renderRow:Row(track, 7, NO)];
     XCTAssertNotNil(VibeLabelWithText(cell, @"Song"));
     XCTAssertNotNil(VibeLabelWithText(cell, @"Band"));
     XCTAssertNotNil(VibeLabelWithText(cell, @"7"));
     XCTAssertNotNil(VibeLabelWithText(cell, track.durationString));
-    XCTAssertFalse([cell renderTrack:track number:7 playing:NO], @"an unchanged render moves nothing");
+    XCTAssertFalse([cell renderRow:Row(track, 7, NO)], @"an unchanged render moves nothing");
+    [cell removeFromSuperview];
+}
+
+// The cell keeps a copy of what it drew, so an edit to the caller's row is a
+// change, and a new thumbnail is a change even when it looks the same.
+- (void)testARowRendersAgainOnlyWhenWhatItDrawsChanged {
+    PlaylistTrackCell *cell = [self cell];
+    VibeTrackRow *row = [[VibeTrackRow alloc] init];
+    row.title = @"Song";
+    row.numberText = @"1";
+    [cell renderRow:row];
+    XCTAssertFalse([cell renderRow:[row copy]]);
+    row.title = @"Other";
+    [cell renderRow:row];
+    XCTAssertNotNil(VibeLabelWithText(cell, @"Other"), @"an edited row is drawn again");
+    row.thumbnail = VibeFileTileImage(YES);
+    [cell renderRow:row];
+    BOOL drawn = NO;
+    for (UIView *view in cell.contentView.subviews) {
+        drawn = drawn || ([view isKindOfClass:UIImageView.class]
+                          && ((UIImageView *)view).image == VibeFileTileImage(YES));
+    }
+    XCTAssertTrue(drawn, @"a new thumbnail is drawn");
     [cell removeFromSuperview];
 }
 
@@ -88,11 +118,11 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
 - (void)testAFilenameRowIsOneLineInTheTitlesColor {
     PlaylistTrackCell *cell = [self cell];
     AudioTrack *tagged = [self trackNamed:@"a.mp3" title:@"Song" artist:@"Band" duration:60];
-    [cell renderTrack:tagged number:1 playing:NO];
+    [cell renderRow:Row(tagged, 1, NO)];
     UIColor *titleColor = VibeLabelWithText(cell, @"Song").textColor;
     AudioTrack *bare = [self trackNamed:@"My_Demo.mp3" title:nil artist:nil duration:60];
     XCTAssertNil(bare.displayArtist);
-    XCTAssertTrue([cell renderTrack:bare number:1 playing:NO], @"losing a line moves the height");
+    XCTAssertTrue([cell renderRow:Row(bare, 1, NO)], @"losing a line moves the height");
     UILabel *line = VibeLabelWithText(cell, bare.displayTitle);
     XCTAssertNotNil(line);
     XCTAssertEqualObjects(line.textColor, titleColor);
@@ -107,13 +137,13 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
     AudioTrack *track = [self trackNamed:@"a.mp3" title:@"Song" artist:@"Band" duration:60];
     EqualizerIndicatorView *marker = FirstSubviewOfClass(cell.contentView, EqualizerIndicatorView.class);
     LoadingIndicatorView *bar = FirstSubviewOfClass(cell.contentView, LoadingIndicatorView.class);
-    [cell renderTrack:track number:3 playing:NO];
+    [cell renderRow:Row(track, 3, NO)];
     UILabel *number = VibeLabelWithText(cell, @"3");
     XCTAssertNotNil(number);
     XCTAssertTrue(marker.hidden);
     XCTAssertFalse(bar.isActive);
 
-    [cell renderTrack:track number:3 playing:YES];
+    [cell renderRow:Row(track, 3, YES)];
     XCTAssertTrue(number.hidden);
     XCTAssertFalse(marker.hidden);
 
@@ -227,17 +257,17 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
 
 - (void)testAnIconSlotReservesTheTileForEveryKind {
     UIListContentConfiguration *folder = [UIListContentConfiguration cellConfiguration];
-    [folder vibeApplyFileIconForName:@"Albums" folder:YES art:nil];
+    [folder vibeApplyFileIconForFolder:YES playlist:NO art:nil];
     XCTAssertTrue(CGSizeEqualToSize(folder.imageProperties.reservedLayoutSize,
                                     CGSizeMake(kFileTileSide, kFileTileSide)));
     UIListContentConfiguration *cue = [UIListContentConfiguration cellConfiguration];
-    [cue vibeApplyFileIconForName:@"Live.cue" folder:NO art:nil];
+    [cue vibeApplyFileIconForFolder:NO playlist:YES art:nil];
     XCTAssertEqual(cue.image, VibeFileTileImage(YES));
     UIListContentConfiguration *song = [UIListContentConfiguration cellConfiguration];
-    [song vibeApplyFileIconForName:@"Song.flac" folder:NO art:nil];
+    [song vibeApplyFileIconForFolder:NO playlist:NO art:nil];
     XCTAssertEqual(song.image, VibeFileTileImage(NO));
     UIImage *art = VibeFileTileImage(YES);
-    [song vibeApplyFileIconForName:@"Song.flac" folder:NO art:art];
+    [song vibeApplyFileIconForFolder:NO playlist:NO art:art];
     XCTAssertEqual(song.image, art, @"art beats the tile");
 }
 
@@ -247,7 +277,7 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
     UITableViewCell *cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:nil];
     UIListContentConfiguration *content = [UIListContentConfiguration cellConfiguration];
     content.text = @"Song.flac";
-    [content vibeApplyFileIconForName:@"Song.flac" folder:NO art:nil];
+    [content vibeApplyFileIconForFolder:NO playlist:NO art:nil];
     [cell vibeApplyRowContent:content opening:YES];
     UIActivityIndicatorView *spinner = FirstSubviewOfClass(cell.contentView, UIActivityIndicatorView.class);
     XCTAssertNotNil(spinner);
@@ -299,6 +329,10 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
 
 - (MiniPlayerView *)strip {
     MiniPlayerView *strip = [[MiniPlayerView alloc] initWithFrame:CGRectMake(0, 600, 390, 48)];
+    [strip setAccessibilityLabelsForExpand:STR_SETTINGS_NOW_PLAYING_SECTION
+                                      play:STR_TRANSPORT_PLAY
+                                     pause:STR_TRANSPORT_PAUSE
+                                      next:STR_TRANSPORT_NEXT];
     [self.window addSubview:strip];
     [strip layoutIfNeeded];
     return strip;
@@ -306,14 +340,14 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
 
 - (void)testTheStripDrawsTheTrackItIsGiven {
     MiniPlayerView *strip = [self strip];
-    [strip renderTrack:[self trackNamed:@"a.mp3" title:@"Song" artist:@"Band" duration:60]];
+    [strip renderRow:[self trackNamed:@"a.mp3" title:@"Song" artist:@"Band" duration:60].trackRow];
     UILabel *title = VibeLabelWithText(strip, @"Song");
     XCTAssertNotNil(title);
     XCTAssertEqualObjects(title.textColor, UIColor.labelColor);
     XCTAssertNotNil(VibeLabelWithText(strip, @"Band"));
 
     AudioTrack *bare = [self trackNamed:@"My_Demo.mp3" title:nil artist:nil duration:60];
-    [strip renderTrack:bare];
+    [strip renderRow:bare.trackRow];
     UILabel *line = VibeLabelWithText(strip, bare.displayTitle);
     XCTAssertEqual(line, title, @"the single line is the title");
     XCTAssertEqualObjects(line.textColor, UIColor.labelColor);

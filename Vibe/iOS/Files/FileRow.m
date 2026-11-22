@@ -5,8 +5,6 @@
 
 #import "FileRow.h"
 
-#import "VibePlaylistFile.h"
-
 UIAction *VibeMenuAction(NSString *title, NSString *symbol, void (^handler)(void)) {
     return [UIAction actionWithTitle:title
                                image:[UIImage systemImageNamed:symbol]
@@ -58,6 +56,42 @@ UIImage *VibeFileTileImage(BOOL playlist) {
     return tiles[playlist ? 1 : 0];
 }
 
+@implementation VibeTrackRow
+
+static BOOL SameText(NSString *a, NSString *b) {
+    return a == b || [a isEqualToString:b];
+}
+
+- (id)copyWithZone:(NSZone *)zone {
+    VibeTrackRow *copy = [[VibeTrackRow alloc] init];
+    copy.title = _title;
+    copy.subtitle = _subtitle;
+    copy.thumbnail = _thumbnail;
+    copy.durationText = _durationText;
+    copy.numberText = _numberText;
+    copy.playing = _playing;
+    return copy;
+}
+
+- (BOOL)isEqual:(id)object {
+    if (object == self) {
+        return YES;
+    }
+    if (![object isKindOfClass:VibeTrackRow.class]) {
+        return NO;
+    }
+    VibeTrackRow *row = object;
+    return row.thumbnail == _thumbnail && row.playing == _playing
+            && SameText(row.title, _title) && SameText(row.subtitle, _subtitle)
+            && SameText(row.durationText, _durationText) && SameText(row.numberText, _numberText);
+}
+
+- (NSUInteger)hash {
+    return _title.hash ^ _numberText.hash;
+}
+
+@end
+
 @implementation UIListContentConfiguration (VibeFileRow)
 
 // A file or folder name: two lines, cut in the middle, so the ends that tell
@@ -69,7 +103,7 @@ UIImage *VibeFileTileImage(BOOL playlist) {
     self.secondaryTextProperties.color = UIColor.secondaryLabelColor;
 }
 
-- (void)vibeApplyFileIconForName:(NSString *)name folder:(BOOL)folder art:(UIImage *)art {
+- (void)vibeApplyFileIconForFolder:(BOOL)folder playlist:(BOOL)playlist art:(UIImage *)art {
     self.imageProperties.reservedLayoutSize = CGSizeMake(kFileTileSide, kFileTileSide);
     self.imageProperties.maximumSize = CGSizeMake(kFileTileSide, kFileTileSide);
     self.imageProperties.tintColor = UIColor.secondaryLabelColor;
@@ -77,7 +111,7 @@ UIImage *VibeFileTileImage(BOOL playlist) {
         self.image = [UIImage systemImageNamed:@"folder"];
         return;
     }
-    self.image = art ?: VibeFileTileImage([VibePlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]);
+    self.image = art ?: VibeFileTileImage(playlist);
     self.imageProperties.cornerRadius = kFileTileCornerRadius;
 }
 

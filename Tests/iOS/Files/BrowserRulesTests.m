@@ -105,4 +105,14 @@
     XCTAssertEqual(VibeBrowserRowActionsFor(NO, YES, NO, NO), VibeBrowserRowActionAddToPlaylist);
 }
 
+#pragma mark - A row's tile
+
+- (void)testAPlaylistNameTakesThePlaylistTileWhateverItsCase {
+    XCTAssertTrue(VibeBrowserIsPlaylistName(@"Live.cue"));
+    XCTAssertTrue(VibeBrowserIsPlaylistName(@"/Music/Mix.M3U8"));
+    XCTAssertFalse(VibeBrowserIsPlaylistName(@"Song.flac"));
+    XCTAssertFalse(VibeBrowserIsPlaylistName(@"cue"));
+    XCTAssertFalse(VibeBrowserIsPlaylistName(nil));
+}
+
 @end

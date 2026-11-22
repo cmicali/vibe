@@ -5,9 +5,7 @@
 
 #import "MiniPlayerView.h"
 
-#import "AudioTrack.h"
 #import "FileRow.h"
-#import "VibeStrings.h"
 
 // TRAP: the strip is 48pt, not negotiable. UITabAccessory frames its content
 // at a fixed system height and ignores intrinsicContentSize and height
@@ -24,11 +22,13 @@ static const CGFloat kGlyphPointSize = 19;
 @implementation MiniPlayerView {
     UIImageView *_artView;
     UILabel     *_titleLabel;
-    UILabel     *_artistLabel;
+    UILabel     *_subtitleLabel;
     UIButton    *_expandButton;
     UIButton    *_playPauseButton;
     UIButton    *_nextButton;
     BOOL        _playing;
+    NSString   *_playLabel;
+    NSString   *_pauseLabel;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -43,7 +43,6 @@ static const CGFloat kGlyphPointSize = 19;
     self.backgroundColor = UIColor.clearColor;
 
     _expandButton = [UIButton buttonWithType:UIButtonTypeCustom];
-    _expandButton.accessibilityLabel = STR_SETTINGS_NOW_PLAYING_SECTION;
     [_expandButton addTarget:self action:@selector(expandTapped)
             forControlEvents:UIControlEventTouchUpInside];
     _expandButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -67,16 +66,16 @@ static const CGFloat kGlyphPointSize = 19;
     _titleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
     _titleLabel.translatesAutoresizingMaskIntoConstraints = NO;
 
-    _artistLabel = [[UILabel alloc] init];
-    _artistLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
-    _artistLabel.adjustsFontForContentSizeCategory = YES;
-    _artistLabel.isAccessibilityElement = NO;
-    _artistLabel.maximumContentSizeCategory = UIContentSizeCategoryExtraExtraExtraLarge;
-    _artistLabel.textColor = UIColor.secondaryLabelColor;
-    _artistLabel.lineBreakMode = NSLineBreakByTruncatingTail;
-    _artistLabel.translatesAutoresizingMaskIntoConstraints = NO;
+    _subtitleLabel = [[UILabel alloc] init];
+    _subtitleLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleCaption1];
+    _subtitleLabel.adjustsFontForContentSizeCategory = YES;
+    _subtitleLabel.isAccessibilityElement = NO;
+    _subtitleLabel.maximumContentSizeCategory = UIContentSizeCategoryExtraExtraExtraLarge;
+    _subtitleLabel.textColor = UIColor.secondaryLabelColor;
+    _subtitleLabel.lineBreakMode = NSLineBreakByTruncatingTail;
+    _subtitleLabel.translatesAutoresizingMaskIntoConstraints = NO;
 
-    UIStackView *labels = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _artistLabel]];
+    UIStackView *labels = [[UIStackView alloc] initWithArrangedSubviews:@[_titleLabel, _subtitleLabel]];
     labels.axis = UILayoutConstraintAxisVertical;
     labels.alignment = UIStackViewAlignmentLeading;
     // Negative: a UILabel's height carries its font's leading.
@@ -87,9 +86,7 @@ static const CGFloat kGlyphPointSize = 19;
 
     // Must match _playing's initial NO: setPlaying: skips an unchanged value.
     _playPauseButton = [self controlWithSymbol:@"play.fill" action:@selector(playPauseTapped)];
-    _playPauseButton.accessibilityLabel = STR_TRANSPORT_PLAY;
     _nextButton = [self controlWithSymbol:@"forward.end.fill" action:@selector(nextTapped)];
-    _nextButton.accessibilityLabel = STR_TRANSPORT_NEXT;
 
     UISwipeGestureRecognizer *swipe =
             [[UISwipeGestureRecognizer alloc] initWithTarget:self action:@selector(expandTapped)];
@@ -160,18 +157,32 @@ static const CGFloat kGlyphPointSize = 19;
     BOOL inline_ = self.traitCollection.tabAccessoryEnvironment == UITabAccessoryEnvironmentInline;
     BOOL accessibilitySize = UIContentSizeCategoryIsAccessibilityCategory(
             self.traitCollection.preferredContentSizeCategory);
-    _artistLabel.hidden = inline_ || accessibilitySize || _artistLabel.text.length == 0;
+    _subtitleLabel.hidden = inline_ || accessibilitySize || _subtitleLabel.text.length == 0;
 }
 
 #pragma mark - Rendering
 
-- (void)renderTrack:(AudioTrack *)track {
-    _titleLabel.text = track.displayTitle ?: @"";
-    NSString *artist = track.displayArtist;
-    _artistLabel.text = artist ?: @"";
-    _artView.image = track.cachedThumbnail ?: VibeFileTileImage(NO);
-    _expandButton.accessibilityValue = track.displayTitle;
+- (void)renderRow:(VibeTrackRow *)row {
+    _titleLabel.text = row.title ?: @"";
+    _subtitleLabel.text = row.subtitle ?: @"";
+    _artView.image = row.thumbnail ?: VibeFileTileImage(NO);
+    _expandButton.accessibilityValue = row.title;
     [self applyAccessoryEnvironment];
+}
+
+- (void)setAccessibilityLabelsForExpand:(NSString *)expand
+                                   play:(NSString *)play
+                                  pause:(NSString *)pause
+                                   next:(NSString *)next {
+    _expandButton.accessibilityLabel = expand;
+    _nextButton.accessibilityLabel = next;
+    _playLabel = [play copy];
+    _pauseLabel = [pause copy];
+    [self applyPlayPauseAccessibilityLabel];
+}
+
+- (void)applyPlayPauseAccessibilityLabel {
+    _playPauseButton.accessibilityLabel = _playing ? _pauseLabel : _playLabel;
 }
 
 - (void)setPlaying:(BOOL)playing {
@@ -184,7 +195,7 @@ static const CGFloat kGlyphPointSize = 19;
                            withConfiguration:[UIImageSymbolConfiguration
                                    configurationWithPointSize:kGlyphPointSize]];
     _playPauseButton.configuration = config;
-    _playPauseButton.accessibilityLabel = playing ? STR_TRANSPORT_PAUSE : STR_TRANSPORT_PLAY;
+    [self applyPlayPauseAccessibilityLabel];
 }
 
 #pragma mark - Actions
