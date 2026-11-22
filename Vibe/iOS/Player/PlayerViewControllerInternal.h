@@ -12,11 +12,9 @@
 #import "PlayerViewController.h"
 #import "FXPadView.h"
 #import "OutputRouteView.h"
-#import "PlaybackController.h"
 #import "PlayerScreenRules.h"
-#import "VibePlaylist.h"
+#import "VibePlayerCardPlayback.h"
 
-@class AudioTrack;
 @class AudioWaveformCache;
 @class PageWaveformCoordinator;
 @class TrackPageActionBarView;
@@ -31,10 +29,10 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 
 // Every other conformance is declared on the category that implements it.
 @interface PlayerViewController () <FXPadViewDelegate, OutputRouteViewDelegate,
-        PlaybackObserver, UIGestureRecognizerDelegate> {
-    PlaybackController      *_playback;
+        UIGestureRecognizerDelegate, VibePlayerCardObserver> {
+    id<VibePlayerCardPlayback> _playback;
     // _playback's, held because every data-source callback reads it.
-    VibePlaylist<AudioTrack *> *_playlist;
+    id<VibePlayerCardQueue> _playlist;
 
     UICollectionView        *_pagesView;
     UICollectionViewFlowLayout *_pagesLayout;
@@ -103,16 +101,16 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration);
 - (void)updateScrollLinkState;
 - (void)updateOutputRoute;
 // Refreshes the current page and rebinds the chrome to it.
-- (void)renderHeaderForTrack:(nullable AudioTrack *)track;
+- (void)renderHeaderForTrack:(nullable id<VibePlayerCardItem>)track;
 
 #pragma mark - Resting time rendering
 
 // Neighbor pages, a pending start and a parked track: 0:00, and the duration
 // once metadata knows it.
-+ (void)renderRestingTimesForTrack:(nullable AudioTrack *)track
++ (void)renderRestingTimesForTrack:(nullable id<VibePlayerCardItem>)track
                            elapsed:(UILabel *)elapsed
                          remaining:(TrackPageTimeControl *)remaining;
-- (void)renderRestingTimesForTrack:(nullable AudioTrack *)track;
+- (void)renderRestingTimesForTrack:(nullable id<VibePlayerCardItem>)track;
 
 #pragma mark - Transport
 

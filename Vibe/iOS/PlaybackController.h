@@ -14,64 +14,37 @@
 
 #import <UIKit/UIKit.h>
 
+#import "AudioTrack.h"
 #import "EqualizerLevelSource.h"
 #import "OutputRouteRules.h"
 #import "PlayerScreenRules.h"
+#import "VibePlaylist.h"
+#import "VibePlayerCardPlayback.h"
 
-@class AudioTrack;
 @class PlaybackController;
-@class VibePlaylist<__covariant ObjectType>;
 
 NS_ASSUME_NONNULL_BEGIN
 
-@protocol PlaybackObserver <NSObject>
+// The rows and the item the now-playing card reads them as.
+@interface AudioTrack (VibePlayerCard) <VibePlayerCardItem>
+@end
+
+@interface VibePlaylist (VibePlayerCard) <VibePlayerCardQueue>
+@end
+
+// The card's events are VibePlayerCardObserver's, so one broadcast reaches it.
+@protocol PlaybackObserver <VibePlayerCardObserver>
 @optional
 
 #pragma mark Playlist structure
 
-// The whole row set changed and the cursor is final.
-- (void)playbackDidReplacePlaylist:(PlaybackController *)playback;
-- (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes;
 // An append settled. NO means no new rows. Superseded Adds use the replacement
 // or cancellation event instead. The playlist events describe any model change.
 - (void)playback:(PlaybackController *)playback didSettleAddLanding:(BOOL)landed;
 - (void)playback:(PlaybackController *)playback didReplaceTrackAtIndex:(NSUInteger)index;
-- (void)playback:(PlaybackController *)playback
-        didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex;
 
-#pragma mark The current track
+#pragma mark The folder session
 
-// The cursor arrived on a track the player is about to run. Preceded by
-// playbackDidRenderCurrentTrack:, except on a gapless splice, where it follows.
-- (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated;
-
-// The current track must be drawn afresh.
-- (void)playbackDidRenderCurrentTrack:(PlaybackController *)playback;
-
-- (void)playbackDidChangePlayState:(PlaybackController *)playback;
-
-// Shuffle or the repeat mode changed, and with them where next goes.
-- (void)playbackDidChangePlayOrder:(PlaybackController *)playback;
-
-// Up to 3 Hz while playing in an active scene, plus playhead-changing events.
-- (void)playbackDidTick:(PlaybackController *)playback;
-
-#pragma mark The output route
-
-// Read outputRouteKind and outputRouteName; no payload.
-- (void)playbackDidChangeOutputRoute:(PlaybackController *)playback;
-
-#pragma mark The current track's open
-
-- (void)playbackDidBeginLoading:(PlaybackController *)playback;
-// A materializing cloud file's best-effort fill; negative removes it.
-- (void)playback:(PlaybackController *)playback didUpdateLoadingProgress:(float)fraction;
-- (void)playbackDidFinishLoading:(PlaybackController *)playback;
-- (void)playbackDidFailCurrentTrack:(PlaybackController *)playback;
-
-#pragma mark Deliveries and the folder session
-
-- (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track;
 // A deliberate open landed and submitted playback. Never sent for a restore.
 // This event presents the card before audio necessarily starts.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback;
@@ -96,7 +69,7 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 // The EqualizerLevelSource too: it alone holds the player.
-@interface PlaybackController : NSObject <EqualizerLevelSource>
+@interface PlaybackController : NSObject <EqualizerLevelSource, VibePlayerCardPlayback>
 
 #pragma mark - Observers
 
@@ -208,6 +181,15 @@ NS_ASSUME_NONNULL_BEGIN
 // The priority metadata lane, for one track's tags ahead of the sweep. A
 // no-op once the track is parsed.
 - (void)loadMetadataNowForTrack:(nullable AudioTrack *)track;
+
+// The card's complete waveform, reused for the widget's strip rather than a
+// second decode. Dropped unless the track is current. The publisher matches
+// it to the widget's track.
+- (void)noteCompleteWaveform:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track;
+
+// The card's full-size art landed. Now Playing republishes when the track is
+// current.
+- (void)noteLoadedArtForTrack:(AudioTrack *)track;
 
 @end
 

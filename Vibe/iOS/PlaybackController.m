@@ -646,6 +646,20 @@ static const NSUInteger kUIUpdateHz = 3;
     }
 }
 
+- (void)noteCompleteWaveform:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track {
+    // A neighbor page's preview would replace the current track's offer
+    // before the widget publishes that track.
+    if ([_playlist isCurrentTrack:track]) {
+        [_widgetPublisher offerWaveform:waveform forTrack:track];
+    }
+}
+
+- (void)noteLoadedArtForTrack:(AudioTrack *)track {
+    if ([_playlist isCurrentTrack:track]) {
+        [self publishNowPlaying];
+    }
+}
+
 #pragma mark - What the sweep does first
 
 // Re-sent on every current-index change, the funnel every play, skip and
@@ -847,4 +861,11 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
     }];
 }
 
+@end
+
+// Every selector the protocols name is already the class's own.
+@implementation AudioTrack (VibePlayerCard)
+@end
+
+@implementation VibePlaylist (VibePlayerCard)
 @end

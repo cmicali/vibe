@@ -13,10 +13,10 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@class AudioTrack;
 @class AudioWaveformCache;
 @class CodableAudioWaveform;
 @class PageWaveformCoordinator;
+@protocol VibePlayableItem;
 
 // Main thread.
 @protocol PageWaveformCoordinatorDelegate <NSObject>
@@ -37,7 +37,7 @@ NS_ASSUME_NONNULL_BEGIN
 // is macOS-only.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
               didDetectBPM:(float)bpm
-                  forTrack:(AudioTrack *)track;
+                  forTrack:(id<VibePlayableItem>)track;
 
 @end
 
@@ -62,12 +62,12 @@ NS_ASSUME_NONNULL_BEGIN
 // A page already targeted with the same sourceKey is left alone, or every cell
 // reload kills the decode. A page with its full snapshot in hand is not
 // reloaded.
-- (void)requestIndex:(NSUInteger)index track:(nullable AudioTrack *)track;
+- (void)requestIndex:(NSUInteger)index track:(nullable id<VibePlayableItem>)track;
 
 // Cache-only neighbor preparation; never retargets the active decode. A read
 // already pending for the same track is not repeated; a miss is remembered by
 // nothing, so the next prefetch asks again.
-- (void)prefetchIndex:(NSUInteger)index track:(AudioTrack *)track;
+- (void)prefetchIndex:(NSUInteger)index track:(id<VibePlayableItem>)track;
 
 // Keep the target outside the retention window too.
 - (void)pruneAroundIndex:(NSUInteger)index;

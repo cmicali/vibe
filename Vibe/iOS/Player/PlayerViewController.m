@@ -2,7 +2,7 @@
 //  PlayerViewController.m
 //  Vibe (iOS)
 //
-//  The chrome, the update funnel and the PlaybackController events. The
+//  The chrome, the update funnel and the playback events. The
 //  categories share PlayerViewControllerInternal.h.
 //
 
@@ -12,7 +12,6 @@
 
 #import "AppSettings.h"
 #import "AudioAnalysisObservers.h"
-#import "AudioTrack.h"
 #import "AudioWaveformCache.h"
 #import "FXPadView.h"
 #import "PageWaveformCoordinator.h"
@@ -74,7 +73,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
 
 #pragma mark - Lifecycle
 
-- (instancetype)initWithPlayback:(PlaybackController *)playback {
+- (instancetype)initWithPlayback:(id<VibePlayerCardPlayback>)playback {
     self = [super initWithNibName:nil bundle:nil];
     if (self) {
         _playback = playback;
@@ -251,7 +250,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     ]];
 }
 
-+ (void)renderRestingTimesForTrack:(AudioTrack *)track
++ (void)renderRestingTimesForTrack:(id<VibePlayerCardItem>)track
                            elapsed:(UILabel *)elapsed
                          remaining:(TrackPageTimeControl *)remaining {
     BOOL known = track.duration > 0;
@@ -263,7 +262,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     remaining.text = known ? VibeRightTimeText(0, track.duration) : STR_LABEL_TIME_UNKNOWN;
 }
 
-- (void)renderRestingTimesForTrack:(AudioTrack *)track {
+- (void)renderRestingTimesForTrack:(id<VibePlayerCardItem>)track {
     [PlayerViewController renderRestingTimesForTrack:track
                                               elapsed:_elapsedLabel
                                             remaining:_remainingTimeControl];
@@ -393,7 +392,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 
 #pragma mark - Header rendering
 
-- (void)renderHeaderForTrack:(AudioTrack *)track {
+- (void)renderHeaderForTrack:(id<VibePlayerCardItem>)track {
     // Here, not the currentIndex observer, so a park on the index already
     // current still moves the window.
     [self refreshArtWindow];
@@ -573,9 +572,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [self.delegate playerViewControllerDidRequestMinimize:self];
 }
 
-#pragma mark - PlaybackObserver: the playlist
+#pragma mark - VibePlayerCardObserver: the playlist
 
-- (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
+- (void)playbackDidReplacePlaylist:(id<VibePlayerCardPlayback>)playback {
     [_artHeldPages removeAllIndexes];
     [_waveformCoordinator reset];
     [_pagesView reloadData];
@@ -587,7 +586,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // before the append; one not yet counted already reads the new count. The
 // visible pages keep their configure, so their Next is re-read here: the last
 // page's was dimmed.
-- (void)playback:(PlaybackController *)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
+- (void)playback:(id<VibePlayerCardPlayback>)playback didAppendTracksAtIndexes:(NSIndexSet *)indexes {
     if ((NSUInteger)[_pagesView numberOfItemsInSection:0] + indexes.count != _playlist.count) {
         [_pagesView reloadData];
         return;
@@ -605,9 +604,9 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // No cursor-move handler, and no art discarded on a move: the departing page
 // is usually the arriving one's neighbor. The art window owns retention.
 
-#pragma mark - PlaybackObserver: the current track
+#pragma mark - VibePlayerCardObserver: the current track
 
-- (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
+- (void)playbackDidMoveToCurrentTrack:(id<VibePlayerCardPlayback>)playback animated:(BOOL)animated {
     [self scrollToCurrentPageAnimated:animated];
     // Request the current page before optional neighbor reads.
     [self requestCurrentWaveform];
@@ -615,44 +614,44 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     [self fetchNeighborWaveforms];
 }
 
-- (void)playbackDidRenderCurrentTrack:(PlaybackController *)playback {
+- (void)playbackDidRenderCurrentTrack:(id<VibePlayerCardPlayback>)playback {
     [self renderHeaderForTrack:playback.currentTrack];
 }
 
 // A track change ends every held interaction, including one on an outgoing
 // page. Each view releases its own pager hold without committing a seek.
-- (void)playback:(PlaybackController *)playback didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
+- (void)playback:(id<VibePlayerCardPlayback>)playback didChangeCurrentIndexFromIndex:(NSUInteger)previousIndex {
     [self applyPlaybackLoadingToVisiblePages];
     [_pagerHoldViews.allObjects makeObjectsPerformSelector:@selector(cancelInteraction)];
     // Only the current page reads Next from the play order.
     [self applyPlayOrderToVisiblePages];
 }
 
-- (void)playbackDidChangePlayOrder:(PlaybackController *)playback {
+- (void)playbackDidChangePlayOrder:(id<VibePlayerCardPlayback>)playback {
     [self applyPlayOrderToVisiblePages];
 }
 
-- (void)playbackDidChangePlayState:(PlaybackController *)playback {
+- (void)playbackDidChangePlayState:(id<VibePlayerCardPlayback>)playback {
     [self updateScrollLinkState];
     [self updatePlayButton];
 }
 
-- (void)playbackDidChangeOutputRoute:(PlaybackController *)playback {
+- (void)playbackDidChangeOutputRoute:(id<VibePlayerCardPlayback>)playback {
     [self updateOutputRoute];
 }
 
-- (void)playbackDidTick:(PlaybackController *)playback {
+- (void)playbackDidTick:(id<VibePlayerCardPlayback>)playback {
     [self updatePlaybackUI];
 }
 
-#pragma mark - PlaybackObserver: the current track's open
+#pragma mark - VibePlayerCardObserver: the current track's open
 
-- (void)playbackDidBeginLoading:(PlaybackController *)playback {
+- (void)playbackDidBeginLoading:(id<VibePlayerCardPlayback>)playback {
     [self hydrateWaveformInCell:[self cellAtIndex:playback.currentIndex] atIndex:playback.currentIndex];
     [self applyPlaybackLoadingToVisiblePages];
 }
 
-- (void)playback:(PlaybackController *)playback didUpdateLoadingProgress:(float)fraction {
+- (void)playback:(id<VibePlayerCardPlayback>)playback didUpdateLoadingProgress:(float)fraction {
     [_waveformView setLoadingProgress:fraction];
 }
 
@@ -663,20 +662,20 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 // The waveform request for a track that was not on disk when the cursor
 // moved: the cursor's request skipped it (requestCurrentWaveform). A page
 // still loading or complete ignores this one.
-- (void)playbackDidFinishLoading:(PlaybackController *)playback {
+- (void)playbackDidFinishLoading:(id<VibePlayerCardPlayback>)playback {
     [self applyPlaybackLoadingToVisiblePages];
     [self hydrateWaveformInCell:[self cellAtIndex:playback.currentIndex] atIndex:playback.currentIndex];
     [self requestCurrentWaveform];
 }
 
-- (void)playbackDidFailCurrentTrack:(PlaybackController *)playback {
+- (void)playbackDidFailCurrentTrack:(id<VibePlayerCardPlayback>)playback {
     [self applyPlaybackLoadingToVisiblePages];
     [_waveformView hideLoadingIndicator];
 }
 
-#pragma mark - PlaybackObserver: deliveries
+#pragma mark - VibePlayerCardObserver: deliveries
 
-- (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track {
+- (void)playback:(id<VibePlayerCardPlayback>)playback didLoadMetadataForTrack:(id<VibePlayerCardItem>)track {
     NSInteger row = [_playlist getIndexForTrack:track];
     if (row < 0) {
         return;

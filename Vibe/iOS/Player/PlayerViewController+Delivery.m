@@ -10,12 +10,9 @@
 #import "PlayerViewControllerInternal.h"
 #import "PlayerViewController+Pager.h"
 
-#import "AudioTrack.h"
 #import "AudioWaveformCache.h"
 #import "Formatters.h"
 #import "PlaceholderFiles.h"
-#import "PlaybackController+NowPlaying.h"
-#import "VibePlaylist.h"
 #import "TrackPageCell.h"
 #import "WaveformScrubberView.h"
 #import "WaveformZoomMath.h"
@@ -36,8 +33,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     [[self cellAtIndex:index].waveformView showWaveform:waveform animated:_sceneActive && self.isPresented];
     // Only a complete one: a widget bake is two renders and two file writes.
     if (complete) {
-        [_playback offerWaveformToWidget:waveform
-                                forTrack:[_playback.playlist trackAtIndex:index]];
+        [_playback noteCompleteWaveform:waveform forTrack:[_playback.playlist trackAtIndex:index]];
     }
 }
 
@@ -46,7 +42,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 // open coming to take the indicator down.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
       didFailWaveformForIndex:(NSUInteger)index {
-    AudioTrack *track = [_playlist trackAtIndex:index];
+    id<VibePlayerCardItem> track = [_playlist trackAtIndex:index];
     if (track && index == _playback.currentIndex && [PlaceholderFiles isRemotePlaceholderFile:track.url]) {
         return;
     }
@@ -57,8 +53,9 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 // as the metadata event. No key: key detection is macOS-only.
 - (void)pageWaveformCoordinator:(PageWaveformCoordinator *)pipeline
               didDetectBPM:(float)bpm
-                  forTrack:(AudioTrack *)track {
-    [_playback noteDetectedBPM:bpm forTrack:track];
+                  forTrack:(id<VibePlayableItem>)track {
+    // The cache hands back the item the card asked with.
+    [_playback noteDetectedBPM:bpm forTrack:(id<VibePlayerCardItem>)track];
 }
 
 #pragma mark - WaveformScrubberViewDelegate
@@ -121,7 +118,7 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
            needsDetailBlocks:(NSIndexSet *)blocks
                   ofWaveform:(CodableAudioWaveform *)waveform {
     NSUInteger index = _playlist.currentIndex;
-    AudioTrack *track = [_playlist trackAtIndex:index];
+    id<VibePlayerCardItem> track = [_playlist trackAtIndex:index];
     if (view != _waveformView || !track || [_waveformCoordinator snapshotAtIndex:index] != waveform) {
         [view detailDidLoadForWaveform:waveform];
         return;
