@@ -12,14 +12,11 @@
 #import "BrowserRules.h"
 #import "DropboxMirror+Shared.h"
 #import "EqualizerIndicatorView.h"
-#import "FavoritesStore.h"
 #import "FileRow.h"
 #import "FilePaths.h"
 #import "FolderWalk.h"
 #import "LocationStore.h"
 #import "PlaceholderFiles.h"
-#import "PlaybackController.h"
-#import "PlaybackController+ReplacePrompt.h"
 #import "VibePlaylistFile.h"
 #import "SettingsRules.h"
 #import "UIViewController+Alert.h"
@@ -44,15 +41,15 @@ static const NSUInteger kFilterThreshold = 12;
 
 @implementation FolderViewController
 
-- (instancetype)initWithPlayback:(PlaybackController *)playback
-                    directoryURL:(NSURL *)directoryURL
-                       appending:(BOOL)appending
-                   stackArtCache:(AudioTrackMetadataCache *(^)(void))stackArtCache
-                    highlighting:(NSURL *)file
-                      holdsScope:(BOOL)holdsScope {
+- (instancetype)initWithHost:(id<VibeBrowserHost>)host
+                directoryURL:(NSURL *)directoryURL
+                   appending:(BOOL)appending
+               stackArtCache:(AudioTrackMetadataCache *(^)(void))stackArtCache
+                highlighting:(NSURL *)file
+                  holdsScope:(BOOL)holdsScope {
     self = [super initWithStyle:UITableViewStylePlain];
     if (self) {
-        _playback = playback;
+        _host = host;
         _directoryURL = [directoryURL copy];
         _appending = appending;
         _stackArtCache = [stackArtCache copy];
@@ -70,7 +67,7 @@ static const NSUInteger kFilterThreshold = 12;
         _dropboxPath = [DropboxMirror.shared dropboxPathForURL:directoryURL];
         _standardizedPath = VibeComparablePath(directoryURL.path);
         _title = [LocationStore displayNameForFolderURL:directoryURL];
-        _playingPath = VibeComparablePath(playback.currentTrack.url.path);
+        _playingPath = host.playingPath;
     }
     return self;
 }
@@ -99,18 +96,19 @@ static const NSUInteger kFilterThreshold = 12;
     // The tap's action is set by refreshBarItems, which knows whether
     // there is anything directly inside to play.
     __weak FolderViewController *weakPlaySelf = self;
-    _playItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:
-                                                                _appending ? @"text.badge.plus" : @"play.fill"]
+    VibeBrowserAction *folderAction = _host.folderAction;
+    _playItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:folderAction.symbol]
                                                   menu:[UIMenu menuWithChildren:@[VibeMenuAction(
-            _appending ? STR_BROWSER_ADD_SUBFOLDERS : STR_BROWSER_PLAY_SUBFOLDERS, @"square.stack.3d.up", ^{
+            _host.subfoldersTitle, @"square.stack.3d.up", ^{
         [weakPlaySelf openDirectoryWithSubfolders];
     })]]];
-    _playItem.accessibilityLabel = _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : STR_MENU_CONTEXT_PLAY;
-    _addSelectedItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"text.badge.plus"]
+    _playItem.accessibilityLabel = folderAction.title;
+    VibeBrowserAction *selectionAction = _host.selectionAction;
+    _addSelectedItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:selectionAction.symbol]
                                                         style:UIBarButtonItemStylePlain
                                                        target:self
                                                        action:@selector(addSelected)];
-    _addSelectedItem.accessibilityLabel = STR_MENU_CONTEXT_ADD_TO_PLAYLIST;
+    _addSelectedItem.accessibilityLabel = selectionAction.title;
     _sortItem = [[UIBarButtonItem alloc] initWithImage:[UIImage systemImageNamed:@"arrow.up.arrow.down"]
                                                   menu:[self sortMenu]];
     _sortItem.accessibilityLabel = STR_BROWSER_SORT;
@@ -145,7 +143,7 @@ static const NSUInteger kFilterThreshold = 12;
     UIRefreshControl *refresh = [[UIRefreshControl alloc] init];
     [refresh addTarget:self action:@selector(refreshDirectory) forControlEvents:UIControlEventValueChanged];
     self.refreshControl = refresh;
-    [_playback addObserver:self];
+    [_host addObserver:self];
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(sourcesDidChange:)
                                                name:VibeDropboxAccountDidChangeNotification
@@ -164,7 +162,7 @@ static const NSUInteger kFilterThreshold = 12;
     _viewPresentationVisible = YES;
     // The track can change while this screen sits unloaded under another, so
     // the playing row is read again before the equalizer is placed.
-    _playingPath = VibeComparablePath(_playback.currentTrack.url.path);
+    _playingPath = _host.playingPath;
     [self syncEqualizer];
     [self reloadFromDisk];
     if (_dropboxPath && CFAbsoluteTimeGetCurrent() - _listedAt > kRelistInterval) {
@@ -390,39 +388,16 @@ static const NSUInteger kFilterThreshold = 12;
 
 #pragma mark - Opening
 
-- (void)addURLs:(NSArray<NSURL *> *)urls {
-    if (urls.count == 0) {
-        return;
+// One row's action from its swipe or its long press.
+- (void)performAction:(VibeBrowserAction *)action onRowAtIndexPath:(NSIndexPath *)indexPath url:(NSURL *)url {
+    if (action.liftsRows) {
+        [self liftRowsAtIndexPaths:@[indexPath]];
     }
-    [_playback addURLs:urls];
-    if (_appending) {
-        [self dismissSheet];
-    }
-}
-
-// A replace — a file alone, a file with its folder, a folder, or a pick of
-// several — unless this is the add sheet, where the same pick is added.
-- (void)openURLs:(NSArray<NSURL *> *)urls inFolder:(BOOL)inFolder {
-    if (_appending) {
-        [self addURLs:urls];
-        return;
-    }
-    NSURL *row = urls.count == 1 ? urls.firstObject : nil;
-    [self openURLs:urls inFolder:inFolder token:[_playback replaceRequestTokenOpening:row]];
-}
-
-// For the subfolder walk, whose Dropbox listings come between the tap and
-// the open: its token is the tap's.
-- (void)openURLs:(NSArray<NSURL *> *)urls inFolder:(BOOL)inFolder token:(uint64_t)token {
-    if (_appending) {
-        [self addURLs:urls];
-        return;
-    }
-    [_playback confirmReplacingPlaylistFrom:self openingURLs:urls inFolder:inFolder token:token];
+    action.handler(@[url], self);
 }
 
 - (void)openDirectory {
-    [self openURLs:@[_directoryURL] inFolder:NO];
+    _host.folderAction.handler(@[_directoryURL], self);
 }
 
 // This folder and the folders inside it, depth first in the listing's order,
@@ -433,7 +408,7 @@ static const NSUInteger kFilterThreshold = 12;
         return;
     }
     _walkingSubfolders = YES;
-    uint64_t token = [_playback replaceRequestTokenOpening:nil];
+    void (^open)(NSArray<NSURL *> *) = [_host subfoldersHandlerFromScreen:self];
     __weak FolderViewController *weakSelf = self;
     [self walkSubfolders:[NSMutableArray arrayWithObject:_directoryURL]
                    found:[NSMutableArray array]
@@ -449,11 +424,8 @@ static const NSUInteger kFilterThreshold = 12;
             [strongSelf vibePresentAlertWithTitle:strongSelf->_title message:STR_ERROR_FOLDER_EMPTY];
             return;
         }
-        void (^open)(void) = ^{
-            [strongSelf openURLs:folders inFolder:NO token:token];
-        };
         if (!capped) {
-            open();
+            open(folders);
             return;
         }
         UIAlertController *alert = [UIAlertController
@@ -462,7 +434,7 @@ static const NSUInteger kFilterThreshold = 12;
                                                   (unsigned long)kMaximumSubfolderTracks]
                           preferredStyle:UIAlertControllerStyleAlert];
         [alert addAction:[UIAlertAction actionWithTitle:STR_BUTTON_OK style:UIAlertActionStyleDefault
-                                                handler:^(UIAlertAction *action) { open(); }]];
+                                                handler:^(UIAlertAction *action) { open(folders); }]];
         [strongSelf presentViewController:alert animated:YES completion:nil];
     }];
 }
@@ -540,7 +512,10 @@ static const NSUInteger kFilterThreshold = 12;
     // In row order, which is the order a reader of the list expects.
     NSArray<NSIndexPath *> *selected = [self.tableView.indexPathsForSelectedRows
             sortedArrayUsingSelector:@selector(compare:)];
-    [self liftRowsAtIndexPaths:selected];
+    VibeBrowserAction *action = _host.selectionAction;
+    if (action.liftsRows) {
+        [self liftRowsAtIndexPaths:selected];
+    }
     for (NSIndexPath *indexPath in selected) {
         NSURL *url = [self itemAtIndexPath:indexPath];
         if (url) {
@@ -548,7 +523,9 @@ static const NSUInteger kFilterThreshold = 12;
         }
     }
     [self setEditing:NO animated:YES];
-    [self addURLs:urls];
+    if (urls.count > 0) {
+        action.handler(urls, self);
+    }
 }
 
 // By its presenter, so Open URL's sheet over it closes with it.
@@ -557,12 +534,12 @@ static const NSUInteger kFilterThreshold = 12;
 }
 
 - (void)pushDirectory:(NSURL *)url {
-    FolderViewController *folder = [[FolderViewController alloc] initWithPlayback:_playback
-                                                                     directoryURL:url
-                                                                        appending:_appending
-                                                                    stackArtCache:_stackArtCache
-                                                                     highlighting:nil
-                                                                       holdsScope:NO];
+    FolderViewController *folder = [[FolderViewController alloc] initWithHost:_host
+                                                                 directoryURL:url
+                                                                    appending:_appending
+                                                                stackArtCache:_stackArtCache
+                                                                 highlighting:nil
+                                                                   holdsScope:NO];
     folder.addedRowsHandler = _addedRowsHandler;
     folder.equalizerSurfaceVisible = _equalizerSurfaceVisible;
     [self.navigationController pushViewController:folder animated:YES];
@@ -594,29 +571,20 @@ static const NSUInteger kFilterThreshold = 12;
     });
 }
 
-- (void)favoriteFolder:(NSURL *)url {
-    // A failed mint adds no row: one without a bookmark cannot be opened.
-    [_playback bookmarkFolderURL:url completion:^(NSData *bookmark) {
-        if (bookmark) {
-            [FavoritesStore.shared addFolderURL:url bookmark:bookmark];
-        }
-    }];
-}
+#pragma mark - VibeBrowserHostObserver
 
-#pragma mark - PlaybackObserver
-
-- (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
-    _playingPath = VibeComparablePath(playback.currentTrack.url.path);
+- (void)browserHostPlayingFileDidChange {
+    _playingPath = _host.playingPath;
     if (self.viewIfLoaded.window && ![self isSelecting]) {
         [self.tableView reloadData];
     }
 }
 
-- (void)playbackDidChangePlayState:(PlaybackController *)playback {
+- (void)browserHostPlayStateDidChange {
     [self syncEqualizer];
 }
 
-- (void)playbackDidChangeOpening:(PlaybackController *)playback {
+- (void)browserHostOpeningDidChange {
     if (self.viewIfLoaded.window && ![self isSelecting]) {
         [self.tableView reloadRowsAtIndexPaths:self.tableView.indexPathsForVisibleRows
                               withRowAnimation:UITableViewRowAnimationNone];
@@ -687,7 +655,7 @@ static const NSUInteger kFilterThreshold = 12;
         equalizer.audioOutputActive = NO;
     }
     cell.accessoryView = accessory;
-    [cell vibeApplyRowContent:content opening:[path isEqualToString:_playback.openingPath]];
+    [cell vibeApplyRowContent:content opening:[path isEqualToString:_host.openingPath]];
     return cell;
 }
 
@@ -700,7 +668,7 @@ static const NSUInteger kFilterThreshold = 12;
 
 - (EqualizerIndicatorView *)makeEqualizer {
     EqualizerIndicatorView *equalizer = [[EqualizerIndicatorView alloc] initWithFrame:CGRectMake(0, 0, 16, 14)];
-    equalizer.levelSource = _playback;
+    equalizer.levelSource = _host.levelSource;
     return equalizer;
 }
 
@@ -718,7 +686,7 @@ static const NSUInteger kFilterThreshold = 12;
     for (UITableViewCell *cell in self.tableView.visibleCells) {
         if ([cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]) {
             EqualizerIndicatorView *equalizer = (EqualizerIndicatorView *)cell.accessoryView;
-            equalizer.audioOutputActive = _playback.audioOutputActive;
+            equalizer.audioOutputActive = _host.audioOutputActive;
             equalizer.presentationVisible = surface && [cell vibeIsInViewportOfTableView:self.tableView];
         }
     }

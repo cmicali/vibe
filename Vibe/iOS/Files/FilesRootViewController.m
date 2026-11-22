@@ -21,6 +21,7 @@
 #import "LocationStore.h"
 #import "OpenURLSheetController.h"
 #import "OpenURLSheetController+Debug.h"
+#import "PlaybackBrowserHost.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "RecentsViewController.h"
@@ -75,6 +76,8 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 @implementation FilesRootViewController {
     PlaybackController *_playback;
     BOOL _appending;
+    // What every folder screen of the stack reads and acts through.
+    PlaybackBrowserHost *_host;
     // The stack's one metadata cache, made when its first folder needs art.
     AudioTrackMetadataCache *_artCache;
 
@@ -100,6 +103,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     if (self) {
         _playback = playback;
         _appending = appending;
+        _host = [[PlaybackBrowserHost alloc] initWithPlayback:playback appending:appending];
         _clipboardChangeCount = NSIntegerMin;
     }
     return self;
@@ -382,31 +386,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     }
 }
 
-#pragma mark - Opening
-
-- (void)addURLs:(NSArray<NSURL *> *)urls {
-    if (urls.count == 0) {
-        return;
-    }
-    [_playback addURLs:urls];
-    if (_appending) {
-        [self dismissSheet];
-    }
-}
-
-// A replace — a file alone, a file with its folder, a folder, or a pick of
-// several — unless this is the add sheet, where the same pick is added.
-- (void)openURLs:(NSArray<NSURL *> *)urls inFolder:(BOOL)inFolder {
-    if (_appending) {
-        [self addURLs:urls];
-        return;
-    }
-    NSURL *row = urls.count == 1 ? urls.firstObject : nil;
-    [_playback confirmReplacingPlaylistFrom:self
-                                openingURLs:urls
-                                   inFolder:inFolder
-                                      token:[_playback replaceRequestTokenOpening:row]];
-}
+#pragma mark - The stack
 
 // By its presenter, so Open URL's sheet over it closes with it.
 - (void)dismissSheet {
@@ -417,14 +397,14 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 // highlight, and a scope to hold.
 - (FolderViewController *)folderForDirectory:(NSURL *)url highlighting:(NSURL *)file holdsScope:(BOOL)holdsScope {
     __weak FilesRootViewController *weakSelf = self;
-    FolderViewController *folder = [[FolderViewController alloc] initWithPlayback:_playback
-                                                                     directoryURL:url
-                                                                        appending:_appending
-                                                                    stackArtCache:^AudioTrackMetadataCache *{
+    FolderViewController *folder = [[FolderViewController alloc] initWithHost:_host
+                                                                 directoryURL:url
+                                                                    appending:_appending
+                                                                stackArtCache:^AudioTrackMetadataCache *{
         return [weakSelf stackArtCache];
     }
-                                                                     highlighting:file
-                                                                       holdsScope:holdsScope];
+                                                                 highlighting:file
+                                                                   holdsScope:holdsScope];
     folder.addedRowsHandler = _addedRowsHandler;
     folder.equalizerSurfaceVisible = _equalizerSurfaceVisible;
     return folder;
@@ -711,7 +691,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
     if (!_pickingLocation) {
         // One picked file expands to its folder.
-        [self openURLs:urls inFolder:YES];
+        [_host openURLs:urls inFolder:YES fromScreen:self];
         return;
     }
     NSURL *url = urls.firstObject;
