@@ -15,6 +15,7 @@
 #import "PlaylistTrackCell.h"
 #import "PlaylistViewController.h"
 #import "TrackPageViews.h"
+#import "VibeTrackRow.h"
 #import "VibeStrings.h"
 
 @interface MiniPlayerEvents : NSObject <MiniPlayerViewDelegate>

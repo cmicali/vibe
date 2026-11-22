@@ -18,6 +18,7 @@
 #import "VibePlaylist.h"
 #import "PlaylistTrackCell.h"
 #import "SettingsViewController.h"
+#import "VibeTrackRow.h"
 #import "VibeStrings.h"
 
 static NSString *const kTrackCellIdentifier = @"track";

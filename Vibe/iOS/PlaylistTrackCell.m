@@ -9,6 +9,7 @@
 #import "FileRow.h"
 #import "LoadingIndicatorMath.h"
 #import "LoadingIndicatorView.h"
+#import "VibeTrackRow.h"
 
 static const CGFloat kGutterLeading = 12;
 static const CGFloat kNumberColumnWidth = 26;
