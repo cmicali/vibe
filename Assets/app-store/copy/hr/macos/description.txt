@@ -10,7 +10,7 @@ Jednostavno svira vaše datoteke
 Ispustite datoteku ili mapu — s diska, iz iCloud Drivea ili Dropboxa — i svira. Nema baze podataka za ponovnu izgradnju ni biblioteke za održavanje.
 
 Vlastiti audiomehanizam Vibea
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV i FLAC, reproducirani kroz vlastiti CoreAudio mehanizam Vibea, uz visokokvalitetnu pretvorbu frekvencije uzorkovanja.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, FLAC, WavPack, Monkey's Audio i DSD (DSF), reproducirani kroz vlastiti CoreAudio mehanizam Vibea, uz visokokvalitetnu pretvorbu frekvencije uzorkovanja.
 
 Bit-perfect način
 Bit-perfect način koristi frekvenciju uzorkovanja datoteke ako je uređaj podržava. Ekskluzivni način rezervira uređaj za Vibe.

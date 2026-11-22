@@ -10,6 +10,7 @@ This page covers what Vibe does to your audio between the file and your output d
 - **FLAC doesn't use Apple's decoder either.** Vibe's gives the same samples, with much faster seeks and less CPU. [The FLAC decoder](#the-flac-decoder)
 - **Neither do WAV and AIFF.** Vibe's decoder gives the same samples, faster, and reads files Apple's gets wrong. [The WAV and AIFF decoder](#the-wav-and-aiff-decoder)
 - **Ogg Vorbis doesn't use Apple's decoder.** Apple's decoder on the Mac starts every file about 3 ms late, and the iPhone has none. [The Vorbis decoder](#the-vorbis-decoder)
+- **WavPack, Monkey's Audio and DSD play through decoders Apple doesn't have.** WavPack uses its reference library, Monkey's Audio its author's SDK, and DSD filters of Vibe's own. [WavPack](#the-wavpack-decoder), [Monkey's Audio](#the-monkeys-audio-decoder), [DSD](#dsd)
 - **Everything else uses Apple's decoders.** That covers AAC, ALAC, Opus and CAF, and codings like GSM inside a WAV. A file Vibe's own decoders refuse in a format they read doesn't play. Apple's decoders would have played a few damaged ones. An Opus file plays at the gain its header states. Apple's decoder ignores that gain, so Vibe applies it.
 - **Sample-rate conversion doesn't use Apple's converter.** Vibe's resampler is cleaner and far cheaper. [The resampler](#the-resampler)
 - **The pitch fader uses Vibe's own converter.** It's much cleaner than Apple's Varispeed. [The pitch fader](#the-pitch-fader)
@@ -130,7 +131,8 @@ The limit is an average error below −101.1 dBFS, with no single error above 6.
 - **The decoder delay is removed.** Vibe drops dr_mp3's first 529 samples for MP3, and 241 for MP1 and MP2. A silent frame at the end flushes the rest out.
 - **Seeks land on the exact sample.** An MP3 frame can borrow data from the frames before it. So dr_mp3 starts at least ten frames before the target and throws them away. In the tiny frames of an 8 or 16 kbps MP3 the borrowing reaches further, up to 80 frames in the 8 kbps tests. There, Vibe works out how far back from the frame sizes. A seek gives exactly the sound that playing from the start gives.
 - **A damaged frame is capped at +12 dB.** Corrupt data can decode to huge peaks that ring through effect tails and throw off analysis. The cap is well above real overs. The loudest undamaged peak in the measured library was +8.6 dB.
-- **Damaged and cut-off files end where Apple's do.** A cut-off file shows the length it holds, not the length its header states. MP3 and MP2 inside WAV work too.
+- **Damage plays as silence.** A run of bytes that aren't frames, like a block a download lost, plays as silence for the frames it took. So the song keeps its length, and the frames after the damage keep their place. A tag between frames, like two files joined together, adds no silence.
+- **Cut-off files end where Apple's do.** A cut-off file shows the length it holds, not the length its header states. MP3 and MP2 inside WAV work too.
 - **MP2 plays on the iPhone.** iOS has no MP2 decoder of its own.
 - **Not tested yet:** MP1 files, for lack of an MP1 encoder, and CPU on an iPhone. dr_mp3 decodes MP1 with MP2's timing. MP1 shares that timing.
 
@@ -197,7 +199,7 @@ One change was left out. Giving up early on a long run of zeros inside a frame s
 
 ## The WAV and AIFF decoder
 
-Vibe decodes WAV, BWF, RF64, Wave64 and AIFF with dr_wav on the Mac and the iPhone. That covers 8 to 32-bit integer, 32 and 64-bit float, A-law and µ-law, and the three ADPCM kinds: IMA and Microsoft's in a WAV, and Apple's IMA4 in an AIFF. Other codings, like GSM, use Apple's decoder. MPEG inside a WAV uses Vibe's MP3 decoder. dr_wav reads files up to 768 kHz. There's no setting. On all 10,823 WAV and AIFF files of a real library that both decoders open, dr_wav matched Apple's output bit for bit, and so did every seek.
+Vibe decodes WAV, BWF, RF64, Wave64, AIFF and AIFF-C (`.aifc` and `.afc` too) with dr_wav on the Mac and the iPhone. That covers 8 to 32-bit integer, 32 and 64-bit float, A-law and µ-law, and the three ADPCM kinds: IMA and Microsoft's in a WAV, and Apple's IMA4 in an AIFF. Other codings, like GSM, use Apple's decoder. MPEG inside a WAV uses Vibe's MP3 decoder. dr_wav reads files up to 768 kHz. There's no setting. On all 10,823 WAV and AIFF files of a real library that both decoders open, dr_wav matched Apple's output bit for bit, and so did every seek.
 
 ![WAV and AIFF decoders considered](audio-quality/wav-choice.svg)
 
@@ -229,6 +231,7 @@ The ADPCM formats are the exception. They take about as long as Apple's decoder,
 - **AIFF files dr_wav refused.** That covered the AIFF-C types Apple's own tools write for 16, 24 and 32-bit sound, IMA4, and a few header layouts other programs write. All of them play now.
 - **Damaged compressed WAVs** lost the bad block from the timeline, shifting everything after it earlier, or stopped the track.
 - **Files that made it hang or misbehave.** Fuzzing found sizes in damaged files that made opening or seeking take billions of steps, and arithmetic that C leaves undefined.
+- **IMA4 files from Audacity** state a packet count that covers only part of the sound. dr_wav now plays every whole packet the sound chunk holds. It matches Apple's decoder over all 4,416 frames of the sample file.
 
 ### Tuning dr_wav
 
@@ -257,6 +260,37 @@ Vibe decodes Ogg Vorbis with **libvorbis**, the reference decoder from the Xiph.
 - **It is libvorbis's current code, unmodified.** That includes the fixes made since its last release.
 - **It costs less than Apple's decoder.** Decoding a whole file took 41% less CPU (64% fewer instructions), opening one took 2.9 ms instead of 41 ms, and a seek took 25% less CPU. These are the `decode`, `open` and `seek` component benchmarks on their Vorbis file, on an M1 Max. **Lower is better.**
 - **Not measured yet:** CPU on an iPhone.
+
+## The WavPack decoder
+
+Vibe decodes WavPack with **libwavpack** 5.9.0, its reference library, on the Mac and the iPhone. Apple has no WavPack decoder. Only libwavpack's decoder is vendored: no encoder, no tag reader, and no assembly.
+
+- **A lossless file decodes bit for bit.** It plays at its source's bit depth, so bit-perfect output keeps it. The tests check 8, 16, 20, 24 and 32-bit integers, 32-bit float, mono, stereo and 5.1.
+- **A hybrid file plays lossless when its correction file sits beside it.** A hybrid file is a small lossy `.wv` and a `.wvc` correction file. With a good `.wvc` in the same folder, the song decodes bit for bit. Without one, or with a bad one, it plays the lossy half. Vibe checks the `.wvc` on three blocks when the file opens, so another song's correction file is never used. A file still downloading plays the lossy half.
+- **DSD in a WavPack file** plays through the same filters as a DSF file. So the same DSD decodes to the same samples in either. [DSD](#dsd)
+- **Damage plays as silence** for its own length, and decoding goes on.
+- **WavPack 1 to 3 is refused.** These old files carry a WAV header in front of their compressed bytes, which would otherwise play as noise.
+- **Every seek lands on the exact sample.**
+
+## The Monkey's Audio decoder
+
+Vibe decodes Monkey's Audio (`.ape`) with the decoding half of the **Monkey's Audio SDK** 13.47, by its author, on the Mac and the iPhone. Apple has no decoder for it.
+
+- **Every compression level decodes bit for bit**, at 8, 16, 24 and 32 bits, in float, and in 5.1 with its channel layout. ffmpeg's independent decoder agrees on every sample of the test files.
+- **It's slower than FLAC.** On an M4 Max, a whole file decodes 270 to 613 times faster than real time from Extra High down to Fast, and 89 times at Insane. FLAC decodes 4,875 times faster. Playback never feels any of these. A one-hour mix's waveform takes about 7 s at Normal and 40 s at Insane, against under 1 s for FLAC.
+- **Seeks are exact**, and take up to 0.3 s at Insane, which decodes from the start of a 27-second frame.
+- **Damage plays as silence** for the frame it hits, and decoding goes on. A file cut short ends after its last whole frame.
+- **Files newer than version 3.99 are refused, except 4.11.**
+
+## DSD
+
+Vibe plays DSD from DSF files, and from WavPack files, at DSD64 to DSD512 in both the 44.1 kHz and 48 kHz families. DSDIFF (`.dff`) isn't played. DSD is turned into PCM by two filters of Vibe's own, and the details are in vibe-libs' `docs/dsd-to-pcm.md`.
+
+- **The output is 176.4 kHz float** (192 kHz in the 48 kHz family), whatever the DSD rate. It's flat to 40 kHz and stops everything from 88.2 kHz up, where DSD's noise lives.
+- **The noise it adds is far below DSD's own.** Noise folded back into the audio band lands at −161 dB, against the test signal's floor of −120 dB.
+- **0 dB on a SACD plays at −6 dBFS,** with no gain added. So a disc's peaks never clip. A DSD file plays 6 dB quieter than the same music in FLAC.
+- **A seek gives exactly the samples playing from the start gives.** So does a gapless change between two DSD tracks, which reads the next track's first bits.
+- **The info line names the rate**, as DSD64 to DSD512.
 
 ## The resampler
 
@@ -354,6 +388,9 @@ These run on every change, with no audio hardware:
 - **The FLAC decoder** must decode every test file to exactly the samples it was made from, including the ones Apple's decoder refuses and 32-bit files in each stereo mode. Every seek must land on the exact sample. Files damaged the ways real files get damaged must play as described above. That covers a tag in front, a stale seek table, a garbage seek-table entry, a damaged frame, frame header or first frame, bytes lost inside a frame, a damaged frame the seek table points at, downloads cut off all across a frame, and a file with no length, alone and with a megabyte of zeros after it. Frames split into more than 256 parts must decode exactly. A file more than 2^32 samples long must seek forward and back across that distance.
 - **The WAV and AIFF decoder** must match Apple's decoder on the supported fixtures, including the AIFF-C types Apple's tools write, IMA4, and both ADPCMs in a WAV. Every seek must land on the exact sample. Damaged files must play as described above: a chunk after the sound, a file cut short, a length larger than the file, unfinished sizes, the format after the sound, a damaged ADPCM block, and a Microsoft ADPCM file cut off inside a block. A Microsoft ADPCM file with its own coefficient table must decode with that table, as Apple's decoder does.
 - **The Vorbis decoder** must line up with the source, with no shift. It must equal Apple's decode moved by 128 frames, a test that fails once Apple's decoder lines up too. Every seek must land on the exact sample. A 5.1 file must keep each channel in its place through the fold to stereo. A file still downloading must open, and must recover from an interrupted read.
+- **The WavPack decoder** must decode every width, float, mono, stereo and 5.1 bit for bit. A hybrid file must decode bit for bit with its correction file, and play its lossy half with every bad one. A DSD file must decode to exactly a DSF's samples. Every seek must land on the exact sample.
+- **The Monkey's Audio decoder** must decode every level and width bit for bit, seek exactly, play a damaged frame as silence, and end a cut file after its last whole frame.
+- **DSD** must keep a test tone's frequency, level and phase at every rate, in both bit orders and every channel layout. Seeks and gapless changes must give the same samples as playing straight through.
 - **Lossy files** must match their own decoded audio exactly. An Opus file must play at the output gain its header states. Apple's decoder ignores that gain, and Vibe applies it. A test fails if Apple starts applying it too. AAC gets four tiny rounding steps (below −126 dBFS), because two runs of Apple's AAC decoder can differ that much. The test also checks which formats Apple's decoders can output. Any change there fails it.
 - **Vibe's decoders describe a file as macOS would.** The WAV, AIFF, FLAC and MP3 decoders state each test file's format, bit depth and channel layout. These must match what macOS's own reader states. An MP3's length must match too. The exceptions are the cases above where macOS is wrong.
 - **Damaged files must not break anything.** Each test file is changed at random, with a fixed seed, and fed to whichever decoder Vibe picks for it. Every kind of file is covered, Apple's decoders included. Each damaged file must open or be refused, then decode to its end and seek. Nothing may hang, crash or play a sample that isn't a number. Each read, open or seek gets two seconds of CPU at most.

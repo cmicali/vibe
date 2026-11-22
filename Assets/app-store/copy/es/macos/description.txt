@@ -10,7 +10,7 @@ Simplemente suena
 Suelta un archivo o una carpeta —desde tu disco, iCloud Drive o Dropbox— y suena. No hay base de datos que reconstruir ni biblioteca que mantener.
 
 El motor de audio propio de Vibe
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV y FLAC, reproducidos a través del motor CoreAudio propio de Vibe, con conversión de frecuencia de muestreo de alta calidad.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, FLAC, WavPack, Monkey's Audio y DSD (DSF), reproducidos a través del motor CoreAudio propio de Vibe, con conversión de frecuencia de muestreo de alta calidad.
 
 Modo bit-perfect
 El modo bit-perfect ajusta la frecuencia de muestreo a la del archivo si el dispositivo la admite. El modo exclusivo reserva el dispositivo para Vibe.

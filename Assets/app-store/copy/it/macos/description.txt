@@ -10,7 +10,7 @@ Riproduce e basta
 Trascina un file o una cartella — dal tuo disco, da iCloud Drive o da Dropbox — e parte. Non c’è nessun database da ricostruire e nessuna libreria da gestire.
 
 Il motore audio di Vibe
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV e FLAC, riprodotti tramite il motore CoreAudio sviluppato da Vibe, con conversione della frequenza di campionamento di alta qualità.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, FLAC, WavPack, Monkey's Audio e DSD (DSF), riprodotti tramite il motore CoreAudio sviluppato da Vibe, con conversione della frequenza di campionamento di alta qualità.
 
 Modalità bit-perfect
 La modalità bit-perfect usa la frequenza di campionamento del file se il dispositivo la supporta. La modalità esclusiva riserva il dispositivo a Vibe.

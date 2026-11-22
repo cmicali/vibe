@@ -233,6 +233,12 @@
                           ([_formatters infoLineFromFields:@[@"FLAC", rate]]));
     fake.sampleRate = nil;
     XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:metadata], @"FLAC");
+    // A DSD file states its DSD rate, in either family.
+    fake.fileType = @"DSD";
+    fake.sampleRate = @2822400;
+    XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:metadata], @"DSD | DSD64");
+    fake.sampleRate = @(3072000 * 8);
+    XCTAssertEqualObjects([_formatters fileInfoLineForMetadata:metadata], @"DSD | DSD512");
 }
 
 @end

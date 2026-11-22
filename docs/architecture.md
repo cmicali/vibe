@@ -133,7 +133,7 @@ Every move the plan listed is done (`docs/future/vibe-libs.md`). `make project` 
 
 ### Third-party code
 
-There is no package manager. Vendored code is vibe-libs' `third_party/`: a subset of TagLib, PINCache and PINOperation, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, and the prebuilt Sparkle framework, each a piece of its own. Its template carries its compiler flags. Both apps compile every one but Sparkle, which only the mac app reaches, through `system/Updates`. The three dr_ libraries carry fixes of Vibe's own. Read the piece's `AGENTS.md` before changing one. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
+There is no package manager. Vendored code is vibe-libs' `third_party/`: a subset of TagLib, r8brain-free-src, dr_mp3, dr_flac, dr_wav, libvorbis, libogg, libwavpack, the Monkey's Audio SDK, and the prebuilt Sparkle framework, each a piece of its own. Its template carries its compiler flags. Both apps compile every one but Sparkle, which only the mac app reaches, through `system/Updates`. The three dr_ libraries carry fixes of Vibe's own. Read the piece's `AGENTS.md` before changing one. [`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md) lists every license.
 
 ### Tests, resources, and scripts
 
@@ -193,7 +193,7 @@ Read `vibe-libs/files/FileLoading/AGENTS.md` ("One claim, two stages" and "The t
 
 ### 4. AudioFileHandle
 
-`AudioFileHandle` (`vibe-libs/audio/Decode/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV, W64, RF64 and AIFF to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). MPEG goes to dr_mp3, and the handle frames it itself (`AudioFileHandle+MPEG.m`). Each answers the file's facts itself. Any other file opens CoreAudio's parser for its facts (`openParserWithError:`), and Apple's decoders play it. AAC, ALAC and Opus are such files. A file those decoders refuse reaches the parser too. Playback refuses it there unless it holds a coding none of them decodes, such as GSM in a WAV.
+`AudioFileHandle` (`vibe-libs/audio/Decode/AudioFileHandle.m`) is one open file. The handle first reads the file's opening bytes. FLAC goes to dr_flac, WAV, W64, RF64, AIFF, and AIFF-C to dr_wav, and Ogg Vorbis to libvorbis (`AudioFileHandle+Stream.m`). WavPack goes to libwavpack, Monkey's Audio to its SDK, and DSF to vibe-libs' own DSD filters, which also take DSD in WavPack. MPEG goes to dr_mp3, and the handle frames it itself (`AudioFileHandle+MPEG.m`). Each answers the file's facts itself. Any other file opens CoreAudio's parser for its facts (`openParserWithError:`), and Apple's decoders play it. AAC, ALAC and Opus are such files. A file those decoders refuse reaches the parser too. Playback refuses it there unless it holds a coding none of them decodes, such as GSM in a WAV.
 
 A handle reads its bytes in one of three ways:
 

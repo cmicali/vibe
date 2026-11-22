@@ -10,7 +10,7 @@ Just plays your files
 Drop a file or a folder - from your disk, iCloud Drive, or Dropbox - and it plays. There is no database to rebuild and no library to manage.
 
 Vibe's own audio engine
-MP3, AAC, MP4/M4A, MP2, AIFF, WAV, and FLAC, played through Vibe's own CoreAudio engine, with high-quality sample-rate conversion.
+MP3, AAC, MP4/M4A, MP2, AIFF, WAV, FLAC, WavPack, Monkey's Audio, and DSD (DSF), played through Vibe's own CoreAudio engine, with high-quality sample-rate conversion.
 
 Bit-perfect mode
 Bit-perfect mode matches the file’s sample rate when the device supports it. Exclusive mode reserves the device for Vibe.

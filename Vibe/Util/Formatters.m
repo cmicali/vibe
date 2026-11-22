@@ -5,6 +5,7 @@
 
 #import "Formatters.h"
 #import "AudioTrackMetadata.h"
+#import "VibeDSD.h"
 #import "VibeStrings.h"
 #import "AppSettings.h"
 
@@ -176,7 +177,10 @@ enum { kDecimalMaxFractionDigits = 3 };
                 [self decimalString:metadata.bitrate.doubleValue fractionDigits:0]]];
     }
     if (metadata.sampleRate != nil) {
-        [parts addObject:[self sampleRateString:metadata.sampleRate.doubleValue]];
+        // A DSD file's rate is the DSD rate, which reads as its name.
+        uint32_t multiple = VibeDSDRateMultiple(metadata.sampleRate.doubleValue);
+        [parts addObject:multiple > 0 ? [NSString stringWithFormat:VibeNotLocalized(@"DSD%u"), 64 * multiple]
+                                      : [self sampleRateString:metadata.sampleRate.doubleValue]];
     }
     return [self infoLineFromFields:parts];
 }
