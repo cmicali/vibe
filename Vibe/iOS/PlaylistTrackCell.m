@@ -10,6 +10,11 @@
 #import "LoadingIndicatorMath.h"
 #import "LoadingIndicatorView.h"
 
+static const CGFloat kGutterLeading = 12;
+static const CGFloat kNumberColumnWidth = 26;
+static const CGFloat kGutterArtGap = 8;
+static const CGFloat kArtTextGap = 14;
+
 @implementation PlaylistTrackCell {
     UILabel                 *_numberLabel;
     EqualizerIndicatorView  *_indicatorView;
@@ -110,7 +115,7 @@
     [NSLayoutConstraint activateConstraints:@[
         [content.heightAnchor constraintGreaterThanOrEqualToConstant:kEstimatedRowHeight],
 
-        [_numberLabel.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:12],
+        [_numberLabel.leadingAnchor constraintEqualToAnchor:content.leadingAnchor constant:kGutterLeading],
         [_numberLabel.widthAnchor constraintEqualToConstant:kNumberColumnWidth],
         [_numberLabel.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
         [_numberLabel.topAnchor constraintGreaterThanOrEqualToAnchor:content.topAnchor constant:8],
@@ -127,7 +132,8 @@
         [_loadingView.heightAnchor constraintEqualToConstant:
                 VibeLoadingIndicatorMetricsForStyle(VibeLoadingIndicatorStyleRow, 16).height],
 
-        [_artView.leadingAnchor constraintEqualToAnchor:_numberLabel.trailingAnchor constant:8],
+        [_artView.leadingAnchor constraintEqualToAnchor:_numberLabel.trailingAnchor
+                                                constant:kGutterArtGap],
         [_artView.centerYAnchor constraintEqualToAnchor:content.centerYAnchor],
         [_artView.widthAnchor constraintEqualToConstant:kFileTileSide],
         [_artView.heightAnchor constraintEqualToConstant:kFileTileSide],
@@ -147,6 +153,10 @@
         [_durationLabel.topAnchor constraintGreaterThanOrEqualToAnchor:content.topAnchor constant:8],
         [_durationLabel.bottomAnchor constraintLessThanOrEqualToAnchor:content.bottomAnchor constant:-8],
     ]];
+}
+
++ (CGFloat)separatorLeadingInset {
+    return kGutterLeading + kNumberColumnWidth + kGutterArtGap + kFileTileSide + kArtTextGap;
 }
 
 - (void)setLevelSource:(id<EqualizerLevelSource>)levelSource {
@@ -200,7 +210,7 @@
         return NO;
     }
     _renderedRow = [row copy];
-    _numberLabel.text = [NSString stringWithFormat:@"%lu", (unsigned long)row.number];
+    _numberLabel.text = row.numberText;
     [self resolveGutter];
     _artView.image = row.thumbnail ?: VibeFileTileImage(NO);
     _durationLabel.text = row.durationText;

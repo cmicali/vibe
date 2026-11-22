@@ -110,7 +110,7 @@ static NSString *const kRecentCellIdentifier = @"item";
     content.secondaryText = item[@"location"];
     [content vibeApplyFileNameStyle];
     [content vibeApplyFileIconForFolder:[item[@"folder"] boolValue]
-                               playlist:[VibePlaylistFile isPlaylistExtension:path.pathExtension.lowercaseString]
+                               playlist:VibeBrowserIsPlaylistName(path)
                                     art:nil];
     [cell vibeApplyRowContent:content opening:[VibeComparablePath(path) isEqualToString:_playback.openingPath]];
     return cell;

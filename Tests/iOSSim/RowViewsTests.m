@@ -73,7 +73,7 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
 
 static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
     VibeTrackRow *row = track.trackRow;
-    row.number = number;
+    row.numberText = [NSString stringWithFormat:@"%lu", (unsigned long)number];
     row.playing = playing;
     return row;
 }
@@ -96,7 +96,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
     PlaylistTrackCell *cell = [self cell];
     VibeTrackRow *row = [[VibeTrackRow alloc] init];
     row.title = @"Song";
-    row.number = 1;
+    row.numberText = @"1";
     [cell renderRow:row];
     XCTAssertFalse([cell renderRow:[row copy]]);
     row.title = @"Other";
@@ -329,10 +329,10 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
 
 - (MiniPlayerView *)strip {
     MiniPlayerView *strip = [[MiniPlayerView alloc] initWithFrame:CGRectMake(0, 600, 390, 48)];
-    strip.expandAccessibilityLabel = STR_SETTINGS_NOW_PLAYING_SECTION;
-    strip.playAccessibilityLabel = STR_TRANSPORT_PLAY;
-    strip.pauseAccessibilityLabel = STR_TRANSPORT_PAUSE;
-    strip.nextAccessibilityLabel = STR_TRANSPORT_NEXT;
+    [strip setAccessibilityLabelsForExpand:STR_SETTINGS_NOW_PLAYING_SECTION
+                                      play:STR_TRANSPORT_PLAY
+                                     pause:STR_TRANSPORT_PAUSE
+                                      next:STR_TRANSPORT_NEXT];
     [self.window addSubview:strip];
     [strip layoutIfNeeded];
     return strip;

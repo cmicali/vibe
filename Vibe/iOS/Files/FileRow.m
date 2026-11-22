@@ -58,13 +58,17 @@ UIImage *VibeFileTileImage(BOOL playlist) {
 
 @implementation VibeTrackRow
 
+static BOOL SameText(NSString *a, NSString *b) {
+    return a == b || [a isEqualToString:b];
+}
+
 - (id)copyWithZone:(NSZone *)zone {
     VibeTrackRow *copy = [[VibeTrackRow alloc] init];
     copy.title = _title;
     copy.subtitle = _subtitle;
     copy.thumbnail = _thumbnail;
     copy.durationText = _durationText;
-    copy.number = _number;
+    copy.numberText = _numberText;
     copy.playing = _playing;
     return copy;
 }
@@ -77,14 +81,13 @@ UIImage *VibeFileTileImage(BOOL playlist) {
         return NO;
     }
     VibeTrackRow *row = object;
-    return row.thumbnail == _thumbnail && row.number == _number && row.playing == _playing
-            && (row.title == _title || [row.title isEqualToString:_title])
-            && (row.subtitle == _subtitle || [row.subtitle isEqualToString:_subtitle])
-            && (row.durationText == _durationText || [row.durationText isEqualToString:_durationText]);
+    return row.thumbnail == _thumbnail && row.playing == _playing
+            && SameText(row.title, _title) && SameText(row.subtitle, _subtitle)
+            && SameText(row.durationText, _durationText) && SameText(row.numberText, _numberText);
 }
 
 - (NSUInteger)hash {
-    return _title.hash ^ _number;
+    return _title.hash ^ _numberText.hash;
 }
 
 @end

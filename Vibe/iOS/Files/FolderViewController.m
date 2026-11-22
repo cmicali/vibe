@@ -663,7 +663,7 @@ static const NSUInteger kFilterThreshold = 12;
     [content vibeApplyFileNameStyle];
     BOOL isFolder = indexPath.section == VibeBrowserSectionFolders;
     [content vibeApplyFileIconForFolder:isFolder
-                               playlist:[VibePlaylistFile isPlaylistExtension:url.pathExtension.lowercaseString]
+                               playlist:VibeBrowserIsPlaylistName(url.lastPathComponent)
                                     art:[_artTracks[url] cachedThumbnail]];
     NSString *path = [_standardizedPath stringByAppendingPathComponent:url.lastPathComponent];
     EqualizerIndicatorView *equalizer = [cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]

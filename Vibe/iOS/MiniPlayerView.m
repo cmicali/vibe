@@ -27,6 +27,8 @@ static const CGFloat kGlyphPointSize = 19;
     UIButton    *_playPauseButton;
     UIButton    *_nextButton;
     BOOL        _playing;
+    NSString   *_playLabel;
+    NSString   *_pauseLabel;
 }
 
 - (instancetype)initWithFrame:(CGRect)frame {
@@ -168,29 +170,19 @@ static const CGFloat kGlyphPointSize = 19;
     [self applyAccessoryEnvironment];
 }
 
-- (void)setExpandAccessibilityLabel:(NSString *)label {
-    _expandAccessibilityLabel = [label copy];
-    _expandButton.accessibilityLabel = label;
-}
-
-- (void)setPlayAccessibilityLabel:(NSString *)label {
-    _playAccessibilityLabel = [label copy];
+- (void)setAccessibilityLabelsForExpand:(NSString *)expand
+                                   play:(NSString *)play
+                                  pause:(NSString *)pause
+                                   next:(NSString *)next {
+    _expandButton.accessibilityLabel = expand;
+    _nextButton.accessibilityLabel = next;
+    _playLabel = [play copy];
+    _pauseLabel = [pause copy];
     [self applyPlayPauseAccessibilityLabel];
 }
 
-- (void)setPauseAccessibilityLabel:(NSString *)label {
-    _pauseAccessibilityLabel = [label copy];
-    [self applyPlayPauseAccessibilityLabel];
-}
-
-- (void)setNextAccessibilityLabel:(NSString *)label {
-    _nextAccessibilityLabel = [label copy];
-    _nextButton.accessibilityLabel = label;
-}
-
-// The button names what a tap will do.
 - (void)applyPlayPauseAccessibilityLabel {
-    _playPauseButton.accessibilityLabel = _playing ? _pauseAccessibilityLabel : _playAccessibilityLabel;
+    _playPauseButton.accessibilityLabel = _playing ? _pauseLabel : _playLabel;
 }
 
 - (void)setPlaying:(BOOL)playing {

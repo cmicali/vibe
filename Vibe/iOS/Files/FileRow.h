@@ -2,8 +2,9 @@
 //  FileRow.h
 //  Vibe (iOS)
 //
-//  The pieces every file and track row shares: the browser's, Recents',
-//  Search's, Favorites', the Playlist tab's and the mini player's.
+//  The pieces file and track rows share: the menu action, the not-downloaded
+//  mark, the file tile, the row value, the icon slot, the opening spinner and
+//  the viewport test.
 //
 
 #import <UIKit/UIKit.h>
@@ -30,7 +31,8 @@ UIImage *VibeFileTileImage(BOOL playlist);
 // Nil draws the file tile.
 @property (nonatomic, nullable) UIImage *thumbnail;
 @property (nonatomic, copy, nullable) NSString *durationText;
-@property (nonatomic) NSUInteger number;
+// The gutter's text, such as the row's position. Nil leaves it empty.
+@property (nonatomic, copy, nullable) NSString *numberText;
 // The gutter's equalizer in place of the number. Loading outranks it, and
 // is pushed on its own, since a transfer changes without the row.
 @property (nonatomic, getter=isPlaying) BOOL playing;

@@ -227,12 +227,11 @@ static NSString *const kTabSearch = @"search";
 - (void)buildMiniPlayer {
     _miniPlayer = [[MiniPlayerView alloc] initWithFrame:CGRectZero];
     _miniPlayer.delegate = self;
-    _miniPlayer.expandAccessibilityLabel = STR_SETTINGS_NOW_PLAYING_SECTION;
-    _miniPlayer.playAccessibilityLabel = STR_TRANSPORT_PLAY;
-    _miniPlayer.pauseAccessibilityLabel = STR_TRANSPORT_PAUSE;
-    _miniPlayer.nextAccessibilityLabel = STR_TRANSPORT_NEXT;
+    [_miniPlayer setAccessibilityLabelsForExpand:STR_SETTINGS_NOW_PLAYING_SECTION
+                                            play:STR_TRANSPORT_PLAY
+                                           pause:STR_TRANSPORT_PAUSE
+                                            next:STR_TRANSPORT_NEXT];
 }
-
 
 - (void)buildCard {
     _player = [[PlayerViewController alloc] initWithPlayback:_playback];

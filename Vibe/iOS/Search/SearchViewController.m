@@ -18,7 +18,6 @@
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "VibePlaylist.h"
-#import "VibePlaylistFile.h"
 #import "FavoritesStore.h"
 #import "LocationStore.h"
 #import "UIViewController+Alert.h"
@@ -544,7 +543,7 @@ static const NSUInteger kMaxFileResults = 200;
     }
     UIListContentConfiguration *content = cell.defaultContentConfiguration;
     [content vibeApplyFileIconForFolder:isFolder
-                               playlist:[VibePlaylistFile isPlaylistExtension:name.pathExtension.lowercaseString]
+                               playlist:VibeBrowserIsPlaylistName(name)
                                     art:nil];
     content.text = name;
     content.secondaryText = folder;

@@ -92,8 +92,7 @@ static NSString *const kTrackCellIdentifier = @"track";
 
     self.tableView.rowHeight = UITableViewAutomaticDimension;
     self.tableView.estimatedRowHeight = kEstimatedRowHeight;
-    self.tableView.separatorInset =
-            UIEdgeInsetsMake(0, 12 + kNumberColumnWidth + 8 + kFileTileSide + kArtTextGap, 0, 0);
+    self.tableView.separatorInset = UIEdgeInsetsMake(0, PlaylistTrackCell.separatorLeadingInset, 0, 0);
     [self.tableView registerClass:PlaylistTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
 
     [_playback addObserver:self];
@@ -291,7 +290,7 @@ static NSString *const kTrackCellIdentifier = @"track";
 
 - (VibeTrackRow *)rowAtIndex:(NSUInteger)index {
     VibeTrackRow *row = [_playlist trackAtIndex:index].trackRow;
-    row.number = index + 1;
+    row.numberText = [NSString stringWithFormat:@"%lu", (unsigned long)(index + 1)];
     row.playing = index == _playlist.currentIndex;
     return row;
 }

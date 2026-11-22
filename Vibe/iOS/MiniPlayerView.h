@@ -24,12 +24,12 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak) id<MiniPlayerViewDelegate> delegate;
 
-// VoiceOver's names for the strip's controls. The expand label names what a
-// tap on the strip shows.
-@property (nonatomic, copy, nullable) NSString *expandAccessibilityLabel;
-@property (nonatomic, copy, nullable) NSString *playAccessibilityLabel;
-@property (nonatomic, copy, nullable) NSString *pauseAccessibilityLabel;
-@property (nonatomic, copy, nullable) NSString *nextAccessibilityLabel;
+// VoiceOver's names for the strip's controls. Expand names what a tap on the
+// strip shows. The play button takes play or pause, whichever a tap will do.
+- (void)setAccessibilityLabelsForExpand:(NSString *)expand
+                                   play:(NSString *)play
+                                  pause:(NSString *)pause
+                                   next:(NSString *)next;
 
 // The title, subtitle and thumbnail; the rest of the row is not drawn. The
 // thumbnail is the small row art, never a full-size decode.
