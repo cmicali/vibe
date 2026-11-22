@@ -6,6 +6,7 @@
 #import "MiniPlayerView.h"
 
 #import "FileRow.h"
+#import "VibeTrackRow.h"
 
 // TRAP: the strip is 48pt, not negotiable. UITabAccessory frames its content
 // at a fixed system height and ignores intrinsicContentSize and height

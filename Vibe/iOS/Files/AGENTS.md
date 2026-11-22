@@ -4,7 +4,7 @@ This directory holds the Files tab's browser. Its root is `FilesRootViewControll
 It holds `RecentsViewController` and the list it shows (`RecentsStore`).
 It holds the Locations store (`LocationStore`) and the tab's rules (`BrowserRules.h`).
 It holds `CueFolderGrantPrompt`, the folder picker a CUE sheet's open asks for (`../AGENTS.md`, FolderSession).
-It also holds `FileRow`, the row pieces that Search, Favorites, the Playlist tab and the mini player share too. Among them is `VibeTrackRow`, the value a track row and the mini player draw.
+It also holds `FileRow`, the row pieces that Search, Favorites, the Playlist tab and the mini player share too, and `VibeTrackRow`, the value a track row and the mini player draw.
 
 The shell, `PlaybackController` and `FolderSession` are `../AGENTS.md`.
 
