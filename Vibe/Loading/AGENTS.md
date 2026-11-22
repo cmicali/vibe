@@ -2,7 +2,7 @@
 
 **The file-open path lives in vibe-libs' `files/FileLoading`.** That is the claim and its two stages, the handle-run ceiling, the transfer registry, the progress monitor, the materializer, the availability, the network-mount read-ahead, and the placeholder checks. Its debug seams and the fake cloud moved with it. Its doc, `vibe-libs/files/FileLoading/AGENTS.md`, is the authority for how that code works. Both app targets list its template. A change to it lands in vibe-libs first, then in Vibe's pin. The handle it serves, `AudioFileHandle`, is vibe-libs' `audio/Decode`.
 
-**The app's HTTP side is four vibe-libs pieces.** `files/HTTP` is the transfer client, `files/RemoteFiles` the remote placeholder store, `files/ShareLinks` the link client, the link rules, and the fake web server, and `files/Dropbox` the Dropbox client and mirror. Each piece's doc is the authority for its code. Both app targets list their templates.
+**The app's HTTP side is four vibe-libs pieces.** `files/HTTP` is the transfer client, `files/RemoteFiles` the remote placeholder store, `files/ShareLinks` the link client, the link rules, and the fake web server, and `files/Dropbox` the Dropbox client and mirror. Each piece's doc is the authority for its code. Both app targets list their templates, except `files/Dropbox`, which only the iOS app lists.
 
 **What stays here is what only Vibe needs.** Both apps compile this directory.
 

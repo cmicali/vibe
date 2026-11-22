@@ -7,7 +7,7 @@ Open URL's link store, the one piece of the app's HTTP side that is Vibe's own. 
 | `LinkStore` | Open URL's links: one directory per link, its record, the probe that opens it, the budget, and the pruning. Tested (`LinkStoreTests`, `LinkStoreHostTests`, and `AudioPlayerRenderLinkTests` for playback) |
 
 **The rest of the HTTP side is vibe-libs'.** Each piece's doc is the authority for how its code works. Both app targets list the three templates. A change to them lands in vibe-libs first, then in Vibe's pin.
-- `files/HTTP` (`vibe-libs/files/HTTP/AGENTS.md`): `HTTPTransferClient`, the streamed download, the ranged read, and the probe, with the resends, the kept part, and the version pin. `DropboxClient` subclasses it (`../iOS/Dropbox/AGENTS.md`).
+- `files/HTTP` (`vibe-libs/files/HTTP/AGENTS.md`): `HTTPTransferClient`, the streamed download, the ranged read, and the probe, with the resends, the kept part, and the version pin. `DropboxClient` subclasses it (`vibe-libs/files/Dropbox/AGENTS.md`).
 - `files/RemoteFiles` (`vibe-libs/files/RemoteFiles/AGENTS.md`): `RemotePlaceholderStore`, remote files as placeholders under one root, the fetch that streams, the ranged tag read, the download budget, and the backend it installs. `LinkStore` and `DropboxMirror` subclass it.
 - `files/ShareLinks` (`vibe-libs/files/ShareLinks/AGENTS.md`): `LinkClient`, the link error, the address rule, the audio check, the names, the share-link rewrites and iCloud's lookup, what a drop or a paste opens, and the fake web server the debug channel installs.
 

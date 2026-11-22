@@ -903,16 +903,17 @@ targets:
           - "$(SRCROOT)/vibe-libs/audio/Decode"
           # The handle's test helpers, which the waveform and render tests share.
           - "$(SRCROOT)/vibe-libs/Tests/Support"
-          # HTTP's HTTPStub, and ShareLinks' iCloud lookup fixtures.
+          # HTTP's HTTPStub, ShareLinks' iCloud lookup fixtures, and Dropbox's
+          # test harness and stub protocol.
           - "$(SRCROOT)/vibe-libs/Tests/files/HTTP"
           - "$(SRCROOT)/vibe-libs/Tests/files/ShareLinks"
+          - "$(SRCROOT)/vibe-libs/Tests/files/Dropbox"
           - "$(SRCROOT)/vibe-libs/files/HTTP"
           - "$(SRCROOT)/vibe-libs/files/RemoteFiles"
           - "$(SRCROOT)/vibe-libs/files/ShareLinks"
           - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/vibe-libs/files/Dropbox"
-          - "$(SRCROOT)/vibe-libs/Tests/files/Dropbox"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/vibe-libs/files/SandboxAccess/Mac"
           - "$(SRCROOT)/Vibe/Playlist"
