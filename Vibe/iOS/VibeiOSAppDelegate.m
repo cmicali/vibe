@@ -8,7 +8,7 @@
 #import "AudioError.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "LinkStore.h"
 #import "LocationStore.h"
 #import "NSBundle+BuildInfo.h"

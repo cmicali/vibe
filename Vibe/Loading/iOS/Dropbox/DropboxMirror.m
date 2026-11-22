@@ -1,6 +1,6 @@
 //
 //  DropboxMirror.m
-//  Vibe (iOS)
+//  vibe-libs
 //
 
 #import "DropboxMirror.h"
@@ -8,10 +8,10 @@
 #include <sys/stat.h>
 
 #import "DropboxRules.h"
-#import "FileSearchRules.h"
 #import "FilePaths.h"
 #import "PlaceholderFiles.h"
 #import "PlayableExtensions.h"
+#import "VibeMacros.h"
 #import "VibePlaylistFile.h"
 #import "RemotePlaceholderStoreInternal.h"
 
@@ -19,16 +19,10 @@
 static const NSInteger kListPageLimit = 2000;
 NSNotificationName const VibeDropboxDownloadsDidChangeNotification = @"VibeDropboxDownloadsDidChangeNotification";
 NSString *const VibeDropboxDownloadsBytesKey = @"bytes";
-
-NSString *const VibeDropboxDownloadBudgetKey = @"VibeiOSDropboxDownloadBudget";
 // Search uses the first page only.
 static const NSInteger kSearchResultLimit = 50;
 // A part file this old belongs to a download that died with the process.
 static const NSTimeInterval kStalePartSeconds = 24 * 60 * 60;
-// On every mirror directory: {"path": its Dropbox path, "files": {index key:
-// Dropbox id}}. On the directory, not the files, because a placeholder's
-// attributes are as unreadable as its bytes.
-static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropbox";
 
 @implementation DropboxMirror {
     // The disk queue's: the sheets being fetched, by local path, each with
@@ -39,36 +33,14 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 // The store's, typed as the Dropbox client it was made with.
 @dynamic client;
 
-+ (DropboxMirror *)shared {
-    static DropboxMirror *shared;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSString *appKey = [NSBundle.mainBundle objectForInfoDictionaryKey:VibeDropboxAppKeyInfoKey];
-        NSAssert(appKey.length > 0, @"%@ missing from Info.plist", VibeDropboxAppKeyInfoKey);
-        NSURLSessionConfiguration *configuration = NSURLSessionConfiguration.defaultSessionConfiguration;
-        // Fail fast offline: a waiting request holds a materialization lane.
-        configuration.waitsForConnectivity = NO;
-        DropboxClient *client = [[DropboxClient alloc] initWithAppKey:appKey ?: @""
-                                                      keychainService:VibeDropboxKeychainService
-                                                        configuration:configuration];
-        NSURL *support = [NSFileManager.defaultManager URLForDirectory:NSApplicationSupportDirectory
-                                                              inDomain:NSUserDomainMask
-                                                     appropriateForURL:nil
-                                                                create:YES
-                                                                 error:NULL];
-        NSInteger saved = [NSUserDefaults.standardUserDefaults integerForKey:VibeDropboxDownloadBudgetKey];
-        shared = [[DropboxMirror alloc] initWithClient:client
-                                               rootURL:[support URLByAppendingPathComponent:@"Dropbox"
-                                                                                isDirectory:YES]
-                                        downloadBudget:kVibeDropboxDownloadBudgets[VibeDropboxDownloadBudgetIndex(saved)]];
-    });
-    return shared;
-}
-
+// Each directory's index: {"path": its Dropbox path, "files": {index key:
+// Dropbox id}}. On the directory, not the files, because a placeholder's
+// attributes are as unreadable as its bytes.
 - (instancetype)initWithClient:(DropboxClient *)client
                        rootURL:(NSURL *)rootURL
+                indexAttribute:(NSString *)indexAttribute
                 downloadBudget:(long long)downloadBudget {
-    self = [super initWithClient:client rootURL:rootURL indexAttribute:kIndexAttribute downloadBudget:downloadBudget];
+    self = [super initWithClient:client rootURL:rootURL indexAttribute:indexAttribute downloadBudget:downloadBudget];
     if (self) {
         _sidecarWaiters = [NSMutableDictionary dictionary];
         // Not pruned here: before first unlock the Keychain reads as no
@@ -132,7 +104,8 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
     }
     NSString *base = VibeComparablePath(account.path);
     NSString *path = VibeComparablePath(url.path);
-    if (!VibeSearchRootCoversPath(base, path)) {
+    // The separator on both sides: "/dbid:a" never covers "/dbid:ab".
+    if (![[path stringByAppendingString:@"/"] hasPrefix:[base stringByAppendingString:@"/"]]) {
         return nil;
     }
     return [path substringFromIndex:base.length].precomposedStringWithCanonicalMapping;
@@ -499,8 +472,7 @@ static NSString *const kIndexAttribute = @"com.commonwealthrecordings.vibe.dropb
 }
 
 // Any thread; posted on main. Every reader of a row's downloaded state hears
-// it — Search's marks, a mirrored folder on screen, the size in Settings —
-// whichever way the bytes came or went.
+// it, whichever way the bytes came or went.
 - (void)downloadsDidChangeWithTotal:(long long)total {
     dispatch_async(dispatch_get_main_queue(), ^{
         [NSNotificationCenter.defaultCenter postNotificationName:VibeDropboxDownloadsDidChangeNotification

@@ -9,7 +9,7 @@
 #import "PlaybackControllerInternal.h"
 
 #import "AudioTrack.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "FavoritesStore.h"
 #import "FilePaths.h"
 #import "FolderSessionRules.h"

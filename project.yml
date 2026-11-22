@@ -530,7 +530,7 @@ targets:
         # Keep internal app state elsewhere.
         LSSupportsOpeningDocumentsInPlace: true
         UIFileSharingEnabled: true
-        # The Dropbox app's key (DropboxMirror). Not a secret: the sign-in is
+        # The Dropbox app's key (DropboxMirror+Shared). Not a secret: the sign-in is
         # PKCE, which needs none, and the redirect it pairs with is the
         # db-<key> scheme Dropbox grants every app without registration.
         VibeDropboxAppKey: n3d3xw7piaqy2fz
@@ -804,6 +804,7 @@ targets:
       - path: Vibe/Common/AppStats.m   # FolderSession counts opens
       - path: Vibe/Loading/iOS/Dropbox/DropboxClient.m
       - path: Vibe/Loading/iOS/Dropbox/DropboxMirror.m
+      - path: Vibe/Loading/iOS/Dropbox/DropboxMirror+Shared.m   # the shell tests swap its shared mirror
       - path: vibe-libs/waveform/WaveformStyles/WaveformTheme.m
       - path: Vibe/Common/WaveformTheme+Settings.m
       - path: vibe-libs/waveform/WaveformStyles/WaveformMorphEngine.mm

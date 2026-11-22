@@ -7,8 +7,7 @@
 
 #import "AppSettings.h"
 #import "SettingsRules.h"
-#import "DropboxMirror.h"
-#import "DropboxRules.h"
+#import "DropboxMirror+Shared.h"
 #import "SettingsChoiceViewController.h"
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"

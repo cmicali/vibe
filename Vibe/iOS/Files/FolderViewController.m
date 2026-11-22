@@ -10,7 +10,7 @@
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
 #import "BrowserRules.h"
-#import "DropboxMirror.h"
+#import "DropboxMirror+Shared.h"
 #import "EqualizerIndicatorView.h"
 #import "FavoritesStore.h"
 #import "FileRow.h"
