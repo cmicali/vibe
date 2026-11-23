@@ -13,6 +13,18 @@
 #import "VibePlaylist.h"
 #import "RecentsStore.h"
 #import "RootViewController.h"
+#import "Vibe-Swift.h"                  // VibeWidgetActions is declared in Swift
+#import "WidgetPublisher.h"
+
+// The widget's buttons, each on the connected scene. With no scene, an
+// intent opens the app, and the playlist button does nothing.
+@interface VibeWidgetSceneActions : NSObject <VibeWidgetActions>
+@end
+
+@interface VibeiOSSceneDelegate ()
++ (nullable VibeiOSSceneDelegate *)connectedDelegate;
+- (void)showPlaylist;
+@end
 
 @implementation VibeiOSSceneDelegate {
     // One engine per process, so multi-scene is off.
@@ -104,15 +116,52 @@
     return nil;
 }
 
-+ (PlaybackController *)connectedPlayback {
-    return [self connectedDelegate].playback;
++ (void)installWidgetActions {
+    VibeWidgetIntents.installed = [[VibeWidgetSceneActions alloc] init];
 }
 
-+ (void)showPlaylist {
-    VibeiOSSceneDelegate *delegate = [self connectedDelegate];
-    if (delegate) {
-        [delegate->_shellHost showPlaylist];
-    }
+- (void)showPlaylist {
+    [_shellHost showPlaylist];
+}
+
+@end
+
+@implementation VibeWidgetSceneActions
+
+static PlaybackController *ConnectedPlayback(void) {
+    return [VibeiOSSceneDelegate connectedDelegate].playback;
+}
+
+- (BOOL)widgetHasPlayback {
+    return ConnectedPlayback() != nil;
+}
+
+- (void)widgetWhenRestored:(void (^)(void))block {
+    [ConnectedPlayback() performWhenLaunchOpenSettled:block];
+}
+
+- (void)widgetPlayPause {
+    [ConnectedPlayback() playPause];
+}
+
+- (void)widgetNext {
+    [ConnectedPlayback() next];
+}
+
+- (void)widgetPrevious {
+    [ConnectedPlayback() previous];
+}
+
+- (NSString *)widgetDisplayedTrackKey {
+    return [WidgetPublisher trackKeyForTrack:ConnectedPlayback().displayedTrack];
+}
+
+- (void)widgetSeekToProgress:(float)progress {
+    [ConnectedPlayback() seekToProgress:progress];
+}
+
+- (void)widgetShowPlaylist {
+    [[VibeiOSSceneDelegate connectedDelegate] showPlaylist];
 }
 
 @end
