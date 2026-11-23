@@ -46,7 +46,6 @@ Vibe/
     Convert/           the FLAC encoder and its file round trip
   iOS/                 the iOS app shell: PlaybackController, FolderSession, the tabs
     Files/             the Files tab: browser, Recents, and Locations
-    Player/            the now-playing card
     Search/            Favorites and Search
     Settings/          the settings screens
     Widget/            the app's side of the Home Screen widget
@@ -302,7 +301,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | Sandbox folder grants on macOS | `vibe-libs/files/SandboxAccess/AGENTS.md`, `Mac/App/AGENTS.md` (Sandbox grants) | `vibe-libs/files/SandboxAccess/Mac/FolderAccessManager.m` |
 | Updates through Sparkle | `Mac/App/AGENTS.md` (Updates), `vibe-libs/system/Updates/AGENTS.md` | `vibe-libs/system/Updates/Mac/VibeUpdater.m` |
 | The iOS model and opening folders | `iOS/AGENTS.md` | `iOS/PlaybackController.m`, `iOS/FolderSession.m` |
-| The iOS now-playing card | `iOS/Player/AGENTS.md`, `vibe-libs/waveform/WaveformView/AGENTS.md` | `iOS/Player/PlayerViewController.m` |
+| The iOS now-playing card | `vibe-libs/ui/PlayerCard/AGENTS.md`, `iOS/AGENTS.md` (The now-playing card), `vibe-libs/waveform/WaveformView/AGENTS.md` | `vibe-libs/ui/PlayerCard/PlayerViewController.m`, `iOS/VibeiOSAppDelegate.m` |
 | The iOS Files tab, Favorites, Search, or settings | the `AGENTS.md` in `iOS/Files/`, `iOS/Search/`, or `iOS/Settings/` | that directory |
 | The widget | `VibeWidget/AGENTS.md`, `iOS/Widget/AGENTS.md` | `iOS/Widget/WidgetPublisher.m` |
 | The lock screen and media keys | `vibe-libs/system/NowPlaying/AGENTS.md` | `vibe-libs/system/NowPlaying/NowPlayingController.m` |

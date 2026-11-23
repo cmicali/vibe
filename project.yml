@@ -492,7 +492,7 @@ targets:
                 VibeLibsFileLoading, VibeLibsHTTP, VibeLibsRemoteFiles, VibeLibsShareLinks, VibeLibsDropbox, VibeLibsDecode,
                 VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
-                VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsRows, VibeLibsNowPlaying, VibeLibsDebugChannel,
+                VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsRows, VibeLibsPlayerCard, VibeLibsNowPlaying, VibeLibsDebugChannel,
                 VibeLibsDebugVerbs, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache,
                 VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
@@ -830,7 +830,7 @@ targets:
       - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Playlist/Mac/VibePlaylistFile+Session.m
       - path: vibe-libs/core/Common/UIUpdateTimer.m
-      - path: Vibe/iOS/Player/PageWaveformCoordinator.m
+      - path: vibe-libs/ui/PlayerCard/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
       # The iOS shell's Foundation-only model: the session and its stores.
       - path: Vibe/iOS/FolderSession.m
@@ -952,7 +952,7 @@ targets:
           - "$(SRCROOT)/Vibe/iOS"
           # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
           # screen's state machine is testable here.
-          - "$(SRCROOT)/Vibe/iOS/Player"
+          - "$(SRCROOT)/vibe-libs/ui/PlayerCard"
     dependencies:
       - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform
