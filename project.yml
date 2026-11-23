@@ -917,6 +917,8 @@ targets:
           - "$(SRCROOT)/vibe-libs/files/Dropbox"
           # LocationStore and BrowserRules.h, both Foundation only.
           - "$(SRCROOT)/vibe-libs/ui/FilesBrowser"
+          # PageWaveformCoordinator and PlayerScreenRules.h, both Foundation only.
+          - "$(SRCROOT)/vibe-libs/ui/PlayerCard"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/vibe-libs/files/SandboxAccess/Mac"
           - "$(SRCROOT)/Vibe/Playlist"
@@ -953,9 +955,6 @@ targets:
           - "$(SRCROOT)/Vibe/Mac/Convert"
           # The iOS sources compiled in above are Foundation-only.
           - "$(SRCROOT)/Vibe/iOS"
-          # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
-          # screen's state machine is testable here.
-          - "$(SRCROOT)/vibe-libs/ui/PlayerCard"
     dependencies:
       - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform

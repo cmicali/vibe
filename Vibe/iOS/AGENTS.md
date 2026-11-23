@@ -1,6 +1,6 @@
 # iOS app shell (VibeiOS target)
 
-This directory holds the iOS app shell: the app and scene delegates, the tab shell (`RootViewController`), the model (`PlaybackController`), `FolderSession`, the Playlist tab, and the mini player. Its subdirectories hold the Files tab, Favorites and Search, Settings, and the widget's app side. The now-playing card is vibe-libs' `ui/PlayerCard`, and Vibe's side of it is below (The now-playing card).
+This directory holds the iOS app shell: the app and scene delegates, the tab shell (`RootViewController`), the model (`PlaybackController`), `FolderSession`, the Playlist tab, and the mini player. Its subdirectories hold the Files tab, Favorites and Search, Settings, and the widget's app side. The now-playing card is vibe-libs' `ui/PlayerCard`. Vibe's side of it is below (The now-playing card).
 
 **A playlist starts from an opened folder, file or playlist file and can hold additions.** The user picks a folder or file in the app's own browser, the Files tab. Its sources are Dropbox (`Loading/iOS/Dropbox/AGENTS.md`), the app's Documents, and each location granted once through the system folder picker (iCloud Drive, a drive, any other Files provider). There are three `UITab`s, Playlist, Favorites and Files, with `UISearchTab`'s circle beside the capsule. A mini player strip sits in the tab bar's `bottomAccessory`, and the now-playing card presents up from it. Opening anything replaces the playlist, starts playing, selects the Playlist tab and presents the card. A single file played alone keeps its current tab. An active Search tab also keeps the selection. **Add to Playlist** appends tracks without touching playback, the tab or the card. An Add onto nothing is an Open.
 
@@ -40,11 +40,11 @@ It owns everything the app plays and nothing that draws it: the engine, `VibePla
 
 The card is vibe-libs' `ui/PlayerCard` (its `AGENTS.md`). Vibe supplies three things:
 
-- **The host is `VibeiOSAppDelegate`.** It installs itself at launch, before any scene makes a card. Its words come from `VibeStrings.h`, its formats from `Formatters`, and its settings from `AppSettings`. It keeps the zoom under `VibeiOSWaveformZoom`. When it configures the card's waveform cache, it clears the cache once under `kWaveformTempoBackfillKey`. That migration drops waveforms cached before tempo detection.
-- **The model adopts the card's four protocols.** `PlaybackController` adopts the playback protocol. `VibePlaylist` and `AudioTrack` adopt the queue and item protocols in categories with no code (`PlaybackController.h`). `PlaybackObserver` refines the card's observer, so one broadcast reaches every screen.
+- **The host is `VibeiOSAppDelegate`.** Its words come from `VibeStrings.h`, its formats from `Formatters`, and its settings from `AppSettings`. It keeps the zoom under `VibeiOSWaveformZoom`. When it configures the card's waveform cache, it clears the cache once under `kWaveformTempoBackfillKey`. That migration drops waveforms cached before tempo detection.
+- **The model adopts the card's four protocols.** `PlaybackController` adopts the playback protocol. `VibePlaylist` and `AudioTrack` adopt the queue and item protocols (`PlaybackController.h`). `PlaybackObserver` refines the card's observer, so one broadcast reaches every screen.
 - **`RootViewController` sends `reloadSettings`** on `VibeDisplaySettingsDidChangeNotification`.
 
-`dump_state`'s `ui` block reports the card: `ui.routePickerUp`, `ui.fxPadShown`, `ui.fxPadEngaged`, and `ui.bufferingShown`. `set_output_route` draws any route kind, and `set_fx_pad` drives the pad without a finger. The card's tests are Vibe's: `PlayerViewControllerTests` in the simulator suite, and `PageWaveformCoordinatorTests` and `PlayerScreenRulesTests` in `VibeTests`.
+The card's debug seam stays in Vibe (`Debug/AGENTS.md`). Its verbs are the `vibe-debug` skill's. Its tests stay in Vibe too (the piece's `AGENTS.md`, Tests).
 
 ## FolderSession
 
