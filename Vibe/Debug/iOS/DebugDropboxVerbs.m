@@ -19,7 +19,7 @@
 #import "VibePlaylist.h"
 #import "PlaybackController.h"
 #import "RootViewController.h"
-#import "RootViewController+Debug.h"
+#import "PlaybackShellHost+Debug.h"
 
 NSArray<NSDictionary *> *VibeDebugDropboxVerbs(void) {
     static NSArray<NSDictionary *> *table;
@@ -29,7 +29,7 @@ NSArray<NSDictionary *> *VibeDebugDropboxVerbs(void) {
             // The Dropbox account and its mirror. The sign-in is Dropbox's own
             // web sheet, which neither the channel nor the driver can fill;
             // a human signs in, and this reads the result.
-            VibeDebugCmd(@"dump_dropbox", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_dropbox", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 DropboxMirror *mirror = DropboxMirror.shared;
                 NSMutableDictionary *reply = [NSMutableDictionary dictionary];
                 reply[@"linked"] = @(mirror.client.isLinked);
@@ -60,7 +60,7 @@ NSArray<NSDictionary *> *VibeDebugDropboxVerbs(void) {
             // HTTP boundary (VibeFakeDropbox.h): no sign-in, no network. The
             // fixture is read by the app, so the simulator's host paths work.
             VibeDebugCmd(@"set_fake_dropbox <directory>|off [<transfer-seconds>]", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: set_fake_dropbox <directory>|off [<transfer-seconds>]");
                 }
@@ -83,7 +83,7 @@ NSArray<NSDictionary *> *VibeDebugDropboxVerbs(void) {
                 return VibeJSONString(@{@"ok": @YES, @"fake": @YES, @"directory": directory.path,
                                         @"transferSeconds": @(seconds)});
             }),
-            VibeDebugCmd(@"dump_fake_dropbox", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_fake_dropbox", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 NSMutableDictionary *reply = [VibeFakeDropbox.statistics mutableCopy];
                 reply[@"fake"] = @(VibeFakeDropbox.isInstalled);
                 return VibeJSONString(reply);
@@ -92,7 +92,7 @@ NSArray<NSDictionary *> *VibeDebugDropboxVerbs(void) {
             // a basename. Byte counts take K and M.
             VibeDebugCmd(@"fake_dropbox_fault <stall|drop|rev-change|throttle|expired-token|tail-fail|slow-tail|slow-tags|rate|latency|resume|clear> "
                          @"[file=<basename>] [after=<bytes>] [seconds=<s>] [rate=<bytes/s>]", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: fake_dropbox_fault <kind|resume|clear> [file=<basename>] "
                                          @"[after=<bytes>] [seconds=<s>] [rate=<bytes/s>]");

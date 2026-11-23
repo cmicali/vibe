@@ -102,13 +102,12 @@ static NSString *const kTabFiles = @"files";
 }
 
 - (void)thumbnailDidLoad:(NSNotification *)notification {
-    AudioTrack *displayed = _playback.displayedTrack;
-    if (displayed.metadata == notification.object) {
-        [_root.miniPlayer renderRow:displayed.trackRow];
+    if (_playback.displayedTrack.metadata == notification.object) {
+        [self refreshMiniPlayer];
     }
 }
 
-// Lazy providers, so a tab never visited costs nothing; the Files browser is
+// Lazy providers, so a tab never visited costs nothing. The Files browser is
 // not cheap.
 - (NSArray<UITab *> *)buildTabs {
     __weak PlaybackShellHost *weakSelf = self;
@@ -303,11 +302,11 @@ static NSString *const kTabFiles = @"files";
     }
 }
 
-// The only place the card presents by itself. The Playlist tab comes forward
-// so minimizing lands on what was opened — except over Search, whose tab owns
-// the selection while its field is up, and except a single file played
-// alone — one track, no folder — whose tab stays where it was picked, so
-// minimizing lands back in the browser rather than on a one-row playlist.
+// The only place the card presents by itself. The Playlist tab comes forward,
+// so minimizing lands on what was opened. Search keeps the selection while
+// its field is up. A single file played alone, one track with no folder,
+// also keeps its tab, so minimizing lands back in the browser rather than on
+// a one-row playlist.
 - (void)playbackDidOpenNewFolder:(PlaybackController *)playback {
     if (playback.playlist.count > 1 || playback.folderURL) {
         [self bringPlaylistTabForward];
@@ -358,7 +357,7 @@ static NSString *const kTabFiles = @"files";
 
 - (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track {
     if ([playback.playlist isCurrentTrack:track]) {
-        [_root.miniPlayer renderRow:playback.displayedTrack.trackRow];
+        [self refreshMiniPlayer];
     }
 }
 

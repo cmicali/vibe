@@ -1,11 +1,11 @@
 //
-//  RootViewController+Debug.h
+//  PlaybackShellHost+Debug.h
 //  Vibe (iOS)
 //
-//  The shell adopts VibeDebugPlayerSurface because it is the one object the
-//  window reaches: it forwards Vibe's reads to its delegate, PlaybackShellHost,
-//  player and playlist reads to the host's PlaybackController, and pager reads
-//  to the card. The iOS twin of Mac/Seams/MainPlayerController+DebugPlayerSurface.h.
+//  The host adopts VibeDebugPlayerSurface because it is the one object that
+//  sees the whole app. It forwards player and playlist reads to its
+//  PlaybackController, pager reads to its card, and tab and card state to its
+//  root. The iOS twin of Mac/Seams/MainPlayerController+DebugPlayerSurface.h.
 //
 
 #if DEBUG
@@ -42,21 +42,7 @@
 
 @end
 
-// The host's reads, forwarded through the root's delegate.
-@interface RootViewController (DebugSurface)
-
-@property (nonatomic, readonly) PlaybackShellHost *shellHost;
-@property (nonatomic, readonly) PlaybackController *playback;
-@property (nonatomic, readonly) PlayerViewController *player;
-@property (nonatomic, readonly) PlaylistViewController *playlistScreen;
-@property (nonatomic, readonly) FavoritesViewController *favorites;
-@property (nonatomic, readonly) SearchViewController *searchScreen;
-@property (nonatomic, readonly) BrowserRootViewController *filesBrowser;
-@property (nonatomic, readonly) NSArray<NSNumber *> *liftedRowTimes;
-
-@end
-
-@interface RootViewController (DebugLayout)
+@interface PlaybackShellHost (DebugLayout)
 - (NSDictionary *)debugLayoutAnchors;
 // Every display-link frame, for `seconds`; dump_layout_samples reads them.
 - (void)debugBeginLayoutSamplingForSeconds:(NSTimeInterval)seconds;
@@ -91,7 +77,11 @@
 - (BOOL)isMateriallyVisible;
 @end
 
-@interface RootViewController (Debug) <VibeDebugPlayerSurface>
+@interface PlaybackShellHost (Debug) <VibeDebugPlayerSurface>
+
+// The selected tab, with the search tab named "search": its own identifier
+// is UIKit's.
+@property (nonatomic, copy) NSString *debugSelectedTabName;
 
 - (NSDictionary *)debugStateDictionary;
 // The pager's art window and each page's art state: on screen, "not decoded

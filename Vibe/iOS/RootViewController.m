@@ -7,8 +7,6 @@
 
 #import "MiniPlayerView.h"
 
-NSString *const RootViewControllerSearchTabIdentifier = @"search";
-
 static const CGFloat kCardCornerRadius = 14;
 static const CGFloat kBackdropScale = 0.92;
 static const CGFloat kBackdropCornerRadius = 38;
@@ -21,7 +19,6 @@ static const CGFloat kDismissFlickVelocity = 900;
 @end
 
 @implementation RootViewController {
-    NSArray<UITab *>     *_tabList;
     UITabBarController   *_tabs;
     // What scales under a moving card: a snapshot of the tabs, never the tabs
     // themselves (applyBackdropProgress:). Present only while the card moves.
@@ -44,7 +41,9 @@ static const CGFloat kDismissFlickVelocity = 900;
 - (instancetype)initWithTabs:(NSArray<UITab *> *)tabs card:(UIViewController<RootViewControllerCard> *)card {
     self = [super initWithNibName:nil bundle:nil];
     if (self) {
-        _tabList = [tabs copy];
+        _tabs = [[UITabBarController alloc] init];
+        _tabs.delegate = self;
+        _tabs.tabs = tabs;
         _card = card;
         _miniPlayer = [[MiniPlayerView alloc] initWithFrame:CGRectZero];
         _miniPlayer.delegate = self;
@@ -70,24 +69,16 @@ static const CGFloat kDismissFlickVelocity = 900;
 
     [self buildTabs];
     [self buildCard];
-    if (_miniWanted) {
-        [self applyMiniPlayerAccessory];
-    }
     [self.delegate rootViewControllerDidLoad:self];
     [self syncTabSurfaces];
 }
 
 - (void)buildTabs {
-    _tabs = [[UITabBarController alloc] init];
-    _tabs.delegate = self;
-    _tabs.tabs = _tabList;
-
     [self addChildViewController:_tabs];
     _tabs.view.frame = self.view.bounds;
     _tabs.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
     [self.view addSubview:_tabs.view];
     [_tabs didMoveToParentViewController:self];
-    [self syncTabSurfaces];
 }
 
 - (void)buildCard {
@@ -223,12 +214,7 @@ static const CGFloat kDismissFlickVelocity = 900;
         return;
     }
     _miniWanted = wanted;
-    [self applyMiniPlayerAccessory];
-}
-
-// Before the view loads, viewDidLoad applies it.
-- (void)applyMiniPlayerAccessory {
-    UITabAccessory *accessory = _miniWanted
+    UITabAccessory *accessory = wanted
             ? [[UITabAccessory alloc] initWithContentView:_miniPlayer]
             : nil;
     [_tabs setBottomAccessory:accessory animated:!UIAccessibilityIsReduceMotionEnabled()];
@@ -530,20 +516,13 @@ static const CGFloat kDismissFlickVelocity = 900;
     [self syncTabSurfaces];
 }
 
-// UISearchTab's identifier is UIKit's, so it is matched by kind.
 - (NSString *)selectedTabIdentifier {
-    UITab *selected = _tabs.selectedTab;
-    if ([selected isKindOfClass:UISearchTab.class]) {
-        return RootViewControllerSearchTabIdentifier;
-    }
-    return selected.identifier ?: _tabList.firstObject.identifier;
+    return _tabs.selectedTab.identifier ?: _tabs.tabs.firstObject.identifier;
 }
 
 - (void)setSelectedTabIdentifier:(NSString *)identifier {
-    BOOL wantsSearch = [identifier isEqualToString:RootViewControllerSearchTabIdentifier];
     for (UITab *tab in _tabs.tabs) {
-        BOOL isSearch = [tab isKindOfClass:UISearchTab.class];
-        if (wantsSearch ? isSearch : [tab.identifier isEqualToString:identifier]) {
+        if ([tab.identifier isEqualToString:identifier]) {
             _tabs.selectedTab = tab;
             [self syncTabSurfaces];
             return;
@@ -551,9 +530,9 @@ static const CGFloat kDismissFlickVelocity = 900;
     }
 }
 
-// UITab has no view of its own, so the bar's is found by the label it draws;
-// a bar that is not on screen (the iPad's is elsewhere), or one drawn without
-// that label, answers NO.
+// UITab has no view of its own, so the bar's is found by the label it draws.
+// A bar that is not on screen answers NO, and so does one drawn without that
+// label. The iPad's bar is elsewhere.
 - (BOOL)getCenterOfTabWithIdentifier:(NSString *)identifier center:(CGPoint *)center {
     UITabBar *bar = _tabs.tabBar;
     NSString *title = [_tabs tabForIdentifier:identifier].title;

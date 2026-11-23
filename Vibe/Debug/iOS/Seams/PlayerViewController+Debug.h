@@ -2,7 +2,7 @@
 //  PlayerViewController+Debug.h
 //  Vibe (iOS)
 //
-//  What the debug channel needs from the card; RootViewController+Debug
+//  What the debug channel needs from the card; PlaybackShellHost+Debug
 //  composes it into the surface. The implementation reaches the card's state
 //  through PlayerViewControllerInternal.h.
 //

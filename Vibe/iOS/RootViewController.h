@@ -10,7 +10,7 @@
 //  A container, not a UITabBarController subclass, so the card and the
 //  backdrop snapshot can sit above the tabs' whole view.
 //
-//  The card is built once and never torn down; minimizing translates it off
+//  The card is built once and never torn down. Minimizing translates it off
 //  the bottom, so its pager, art and waveform snapshots survive.
 //
 
@@ -21,10 +21,6 @@
 @class VibeTrackRow;
 
 NS_ASSUME_NONNULL_BEGIN
-
-// selectedTabIdentifier's name for the app's UISearchTab, whose own
-// identifier is UIKit's.
-extern NSString *const RootViewControllerSearchTabIdentifier;
 
 // What the root needs of the card: whether it is presented, and whether the
 // scene is foreground-active.
@@ -45,8 +41,8 @@ extern NSString *const RootViewControllerSearchTabIdentifier;
 - (void)rootViewController:(RootViewController *)root
               didSelectTab:(UITab *)selectedTab
                previousTab:(nullable UITab *)previousTab;
-// tabsExposed, cardAtRest or the selected tab may have changed. Sent
-// repeatedly; the delegate pushes what its screens need.
+// tabsExposed, cardAtRest or the selected tab may have changed. It is sent
+// often, and the delegate pushes what its screens need.
 - (void)rootViewControllerDidChangeExposure:(RootViewController *)root;
 
 @end
@@ -75,7 +71,8 @@ extern NSString *const RootViewControllerSearchTabIdentifier;
 // The snapshot that scales over the tabs while the card moves; nil at rest.
 @property (nonatomic, readonly, nullable) UIView *backdropSnapshot;
 
-// The strip shows `row`, or goes away for nil.
+// The strip shows `row`, or goes away for nil. Push it from the delegate's
+// rootViewControllerDidLoad: on.
 - (void)setMiniPlayerRow:(nullable VibeTrackRow *)row playing:(BOOL)playing;
 @property (nonatomic, readonly, getter=isMiniPlayerShown) BOOL miniPlayerShown;
 
@@ -85,7 +82,7 @@ extern NSString *const RootViewControllerSearchTabIdentifier;
 // The card is down and still: neither moving nor dragged.
 @property (nonatomic, readonly) BOOL cardAtRest;
 
-// A tab's identifier, or RootViewControllerSearchTabIdentifier. Setting an
+// The selected tab's identifier. A UISearchTab's is UIKit's. Setting an
 // identifier no tab has does nothing.
 @property (nonatomic, copy) NSString *selectedTabIdentifier;
 // The bar's item for the tab, in this view; NO when the bar does not show it.

@@ -18,7 +18,6 @@
     // One engine per process, so multi-scene is off.
     PlaybackController *_playback;
     PlaybackShellHost *_shellHost;
-    RootViewController *_root;
 }
 
 - (void)scene:(UIScene *)scene
@@ -33,7 +32,6 @@
     _playback = [[PlaybackController alloc] init];
     _shellHost = [[PlaybackShellHost alloc] initWithPlayback:_playback];
     RootViewController *root = _shellHost.root;
-    _root = root;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
     self.window.rootViewController = root;
     [self.window makeKeyAndVisible];
@@ -71,7 +69,7 @@
 // closed there.
 - (void)setSceneActive:(BOOL)active {
     _playback.sceneActive = active;
-    _root.sceneActive = active;
+    _shellHost.root.sceneActive = active;
 }
 
 - (void)sceneDidBecomeActive:(UIScene *)scene {
