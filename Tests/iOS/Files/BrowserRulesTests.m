@@ -2,6 +2,7 @@
 #import <XCTest/XCTest.h>
 
 #import "BrowserRules.h"
+#import "FilesTabRules.h"
 
 @interface BrowserRulesTests : XCTestCase
 @end
@@ -10,44 +11,20 @@
 
 #pragma mark - The root's rows
 
-- (void)testTheLocationsAreTheSourcesThenTheGrantedFolders {
-    NSArray *unlinked = @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowLocation), @(VibeBrowserRootRowLocation)];
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionLocations, NO, 2, NO), unlinked);
-    NSArray *linked = @[@(VibeBrowserRootRowDevice), @(VibeBrowserRootRowDropbox), @(VibeBrowserRootRowLocation)];
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionLocations, YES, 1, YES), linked);
-}
-
-- (void)testALocationRowMapsToItsIndexInTheStore {
-    for (NSNumber *linked in @[@NO, @YES]) {
-        NSArray<NSNumber *> *rows = VibeBrowserRootRows(VibeBrowserRootSectionLocations, linked.boolValue, 3, NO);
+- (void)testALocationRowMapsToItsIndexInTheStoreAfterTheSources {
+    for (NSUInteger sources = 1; sources <= 2; sources++) {
         NSMutableArray<NSNumber *> *indexes = [NSMutableArray array];
-        for (NSUInteger row = 0; row <= rows.count; row++) {
-            NSUInteger index = VibeBrowserRootLocationIndex(VibeBrowserRootSectionLocations, row, linked.boolValue, 3);
-            BOOL location = row < rows.count && rows[row].integerValue == VibeBrowserRootRowLocation;
-            XCTAssertEqual(index == NSNotFound, !location, @"row %lu, linked %@", (unsigned long)row, linked);
+        for (NSUInteger row = 0; row <= sources + 3; row++) {
+            NSUInteger index = VibeBrowserLocationIndex(row, sources, 3);
+            BOOL location = row >= sources && row < sources + 3;
+            XCTAssertEqual(index == NSNotFound, !location, @"row %lu, sources %lu", (unsigned long)row,
+                           (unsigned long)sources);
             if (location) {
                 [indexes addObject:@(index)];
             }
         }
         XCTAssertEqualObjects(indexes, (@[@0, @1, @2]));
     }
-    XCTAssertEqual(VibeBrowserRootLocationIndex(VibeBrowserRootSectionActions, 2, NO, 3), (NSUInteger)NSNotFound);
-}
-
-- (void)testThePasteRowFollowsOpenURLOnlyWithALinkOnTheClipboard {
-    NSArray *expected = @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL), @(VibeBrowserRootRowPasteURL)];
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionActions, YES, 1, YES), expected);
-    NSArray *noLink = @[@(VibeBrowserRootRowChooseFile), @(VibeBrowserRootRowOpenURL)];
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionActions, NO, 1, NO), noLink);
-    for (NSInteger section = VibeBrowserRootSectionLocations; section < VibeBrowserRootSectionActions; section++) {
-        XCTAssertFalse([VibeBrowserRootRows((VibeBrowserRootSection)section, YES, 1, YES)
-                containsObject:@(VibeBrowserRootRowPasteURL)]);
-    }
-}
-
-- (void)testTheRecentsSectionIsRecentsAlone {
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionRecents, YES, 3, NO), @[@(VibeBrowserRootRowRecents)]);
-    XCTAssertEqualObjects(VibeBrowserRootRows(VibeBrowserRootSectionCount, YES, 3, NO), @[]);
 }
 
 #pragma mark - Recents
@@ -82,27 +59,27 @@
 #pragma mark - A row's long press
 
 - (void)testAFileOffersEveryAction {
-    XCTAssertEqual(VibeBrowserRowActionsFor(NO, NO, NO, YES),
-                   VibeBrowserRowActionPlay | VibeBrowserRowActionPlayInFolder | VibeBrowserRowActionAddToPlaylist
-                           | VibeBrowserRowActionOpenFolder);
+    XCTAssertEqual(VibeFilesTabRowActionsFor(NO, NO, NO, YES),
+                   VibeFilesTabRowActionPlay | VibeFilesTabRowActionPlayInFolder | VibeFilesTabRowActionAddToPlaylist
+                           | VibeFilesTabRowActionOpenFolder);
 }
 
 - (void)testAFolderOrAPlaylistFileHasNoPlayInFolder {
-    VibeBrowserRowActions expected = VibeBrowserRowActionPlay | VibeBrowserRowActionAddToPlaylist
-            | VibeBrowserRowActionOpenFolder;
-    XCTAssertEqual(VibeBrowserRowActionsFor(YES, NO, NO, YES), expected);
-    XCTAssertEqual(VibeBrowserRowActionsFor(NO, NO, YES, YES), expected);
+    VibeFilesTabRowActions expected = VibeFilesTabRowActionPlay | VibeFilesTabRowActionAddToPlaylist
+            | VibeFilesTabRowActionOpenFolder;
+    XCTAssertEqual(VibeFilesTabRowActionsFor(YES, NO, NO, YES), expected);
+    XCTAssertEqual(VibeFilesTabRowActionsFor(NO, NO, YES, YES), expected);
 }
 
 - (void)testALinkHasNeitherFolderAction {
-    XCTAssertEqual(VibeBrowserRowActionsFor(NO, NO, NO, NO),
-                   VibeBrowserRowActionPlay | VibeBrowserRowActionAddToPlaylist);
+    XCTAssertEqual(VibeFilesTabRowActionsFor(NO, NO, NO, NO),
+                   VibeFilesTabRowActionPlay | VibeFilesTabRowActionAddToPlaylist);
 }
 
 - (void)testTheAddSheetOnlyAdds {
-    XCTAssertEqual(VibeBrowserRowActionsFor(NO, YES, NO, YES),
-                   VibeBrowserRowActionAddToPlaylist | VibeBrowserRowActionOpenFolder);
-    XCTAssertEqual(VibeBrowserRowActionsFor(NO, YES, NO, NO), VibeBrowserRowActionAddToPlaylist);
+    XCTAssertEqual(VibeFilesTabRowActionsFor(NO, YES, NO, YES),
+                   VibeFilesTabRowActionAddToPlaylist | VibeFilesTabRowActionOpenFolder);
+    XCTAssertEqual(VibeFilesTabRowActionsFor(NO, YES, NO, NO), VibeFilesTabRowActionAddToPlaylist);
 }
 
 #pragma mark - A row's tile

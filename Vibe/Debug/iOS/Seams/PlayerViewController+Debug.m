@@ -104,7 +104,7 @@
             @"loading": @(metadata.artLoadPending),
             @"inWindow": @(NSLocationInRange(index, window)),
             @"cellUp": @(cell != nil),
-            // A page not current must rest at 0 (Player/AGENTS.md).
+            // A page not current must rest at 0 (vibe-libs' ui/PlayerCard/AGENTS.md).
             @"waveformProgress": cell ? @(cell.waveformView.progress) : [NSNull null],
             // The page's waveform data: null before any delivery.
             @"waveformFilled": [_waveformCoordinator snapshotAtIndex:index]

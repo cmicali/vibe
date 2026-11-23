@@ -1,21 +1,27 @@
-// A folder screen over a host that is not Vibe's: its bar draws the host's
+// The browser over a host that is not Vibe's. The root lists the host's
+// sources and its rows. Art draws through the browser's default cache and
+// holder. A folder screen's bar draws the host's
 // actions and words, a file's tap goes to the host, and a row's swipe hands
 // the row's URL to the host's selection action after lifting the row. The
 // host here offers Import in a sheet, as another app's would.
 
 #import "IOSSimTestCase.h"
 
-#import "AudioTrack.h"
+#import <AVFoundation/AVFoundation.h>
+
+#import "AudioTrackMetadata.h"
+#import "VibeBrowserArtHolder.h"
+
+#import "BrowserRootViewController.h"
 #import "FolderViewControllerInternal.h"
 
 @interface FakeBrowserHost : NSObject <VibeBrowserHost>
-@property (nonatomic, copy, nullable) NSString *playingPath;
-@property (nonatomic, copy, nullable) NSString *openingPath;
-@property (nonatomic) BOOL audioOutputActive;
 @property (nonatomic, copy, nullable) NSString *prompt;
 @property (nonatomic) BOOL showsCloseButton;
 @property (nonatomic) BOOL showsSortMenu;
 @property (nonatomic) VibeFolderOpenSort folderSort;
+@property (nonatomic, copy) NSArray<id<VibeBrowserSource>> *sources;
+@property (nonatomic, copy) NSArray<NSArray<VibeBrowserRootRow *> *> *rootSections;
 @property (nonatomic, readonly) NSMutableArray<NSURL *> *tapped;
 @property (nonatomic, readonly) NSMutableArray<NSArray<NSURL *> *> *imported;
 @end
@@ -28,6 +34,8 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
+        _sources = @[];
+        _rootSections = @[];
         _tapped = [NSMutableArray array];
         _imported = [NSMutableArray array];
         __weak FakeBrowserHost *weakSelf = self;
@@ -60,17 +68,6 @@
 
 - (NSString *)titleForSort:(VibeFolderOpenSort)sort {
     return @"sort";
-}
-
-- (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url {
-    return [AudioTrack withURL:url];
-}
-
-- (id<EqualizerLevelSource>)levelSource {
-    return nil;
-}
-
-- (void)addObserver:(id<VibeBrowserHostObserver>)observer {
 }
 
 - (void)screen:(UIViewController *)screen didTapFile:(NSURL *)url {
@@ -109,8 +106,8 @@
                                                  [NSUUID UUID].UUIDString] isDirectory:YES];
     [NSFileManager.defaultManager createDirectoryAtURL:_directory withIntermediateDirectories:YES
                                             attributes:nil error:NULL];
-    // A listing skips empty files. These are never parsed: the stack has no
-    // art cache.
+    // A listing skips empty files. The default cache parses these and finds
+    // nothing.
     NSData *bytes = [@"not audio" dataUsingEncoding:NSUTF8StringEncoding];
     for (NSString *name in @[@"one.mp3", @"two.mp3"]) {
         [bytes writeToURL:[_directory URLByAppendingPathComponent:name] atomically:YES];
@@ -121,9 +118,6 @@
     _importsAtLift = -1;
     _folder = [[FolderViewController alloc] initWithHost:_host
                                             directoryURL:_directory
-                                           stackArtCache:^AudioTrackMetadataCache *{
-        return nil;
-    }
                                             highlighting:nil
                                               holdsScope:NO];
     __weak FolderScreenHostTests *weakSelf = self;
@@ -164,6 +158,106 @@
     XCTAssertFalse([labels containsObject:[_host label:VibeBrowserLabelSort]], @"%@", labels);
     [_folder toggleSelecting];
     XCTAssertEqualObjects(_folder.navigationItem.title, @"0 to import");
+}
+
+- (void)testTheRootListsTheHostsSourcesAndOpensThem {
+    _host.sources = @[[VibeBrowserFolderSource sourceWithRootURL:_directory
+                                                           title:@"Library"
+                                                           image:[UIImage systemImageNamed:@"books.vertical"]]];
+    BrowserRootViewController *root = [[BrowserRootViewController alloc] initWithHost:_host];
+    UINavigationController *stack = [[UINavigationController alloc] initWithRootViewController:root];
+    self.window.rootViewController = stack;
+    [self.window layoutIfNeeded];
+    [root beginAppearanceTransition:YES animated:NO];
+    [root endAppearanceTransition];
+    NSIndexPath *first = [NSIndexPath indexPathForRow:0 inSection:0];
+    UITableViewCell *cell = [root tableView:root.tableView cellForRowAtIndexPath:first];
+    XCTAssertEqualObjects(((UIListContentConfiguration *)cell.contentConfiguration).text, @"Library");
+    [root tableView:root.tableView didSelectRowAtIndexPath:first];
+    XCTAssertTrue([self eventually:^BOOL {
+        return [stack.topViewController isKindOfClass:FolderViewController.class];
+    }]);
+}
+
+- (void)testTheRootDrawsTheHostsRowsAndHandsTheirTapTheRoot {
+    __block UIViewController *tappedOn = nil;
+    VibeBrowserRootRow *row = [VibeBrowserRootRow rowWithTitle:@"Import from a Computer"
+                                                          image:[UIImage systemImageNamed:@"desktopcomputer"]
+                                                        handler:^(UIViewController *screen) {
+        tappedOn = screen;
+    }];
+    row.isAction = YES;
+    _host.rootSections = @[@[row]];
+    BrowserRootViewController *root = [[BrowserRootViewController alloc] initWithHost:_host];
+    self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:root];
+    [self.window layoutIfNeeded];
+    XCTAssertEqual([root numberOfSectionsInTableView:root.tableView], 2);
+    NSIndexPath *imported = [NSIndexPath indexPathForRow:0 inSection:1];
+    UITableViewCell *cell = [root tableView:root.tableView cellForRowAtIndexPath:imported];
+    XCTAssertEqualObjects(((UIListContentConfiguration *)cell.contentConfiguration).text, @"Import from a Computer");
+    [root tableView:root.tableView didSelectRowAtIndexPath:imported];
+    XCTAssertEqual(tappedOn, root);
+}
+
+// A short M4A whose tag carries a cover, made with the system's encoder.
+- (NSURL *)songWithCoverNamed:(NSString *)name inDirectory:(NSURL *)directory {
+    NSURL *scratch = [NSURL fileURLWithPath:[VibeTestProcessRoot() stringByAppendingPathComponent:
+                                                     [NSUUID UUID].UUIDString]];
+    [NSFileManager.defaultManager createDirectoryAtURL:scratch withIntermediateDirectories:YES
+                                            attributes:nil error:NULL];
+    NSURL *source = [scratch URLByAppendingPathComponent:@"source.caf"];
+    AVAudioFormat *format = [[AVAudioFormat alloc] initStandardFormatWithSampleRate:44100 channels:2];
+    AVAudioFile *file = [[AVAudioFile alloc] initForWriting:source settings:format.settings error:NULL];
+    AVAudioPCMBuffer *silence = [[AVAudioPCMBuffer alloc] initWithPCMFormat:format frameCapacity:22050];
+    silence.frameLength = 22050;
+    [file writeFromBuffer:silence error:NULL];
+    file = nil;
+    UIImage *cover = [[[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(64, 64)]
+            imageWithActions:^(UIGraphicsImageRendererContext *context) {
+        [UIColor.systemRedColor setFill];
+        [context fillRect:CGRectMake(0, 0, 64, 64)];
+    }];
+    AVMutableMetadataItem *art = [AVMutableMetadataItem metadataItem];
+    art.identifier = AVMetadataIdentifieriTunesMetadataCoverArt;
+    art.dataType = (__bridge NSString *)kCMMetadataBaseDataType_PNG;
+    art.value = UIImagePNGRepresentation(cover);
+    AVAssetExportSession *export = [[AVAssetExportSession alloc]
+            initWithAsset:[AVURLAsset URLAssetWithURL:source options:nil] presetName:AVAssetExportPresetAppleM4A];
+    NSURL *song = [directory URLByAppendingPathComponent:name];
+    export.outputURL = song;
+    export.outputFileType = AVFileTypeAppleM4A;
+    export.metadata = @[art];
+    XCTestExpectation *exported = [self expectationWithDescription:@"export"];
+    [export exportAsynchronouslyWithCompletionHandler:^{
+        [exported fulfill];
+    }];
+    [self waitForExpectations:@[exported] timeout:30];
+    XCTAssertEqual(export.status, AVAssetExportSessionStatusCompleted, @"%@", export.error);
+    [NSFileManager.defaultManager removeItemAtURL:scratch error:NULL];
+    return song;
+}
+
+// The host gives neither a cache nor a holder: the browser's own draw the
+// file's cover in its row.
+- (void)testArtIsDrawnThroughTheDefaultCacheAndHolder {
+    NSURL *directory = [NSURL fileURLWithPath:[VibeTestProcessRoot() stringByAppendingPathComponent:
+                                                       [NSUUID UUID].UUIDString] isDirectory:YES];
+    [NSFileManager.defaultManager createDirectoryAtURL:directory withIntermediateDirectories:YES
+                                            attributes:nil error:NULL];
+    NSURL *song = [self songWithCoverNamed:@"cover.m4a" inDirectory:directory];
+    FolderViewController *folder = [[FolderViewController alloc] initWithHost:_host
+                                                                 directoryURL:directory
+                                                                 highlighting:nil
+                                                                   holdsScope:NO];
+    self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:folder];
+    [self.window layoutIfNeeded];
+    XCTAssertTrue([self eventually:^BOOL {
+        // The screen's holders by row, which the screen keeps private.
+        NSDictionary *holders = [folder valueForKey:@"_artTracks"];
+        id<AudioTrackMetadataHolder> holder = holders[song];
+        return [holder isKindOfClass:VibeBrowserArtHolder.class] && [holder.metadata cachedThumbnail] != nil;
+    }]);
+    [NSFileManager.defaultManager removeItemAtURL:directory error:NULL];
 }
 
 - (void)testAFileTapGoesToTheHost {

@@ -22,7 +22,8 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
-#import "FilesRootViewController.h"
+#import "BrowserRootViewController.h"
+#import "PlaybackBrowserHost.h"
 #import "FavoritesStore.h"
 #import "PlaylistViewController.h"
 #import "SearchViewController.h"
@@ -139,7 +140,7 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
     ui[@"selectedTab"] = self.selectedTabIdentifier;
     ui[@"libraryEmpty"] = @(playback.playlist.count == 0);
     // Open URL's paste row and sheet, on the add sheet's browser while it is up.
-    [ui addEntriesFromDictionary:[self.debugActiveBrowser debugLinkState] ?: @{}];
+    [ui addEntriesFromDictionary:[self.debugActiveTabRows debugLinkState] ?: @{}];
     state[@"ui"] = ui;
     state[@"settings"] = @{
         @"waveformStyle": AppSettings.sharedInstance.waveformStyle ?: @"",
@@ -346,15 +347,20 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
     [self.playback openLinkString:link replacingPlaylistFrom:self completion:completion];
 }
 
-- (FilesRootViewController *)debugActiveBrowser {
+- (BrowserRootViewController *)debugActiveBrowser {
     for (UIViewController *shown = self.presentedViewController; shown; shown = shown.presentedViewController) {
         UIViewController *first = [shown isKindOfClass:UINavigationController.class]
                 ? ((UINavigationController *)shown).viewControllers.firstObject : nil;
-        if ([first isKindOfClass:FilesRootViewController.class]) {
-            return (FilesRootViewController *)first;
+        if ([first isKindOfClass:BrowserRootViewController.class]) {
+            return (BrowserRootViewController *)first;
         }
     }
     return self.filesBrowser;
+}
+
+- (FilesTabRows *)debugActiveTabRows {
+    id<VibeBrowserHost> host = self.debugActiveBrowser.host;
+    return [(NSObject *)host isKindOfClass:PlaybackBrowserHost.class] ? ((PlaybackBrowserHost *)host).tabRows : nil;
 }
 
 - (AudioTrackMetadataCache *)debugMetadataCache {

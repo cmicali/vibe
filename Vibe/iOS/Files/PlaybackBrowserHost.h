@@ -10,14 +10,26 @@
 
 #import "VibeBrowserHost.h"
 
+@class BrowserRootViewController;
+@class FilesTabRows;
 @class PlaybackController;
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface PlaybackBrowserHost : NSObject <VibeBrowserHost>
+@interface PlaybackBrowserHost : NSObject <VibeBrowserPlaybackHost>
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback appending:(BOOL)appending NS_DESIGNATED_INITIALIZER;
+
+// The Files tab's root, or the Playlist tab's add sheet when appending: the
+// browser's root over a host of its own, titled for its tab.
++ (BrowserRootViewController *)rootWithPlayback:(PlaybackController *)playback appending:(BOOL)appending;
+
+// One of rootSections changed; the screens redraw it.
+- (void)rootSectionDidChange:(NSUInteger)section animated:(BOOL)animated;
 - (instancetype)init NS_UNAVAILABLE;
+
+// Vibe's groups below Locations, which rootSections answers.
+@property (nonatomic, readonly) FilesTabRows *tabRows;
 
 // A replace: a file alone, a file with its folder, a folder, or a pick of
 // several. In the add sheet the same pick is added.

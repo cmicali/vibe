@@ -14,6 +14,9 @@
 
 #import <Foundation/Foundation.h>
 
+// The roots' coverage rules are the browser's, which LocationStore reads.
+#import "BrowserRules.h"
+
 NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark - The screen's sections
@@ -104,54 +107,6 @@ static inline BOOL VibeSearchTrackMatchesQuery(NSString *_Nullable title,
     return VibeSearchTextMatchesQuery(title, query)
             || (artist.length > 0 && VibeSearchTextMatchesQuery(artist, query))
             || VibeSearchTextMatchesQuery(fileName, query);
-}
-
-// The root IS the path or contains it. Both must be standardized; no disk. The
-// separator on BOTH sides keeps "/Music" from covering "/Music Videos" while an
-// exact match still counts.
-static inline BOOL VibeSearchRootCoversPath(NSString *rootPath, NSString *path) {
-    if (rootPath.length == 0 || path.length == 0) {
-        return NO;
-    }
-    NSString *rootPrefix = [rootPath hasSuffix:@"/"] ? rootPath
-                                                     : [rootPath stringByAppendingString:@"/"];
-    NSString *pathPrefix = [path hasSuffix:@"/"] ? path : [path stringByAppendingString:@"/"];
-    return [pathPrefix hasPrefix:rootPrefix];
-}
-
-// LocationStore's merge keeps roots minimal: an existing ancestor absorbs a
-// candidate (an exact duplicate included), and a candidate ancestor removes
-// every descendant.
-static inline NSUInteger VibeSearchFolderCoveringRootIndex(
-        NSArray<NSString *> *rootPaths, NSString *candidatePath) {
-    for (NSUInteger index = 0; index < rootPaths.count; index++) {
-        if (VibeSearchRootCoversPath(rootPaths[index], candidatePath)) {
-            return index;
-        }
-    }
-    return NSNotFound;
-}
-
-static inline NSIndexSet *VibeSearchFolderIndexesCoveredByRoot(
-        NSArray<NSString *> *rootPaths, NSString *candidatePath) {
-    NSMutableIndexSet *covered = [NSMutableIndexSet indexSet];
-    for (NSUInteger index = 0; index < rootPaths.count; index++) {
-        if (VibeSearchRootCoversPath(candidatePath, rootPaths[index])) {
-            [covered addIndex:index];
-        }
-    }
-    return covered;
-}
-
-// A removed covering root suppresses only pending bookmarks inside it. A live
-// root that now covers the bookmark is an explicit re-add and wins over that
-// older removal.
-static inline BOOL VibeSearchPendingRestoreShouldBeSuppressed(
-        NSArray<NSString *> *suppressedRootPaths,
-        NSArray<NSString *> *liveRootPaths,
-        NSString *resolvedPath) {
-    return VibeSearchFolderCoveringRootIndex(suppressedRootPaths, resolvedPath) != NSNotFound
-            && VibeSearchFolderCoveringRootIndex(liveRootPaths, resolvedPath) == NSNotFound;
 }
 
 NS_ASSUME_NONNULL_END

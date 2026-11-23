@@ -345,7 +345,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // the system's Paste would. open and cancel are the bar's buttons.
             // Read dump_state.ui.linkSheet after.
             VibeDebugCmd(@"open_url_sheet show | type <text> | paste <text> | open | cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                FilesRootViewController *browser = controller.debugActiveBrowser;
+                BrowserRootViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
                 }
@@ -353,11 +353,12 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 NSString *text = tokens.count > 2
                         ? [[tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)] componentsJoinedByString:@" "]
                         : @"";
-                OpenURLSheetController *sheet = browser.debugLinkSheet;
+                FilesTabRows *rows = controller.debugActiveTabRows;
+                OpenURLSheetController *sheet = rows.debugLinkSheet;
                 UITextView *field = sheet.debugField;
                 if ([action isEqualToString:@"show"]) {
                     if (!field) {
-                        [browser presentLinkSheet];
+                        [rows presentLinkSheetFromScreen:browser];
                     }
                     return VibeJSONString(@{@"ok": @YES});
                 }
@@ -391,14 +392,15 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // pasteItemProviders:, handed what a clipboard read would. A real
             // read of another app's copy raises the system's prompt.
             VibeDebugCmd(@"paste_link <text>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                FilesRootViewController *browser = controller.debugActiveBrowser;
+                BrowserRootViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
                 }
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: paste_link <text>");
                 }
-                [browser pasteItemProviders:@[VibeDebugPasteProvider(VibeRestArgument(tokens))]];
+                [controller.debugActiveTabRows pasteItemProviders:@[VibeDebugPasteProvider(VibeRestArgument(tokens))]
+                                                       fromScreen:browser];
                 return VibeJSONString(@{@"ok": @YES});
             }),
             VibeDebugCmd(@"select_tab <playlist|favorites|files|search>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
@@ -414,7 +416,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // pushes and a file plays alone. play is the bar's play button.
             // back pops. Every form answers the top screen's rows.
             VibeDebugCmd(@"browse [show <directory> | tap <name> | play | back]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                FilesRootViewController *browser = controller.filesBrowser;
+                BrowserRootViewController *browser = controller.filesBrowser;
                 UINavigationController *stack = browser.navigationController;
                 if (!stack) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");

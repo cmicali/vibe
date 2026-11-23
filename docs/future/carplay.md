@@ -63,7 +63,7 @@ The new directory and types below need a complexity-budget exception before work
 - `Vibe/iOS/VibeiOSAppDelegate.{h,m}`: owns `PlaybackController`.
 - `Vibe/iOS/VibeiOSSceneDelegate.m`: borrows it.
 - `Vibe/iOS/CarPlay/` (new): the `CPTemplateApplicationSceneDelegate` and the template controllers, with a `PlaybackObserver` between them.
-- `Vibe/iOS/Files/LocationStore` and `Vibe/iOS/Search/FileSearchIndex`: reused by the templates.
+- vibe-libs' `ui/FilesBrowser/LocationStore` and `Vibe/iOS/Search/FileSearchIndex`: reused by the templates.
 - vibe-libs' `system/NowPlaying/NowPlayingController.m`: the CarPlay-scoped skip commands.
 - `Vibe/Common/VibeStrings.h`: every template title and label. Run `make strings` after.
 - `Vibe/iOS/AGENTS.md`: the multi-scene paragraph and a CarPlay section.

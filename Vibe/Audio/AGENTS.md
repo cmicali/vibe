@@ -53,7 +53,7 @@ The file handle it reads through, with the decoders it hosts, is vibe-libs' `aud
 
 **Vibe's row, `AudioTrack`, is the metadata's holder** (`Playlist/AGENTS.md`). It adopts `AudioTrackMetadataHolder` and memoizes its cache key. Tags beat analysis on the row alone (root `AGENTS.md`).
 
-**Each shell owns one `AudioTrackMetadataCache`**, rooted in the user's Caches directory (`init`): the mac's `MainPlayerController` (`+Construction`) and the iOS `PlaybackController`. The iOS Files tab keeps one more for its browser's art (`FilesRootViewController`). It sends only rows whose audio is not on the device to `loadCachedMetadata:` (`FolderViewController+Art.m`).
+**Each shell owns one `AudioTrackMetadataCache`**, rooted in the user's Caches directory (`init`): the mac's `MainPlayerController` (`+Construction`) and the iOS `PlaybackController`. The iOS Files tab's browser keeps one more for its art (`VibeBrowserArtCache`, in vibe-libs' `ui/FilesBrowser`, whose doc has its traps).
 
 **Each shell removes the stores other builds left, once per launch.** Its app delegate passes the two stores' names to vibe-libs' `files/DiskCache`, whose rule and downgrade cost are in its `AGENTS.md`. A new store version in vibe-libs needs no edit here.
 

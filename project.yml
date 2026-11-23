@@ -486,15 +486,15 @@ targets:
   VibeiOS:
     type: application
     platform: iOS
-    # VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, and VibeLibsTaglib:
-    # see the Vibe target.
+    # VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib,
+    # VibeLibsFilesBrowser, and VibeLibsPlayerCard: see the Vibe target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
                 VibeLibsFileLoading, VibeLibsHTTP, VibeLibsRemoteFiles, VibeLibsShareLinks, VibeLibsDropbox, VibeLibsDecode,
                 VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
-                VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsRows, VibeLibsPlayerCard, VibeLibsNowPlaying, VibeLibsDebugChannel,
-                VibeLibsDebugVerbs, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsPINCache,
-                VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsRows, VibeLibsNowPlaying, VibeLibsDebugChannel,
+                VibeLibsDebugVerbs, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsFilesBrowser,
+                VibeLibsPlayerCard, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -836,7 +836,8 @@ targets:
       - path: Vibe/iOS/FolderSession.m
       - path: Vibe/iOS/FolderSession+ExternalOpens.m
       - path: Vibe/iOS/FolderSession+Persistence.m
-      - path: Vibe/iOS/Files/LocationStore.m
+      - path: vibe-libs/ui/FilesBrowser/LocationStore.m
+      - path: Vibe/iOS/Files/LocationStore+Vibe.m   # the shell tests install Vibe's keys and names
       - path: Vibe/iOS/Files/RecentsStore.m
       - path: Vibe/iOS/Search/FavoritesStore.m
       - path: Vibe/iOS/Search/DropboxSearch.m
@@ -914,6 +915,8 @@ targets:
           - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/vibe-libs/files/Dropbox"
+          # LocationStore and BrowserRules.h, both Foundation only.
+          - "$(SRCROOT)/vibe-libs/ui/FilesBrowser"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/vibe-libs/files/SandboxAccess/Mac"
           - "$(SRCROOT)/Vibe/Playlist"
