@@ -5,7 +5,7 @@
 
 #import "VibeiOSSceneDelegate.h"
 #import "AudioTrack.h"
-#import "BrowserRules.h"
+#import "FilesTabRules.h"
 #import "LinkStore.h"
 #import "LocationStore.h"
 #import "PlaybackController.h"

@@ -6,8 +6,9 @@
 //  no model class of the app's. It reads what its rows show from a host, and
 //  every row and selection action is a value the host supplies: its title,
 //  its glyph, and what it does with the rows. So one app offers Play and Add
-//  to Playlist, and another offers Import. Its words, its sort setting, and
-//  the holders its art loads into are the host's too.
+//  to Playlist, and another offers Import. Its words, its sort setting, the
+//  holders its art loads into, and the sources beside the granted folders
+//  are the host's too.
 //
 //  Main thread only.
 //
@@ -16,6 +17,7 @@
 
 #import "FolderOpenSort.h"
 
+@class AudioTrackMetadataCache;
 @protocol AudioTrackMetadataHolder;
 @protocol EqualizerLevelSource;
 
@@ -49,28 +51,70 @@ typedef NS_ENUM(NSInteger, VibeBrowserLabel) {
     VibeBrowserLabelEmptyFolder,      // a folder with nothing to show or play
     VibeBrowserLabelUnavailable,      // a listing that could not be refreshed
     VibeBrowserLabelOK,
+    VibeBrowserLabelLocations,        // the root's first group
+    VibeBrowserLabelAddLocation,      // the plus's VoiceOver label
+    VibeBrowserLabelAddFolder,        // the plus's item that grants a folder
+    VibeBrowserLabelAddFolderCaption,
+    VibeBrowserLabelLocationCovered,  // a granted folder some location covers
+    VibeBrowserLabelRemoveLocation,
 };
 
-// What changed in the host. Each screen redraws what it shows.
+// A place the root lists before the granted folders: the app's Documents, a
+// cloud mirror. Main thread only.
+@protocol VibeBrowserSource <NSObject>
+// Nil while it has nothing to show, such as a signed-out account. The root
+// reads it when it reloads.
+@property (nonatomic, readonly, nullable) NSURL *rootURL;
+@property (nonatomic, readonly, copy) NSString *title;
+@property (nonatomic, readonly, copy, nullable) NSString *subtitle;
+@property (nonatomic, readonly) UIImage *image;
+@optional
+// Both or neither. A folder this source lists from elsewhere, such as a
+// mirror, is drawn from disk and then refreshed. refreshesDirectoryURL:
+// answers without touching the disk. The refresh completes on main, with nil
+// or the reason the listing failed.
+- (BOOL)refreshesDirectoryURL:(NSURL *)url;
+- (void)refreshDirectoryURL:(NSURL *)url completion:(void (^)(NSError *_Nullable error))completion;
+// Both or neither. The plus's item while rootURL is nil, such as Connect to
+// Dropbox. connected runs on main once rootURL is there to show; a failure
+// is the source's to report.
+@property (nonatomic, readonly, copy) NSString *connectTitle;
+- (void)connectFromScreen:(UIViewController *)screen connected:(dispatch_block_t)connected;
+@end
+
+// A source that is one folder, always there.
+@interface VibeBrowserFolderSource : NSObject <VibeBrowserSource>
++ (instancetype)sourceWithRootURL:(NSURL *)rootURL title:(NSString *)title image:(UIImage *)image;
+- (instancetype)init NS_UNAVAILABLE;
+@property (nonatomic, readonly) NSURL *rootURL;
+@end
+
+// What changed in the host. Each screen redraws what it shows, and answers
+// only what it shows.
 @protocol VibeBrowserHostObserver <NSObject>
+@optional
 - (void)browserHostPlayingFileDidChange;
 - (void)browserHostPlayStateDidChange;
 - (void)browserHostOpeningDidChange;
+// A source came or went. The root reloads, and a screen of a source with no
+// root left goes back to it.
+- (void)browserHostSourcesDidChange;
+// Files of a refreshing source changed on disk, such as a finished download.
+- (void)browserHostSourceFilesDidChange;
 @end
+
+@protocol VibeBrowserHost;
+
+// An alert over screen with the host's OK. then runs on OK.
+FOUNDATION_EXTERN void VibeBrowserPresentAlert(UIViewController *screen, id<VibeBrowserHost> host, NSString *title,
+                                               NSString *message, dispatch_block_t _Nullable then);
 
 @protocol VibeBrowserHost <NSObject>
 
-#pragma mark What the rows show
+#pragma mark Where the files are
 
-// Comparable paths (VibeComparablePath). The playing file's row carries the
-// equalizer, and the row being opened spins.
-@property (nonatomic, readonly, copy, nullable) NSString *playingPath;
-@property (nonatomic, readonly, copy, nullable) NSString *openingPath;
-// Whether audio is coming out, and what the equalizer reads its levels from.
-@property (nonatomic, readonly) BOOL audioOutputActive;
-@property (nonatomic, readonly, nullable) id<EqualizerLevelSource> levelSource;
-// Held weakly.
-- (void)addObserver:(id<VibeBrowserHostObserver>)observer;
+// Listed first at the root, in order, before the granted folders.
+@property (nonatomic, readonly, copy) NSArray<id<VibeBrowserSource>> *sources;
 
 #pragma mark How the screens look and read
 
@@ -88,9 +132,6 @@ typedef NS_ENUM(NSInteger, VibeBrowserLabel) {
 // The order every listing and walk uses. The sort menu writes it.
 @property (nonatomic) VibeFolderOpenSort folderSort;
 - (NSString *)titleForSort:(VibeFolderOpenSort)sort;
-// The holder a file row's album art loads into, through the stack's metadata
-// cache.
-- (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url;
 
 #pragma mark The actions
 
@@ -109,6 +150,30 @@ typedef NS_ENUM(NSInteger, VibeBrowserLabel) {
 // A row's long press. Asked each time the menu opens.
 - (NSArray<VibeBrowserAction *> *)menuActionsForURL:(NSURL *)url isFolder:(BOOL)isFolder;
 
+@optional
+
+// Held weakly, by a host whose state changes: its playback or its sources.
+- (void)addBrowserObserver:(id<VibeBrowserHostObserver>)observer;
+
+#pragma mark Album art
+
+// The stack's one metadata cache, asked only once a row needs art. Without
+// it, every file row shows its tile.
+@property (nonatomic, readonly) AudioTrackMetadataCache *artCache;
+// The holder a file row's art loads into. A VibeBrowserArtHolder without it.
+- (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url;
+
+@end
+
+// A host that plays. The playing file's row carries the equalizer, and the
+// row being opened spins. A host that is not one shows neither.
+@protocol VibeBrowserPlaybackHost <VibeBrowserHost>
+// Comparable paths (VibeComparablePath).
+@property (nonatomic, readonly, copy, nullable) NSString *playingPath;
+@property (nonatomic, readonly, copy, nullable) NSString *openingPath;
+// Whether audio is coming out, and what the equalizer reads its levels from.
+@property (nonatomic, readonly) BOOL audioOutputActive;
+@property (nonatomic, readonly, nullable) id<EqualizerLevelSource> levelSource;
 @end
 
 NS_ASSUME_NONNULL_END

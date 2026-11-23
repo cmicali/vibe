@@ -5,16 +5,18 @@
 
 #import "FolderViewControllerInternal.h"
 #import "AudioTrackMetadata.h"
+#import "VibeBrowserArtHolder.h"
 
 // Rows past each end of the screen whose art is asked for with the visible ones.
 static const NSInteger kArtRowMargin = 20;
 
 @implementation FolderViewController (Art)
 
-// The stack's one cache, asked of the root only once a row needs art.
+// The stack's one cache, asked of the host only once a row needs art. Nil
+// from a host with no art: every row keeps its tile.
 - (AudioTrackMetadataCache *)stackArtCache {
-    if (!_artCache) {
-        _artCache = _stackArtCache();
+    if (!_artCache && [_host respondsToSelector:@selector(artCache)]) {
+        _artCache = _host.artCache;
     }
     return _artCache;
 }
@@ -22,7 +24,7 @@ static const NSInteger kArtRowMargin = 20;
 // TRAP: send remote and dataless rows only to loadCachedMetadata:.
 // A normal cache miss would fetch tags or download the file just to browse it.
 - (void)loadArtForVisibleRows {
-    if (_songFiles.count == 0 || !self.viewIfLoaded.window) {
+    if (_songFiles.count == 0 || !self.viewIfLoaded.window || ![_host respondsToSelector:@selector(artCache)]) {
         return;
     }
     [self.tableView layoutIfNeeded];
@@ -51,7 +53,8 @@ static const NSInteger kArtRowMargin = 20;
             if (!_artTracks) {
                 _artTracks = [NSMutableDictionary dictionary];
             }
-            track = [_host artHolderForFileURL:url];
+            track = [_host respondsToSelector:@selector(artHolderForFileURL:)]
+                    ? [_host artHolderForFileURL:url] : [[VibeBrowserArtHolder alloc] initWithURL:url];
             _artTracks[url] = track;
         }
         if (track.metadata) {

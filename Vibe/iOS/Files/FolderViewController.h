@@ -12,21 +12,18 @@
 
 #import <UIKit/UIKit.h>
 
-@class AudioTrackMetadataCache;
 @protocol VibeBrowserHost;
 
 NS_ASSUME_NONNULL_BEGIN
 
 @interface FolderViewController : UITableViewController
 
-// The host supplies what the screen shows and does. stackArtCache answers
-// the stack's one metadata cache. It is asked only once a row needs art.
-// Open Folder hands the last screen of its stack the file to highlight, and
+// The host supplies what the screen shows and does, and the stack's album
+// art. Open Folder hands the last screen of its stack the file to highlight, and
 // a screen for a folder no source covers holds its scope (holdsScope),
 // stopped when the screen goes.
 - (instancetype)initWithHost:(id<VibeBrowserHost>)host
                 directoryURL:(NSURL *)directoryURL
-               stackArtCache:(AudioTrackMetadataCache *(^)(void))stackArtCache
                 highlighting:(nullable NSURL *)file
                   holdsScope:(BOOL)holdsScope NS_DESIGNATED_INITIALIZER;
 - (instancetype)initWithStyle:(UITableViewStyle)style NS_UNAVAILABLE;

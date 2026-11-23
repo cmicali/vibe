@@ -1,21 +1,20 @@
-// A folder screen over a host that is not Vibe's: its bar draws the host's
+// The browser over a host that is not Vibe's. The root lists the host's
+// sources. A folder screen's bar draws the host's
 // actions and words, a file's tap goes to the host, and a row's swipe hands
 // the row's URL to the host's selection action after lifting the row. The
 // host here offers Import in a sheet, as another app's would.
 
 #import "IOSSimTestCase.h"
 
-#import "AudioTrack.h"
+#import "BrowserRootViewController.h"
 #import "FolderViewControllerInternal.h"
 
 @interface FakeBrowserHost : NSObject <VibeBrowserHost>
-@property (nonatomic, copy, nullable) NSString *playingPath;
-@property (nonatomic, copy, nullable) NSString *openingPath;
-@property (nonatomic) BOOL audioOutputActive;
 @property (nonatomic, copy, nullable) NSString *prompt;
 @property (nonatomic) BOOL showsCloseButton;
 @property (nonatomic) BOOL showsSortMenu;
 @property (nonatomic) VibeFolderOpenSort folderSort;
+@property (nonatomic, copy) NSArray<id<VibeBrowserSource>> *sources;
 @property (nonatomic, readonly) NSMutableArray<NSURL *> *tapped;
 @property (nonatomic, readonly) NSMutableArray<NSArray<NSURL *> *> *imported;
 @end
@@ -28,6 +27,7 @@
 - (instancetype)init {
     self = [super init];
     if (self) {
+        _sources = @[];
         _tapped = [NSMutableArray array];
         _imported = [NSMutableArray array];
         __weak FakeBrowserHost *weakSelf = self;
@@ -60,17 +60,6 @@
 
 - (NSString *)titleForSort:(VibeFolderOpenSort)sort {
     return @"sort";
-}
-
-- (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url {
-    return [AudioTrack withURL:url];
-}
-
-- (id<EqualizerLevelSource>)levelSource {
-    return nil;
-}
-
-- (void)addObserver:(id<VibeBrowserHostObserver>)observer {
 }
 
 - (void)screen:(UIViewController *)screen didTapFile:(NSURL *)url {
@@ -121,9 +110,6 @@
     _importsAtLift = -1;
     _folder = [[FolderViewController alloc] initWithHost:_host
                                             directoryURL:_directory
-                                           stackArtCache:^AudioTrackMetadataCache *{
-        return nil;
-    }
                                             highlighting:nil
                                               holdsScope:NO];
     __weak FolderScreenHostTests *weakSelf = self;
@@ -164,6 +150,25 @@
     XCTAssertFalse([labels containsObject:[_host label:VibeBrowserLabelSort]], @"%@", labels);
     [_folder toggleSelecting];
     XCTAssertEqualObjects(_folder.navigationItem.title, @"0 to import");
+}
+
+- (void)testTheRootListsTheHostsSourcesAndOpensThem {
+    _host.sources = @[[VibeBrowserFolderSource sourceWithRootURL:_directory
+                                                           title:@"Library"
+                                                           image:[UIImage systemImageNamed:@"books.vertical"]]];
+    BrowserRootViewController *root = [[BrowserRootViewController alloc] initWithHost:_host];
+    UINavigationController *stack = [[UINavigationController alloc] initWithRootViewController:root];
+    self.window.rootViewController = stack;
+    [self.window layoutIfNeeded];
+    [root beginAppearanceTransition:YES animated:NO];
+    [root endAppearanceTransition];
+    NSIndexPath *first = [NSIndexPath indexPathForRow:0 inSection:0];
+    UITableViewCell *cell = [root tableView:root.tableView cellForRowAtIndexPath:first];
+    XCTAssertEqualObjects(((UIListContentConfiguration *)cell.contentConfiguration).text, @"Library");
+    [root tableView:root.tableView didSelectRowAtIndexPath:first];
+    XCTAssertTrue([self eventually:^BOOL {
+        return [stack.topViewController isKindOfClass:FolderViewController.class];
+    }]);
 }
 
 - (void)testAFileTapGoesToTheHost {

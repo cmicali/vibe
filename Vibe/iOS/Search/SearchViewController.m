@@ -8,6 +8,7 @@
 #import "AudioTrack.h"
 #import "AudioTrackMetadata.h"
 #import "BrowserRules.h"
+#import "FilesTabRules.h"
 #import "DropboxMirror+Shared.h"
 #import "DropboxRules.h"
 #import "DropboxSearch.h"
@@ -660,28 +661,28 @@ static const NSUInteger kMaxFileResults = 200;
     id hit = [self hitAtIndexPath:indexPath];
     BOOL folder = [hit isKindOfClass:NSDictionary.class]
             && VibeDropboxEntryKindOf(hit) == VibeDropboxEntryKindFolder;
-    VibeBrowserRowActions actions = VibeBrowserRowActionsFor(folder, NO, NO, YES);
+    VibeFilesTabRowActions actions = VibeFilesTabRowActionsFor(folder, NO, NO, YES);
     __weak SearchViewController *weakSelf = self;
     return [UIContextMenuConfiguration configurationWithIdentifier:nil
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
         NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
-        if (actions & VibeBrowserRowActionPlay) {
+        if (actions & VibeFilesTabRowActionPlay) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
                 [weakSelf openHit:hit inFolder:NO];
             })];
         }
-        if (actions & VibeBrowserRowActionPlayInFolder) {
+        if (actions & VibeFilesTabRowActionPlayInFolder) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
                 [weakSelf openHit:hit inFolder:YES];
             })];
         }
-        if (actions & VibeBrowserRowActionAddToPlaylist) {
+        if (actions & VibeFilesTabRowActionAddToPlaylist) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
                 [weakSelf addHit:hit];
             })];
         }
-        if (actions & VibeBrowserRowActionOpenFolder) {
+        if (actions & VibeFilesTabRowActionOpenFolder) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
                 [weakSelf showFolderOfHit:hit];
             })];

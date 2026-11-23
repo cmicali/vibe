@@ -8,7 +8,6 @@
 #import "AudioTrackMetadata.h"
 #import "AudioTrackMetadataCache.h"
 #import "BrowserRules.h"
-#import "DropboxMirror+Shared.h"
 #import "EqualizerIndicatorView.h"
 #import "FileRow.h"
 #import "FilePaths.h"
@@ -38,14 +37,12 @@ static const NSUInteger kFilterThreshold = 12;
 
 - (instancetype)initWithHost:(id<VibeBrowserHost>)host
                 directoryURL:(NSURL *)directoryURL
-               stackArtCache:(AudioTrackMetadataCache *(^)(void))stackArtCache
                 highlighting:(NSURL *)file
                   holdsScope:(BOOL)holdsScope {
     self = [super initWithStyle:UITableViewStylePlain];
     if (self) {
         _host = host;
         _directoryURL = [directoryURL copy];
-        _stackArtCache = [stackArtCache copy];
         _highlightURL = [file copy];
         _holdsScope = holdsScope;
         _allFolders = @[];
@@ -57,10 +54,12 @@ static const NSUInteger kFilterThreshold = 12;
         // TRAP: nothing here may touch the disk. A screen is made on main as
         // a folder opens, and for a provider's folder a stat or a name lookup
         // is IPC that can block.
-        _dropboxPath = [DropboxMirror.shared dropboxPathForURL:directoryURL];
+        _refreshingSource = [self refreshingSourceForURL:directoryURL];
         _standardizedPath = VibeComparablePath(directoryURL.path);
         _title = [LocationStore displayNameForFolderURL:directoryURL];
-        _playingPath = host.playingPath;
+        _playback = [host conformsToProtocol:@protocol(VibeBrowserPlaybackHost)]
+                ? (id<VibeBrowserPlaybackHost>)host : nil;
+        _playingPath = _playback.playingPath;
     }
     return self;
 }
@@ -70,10 +69,6 @@ static const NSUInteger kFilterThreshold = 12;
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(artThumbnailDidLoad:)
                                                name:AudioTrackMetadataThumbnailDidLoadNotification
-                                             object:nil];
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(dropboxDownloadsDidChange:)
-                                               name:VibeDropboxDownloadsDidChangeNotification
                                              object:nil];
     if (_host.showsCloseButton) {
         _closeItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemClose
@@ -136,11 +131,9 @@ static const NSUInteger kFilterThreshold = 12;
     UIRefreshControl *refresh = [[UIRefreshControl alloc] init];
     [refresh addTarget:self action:@selector(refreshDirectory) forControlEvents:UIControlEventValueChanged];
     self.refreshControl = refresh;
-    [_host addObserver:self];
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(sourcesDidChange:)
-                                               name:VibeDropboxAccountDidChangeNotification
-                                             object:DropboxMirror.shared.client];
+    if ([_host respondsToSelector:@selector(addBrowserObserver:)]) {
+        [_host addBrowserObserver:self];
+    }
 }
 
 - (void)dealloc {
@@ -155,11 +148,11 @@ static const NSUInteger kFilterThreshold = 12;
     _viewPresentationVisible = YES;
     // The track can change while this screen sits unloaded under another, so
     // the playing row is read again before the equalizer is placed.
-    _playingPath = _host.playingPath;
+    _playingPath = _playback.playingPath;
     [self syncEqualizer];
     [self reloadFromDisk];
-    if (_dropboxPath && CFAbsoluteTimeGetCurrent() - _listedAt > kRelistInterval) {
-        [self refreshFromDropbox];
+    if (_refreshingSource && CFAbsoluteTimeGetCurrent() - _listedAt > kRelistInterval) {
+        [self refreshFromSource];
     }
 }
 
@@ -187,18 +180,28 @@ static const NSUInteger kFilterThreshold = 12;
     }
 }
 
+// Asked in the initializer, so it never touches the disk.
+- (id<VibeBrowserSource>)refreshingSourceForURL:(NSURL *)url {
+    for (id<VibeBrowserSource> source in _host.sources) {
+        if ([source respondsToSelector:@selector(refreshesDirectoryURL:)] && [source refreshesDirectoryURL:url]) {
+            return source;
+        }
+    }
+    return nil;
+}
+
 // A download landed, or the downloads were removed: the mark and the art
 // follow the file, so a mirrored folder on screen reads its listing again.
-- (void)dropboxDownloadsDidChange:(NSNotification *)notification {
-    if (_dropboxPath && self.viewIfLoaded.window) {
+- (void)browserHostSourceFilesDidChange {
+    if (_refreshingSource && self.viewIfLoaded.window) {
         [self reloadFromDisk];
     }
 }
 
-// The account went or came. A pushed Dropbox folder of a signed-out account
-// has nothing left to show. The stack goes back to the root.
-- (void)sourcesDidChange:(NSNotification *)notification {
-    if (_dropboxPath && !DropboxMirror.shared.client.isLinked) {
+// The account went or came. A pushed folder of a signed-out account has
+// nothing left to show. The stack goes back to the root.
+- (void)browserHostSourcesDidChange {
+    if (_refreshingSource && !_refreshingSource.rootURL) {
         [self.navigationController popToRootViewControllerAnimated:NO];
     }
 }
@@ -273,24 +276,25 @@ static const NSUInteger kFilterThreshold = 12;
     });
 }
 
-// Pull to refresh: Dropbox is asked again; any other folder is relisted.
+// Pull to refresh: a refreshing source is asked again; any other folder is
+// relisted.
 - (void)refreshDirectory {
-    if (_dropboxPath) {
-        [self refreshFromDropbox];
+    if (_refreshingSource) {
+        [self refreshFromSource];
     }
     else {
         [self reloadFromDisk];
     }
 }
 
-- (void)refreshFromDropbox {
+- (void)refreshFromSource {
     if (_refreshing) {
         return;
     }
     _refreshing = YES;
     [self refreshEmptyState];
     __weak FolderViewController *weakSelf = self;
-    [DropboxMirror.shared refreshDropboxFolder:_dropboxPath completion:^(NSURL *folderURL, NSError *error) {
+    [_refreshingSource refreshDirectoryURL:_directoryURL completion:^(NSError *error) {
         FolderViewController *strongSelf = weakSelf;
         if (!strongSelf) {
             return;
@@ -301,7 +305,7 @@ static const NSUInteger kFilterThreshold = 12;
         strongSelf->_listedAt = error ? 0 : CFAbsoluteTimeGetCurrent();
         [strongSelf.refreshControl endRefreshing];
         if (error) {
-            LogWarn(@"Dropbox: could not list %@: %@", strongSelf->_directoryURL.lastPathComponent,
+            LogWarn(@"Browser: could not list %@: %@", strongSelf->_directoryURL.lastPathComponent,
                     error.localizedDescription);
         }
         [strongSelf reloadFromDisk];
@@ -415,33 +419,23 @@ static const NSUInteger kFilterThreshold = 12;
         strongSelf->_walkingSubfolders = NO;
         id<VibeBrowserHost> host = strongSelf->_host;
         if (folders.count == 0) {
-            [strongSelf presentAlertWithMessage:[host label:VibeBrowserLabelEmptyFolder] then:nil];
+            VibeBrowserPresentAlert(strongSelf, host, strongSelf->_title, [host label:VibeBrowserLabelEmptyFolder], nil);
             return;
         }
         if (!capped) {
             open(folders);
             return;
         }
-        [strongSelf presentAlertWithMessage:[host subfoldersCappedMessageForLimit:kMaximumSubfolderTracks] then:^{
+        VibeBrowserPresentAlert(strongSelf, host, strongSelf->_title,
+                                [host subfoldersCappedMessageForLimit:kMaximumSubfolderTracks], ^{
             open(folders);
-        }];
+        });
     }];
 }
 
-// Titled with the folder's name. then runs on OK.
-- (void)presentAlertWithMessage:(NSString *)message then:(nullable dispatch_block_t)then {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:_title
-                                                                   message:message
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:[_host label:VibeBrowserLabelOK]
-                                              style:UIAlertActionStyleDefault
-                                            handler:then ? ^(UIAlertAction *action) { then(); } : nil]];
-    [self presentViewController:alert animated:YES completion:nil];
-}
-
-// One folder per turn. A Dropbox folder is listed from Dropbox first: the
-// mirror holds only what something has listed, so one never browsed is empty
-// on disk. Completion on main; capped means folders were left unvisited.
+// One folder per turn. A refreshing source's folder, such as Dropbox's, is
+// listed by its source first: a mirror holds only what something has listed,
+// so one never browsed is empty on disk. Completion on main; capped means folders were left unvisited.
 - (void)walkSubfolders:(NSMutableArray<NSURL *> *)pending
                  found:(NSMutableArray<NSURL *> *)found
                 tracks:(NSUInteger)tracks
@@ -475,9 +469,9 @@ static const NSUInteger kFilterThreshold = 12;
     };
     // The open that follows reads a listed folder as it is, so each is
     // listed once.
-    NSString *dropboxPath = [DropboxMirror.shared dropboxPathForURL:directory];
-    if (dropboxPath) {
-        [DropboxMirror.shared refreshDropboxFolder:dropboxPath completion:^(NSURL *folderURL, NSError *error) {
+    id<VibeBrowserSource> source = [self refreshingSourceForURL:directory];
+    if (source) {
+        [source refreshDirectoryURL:directory completion:^(NSError *error) {
             list();
         }];
     }
@@ -536,7 +530,6 @@ static const NSUInteger kFilterThreshold = 12;
 - (void)pushDirectory:(NSURL *)url {
     FolderViewController *folder = [[FolderViewController alloc] initWithHost:_host
                                                                  directoryURL:url
-                                                                stackArtCache:_stackArtCache
                                                                  highlighting:nil
                                                                    holdsScope:NO];
     folder.addedRowsHandler = _addedRowsHandler;
@@ -555,7 +548,7 @@ static const NSUInteger kFilterThreshold = 12;
         return [url.lastPathComponent isEqualToString:name];
     }];
     if (row == NSNotFound) {
-        return;   // a Dropbox folder not listed yet: the relist's landing tries again
+        return;   // a mirrored folder not listed yet: the relist's landing tries again
     }
     _highlightURL = nil;
     NSIndexPath *indexPath = [NSIndexPath indexPathForRow:(NSInteger)row inSection:VibeBrowserSectionFiles];
@@ -573,7 +566,7 @@ static const NSUInteger kFilterThreshold = 12;
 #pragma mark - VibeBrowserHostObserver
 
 - (void)browserHostPlayingFileDidChange {
-    _playingPath = _host.playingPath;
+    _playingPath = _playback.playingPath;
     if (self.viewIfLoaded.window && ![self isSelecting]) {
         [self.tableView reloadData];
     }
@@ -654,7 +647,7 @@ static const NSUInteger kFilterThreshold = 12;
         equalizer.audioOutputActive = NO;
     }
     cell.accessoryView = accessory;
-    [cell vibeApplyRowContent:content opening:[path isEqualToString:_host.openingPath]];
+    [cell vibeApplyRowContent:content opening:[path isEqualToString:_playback.openingPath]];
     return cell;
 }
 
@@ -667,7 +660,7 @@ static const NSUInteger kFilterThreshold = 12;
 
 - (EqualizerIndicatorView *)makeEqualizer {
     EqualizerIndicatorView *equalizer = [[EqualizerIndicatorView alloc] initWithFrame:CGRectMake(0, 0, 16, 14)];
-    equalizer.levelSource = _host.levelSource;
+    equalizer.levelSource = _playback.levelSource;
     return equalizer;
 }
 
@@ -685,7 +678,7 @@ static const NSUInteger kFilterThreshold = 12;
     for (UITableViewCell *cell in self.tableView.visibleCells) {
         if ([cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]) {
             EqualizerIndicatorView *equalizer = (EqualizerIndicatorView *)cell.accessoryView;
-            equalizer.audioOutputActive = _host.audioOutputActive;
+            equalizer.audioOutputActive = _playback.audioOutputActive;
             equalizer.presentationVisible = surface && [cell vibeIsInViewportOfTableView:self.tableView];
         }
     }
