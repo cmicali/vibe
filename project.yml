@@ -486,9 +486,8 @@ targets:
   VibeiOS:
     type: application
     platform: iOS
-    # VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, and VibeLibsTaglib:
-    # see the Vibe target. VibeLibsFilesBrowser lists Metadata, so it comes
-    # after VibeLibsVorbis too.
+    # VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, and
+    # VibeLibsFilesBrowser: see the Vibe target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
                 VibeLibsFileLoading, VibeLibsHTTP, VibeLibsRemoteFiles, VibeLibsShareLinks, VibeLibsDropbox, VibeLibsDecode,
                 VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
@@ -916,8 +915,7 @@ targets:
           - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/vibe-libs/files/Dropbox"
-          # The Locations store and the browser's header-only rules, which are
-          # Foundation only.
+          # LocationStore and BrowserRules.h, both Foundation only.
           - "$(SRCROOT)/vibe-libs/ui/FilesBrowser"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/vibe-libs/files/SandboxAccess/Mac"

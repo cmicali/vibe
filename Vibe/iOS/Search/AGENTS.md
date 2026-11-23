@@ -46,7 +46,7 @@ Starred folders, drawn as the Files tab draws a folder row (`FileRow`'s `vibeApp
 
 **Add to Playlist and Remove from Favorites are each reached twice**, since a context menu should never be the only road to an action. The long press gives Play, Add to Playlist and Remove from Favorites. A leading swipe gives Add. The trailing swipe is the system Delete (`canEditRowAtIndexPath:` plus `commitEditingStyle:`), which UIKit draws and localizes itself. Remove acts on the favorite's own path, never the row index, because the list can move while the menu is up.
 
-**A favorite is a place to go, not a grant to hold**, so this store is smaller than `LocationStore` (`../Files/AGENTS.md`):
+**A favorite is a place to go, not a grant to hold**, so this store is smaller than `LocationStore` (vibe-libs' `ui/FilesBrowser`):
 
 - **Nothing resolves and no scope starts until a tap**, or until the search screen appears. Rows draw from the name and location recorded at star time, so favorites cost no provider I/O at launch.
 - **Nesting is allowed**, so identity is exact standardized-path equality. `VibeSearchRootCoversPath` would be the bug here.
