@@ -45,7 +45,7 @@ Vibe/
     About/             the About window
     Convert/           the FLAC encoder and its file round trip
   iOS/                 the iOS app shell: PlaybackController, FolderSession, the tabs
-    Files/             the Files tab: browser, Recents, and Locations
+    Files/             the Files tab's host and rows, and Recents; the browser is vibe-libs'
     Player/            the now-playing card
     Search/            Favorites and Search
     Settings/          the settings screens
@@ -126,6 +126,8 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 `ui/DropWells` holds the mac's drop wells, which the playlist pane's `PlaylistDropZoneView` shows over the rows while files are dragged over the window.
 
 `ui/Rows` holds the iOS track row, the file row pieces, and the mini player strip. They draw a `VibeTrackRow` that the app fills from `AudioTrack`.
+
+`ui/FilesBrowser` holds the iOS Files tab's browser and the Locations store, `LocationStore`. Vibe hands it a host, `PlaybackBrowserHost`, with Vibe's actions, words, sources, and rows (`Vibe/iOS/Files/AGENTS.md`).
 
 `files/HTTP` holds the ranged HTTP transfers. `files/RemoteFiles` keeps a file on a server as a local placeholder, fetched by range. `files/ShareLinks` holds the rules for opening a web link, the share links it turns into direct URLs, and the stand-in for a web server. `system/NowPlaying` holds the bridge to the system's Now Playing info and remote commands. `system/AppOpening` holds the mac's open coalescer and coordinator. `system/Updates` holds `VibeUpdater`, Sparkle for the direct download. `dev/DebugChannel` holds the debug channel's transport, the command and reply files. `dev/iOSDriver` holds the touch driver for the iOS simulator. AppOpening and Updates are macOS only too. Only the mac app lists them. iOSDriver is iOS only. Only the `VibeiOSDriver` target lists it.
 
