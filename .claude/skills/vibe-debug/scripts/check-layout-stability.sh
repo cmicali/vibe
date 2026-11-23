@@ -4,7 +4,8 @@
 # strip, and the insets they are laid out against) every frame, runs the
 # gesture through drive-ios.sh, and fails if any anchor took more than one
 # value. What scales under the card is a snapshot; a moving anchor is the
-# layout jump this exists to catch (Vibe/iOS/AGENTS.md, the backdrop TRAP).
+# layout jump this exists to catch (vibe-libs' ui/TabShell/AGENTS.md, the
+# backdrop TRAP).
 #
 # Usage: check-layout-stability.sh [--seconds N] <drive-ios.sh gesture ...>
 #   check-layout-stability.sh tap 150 760                 # expand the card by the strip
