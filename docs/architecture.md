@@ -46,7 +46,6 @@ Vibe/
     Convert/           the FLAC encoder and its file round trip
   iOS/                 the iOS app shell: PlaybackController, FolderSession, the tabs
     Files/             the Files tab's host and rows, and Recents; the browser is vibe-libs'
-    Player/            the now-playing card
     Search/            Favorites and Search
     Settings/          the settings screens
     Widget/            the app's side of the Home Screen widget
@@ -105,7 +104,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### The iOS shell
 
-`Vibe/iOS/` is the iPhone and iPad app shell. The playlist starts from a folder, file, or playlist file and can hold additions. `PlaybackController` is the model. It owns the `AudioPlayer`, the `VibePlaylist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`, from vibe-libs' `ui/Rows`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Player/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The iOS halves of shared subsystems live with those subsystems, such as `Loading/iOS/Dropbox/`. The scrubber is vibe-libs' `waveform/WaveformView`. Read next: `Vibe/iOS/AGENTS.md`.
+`Vibe/iOS/` is the iPhone and iPad app shell. The playlist starts from a folder, file, or playlist file and can hold additions. `PlaybackController` is the model. It owns the `AudioPlayer`, the `VibePlaylist`, the metadata cache, the audio session, and Now Playing. It draws nothing, and every screen borrows it. `FolderSession` owns the locations the user picked: their security scopes, their bookmarks, and their listing. `PlaybackController+Opening` joins the two. `RootViewController` holds the tabs, the mini player (`MiniPlayerView`, from vibe-libs' `ui/Rows`), and the now-playing card. `PlaylistViewController` is the Playlist tab. `Files/`, `Search/`, `Settings/`, and `Widget/` each have their own doc. The now-playing card is vibe-libs' `ui/PlayerCard`. The iOS halves of shared subsystems live with those subsystems, such as `Loading/iOS/Dropbox/`. The scrubber is vibe-libs' `waveform/WaveformView`. Read next: `Vibe/iOS/AGENTS.md`.
 
 ### The widget
 
@@ -304,7 +303,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | Sandbox folder grants on macOS | `vibe-libs/files/SandboxAccess/AGENTS.md`, `Mac/App/AGENTS.md` (Sandbox grants) | `vibe-libs/files/SandboxAccess/Mac/FolderAccessManager.m` |
 | Updates through Sparkle | `Mac/App/AGENTS.md` (Updates), `vibe-libs/system/Updates/AGENTS.md` | `vibe-libs/system/Updates/Mac/VibeUpdater.m` |
 | The iOS model and opening folders | `iOS/AGENTS.md` | `iOS/PlaybackController.m`, `iOS/FolderSession.m` |
-| The iOS now-playing card | `iOS/Player/AGENTS.md`, `vibe-libs/waveform/WaveformView/AGENTS.md` | `iOS/Player/PlayerViewController.m` |
+| The iOS now-playing card | `vibe-libs/ui/PlayerCard/AGENTS.md`, `iOS/AGENTS.md` (The now-playing card), `vibe-libs/waveform/WaveformView/AGENTS.md` | `vibe-libs/ui/PlayerCard/PlayerViewController.m`, `iOS/VibeiOSAppDelegate.m` |
 | The iOS Files tab, Favorites, Search, or settings | the `AGENTS.md` in `iOS/Files/`, `iOS/Search/`, or `iOS/Settings/` | that directory |
 | The widget | `VibeWidget/AGENTS.md`, `iOS/Widget/AGENTS.md` | `iOS/Widget/WidgetPublisher.m` |
 | The lock screen and media keys | `vibe-libs/system/NowPlaying/AGENTS.md` | `vibe-libs/system/NowPlaying/NowPlayingController.m` |

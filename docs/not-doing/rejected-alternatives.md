@@ -10,7 +10,7 @@ An advisory check before starting a download leaves a race between the check and
 
 ## A smaller iOS now-playing window: Picture in Picture
 
-Picture in Picture is a video affordance. It is not a suitable way to make a compact music-player window. The mac-like strip is reached by width, not height (`Vibe/iOS/Player/AGENTS.md`).
+Picture in Picture is a video affordance. It is not a suitable way to make a compact music-player window. The mac-like strip is reached by width, not height (vibe-libs' `ui/PlayerCard/AGENTS.md`).
 
 ## Chapters in M4A and M4B as rows
 
