@@ -1,8 +1,8 @@
 // vibe-libs' tab shell (ui/TabShell). Its tests are Vibe's, because they need
 // a hosted app. The root's card fold, driven through the delegate calls the
 // strip and the card make: expanded, animating and dragging resolve to the
-// tabs hidden or shown, the backdrop snapshot present or gone, and the strip
-// wanted.
+// tabs hidden or shown, the backdrop snapshot present or gone, the strip
+// wanted, and the delegate told as the card's expanded state changes.
 
 #import "IOSSimTestCase.h"
 
@@ -14,6 +14,28 @@
 #import "VibePlaylist.h"
 #import "RootViewController.h"
 
+// Stands in as the root's delegate: notes cardExpanded at each exposure call,
+// and forwards every call to the host.
+@interface ExposureRecorder : NSObject
+@property (nonatomic, weak) id host;
+@property (nonatomic) NSUInteger calls;
+@property (nonatomic) BOOL lastSawExpanded;
+@end
+
+@implementation ExposureRecorder
+- (void)rootViewControllerDidChangeExposure:(RootViewController *)root {
+    self.calls += 1;
+    self.lastSawExpanded = root.cardExpanded;
+    [self.host rootViewControllerDidChangeExposure:root];
+}
+- (BOOL)respondsToSelector:(SEL)selector {
+    return [super respondsToSelector:selector] || [self.host respondsToSelector:selector];
+}
+- (id)forwardingTargetForSelector:(SEL)selector {
+    return self.host;
+}
+@end
+
 @interface RootViewControllerTests : IOSSimTestCase
 @end
 
@@ -21,6 +43,7 @@
     FakePlayback *_playback;
     PlaybackShellHost *_host;
     RootViewController *_root;
+    ExposureRecorder *_recorder;
 }
 
 - (void)setUp {
@@ -41,6 +64,8 @@
 }
 
 - (void)tearDown {
+    _root.delegate = (id<RootViewControllerDelegate>)_host;
+    _recorder = nil;
     _root = nil;
     _host = nil;
     [super tearDown];
@@ -180,6 +205,40 @@
     [self pan:100 velocity:0 state:UIGestureRecognizerStateBegan];
     XCTAssertNil(self.snapshot);
     XCTAssertTrue(self.card.view.hidden);
+}
+
+#pragma mark - The delegate
+
+- (void)recordExposure {
+    _recorder = [[ExposureRecorder alloc] init];
+    _recorder.host = _host;
+    _root.delegate = (id<RootViewControllerDelegate>)_recorder;
+}
+
+// The drag's snapshot is still up when the minimize starts, so the delegate
+// must hear from the minimize itself, not only when the spring ends.
+- (void)testADragThatMinimizesTellsTheDelegateAtOnce {
+    [self expandAndSettle];
+    CGFloat height = _root.view.bounds.size.height;
+    [self pan:height * 0.5 velocity:0 state:UIGestureRecognizerStateBegan];
+    [self pan:height * 0.5 velocity:0 state:UIGestureRecognizerStateChanged];
+    [self recordExposure];
+    [self pan:height * 0.5 velocity:0 state:UIGestureRecognizerStateEnded];
+    XCTAssertFalse(_root.cardExpanded);
+    XCTAssertGreaterThan(_recorder.calls, 0u, @"heard before the spring ends");
+    XCTAssertFalse(_recorder.lastSawExpanded);
+}
+
+// An interrupted move keeps its snapshot too, so the expand that interrupts
+// it tells the delegate itself.
+- (void)testAnExpandThatInterruptsAMinimizeTellsTheDelegateAtOnce {
+    [self expandAndSettle];
+    [(id<PlayerViewControllerDelegate>)_host playerViewControllerDidRequestMinimize:self.card];
+    [self recordExposure];
+    [self expand];
+    XCTAssertTrue(_root.cardExpanded);
+    XCTAssertGreaterThan(_recorder.calls, 0u, @"heard before the spring ends");
+    XCTAssertTrue(_recorder.lastSawExpanded);
 }
 
 #pragma mark - The strip

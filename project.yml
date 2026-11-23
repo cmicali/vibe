@@ -494,7 +494,8 @@ targets:
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsRows, VibeLibsNowPlaying, VibeLibsDebugChannel,
                 VibeLibsDebugVerbs, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsFilesBrowser,
-                VibeLibsPlayerCard, VibeLibsTabShell, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsPlayerCard, VibeLibsTabShell, VibeLibsWidget, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3,
+                VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -629,8 +630,8 @@ targets:
 
   # The home-screen widget. A SECOND PROCESS: no engine, no playlist, no audio
   # session, and it never opens an audio file. Everything it draws is the
-  # snapshot the app publishes into the shared app group, which is why its only
-  # shared sources are VibeWidgetState's pair, the group's name, and the
+  # snapshot the app publishes into the shared app group, which is why it takes
+  # only vibe-libs' system/WidgetState, and shares only the group's name and the
   # intents — named file by file, because the rest of Vibe/iOS/Widget/ is
   # app-side code that reaches for app classes.
   #
@@ -642,11 +643,13 @@ targets:
   VibeWidget:
     type: app-extension
     platform: iOS
+    # The snapshot, Foundation only; it lists no other template.
+    templates: [VibeLibsWidgetState]
+    templateAttributes:
+      excludedPlatform: Mac
     sources:
       - path: VibeWidget
         excludes: ["**/.DS_Store", "**/*.md", "**/Info.plist"]
-      - path: Vibe/iOS/Widget/VibeWidgetState.h
-      - path: Vibe/iOS/Widget/VibeWidgetState.m
       - path: Vibe/iOS/Widget/VibeWidgetGroup.h
       # Shared with the app, which installs what the bodies act on. The
       # extension needs the TYPES so its buttons can name them.
@@ -837,7 +840,6 @@ targets:
       - path: Vibe/iOS/Files/RecentsStore.m
       - path: Vibe/iOS/Search/FavoritesStore.m
       - path: Vibe/iOS/Search/DropboxSearch.m
-      - path: Vibe/iOS/Widget/VibeWidgetState.m
       - path: Vibe/Common/AppStats.m   # FolderSession counts opens
       - path: vibe-libs/files/Dropbox/DropboxClient.m
       - path: vibe-libs/files/Dropbox/DropboxMirror.m

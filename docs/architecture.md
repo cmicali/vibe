@@ -108,7 +108,7 @@ vibe-libs' `files/FileLoading` takes a path and hands back a readable `AudioFile
 
 ### The widget
 
-`VibeWidget/` is the Home Screen and Lock Screen widget extension, written in Swift. It has no engine and never reads an audio file. It draws the `VibeWidgetState` snapshot the app writes into a shared app group. The app's writer is `Vibe/iOS/Widget/WidgetPublisher`. Read next: `VibeWidget/AGENTS.md` and `Vibe/iOS/Widget/AGENTS.md`.
+`VibeWidget/` is the Home Screen and Lock Screen widget extension, written in Swift. It has no engine and never reads an audio file. It draws the `VibeWidgetState` snapshot the app writes into a shared app group. The snapshot and its writer, `WidgetPublisher`, are vibe-libs' `system/WidgetState` and `system/Widget`. Read next: `VibeWidget/AGENTS.md` and `Vibe/iOS/Widget/AGENTS.md`.
 
 ### vibe-libs
 
@@ -305,7 +305,7 @@ Read `vibe-libs/audio/Player/AGENTS.md` ("Prefetch and gapless") and `vibe-libs/
 | The iOS model and opening folders | `iOS/AGENTS.md` | `iOS/PlaybackController.m`, `iOS/FolderSession.m` |
 | The iOS now-playing card | `vibe-libs/ui/PlayerCard/AGENTS.md`, `iOS/AGENTS.md` (The now-playing card), `vibe-libs/waveform/WaveformView/AGENTS.md` | `vibe-libs/ui/PlayerCard/PlayerViewController.m`, `iOS/VibeiOSAppDelegate.m` |
 | The iOS Files tab, Favorites, Search, or settings | the `AGENTS.md` in `iOS/Files/`, `iOS/Search/`, or `iOS/Settings/` | that directory |
-| The widget | `VibeWidget/AGENTS.md`, `iOS/Widget/AGENTS.md` | `iOS/Widget/WidgetPublisher.m` |
+| The widget | `VibeWidget/AGENTS.md`, `iOS/Widget/AGENTS.md`, vibe-libs' `system/Widget/AGENTS.md` | vibe-libs' `system/Widget/iOS/WidgetPublisher.m` |
 | The lock screen and media keys | `vibe-libs/system/NowPlaying/AGENTS.md` | `vibe-libs/system/NowPlaying/NowPlayingController.m` |
 | A debug command | the `vibe-debug` skill, `Debug/AGENTS.md` | `Debug/Verbs/`, `Debug/Mac/`, `Debug/iOS/` |
 | Tests | `Tests/AGENTS.md` | the `Tests/` directory that matches the code |
