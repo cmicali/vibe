@@ -12,11 +12,10 @@ static const NSInteger kArtRowMargin = 20;
 
 @implementation FolderViewController (Art)
 
-// The stack's one cache, asked of the host only once a row needs art. Nil
-// from a host with no art: every row keeps its tile.
+// The stack's one cache, asked only once a row needs art.
 - (AudioTrackMetadataCache *)stackArtCache {
-    if (!_artCache && [_host respondsToSelector:@selector(artCache)]) {
-        _artCache = _host.artCache;
+    if (!_artCache) {
+        _artCache = VibeBrowserArtCache(_host);
     }
     return _artCache;
 }
@@ -24,7 +23,7 @@ static const NSInteger kArtRowMargin = 20;
 // TRAP: send remote and dataless rows only to loadCachedMetadata:.
 // A normal cache miss would fetch tags or download the file just to browse it.
 - (void)loadArtForVisibleRows {
-    if (_songFiles.count == 0 || !self.viewIfLoaded.window || ![_host respondsToSelector:@selector(artCache)]) {
+    if (_songFiles.count == 0 || !self.viewIfLoaded.window) {
         return;
     }
     [self.tableView layoutIfNeeded];

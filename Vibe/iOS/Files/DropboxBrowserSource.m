@@ -46,6 +46,10 @@
     }];
 }
 
+- (NSString *)unavailableMessage {
+    return STR_BROWSER_DROPBOX_UNAVAILABLE;
+}
+
 - (NSString *)connectTitle {
     return STR_SETTINGS_DROPBOX_CONNECT;
 }

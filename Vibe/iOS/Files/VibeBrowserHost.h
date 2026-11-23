@@ -75,6 +75,9 @@ typedef NS_ENUM(NSInteger, VibeBrowserLabel) {
 // or the reason the listing failed.
 - (BOOL)refreshesDirectoryURL:(NSURL *)url;
 - (void)refreshDirectoryURL:(NSURL *)url completion:(void (^)(NSError *_Nullable error))completion;
+// What a folder of this source says when its refresh failed. The host's
+// VibeBrowserLabelUnavailable without it.
+@property (nonatomic, readonly, copy) NSString *unavailableMessage;
 // Both or neither. The plus's item while rootURL is nil, such as Connect to
 // Dropbox. connected runs on main once rootURL is there to show; a failure
 // is the source's to report.
@@ -89,6 +92,26 @@ typedef NS_ENUM(NSInteger, VibeBrowserLabel) {
 @property (nonatomic, readonly) NSURL *rootURL;
 @end
 
+// One row the host adds to the root, below Locations.
+@interface VibeBrowserRootRow : NSObject
+
++ (instancetype)rowWithTitle:(NSString *)title
+                       image:(UIImage *)image
+                     handler:(void (^)(UIViewController *screen))handler;
+- (instancetype)init NS_UNAVAILABLE;
+
+@property (nonatomic, readonly, copy) NSString *title;
+@property (nonatomic, readonly) UIImage *image;
+// Gets the root it was tapped on, which the app may present from.
+@property (nonatomic, readonly, copy) void (^handler)(UIViewController *screen);
+// Drawn in the tint with no disclosure: the row does something, rather than
+// going somewhere.
+@property (nonatomic) BOOL isAction;
+// The row spins in its icon slot.
+@property (nonatomic) BOOL spinning;
+
+@end
+
 // What changed in the host. Each screen redraws what it shows, and answers
 // only what it shows.
 @protocol VibeBrowserHostObserver <NSObject>
@@ -101,9 +124,15 @@ typedef NS_ENUM(NSInteger, VibeBrowserLabel) {
 - (void)browserHostSourcesDidChange;
 // Files of a refreshing source changed on disk, such as a finished download.
 - (void)browserHostSourceFilesDidChange;
+// One of the host's rootSections changed. The root redraws it.
+- (void)browserHostRootSectionDidChange:(NSUInteger)section animated:(BOOL)animated;
 @end
 
 @protocol VibeBrowserHost;
+
+// The stack's one metadata cache, which the browser makes for the host the
+// first time a row needs art. One per host, so one per stack of screens.
+FOUNDATION_EXTERN AudioTrackMetadataCache *VibeBrowserArtCache(id<VibeBrowserHost> host);
 
 // An alert over screen with the host's OK. then runs on OK.
 FOUNDATION_EXTERN void VibeBrowserPresentAlert(UIViewController *screen, id<VibeBrowserHost> host, NSString *title,
@@ -152,14 +181,17 @@ FOUNDATION_EXTERN void VibeBrowserPresentAlert(UIViewController *screen, id<Vibe
 
 @optional
 
-// Held weakly, by a host whose state changes: its playback or its sources.
+// Groups below Locations, asked whenever the root's table reads them.
+- (NSArray<NSArray<VibeBrowserRootRow *> *> *)rootSections;
+// The root is about to show, such as for a check its rows depend on.
+- (void)rootWillAppear:(UIViewController *)root;
+
+// Held weakly, by a host whose state changes: its playback, its sources, or
+// its root rows.
 - (void)addBrowserObserver:(id<VibeBrowserHostObserver>)observer;
 
 #pragma mark Album art
 
-// The stack's one metadata cache, asked only once a row needs art. Without
-// it, every file row shows its tile.
-@property (nonatomic, readonly) AudioTrackMetadataCache *artCache;
 // The holder a file row's art loads into. A VibeBrowserArtHolder without it.
 - (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url;
 

@@ -30,10 +30,15 @@ extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 // The Locations rows, in order; grows as launch restorations settle.
 @property (nonatomic, readonly) NSArray<NSURL *> *folderURLs;
 
-// The device's model name as iOS gives it (iPhone, iPad), for Documents'
-// "On My iPhone". The app delegate sets it from UIDevice at launch, so this
-// store needs no UIKit. Main thread only.
-@property (class, nonatomic, copy) NSString *deviceModelName;
+// Once at launch, before the store is first used. The defaults keys the
+// grants and their pending removals are stored under, and the name of a root
+// the store cannot name itself, such as the app's Documents or a mirror's
+// root. rootNamer answers nil for the store's own naming. It is asked on
+// main with the folder's comparable path (VibeComparablePath), and it must
+// never touch the disk.
++ (void)configureWithBookmarksKey:(NSString *)bookmarksKey
+                  suppressionsKey:(NSString *)suppressionsKey
+                        rootNamer:(nullable NSString *_Nullable (^)(NSURL *url, NSString *path))rootNamer;
 
 // The app's own Documents directory, readable with no grant.
 @property (class, nonatomic, readonly) NSURL *containerDocumentsURL;
@@ -52,9 +57,8 @@ extern NSNotificationName const VibeSearchFoldersDidChangeNotification;
 - (void)removeFolderAtIndex:(NSUInteger)index;
 
 // Main only, and never the disk. The one name a folder is shown under,
-// wherever it is named: the two roots with no name of their own on disk read
-// "On My iPhone" and "Dropbox", a location its name resolved with its
-// bookmark, and any other folder its own path component.
+// wherever it is named: the app's rootNamer first, then a location's name
+// resolved with its bookmark, and any other folder its own path component.
 + (NSString *)displayNameForFolderURL:(NSURL *)url;
 
 @end

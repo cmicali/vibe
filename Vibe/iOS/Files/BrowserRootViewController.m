@@ -9,7 +9,6 @@
 
 #import "BrowserRules.h"
 #import "FileRow.h"
-#import "FileSearchRules.h"
 #import "FilePaths.h"
 #import "FolderViewController.h"
 #import "LocationStore.h"
@@ -18,28 +17,10 @@
 static NSString *const kSourceCellIdentifier = @"source";
 static NSString *const kActionCellIdentifier = @"action";
 
-@implementation VibeBrowserRootRow
-
-+ (instancetype)rowWithTitle:(NSString *)title image:(UIImage *)image handler:(dispatch_block_t)handler {
-    VibeBrowserRootRow *row = [[self alloc] initPrivate];
-    row->_title = [title copy];
-    row->_image = image;
-    row->_handler = [handler copy];
-    return row;
-}
-
-- (instancetype)initPrivate {
-    return [super init];
-}
-
-@end
-
-@interface BrowserRootViewController () <VibeBrowserHostObserver>
+@interface BrowserRootViewController () <VibeBrowserHostObserver, UIDocumentPickerDelegate>
 @end
 
 @implementation BrowserRootViewController {
-    // What every folder screen of the stack reads and acts through.
-    id<VibeBrowserHost> _host;
     // The picker that grants a location, while it is up.
     __weak UIDocumentPickerViewController *_locationPicker;
     // The sources that had a root when the root last reloaded. The rows read
@@ -86,6 +67,9 @@ static NSString *const kActionCellIdentifier = @"action";
 }
 
 - (void)viewWillAppear:(BOOL)animated {
+    if ([_host respondsToSelector:@selector(rootWillAppear:)]) {
+        [_host rootWillAppear:self];
+    }
     [super viewWillAppear:animated];
     [self reloadSources];
 }
@@ -230,13 +214,17 @@ static NSString *const kActionCellIdentifier = @"action";
 
 #pragma mark - Table
 
-- (NSArray<NSArray<VibeBrowserRootRow *> *> *)appSections {
-    return @[];
+// The host's groups below Locations.
+// What every folder screen of the stack reads and acts through.
+@synthesize host = _host;
+
+- (NSArray<NSArray<VibeBrowserRootRow *> *> *)rootSections {
+    return [_host respondsToSelector:@selector(rootSections)] ? [_host rootSections] : @[];
 }
 
-- (void)reloadAppSection:(NSUInteger)index animated:(BOOL)animated {
+- (void)browserHostRootSectionDidChange:(NSUInteger)section animated:(BOOL)animated {
     if (self.viewIfLoaded.window) {
-        [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:index + 1]
+        [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:section + 1]
                       withRowAnimation:animated ? UITableViewRowAnimationFade : UITableViewRowAnimationNone];
     }
 }
@@ -246,7 +234,7 @@ static NSString *const kActionCellIdentifier = @"action";
     if (indexPath.section == 0) {
         return nil;
     }
-    NSArray<NSArray<VibeBrowserRootRow *> *> *sections = [self appSections];
+    NSArray<NSArray<VibeBrowserRootRow *> *> *sections = [self rootSections];
     NSUInteger section = (NSUInteger)indexPath.section - 1;
     if (section >= sections.count || (NSUInteger)indexPath.row >= sections[section].count) {
         return nil;
@@ -274,14 +262,14 @@ static NSString *const kActionCellIdentifier = @"action";
 }
 
 - (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView {
-    return (NSInteger)[self appSections].count + 1;
+    return (NSInteger)[self rootSections].count + 1;
 }
 
 - (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
     if (section == 0) {
         return (NSInteger)(_shownSources.count + LocationStore.shared.folderURLs.count);
     }
-    NSArray<NSArray<VibeBrowserRootRow *> *> *sections = [self appSections];
+    NSArray<NSArray<VibeBrowserRootRow *> *> *sections = [self rootSections];
     return (NSUInteger)section - 1 < sections.count ? (NSInteger)sections[(NSUInteger)section - 1].count : 0;
 }
 
@@ -358,9 +346,9 @@ static NSString *const kActionCellIdentifier = @"action";
         [self pushDirectory:location];
     }
     else {
-        dispatch_block_t handler = [self appRowAtIndexPath:indexPath].handler;
+        void (^handler)(UIViewController *) = [self appRowAtIndexPath:indexPath].handler;
         if (handler) {
-            handler();
+            handler(self);
         }
     }
 }

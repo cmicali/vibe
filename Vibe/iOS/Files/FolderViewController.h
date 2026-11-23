@@ -4,7 +4,7 @@
 //
 //  One directory of the Files tab, or of the Playlist tab's add sheet: its
 //  folders, then its M3U playlists, then its playable files. The root
-//  (FilesRootViewController) pushes the first, and each pushes the next.
+//  (BrowserRootViewController) pushes the first, and each pushes the next.
 //
 //  What a row shows and what its actions do come from the stack's host
 //  (VibeBrowserHost.h).

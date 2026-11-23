@@ -837,6 +837,7 @@ targets:
       - path: Vibe/iOS/FolderSession+ExternalOpens.m
       - path: Vibe/iOS/FolderSession+Persistence.m
       - path: Vibe/iOS/Files/LocationStore.m
+      - path: Vibe/iOS/Files/LocationStore+Vibe.m   # the shell tests install Vibe's keys and names
       - path: Vibe/iOS/Files/RecentsStore.m
       - path: Vibe/iOS/Search/FavoritesStore.m
       - path: Vibe/iOS/Search/DropboxSearch.m

@@ -4,6 +4,7 @@
 #import "IOSShellTestCase.h"
 
 #import "FilePaths.h"
+#import "LocationStore+Vibe.h"
 #import "LocationStoreInternal.h"
 
 @interface LocationStoreTests : IOSShellTestCase
@@ -86,7 +87,7 @@
 #pragma mark - Naming
 
 - (void)testAFolderIsNamedWithoutTheDisk {
-    LocationStore.deviceModelName = @"iPad";
+    [LocationStore installVibeWithDeviceModelName:@"iPad"];
     XCTAssertEqualObjects([LocationStore displayNameForFolderURL:LocationStore.containerDocumentsURL],
                           @"On My iPad");
     NSURL *folder = [self folder:@"Some Folder"];
@@ -94,6 +95,15 @@
     [self add:folder];
     XCTAssertEqualObjects([LocationStore displayNameForFolderURL:folder], @"Some Folder",
                           @"a location by the name resolved with its bookmark");
+}
+
+- (void)testWithNoRootNamerDocumentsIsItsDirectoryName {
+    [LocationStore configureWithBookmarksKey:@"VibeiOSSearchFolderBookmarks"
+                             suppressionsKey:@"VibeiOSSearchFolderRestoreSuppressions"
+                                   rootNamer:nil];
+    XCTAssertEqualObjects([LocationStore displayNameForFolderURL:LocationStore.containerDocumentsURL],
+                          LocationStore.containerDocumentsURL.lastPathComponent);
+    [LocationStore installVibeWithDeviceModelName:@"iPhone"];
 }
 
 #pragma mark - Persistence

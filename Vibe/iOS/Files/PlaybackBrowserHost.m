@@ -7,11 +7,12 @@
 
 #import "AppSettings.h"
 #import "AudioTrack.h"
-#import "AudioTrackMetadataCache.h"
+#import "BrowserRootViewController.h"
 #import "DropboxBrowserSource.h"
 #import "DropboxMirror+Shared.h"
 #import "FavoritesStore.h"
 #import "FilePaths.h"
+#import "FilesTabRows.h"
 #import "FilesTabRules.h"
 #import "LocationStore.h"
 #import "PlaybackController.h"
@@ -27,12 +28,12 @@
     PlaybackController *_playback;
     BOOL _appending;
     NSHashTable<id<VibeBrowserHostObserver>> *_observers;
-    AudioTrackMetadataCache *_artCache;
 }
 
 @synthesize selectionAction = _selectionAction;
 @synthesize folderAction = _folderAction;
 @synthesize sources = _sources;
+@synthesize tabRows = _tabRows;
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback appending:(BOOL)appending {
     self = [super init];
@@ -40,6 +41,7 @@
         _playback = playback;
         _appending = appending;
         _observers = [NSHashTable weakObjectsHashTable];
+        _tabRows = [[FilesTabRows alloc] initWithPlayback:playback appending:appending host:self];
         __weak PlaybackBrowserHost *weakSelf = self;
         _selectionAction = [VibeBrowserAction actionWithTitle:STR_MENU_CONTEXT_ADD_TO_PLAYLIST
                                                        symbol:@"text.badge.plus"
@@ -86,6 +88,15 @@
 // follow the file.
 - (void)dropboxDownloadsDidChange:(NSNotification *)notification {
     [self notifyObservers:@selector(browserHostSourceFilesDidChange)];
+}
+
++ (BrowserRootViewController *)rootWithPlayback:(PlaybackController *)playback appending:(BOOL)appending {
+    BrowserRootViewController *root = [[BrowserRootViewController alloc]
+            initWithHost:[[PlaybackBrowserHost alloc] initWithPlayback:playback appending:appending]];
+    // The add sheet says what a tap in it does: it is the Files tab's twin,
+    // and there a tap plays.
+    root.navigationItem.title = appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : STR_TAB_FILES;
+    return root;
 }
 
 #pragma mark - How the screens look and read
@@ -147,16 +158,6 @@
     return VibeFolderOpenSortDisplayName(sort);
 }
 
-// One cache for a stack of folders, made by the first screen that needs it:
-// each cache opens its own store, which lists the whole metadata cache
-// directory when made.
-- (AudioTrackMetadataCache *)artCache {
-    if (!_artCache) {
-        _artCache = [[AudioTrackMetadataCache alloc] init];
-    }
-    return _artCache;
-}
-
 - (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url {
     return [AudioTrack withURL:url];
 }
@@ -181,6 +182,22 @@
 
 - (void)addBrowserObserver:(id<VibeBrowserHostObserver>)observer {
     [_observers addObject:observer];
+}
+
+- (NSArray<NSArray<VibeBrowserRootRow *> *> *)rootSections {
+    return _tabRows.sections;
+}
+
+- (void)rootWillAppear:(UIViewController *)root {
+    [_tabRows rootWillAppear:root];
+}
+
+- (void)rootSectionDidChange:(NSUInteger)section animated:(BOOL)animated {
+    for (id<VibeBrowserHostObserver> observer in _observers.allObjects) {
+        if ([observer respondsToSelector:@selector(browserHostRootSectionDidChange:animated:)]) {
+            [observer browserHostRootSectionDidChange:section animated:animated];
+        }
+    }
 }
 
 // Only the observers that answer it: the source events are optional.
