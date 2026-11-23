@@ -22,7 +22,7 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     NSURL *_directoryURL;
 
     // A directory's whole listing, in the folder-open order. Which of the
-    // files are Dropbox placeholders, and each file's size, are found with the
+    // files are remote placeholders, and each file's size, are found with the
     // listing, off main. The M3U playlists lead the files, and a folder
     // holding nothing else has no song for the play button to play.
     NSArray<NSURL *> *_allFolders;
@@ -44,12 +44,12 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     NSArray<NSURL *> *_files;
     // Stamped on each disk listing, so a slow one cannot overwrite a newer.
     uint64_t _listingGeneration;
-    // The Dropbox folder this directory mirrors ("" for the root), nil
-    // outside the mirror: listed from disk at once, then refreshed.
-    NSString *_dropboxPath;
+    // The source that lists this directory from elsewhere, such as Dropbox,
+    // nil for any other: listed from disk at once, then refreshed.
+    id<VibeBrowserSource> _refreshingSource;
     BOOL _refreshing;
     NSError *_refreshError;
-    // When this screen last listed its folder from Dropbox; a reappearance
+    // When this screen last had its source list its folder; a reappearance
     // within kRelistInterval shows the disk alone.
     CFAbsoluteTime _listedAt;
     // Open Folder's file, shown and briefly selected once the listing lands.

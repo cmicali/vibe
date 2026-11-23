@@ -7,9 +7,12 @@
 
 #import "AppSettings.h"
 #import "AudioTrack.h"
-#import "BrowserRules.h"
+#import "DropboxBrowserSource.h"
+#import "DropboxMirror+Shared.h"
 #import "FavoritesStore.h"
 #import "FilePaths.h"
+#import "FilesTabRules.h"
+#import "LocationStore.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "SettingsRules.h"
@@ -27,6 +30,7 @@
 
 @synthesize selectionAction = _selectionAction;
 @synthesize folderAction = _folderAction;
+@synthesize sources = _sources;
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback appending:(BOOL)appending {
     self = [super init];
@@ -47,9 +51,39 @@
                                                    handler:^(NSArray<NSURL *> *urls, UIViewController *screen) {
             [weakSelf openURLs:urls inFolder:NO fromScreen:screen];
         }];
+        // The device first, then Dropbox once linked.
+        NSURL *documents = LocationStore.containerDocumentsURL;
+        UIImage *device = [UIImage systemImageNamed:
+                UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad ? @"ipad" : @"iphone"];
+        _sources = @[[VibeBrowserFolderSource sourceWithRootURL:documents
+                                                          title:[LocationStore displayNameForFolderURL:documents]
+                                                          image:device],
+                     [[DropboxBrowserSource alloc] init]];
         [playback addObserver:self];
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(dropboxAccountDidChange:)
+                                                   name:VibeDropboxAccountDidChangeNotification
+                                                 object:DropboxMirror.shared.client];
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(dropboxDownloadsDidChange:)
+                                                   name:VibeDropboxDownloadsDidChangeNotification
+                                                 object:nil];
     }
     return self;
+}
+
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+
+- (void)dropboxAccountDidChange:(NSNotification *)notification {
+    [self notifyObservers:@selector(browserHostSourcesDidChange)];
+}
+
+// A download landed, or the downloads were removed: the mark and the art
+// follow the file.
+- (void)dropboxDownloadsDidChange:(NSNotification *)notification {
+    [self notifyObservers:@selector(browserHostSourceFilesDidChange)];
 }
 
 #pragma mark - How the screens look and read
@@ -66,6 +100,12 @@
         case VibeBrowserLabelEmptyFolder:   return STR_ERROR_FOLDER_EMPTY;
         case VibeBrowserLabelUnavailable:   return STR_BROWSER_DROPBOX_UNAVAILABLE;
         case VibeBrowserLabelOK:            return STR_BUTTON_OK;
+        case VibeBrowserLabelLocations:     return STR_BROWSER_LOCATIONS;
+        case VibeBrowserLabelAddLocation:   return STR_BROWSER_ADD_LOCATION;
+        case VibeBrowserLabelAddFolder:     return STR_SETTINGS_ADD_FOLDER;
+        case VibeBrowserLabelAddFolderCaption: return STR_BROWSER_ADD_FOLDER_CAPTION;
+        case VibeBrowserLabelLocationCovered: return STR_SETTINGS_SEARCH_FOLDERS_COVERED;
+        case VibeBrowserLabelRemoveLocation: return STR_BROWSER_REMOVE_LOCATION;
     }
     return @"";
 }
@@ -131,8 +171,12 @@
     [_observers addObject:observer];
 }
 
+// Only the observers that answer it: the source events are optional.
 - (void)notifyObservers:(SEL)selector {
-    [_observers.allObjects makeObjectsPerformSelector:selector];
+    NSPredicate *answers = [NSPredicate predicateWithBlock:^BOOL(id observer, NSDictionary *bindings) {
+        return [observer respondsToSelector:selector];
+    }];
+    [[_observers.allObjects filteredArrayUsingPredicate:answers] makeObjectsPerformSelector:selector];
 }
 
 - (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
@@ -189,13 +233,13 @@
     NSMutableArray<VibeBrowserAction *> *actions = [NSMutableArray array];
     // Recents' and Search's rule, without Open Folder: the row is already in
     // its folder.
-    VibeBrowserRowActions rowActions = VibeBrowserRowActionsFor(
+    VibeFilesTabRowActions rowActions = VibeFilesTabRowActionsFor(
             isFolder, _appending, [VibePlaylistFile isM3UExtension:url.pathExtension.lowercaseString], YES);
-    if (rowActions & VibeBrowserRowActionPlay) {
+    if (rowActions & VibeFilesTabRowActionPlay) {
         // Outside the add sheet, the folder action is Play.
         [actions addObject:_folderAction];
     }
-    if (rowActions & VibeBrowserRowActionPlayInFolder) {
+    if (rowActions & VibeFilesTabRowActionPlayInFolder) {
         [actions addObject:[VibeBrowserAction actionWithTitle:STR_MENU_CONTEXT_PLAY_IN_FOLDER
                                                        symbol:@"play.square.stack"
                                                       handler:^(NSArray<NSURL *> *urls, UIViewController *screen) {

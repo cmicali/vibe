@@ -6,6 +6,7 @@
 #import "RecentsViewController.h"
 
 #import "BrowserRules.h"
+#import "FilesTabRules.h"
 #import "FilesRootViewController.h"
 #import "FileRow.h"
 #import "LinkStore.h"
@@ -138,7 +139,7 @@ static NSString *const kRecentCellIdentifier = @"item";
                                             point:(CGPoint)point {
     NSDictionary *item = _items[(NSUInteger)indexPath.row];
     BOOL folder = [item[@"folder"] boolValue];
-    VibeBrowserRowActions actions = VibeBrowserRowActionsFor(
+    VibeFilesTabRowActions actions = VibeFilesTabRowActionsFor(
             folder, _appending, [VibePlaylistFile isM3UExtension:[item[@"path"] pathExtension].lowercaseString],
             ![LinkStore.shared containsURL:[NSURL fileURLWithPath:item[@"path"] isDirectory:folder]]);
     __weak RecentsViewController *weakSelf = self;
@@ -146,22 +147,22 @@ static NSString *const kRecentCellIdentifier = @"item";
                                                    previewProvider:nil
                                                     actionProvider:^UIMenu *(NSArray<UIMenuElement *> *suggested) {
         NSMutableArray<UIMenuElement *> *items = [NSMutableArray array];
-        if (actions & VibeBrowserRowActionPlay) {
+        if (actions & VibeFilesTabRowActionPlay) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY, @"play.fill", ^{
                 [weakSelf openItem:item appending:NO inFolder:NO];
             })];
         }
-        if (actions & VibeBrowserRowActionPlayInFolder) {
+        if (actions & VibeFilesTabRowActionPlayInFolder) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_PLAY_IN_FOLDER, @"play.square.stack", ^{
                 [weakSelf openItem:item appending:NO inFolder:YES];
             })];
         }
-        if (actions & VibeBrowserRowActionAddToPlaylist) {
+        if (actions & VibeFilesTabRowActionAddToPlaylist) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_ADD_TO_PLAYLIST, @"text.badge.plus", ^{
                 [weakSelf openItem:item appending:YES inFolder:NO];
             })];
         }
-        if (actions & VibeBrowserRowActionOpenFolder) {
+        if (actions & VibeFilesTabRowActionOpenFolder) {
             [items addObject:VibeMenuAction(STR_MENU_CONTEXT_OPEN_FOLDER, @"folder", ^{
                 [weakSelf showFolderOfItem:item];
             })];

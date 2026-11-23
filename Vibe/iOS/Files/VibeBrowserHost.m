@@ -5,6 +5,30 @@
 
 #import "VibeBrowserHost.h"
 
+@implementation VibeBrowserFolderSource
+
+@synthesize rootURL = _rootURL;
+@synthesize title = _title;
+@synthesize image = _image;
+
++ (instancetype)sourceWithRootURL:(NSURL *)rootURL title:(NSString *)title image:(UIImage *)image {
+    VibeBrowserFolderSource *source = [[self alloc] initPrivate];
+    source->_rootURL = [rootURL copy];
+    source->_title = [title copy];
+    source->_image = image;
+    return source;
+}
+
+- (instancetype)initPrivate {
+    return [super init];
+}
+
+- (NSString *)subtitle {
+    return nil;
+}
+
+@end
+
 @implementation VibeBrowserAction
 
 + (instancetype)actionWithTitle:(NSString *)title
@@ -26,3 +50,14 @@
 }
 
 @end
+
+void VibeBrowserPresentAlert(UIViewController *screen, id<VibeBrowserHost> host, NSString *title,
+                             NSString *message, dispatch_block_t then) {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:title
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:[host label:VibeBrowserLabelOK]
+                                              style:UIAlertActionStyleDefault
+                                            handler:then ? ^(UIAlertAction *action) { then(); } : nil]];
+    [screen presentViewController:alert animated:YES completion:nil];
+}
