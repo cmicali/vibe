@@ -116,7 +116,7 @@
 }
 
 + (void)installWidgetActions {
-    [VibeWidgetIntents install:[[VibeWidgetSceneActions alloc] init]];
+    VibeWidgetIntents.installed = [[VibeWidgetSceneActions alloc] init];
 }
 
 - (void)showPlaylist {
@@ -135,15 +135,8 @@ static PlaybackController *ConnectedPlayback(void) {
     return ConnectedPlayback() != nil;
 }
 
-// The block always runs, or the intent waiting on it never ends.
 - (void)widgetWhenRestored:(void (^)(void))block {
-    PlaybackController *playback = ConnectedPlayback();
-    if (playback) {
-        [playback performWhenLaunchOpenSettled:block];
-    }
-    else {
-        block();
-    }
+    [ConnectedPlayback() performWhenLaunchOpenSettled:block];
 }
 
 - (void)widgetPlayPause {

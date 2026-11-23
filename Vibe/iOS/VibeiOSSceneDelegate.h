@@ -17,8 +17,7 @@ NS_ASSUME_NONNULL_BEGIN
 // any scene. A scene property, not a global, because the scene owns the engine.
 @property (nonatomic, readonly, nullable) PlaybackController *playback;
 
-// Installs Vibe's VibeWidgetActions, which act on the connected scene. Once,
-// at launch, before any intent can run.
+// Installs Vibe's VibeWidgetActions, which act on the connected scene.
 + (void)installWidgetActions;
 
 @end

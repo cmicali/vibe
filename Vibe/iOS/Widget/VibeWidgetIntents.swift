@@ -5,7 +5,6 @@
 // A foreground continuation preserves the tap. An error ends the intent.
 
 import AppIntents
-import Foundation
 
 // TRAP: intent titles and supportedModes must be literals for metadata extraction.
 // Match title keys and defaults to STR_WIDGET_INTENT_* in VibeStrings.h.
@@ -104,7 +103,8 @@ public protocol VibeWidgetActions: NSObjectProtocol {
     func widgetPlayPause()
     func widgetNext()
     func widgetPrevious()
-    // VibeWidgetState.trackKey of the track on screen, nil with none.
+    // The key WidgetPublisher writes for the track on screen
+    // (trackKeyForTrack:), nil with none.
     var widgetDisplayedTrackKey: String? { get }
     func widgetSeek(toProgress progress: Float)
     // Lowers the card and shows the playlist, unless a sheet or alert is up.
@@ -115,33 +115,27 @@ public protocol VibeWidgetActions: NSObjectProtocol {
 @MainActor
 @objc(VibeWidgetIntents)
 public final class VibeWidgetIntents: NSObject {
-    // Once, at launch, before any intent can run.
-    @objc public static func install(_ actions: VibeWidgetActions) {
-        installed = actions
-    }
-
-    static var installed: VibeWidgetActions?
+    @objc public static var installed: VibeWidgetActions?
 }
 
 enum VibeWidgetTransport {
     // `intent` is only the continuation's handle. The settle wait is
     // unconditional (see the header).
+    @MainActor
     static func perform(_ intent: some AppIntent,
-                        _ action: @escaping @MainActor (VibeWidgetActions) -> Void) async throws {
-        guard let actions = await VibeWidgetIntents.installed else {
+                        _ action: @MainActor (VibeWidgetActions) -> Void) async throws {
+        guard let actions = VibeWidgetIntents.installed else {
             return   // the extension, which never acts
         }
-        if await !actions.widgetHasPlayback {
+        if !actions.widgetHasPlayback {
             try await intent.continueInForeground(alwaysConfirm: false)
         }
-        guard await actions.widgetHasPlayback else {
+        guard actions.widgetHasPlayback else {
             return   // foregrounded without a scene
         }
         await withCheckedContinuation { continuation in
-            Task { @MainActor in
-                actions.widgetWhenRestored { continuation.resume() }
-            }
+            actions.widgetWhenRestored { continuation.resume() }
         }
-        await action(actions)
+        action(actions)
     }
 }
