@@ -636,8 +636,9 @@ targets:
   # The home-screen widget. A SECOND PROCESS: no engine, no playlist, no audio
   # session, and it never opens an audio file. Everything it draws is the
   # snapshot the app publishes into the shared app group, which is why its only
-  # shared sources are VibeWidgetState's pair — named file by file, because the
-  # rest of Vibe/iOS/Widget/ is app-side code that reaches for app classes.
+  # shared sources are VibeWidgetState's pair, the group's name, and the
+  # intents — named file by file, because the rest of Vibe/iOS/Widget/ is
+  # app-side code that reaches for app classes.
   #
   # Its own sources live OUTSIDE Vibe/, as Tests/ does and for the same reason:
   # the app targets recurse whole subsystem directories, so a file under Vibe/
@@ -652,6 +653,7 @@ targets:
         excludes: ["**/.DS_Store", "**/*.md", "**/Info.plist"]
       - path: Vibe/iOS/Widget/VibeWidgetState.h
       - path: Vibe/iOS/Widget/VibeWidgetState.m
+      - path: Vibe/iOS/Widget/VibeWidgetGroup.h
       # Shared with the app, which owns the bodies (VIBE_APP). The extension
       # needs the TYPES so its buttons can name them.
       - path: Vibe/iOS/Widget/VibeWidgetIntents.swift

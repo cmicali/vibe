@@ -2,7 +2,7 @@
 
 `VibeWidget` is the iOS widget extension. It has no engine, no playlist and no audio session, and it never reads an audio file. Everything it knows is the `VibeWidgetState` snapshot the app writes into the shared app group. The app side, including the snapshot and the buttons' intents, is `Vibe/iOS/Widget/AGENTS.md`.
 
-The target compiles this directory plus `VibeWidgetState.{h,m}` and `VibeWidgetIntents.swift` from `Vibe/iOS/Widget/`. It links no app class. Both targets' entitlements must carry the app group, or `containerURL` is nil and the widget draws its empty state.
+The target compiles this directory plus `VibeWidgetState.{h,m}`, `VibeWidgetGroup.h`, and `VibeWidgetIntents.swift` from `Vibe/iOS/Widget/`. It links no app class. `VibeWidgetBundle.init` sets the app group and the read signal before any provider reads. Both targets' entitlements must carry the app group, or `containerURL` is nil and the widget draws its empty state.
 
 ## Kinds and families
 

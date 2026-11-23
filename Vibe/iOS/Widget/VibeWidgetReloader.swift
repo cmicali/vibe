@@ -19,14 +19,13 @@ public final class VibeWidgetReloader: NSObject {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    // Answers on WidgetKit's queue. Fails OPEN: a wrong NO silences the widget
-    // until the next foreground, a wrong YES costs one unread publish.
+    // Answers on WidgetKit's queue, with its error when it fails.
     @objc(queryPlaced:)
-    public static func queryPlaced(_ completion: @escaping (Bool) -> Void) {
+    public static func queryPlaced(_ completion: @escaping (Bool, Error?) -> Void) {
         WidgetCenter.shared.getCurrentConfigurations { result in
             switch result {
-            case .success(let placed): completion(!placed.isEmpty)
-            case .failure: completion(true)
+            case .success(let placed): completion(!placed.isEmpty, nil)
+            case .failure(let error): completion(false, error)
             }
         }
     }

@@ -19,6 +19,8 @@
 #import "PlaybackController.h"
 #import "VibePlayerCardHost.h"
 #import "VibeStrings.h"
+#import "VibeWidgetGroup.h"
+#import "VibeWidgetState.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformScrubberView.h"
 #import "WaveformTheme+Settings.h"
@@ -49,6 +51,8 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
 #endif
     // Before any scene makes its card.
     VibePlayerCardInstallHost(self);
+    // Before any scene makes the widget's publisher.
+    [VibeWidgetState useAppGroup:@VIBE_WIDGET_APP_GROUP readNotification:@VIBE_WIDGET_READ_NOTIFICATION];
     // Before any scene names a folder.
     [LocationStore installVibeWithDeviceModelName:UIDevice.currentDevice.localizedModel];
     // Before the scene restores a playlist, which may name a mirror file or a
