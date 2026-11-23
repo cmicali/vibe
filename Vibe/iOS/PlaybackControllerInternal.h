@@ -13,13 +13,17 @@
 #import "AudioTrackMetadataCache.h"
 #import "FolderSession.h"
 #import "VibePlaylist.h"
+#import "WidgetPublisher.h"
 
 @class AudioPlayer;
 @class NowPlayingController;
 @class UIUpdateTimer;
-@class WidgetPublisher;
 
 NS_ASSUME_NONNULL_BEGIN
+
+// The rows as the widget shows them.
+@interface AudioTrack (VibeWidget) <VibeWidgetTrack>
+@end
 
 // AudioPlayerDelegate and NowPlayingControllerDelegate are declared on the
 // categories that implement them, so the compiler checks each against its file.

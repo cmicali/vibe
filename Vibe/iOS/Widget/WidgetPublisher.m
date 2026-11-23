@@ -7,16 +7,12 @@
 
 #import <notify.h>
 
-#import "AppSettings.h"
-#import "AudioTrack.h"
 #import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
 #import "UIImage+DominantColor.h"
 #import "Vibe-Swift.h"                 // WidgetCenter has no ObjC API
 #import "VibeWidgetState.h"
 #import "WaveformRendererRegistry.h"
-#import "WaveformTheme.h"
-#import "WaveformTheme+Settings.h"
 
 // Allow the title and the later waveform bake to request separate reloads.
 static const uint64_t kWidgetReloadMinInterval = NSEC_PER_SEC / 4;
@@ -36,16 +32,22 @@ static const CGFloat kWidgetWaveformScale = 3;
     // Kept current whether or not anything is written: a widget usually
     // appears in the background, where no tick is guaranteed.
     VibeWidgetState      *_published;
-    // A pointer compare, deliberately: AudioTrack.cacheKey stats the file and
-    // does not memoize a failure, a blocking syscall at 3 Hz on a dropped mount.
-    __weak AudioTrack    *_publishedTrack;
+    // A pointer compare, deliberately: a track's cacheKey can stat the file
+    // and need not memoize a failure, a blocking syscall at 3 Hz on a dropped
+    // mount.
+    __weak id<VibeWidgetTrack> _publishedTrack;
     BOOL                  _artworkOnDisk;
     // So the sweep after the next commit keeps this track's images once more.
     NSString             *_committedKey;
 
     CodableAudioWaveform *_waveform;
-    __weak AudioTrack    *_waveformTrack;
-    // Everything the bake reads; see displaySettingsDidChange.
+    __weak id<VibeWidgetTrack> _waveformTrack;
+    // The look the app gave, all of which the bake reads.
+    WaveformThemeProvider _themeProvider;
+    NSString             *_waveformStyle;
+    BOOL                  _waveformCentered;
+    BOOL                  _drawsPlayheadLine;
+    // The last bake's; see bakeWaveformIfNeeded.
     NSString             *_bakedSignature;
     // Not yet started, so the next request can cancel it.
     dispatch_block_t      _pendingBake;
@@ -64,21 +66,18 @@ static const CGFloat kWidgetWaveformScale = 3;
     dispatch_queue_t      _queue;
 }
 
-+ (NSString *)trackKeyForTrack:(AudioTrack *)track {
-    return [track keyByAppendingWindowTo:track.url.pathKey];
++ (NSString *)trackKeyForTrack:(id<VibePlayableItem>)track {
+    return VibeKeyByAppendingCueWindow(track.url.pathKey, track.cueStart, track.cueEnd);
 }
 
-- (instancetype)init {
+- (instancetype)initWithThemeProvider:(WaveformThemeProvider)themeProvider {
     self = [super init];
     if (self) {
+        _themeProvider = [themeProvider copy];
         // Serial: an image must never land after the plist naming it, and two
         // bakes must never interleave writing the same PNGs.
         _queue = dispatch_queue_create("com.commonwealthrecordings.Vibe.widget-publish",
                                        DISPATCH_QUEUE_SERIAL);
-        [NSNotificationCenter.defaultCenter addObserver:self
-                                               selector:@selector(displaySettingsDidChange)
-                                                   name:VibeDisplaySettingsDidChangeNotification
-                                                 object:nil];
         // On main, ordered with everything that touches _published.
         __weak WidgetPublisher *weakSelf = self;
         _readToken = NOTIFY_TOKEN_INVALID;
@@ -162,7 +161,7 @@ static const CGFloat kWidgetWaveformScale = 3;
 
 #pragma mark - What is playing
 
-- (void)updateWithTrack:(AudioTrack *)track
+- (void)updateWithTrack:(id<VibeWidgetTrack>)track
                position:(NSTimeInterval)position
                duration:(NSTimeInterval)duration
                 playing:(BOOL)playing
@@ -191,7 +190,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     next.duration     = duration;
     next.position     = position;
     next.positionDate = [NSDate date];
-    next.playheadLine = [self widgetDrawsPlayheadLine];
+    next.playheadLine = _drawsPlayheadLine;
 
     _published      = next;
     _publishedTrack = track;
@@ -266,7 +265,7 @@ static const CGFloat kWidgetWaveformScale = 3;
 
 #pragma mark - The waveform strip
 
-- (void)offerWaveform:(CodableAudioWaveform *)waveform forTrack:(AudioTrack *)track {
+- (void)offerWaveform:(CodableAudioWaveform *)waveform forTrack:(id<VibeWidgetTrack>)track {
     if (!waveform || !track) {
         return;
     }
@@ -279,25 +278,18 @@ static const CGFloat kWidgetWaveformScale = 3;
     }
 }
 
-// Re-bakes only when a setting moved something the bake reads.
+// Re-bakes only when the push moved something the bake reads.
 // TRAP: the Custom theme's colour wells post continuously while dragged, each a
 // new signature. A bake is two renders, two PNG encodes and two writes, so the
 // signature compare and the _pendingBake cancel keep a drag from queuing
 // dozens.
-- (void)displaySettingsDidChange {
+- (void)updateWaveformStyle:(NSString *)style
+                   centered:(BOOL)centered
+          drawsPlayheadLine:(BOOL)drawsPlayheadLine {
+    _waveformStyle     = [style copy];
+    _waveformCentered  = centered;
+    _drawsPlayheadLine = drawsPlayheadLine;
     [self bakeWaveformIfNeeded];
-}
-
-// nil widget style means "match app", and then every widget setting reads
-// as the card's (AppSettings.h).
-- (NSString *)widgetWaveformStyle {
-    AppSettings *settings = AppSettings.sharedInstance;
-    return [WaveformRendererRegistry resolveStyleIdentifier:settings.widgetWaveformStyle ?: settings.waveformStyle];
-}
-
-- (BOOL)widgetDrawsPlayheadLine {
-    return [WaveformRendererRegistry drawsPlayheadLineForIdentifier:[self widgetWaveformStyle]
-                                                             chosen:[AppSettings.sharedInstance waveformPlayheadLineForWidget:YES]];
 }
 
 - (void)bakeWaveformIfNeeded {
@@ -308,19 +300,17 @@ static const CGFloat kWidgetWaveformScale = 3;
     if (!_widgetPlaced) {
         return;     // before the signature, so the bake is still owed
     }
-    AppSettings *settings = AppSettings.sharedInstance;
-    NSString *style = [self widgetWaveformStyle];
+    NSString *style = _waveformStyle;
 
     // Always dark: the widget's background is. The artwork colour is memoized
     // on the image; nil (not decoded, or too gray) resolves album_art to Mono.
-    WaveformTheme *theme = [WaveformTheme themeForSettings:settings widget:YES isDark:YES
-                                              artworkColor:_publishedTrack.cachedArt.vibeDominantColor];
+    WaveformTheme *theme = _themeProvider(YES, _publishedTrack.cachedArt.vibeDominantColor);
     // The RESOLVED palette, not the inputs, so a cover arriving under a theme
     // that ignores it bakes nothing. The waveform, not its track: the
     // signature clears on a track change, and a new waveform for the same
     // track, the bands' decode, must bake.
-    BOOL centered = [settings waveformCenteredForWidget:YES];
-    BOOL line = [self widgetDrawsPlayheadLine];
+    BOOL centered = _waveformCentered;
+    BOOL line = _drawsPlayheadLine;
     NSString *signature = [NSString stringWithFormat:@"%@|%d|%d|%@|%p",
                            style, centered, line, theme.paletteSignature, (void *)waveform];
     if (VibeNowPlayingStringsEqual(signature, _bakedSignature)) {

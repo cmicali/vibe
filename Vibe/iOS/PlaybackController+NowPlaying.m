@@ -12,7 +12,7 @@
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
 #import "PlaybackShellRules.h"
-#import "WidgetPublisher.h"
+#import "WaveformTheme+Settings.h"
 
 // Held once: the publisher's dirty check compares artwork by identity, and
 // imageNamed: is an asset-catalog lookup on every tick otherwise.
@@ -58,6 +58,13 @@ UIImage *VibeNowPlayingPlaceholderArt(void) {
                              duration:duration
                               playing:playing
                          startPending:_trackStartPending];
+}
+
+- (void)pushWidgetWaveformSettings {
+    AppSettings *settings = AppSettings.sharedInstance;
+    [_widgetPublisher updateWaveformStyle:[WaveformTheme styleForSettings:settings widget:YES]
+                                 centered:[settings waveformCenteredForWidget:YES]
+                        drawsPlayheadLine:[WaveformTheme drawsPlayheadLineForSettings:settings widget:YES]];
 }
 
 #pragma mark - NowPlayingControllerDelegate
