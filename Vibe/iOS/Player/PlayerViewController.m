@@ -20,6 +20,11 @@
 // Bounded because AVKit's end edge is not guaranteed.
 static const NSTimeInterval kRoutePickerHoldSeconds = 10;
 
+// No provider before a host is installed.
+static BOOL WaveformBandsWanted(AudioWaveformCache *cache) {
+    return cache.analysisProvider && cache.analysisProvider().bands;
+}
+
 // TRAP: requiring the scrubber's pan to fail is not enough. At a content edge,
 // UIKit's nested-scroll arbitration never begins the scrubber's pan, so the
 // requirement is met and the pager takes the drag, turning the page. Declining
@@ -46,9 +51,6 @@ static const NSTimeInterval kRoutePickerHoldSeconds = 10;
     return [super gestureRecognizerShouldBegin:recognizer];
 }
 @end
-
-// Set once the cache written before tempo detection has been cleared.
-static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfilled";
 
 @implementation PlayerViewController {
     // The model's 3 Hz tick is too coarse for a moving waveform.
@@ -87,16 +89,8 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     [self buildUI];
 
     _waveformCache = [[AudioWaveformCache alloc] init];
-    // Queue the one-time invalidation before the first cache lookup.
-    if (![NSUserDefaults.standardUserDefaults boolForKey:kWaveformTempoBackfillKey]) {
-        [_waveformCache invalidateWithCompletion:nil];
-        [NSUserDefaults.standardUserDefaults setBool:YES forKey:kWaveformTempoBackfillKey];
-    }
-    id<VibePlayerCardHost> host = VibePlayerCardInstalledHost();
-    _waveformCache.analysisProvider = ^VibeWaveformAnalysis{
-        return [host playerCardWaveformAnalysis];
-    };
-    _waveformBandsWanted = _waveformCache.analysisProvider().bands;
+    [VibePlayerCardInstalledHost() playerCardConfigureWaveformCache:_waveformCache];
+    _waveformBandsWanted = WaveformBandsWanted(_waveformCache);
     _waveformCoordinator = [[PageWaveformCoordinator alloc] initWithCache:_waveformCache delegate:self];
     _artHeldPages = [NSMutableIndexSet indexSet];
     _pagerHoldViews = [NSHashTable weakObjectsHashTable];
@@ -116,7 +110,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
 - (void)reloadSettings {
     // The pages in hand were likely decoded without the bands: forgotten,
     // each is asked for again as it comes up.
-    BOOL bandsWanted = _waveformCache.analysisProvider().bands;
+    BOOL bandsWanted = WaveformBandsWanted(_waveformCache);
     if (bandsWanted && !_waveformBandsWanted) {
         [_waveformCoordinator reset];
         [self requestCurrentWaveform];
@@ -161,7 +155,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         return [host playerCardDuration:duration];
     }
     // Arithmetic notation, not prose, so not localized.
-    return [VibeNotLocalized(@"-") stringByAppendingString:
+    return [@"-" stringByAppendingString:
             [host playerCardDuration:MAX(0, duration - position)]];
 }
 
@@ -190,7 +184,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     _pagesView.backgroundColor = [UIColor clearColor];
     // What an edge pull and the empty state reveal.
     UIImageView *backdrop = [[UIImageView alloc]
-            initWithImage:[UIImage imageNamed:@"record-bg"]];
+            initWithImage:VibePlayerCardInstalledHost().playerCardPlaceholderArt];
     backdrop.contentMode = UIViewContentModeScaleAspectFill;
     backdrop.clipsToBounds = YES;
     _pagesView.backgroundView = backdrop;

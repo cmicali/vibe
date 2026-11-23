@@ -16,9 +16,6 @@
 #import "WaveformScrubberView.h"
 #import "WaveformZoomMath.h"
 
-// The card's own state, not a setting of the host's.
-static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
-
 @implementation PlayerViewController (Delivery)
 
 #pragma mark - PageWaveformCoordinatorDelegate
@@ -140,13 +137,11 @@ static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
     }
     // The REQUEST: what a view drew would let a rotation permanently shallow
     // the zoom.
-    [NSUserDefaults.standardUserDefaults setDouble:fraction forKey:kWaveformZoomKey];
+    VibePlayerCardInstalledHost().playerCardWaveformZoom = fraction;
 }
 
 - (void)restoreWaveformZoom {
-    // A missing key reads 0, which the clamp sends to the default.
-    _waveformZoom = VibeWaveformClampRequestedFraction(
-            [NSUserDefaults.standardUserDefaults doubleForKey:kWaveformZoomKey]);
+    _waveformZoom = VibeWaveformClampRequestedFraction(VibePlayerCardInstalledHost().playerCardWaveformZoom);
 }
 
 - (void)applyWaveformZoomToCell:(TrackPageCell *)cell {
