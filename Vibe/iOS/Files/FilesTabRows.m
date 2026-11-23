@@ -1,9 +1,9 @@
 //
-//  FilesRootViewController.m
+//  FilesTabRows.m
 //  Vibe (iOS)
 //
 
-#import "FilesRootViewController.h"
+#import "FilesTabRows.h"
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
@@ -12,7 +12,9 @@
 #import "LinkStore.h"
 #import "StringRules.h"
 #import "OpenURLSheetController.h"
+#if DEBUG
 #import "OpenURLSheetController+Debug.h"
+#endif
 #import "PlaybackBrowserHost.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
@@ -20,8 +22,11 @@
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
-// appSections' second group: Choose File…, Open URL…, and the paste row.
+// The second group: Choose File…, Open URL…, and the paste row.
 static const NSUInteger kActionsSection = 1;
+
+@interface FilesTabRows () <UIDocumentPickerDelegate>
+@end
 
 // Each pasted item's URL and text, by the pasteboard types a drop is read
 // for (VibeDropURLsOfItems). The providers load off main. Completes on main.
@@ -62,12 +67,13 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     });
 }
 
-@implementation FilesRootViewController {
+@implementation FilesTabRows {
     PlaybackController *_playback;
     BOOL _appending;
-    PlaybackBrowserHost *_playbackHost;
-    // Choose File…'s picker, while it is up.
+    __weak PlaybackBrowserHost *_host;
+    // Choose File…'s picker while it is up, and the root it came from.
     __weak UIDocumentPickerViewController *_filePicker;
+    __weak UIViewController *_filePickerScreen;
     // Cancels the link Open URL's sheet or the paste row is resolving. The
     // paste row spins while it is set and no sheet is up.
     dispatch_block_t _cancelLinkResolve;
@@ -78,36 +84,33 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     OpenURLSheetController *_linkSheet;
 }
 
-- (instancetype)initWithPlayback:(PlaybackController *)playback appending:(BOOL)appending {
-    PlaybackBrowserHost *host = [[PlaybackBrowserHost alloc] initWithPlayback:playback appending:appending];
-    self = [super initWithHost:host];
+- (instancetype)initWithPlayback:(PlaybackController *)playback
+                       appending:(BOOL)appending
+                            host:(PlaybackBrowserHost *)host {
+    self = [super init];
     if (self) {
         _playback = playback;
         _appending = appending;
-        _playbackHost = host;
+        _host = host;
         _clipboardChangeCount = NSIntegerMin;
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(clipboardMayHaveChanged:)
+                                                   name:UIPasteboardChangedNotification
+                                                 object:nil];
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(clipboardMayHaveChanged:)
+                                                   name:UISceneDidActivateNotification
+                                                 object:nil];
     }
     return self;
 }
 
-- (void)viewDidLoad {
-    [super viewDidLoad];
-    // The add sheet says what a tap in it does: it is the Files tab's
-    // twin, and there a tap plays.
-    self.navigationItem.title = _appending ? STR_MENU_CONTEXT_ADD_TO_PLAYLIST : STR_TAB_FILES;
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(clipboardMayHaveChanged:)
-                                               name:UIPasteboardChangedNotification
-                                             object:nil];
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(clipboardMayHaveChanged:)
-                                               name:UISceneDidActivateNotification
-                                             object:nil];
+- (void)dealloc {
+    [NSNotificationCenter.defaultCenter removeObserver:self];
 }
 
-- (void)viewWillAppear:(BOOL)animated {
+- (void)rootWillAppear:(UIViewController *)root {
     [self refreshClipboardLink];
-    [super viewWillAppear:animated];
 }
 
 #pragma mark - Vibe's groups
@@ -115,30 +118,30 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 // Recents, alone: a place to go back to, not a place files live. Then
 // Choose File…, Open URL…, and the paste row while the clipboard probably
 // holds a web link.
-- (NSArray<NSArray<VibeBrowserRootRow *> *> *)appSections {
-    __weak FilesRootViewController *weakSelf = self;
+- (NSArray<NSArray<VibeBrowserRootRow *> *> *)sections {
+    __weak FilesTabRows *weakSelf = self;
     VibeBrowserRootRow *recents = [VibeBrowserRootRow rowWithTitle:STR_BROWSER_RECENTS
                                                              image:[UIImage systemImageNamed:@"clock"]
-                                                           handler:^{
-        [weakSelf showRecents];
+                                                           handler:^(UIViewController *screen) {
+        [weakSelf showRecentsFromScreen:screen];
     }];
     NSMutableArray<VibeBrowserRootRow *> *actions = [NSMutableArray arrayWithObjects:
             [VibeBrowserRootRow rowWithTitle:STR_BROWSER_CHOOSE_FILE
                                        image:[UIImage systemImageNamed:@"doc.badge.ellipsis"]
-                                     handler:^{
-        [weakSelf presentFilePicker];
+                                     handler:^(UIViewController *screen) {
+        [weakSelf presentFilePickerFromScreen:screen];
     }],
             [VibeBrowserRootRow rowWithTitle:STR_BROWSER_OPEN_URL
                                        image:[UIImage systemImageNamed:@"link"]
-                                     handler:^{
-        [weakSelf openURLRowTapped];
+                                     handler:^(UIViewController *screen) {
+        [weakSelf openURLRowTappedFromScreen:screen];
     }], nil];
     if (_clipboardHasLink) {
         VibeBrowserRootRow *paste = [VibeBrowserRootRow rowWithTitle:_appending ? STR_BROWSER_ADD_CLIPBOARD_LINK
                                                                                 : STR_BROWSER_OPEN_CLIPBOARD_LINK
                                                                image:[UIImage systemImageNamed:@"doc.on.clipboard"]
-                                                             handler:^{
-            [weakSelf pasteClipboardLink];
+                                                             handler:^(UIViewController *screen) {
+            [weakSelf pasteClipboardLinkFromScreen:screen];
         }];
         // It spins while its link resolves. Open URL's sheet shows its own.
         paste.spinning = _cancelLinkResolve != nil && _linkSheet == nil;
@@ -150,34 +153,38 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     return @[@[recents], actions];
 }
 
-- (void)showRecents {
-    [self.navigationController pushViewController:[[RecentsViewController alloc] initWithPlayback:_playback
+- (void)showRecentsFromScreen:(UIViewController *)screen {
+    [screen.navigationController pushViewController:[[RecentsViewController alloc] initWithPlayback:_playback
                                                                                         appending:_appending]
                                          animated:YES];
 }
 
 // A newer link supersedes the pasted one still resolving.
-- (void)openURLRowTapped {
+- (void)openURLRowTappedFromScreen:(UIViewController *)screen {
     if (_cancelLinkResolve) {
         _cancelLinkResolve();
     }
-    [self presentLinkSheet];
+    [self presentLinkSheetFromScreen:screen];
 }
 
 #pragma mark - Open URL
 
 // The sheet stays up while the link resolves. Every way it closes cancels
 // that.
-- (void)presentLinkSheet {
-    __weak FilesRootViewController *weakSelf = self;
+- (void)presentLinkSheetFromScreen:(UIViewController *)screen {
+    __weak FilesTabRows *weakSelf = self;
+    __weak UIViewController *weakScreen = screen;
     OpenURLSheetController *sheet = [[OpenURLSheetController alloc] initWithOpen:^(NSString *text) {
-        [weakSelf openLinkText:text];
+        UIViewController *strongScreen = weakScreen;
+        if (strongScreen) {
+            [weakSelf openLinkText:text fromScreen:strongScreen];
+        }
     } cancel:^{
         [weakSelf cancelLinkSheet];
     }];
     _linkSheet = sheet;
     sheet.resolving = _cancelLinkResolve != nil; // a paste-row resolve still running
-    [sheet presentFrom:self];
+    [sheet presentFrom:screen];
 }
 
 - (void)cancelLinkSheet {
@@ -205,14 +212,15 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 // Favorites does, and closes once the link is added. A failure closes Open
 // URL's sheet first, then shows its alert. Never the inbox road: it does not
 // persist.
-- (void)openLinkText:(NSString *)text {
+- (void)openLinkText:(NSString *)text fromScreen:(UIViewController *)screen {
     if (VibeLinkTextIsBlank(text) || _cancelLinkResolve) {
         return;
     }
     // Found when the failure lands: the add sheet may be gone by then, and
     // the card may be up.
-    __weak UIWindow *window = self.view.window;
-    __weak FilesRootViewController *weakSelf = self;
+    __weak UIWindow *window = screen.view.window;
+    __weak UIViewController *weakScreen = screen;
+    __weak FilesTabRows *weakSelf = self;
     void (^settled)(NSURL *, NSError *) = ^(NSURL *file, NSError *error) {
         NSString *message = error ? VibeLinkMessageForError(error, NO) : nil;
         dispatch_block_t alert = ^{
@@ -221,7 +229,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
                 [root.vibeTopmostPresenter vibePresentAlertWithTitle:STR_LINK_ERROR_TITLE message:message];
             }
         };
-        FilesRootViewController *strongSelf = weakSelf;
+        FilesTabRows *strongSelf = weakSelf;
         if (!strongSelf) {
             alert();
             return;
@@ -231,13 +239,14 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         if (file && strongSelf->_appending) {
             // The add sheet takes Open URL's sheet with it.
             strongSelf->_linkSheet = nil;
-            [strongSelf dismissSheet];
+            [weakScreen.navigationController.presentingViewController dismissViewControllerAnimated:YES
+                                                                                       completion:nil];
             return;
         }
         [strongSelf closeLinkSheetThen:alert];
     };
     if (!_appending) {
-        _cancelLinkResolve = [_playback openLinkString:text replacingPlaylistFrom:self completion:settled];
+        _cancelLinkResolve = [_playback openLinkString:text replacingPlaylistFrom:screen completion:settled];
     }
     else {
         PlaybackController *playback = _playback;
@@ -266,7 +275,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
     }
     _clipboardChangeCount = changeCount;
     BOOL hasURLs = pasteboard.hasURLs;
-    __weak FilesRootViewController *weakSelf = self;
+    __weak FilesTabRows *weakSelf = self;
     [pasteboard detectPatternsForPatterns:[NSSet setWithObject:UIPasteboardDetectionPatternProbableWebURL]
                         completionHandler:^(NSSet<UIPasteboardDetectionPattern> *patterns, NSError *error) {
         BOOL hasLink = hasURLs || [patterns containsObject:UIPasteboardDetectionPatternProbableWebURL];
@@ -285,29 +294,31 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
         return;
     }
     _clipboardHasLink = hasLink;
-    [self reloadAppSection:kActionsSection animated:YES];
+    [_host rootSectionDidChange:kActionsSection animated:YES];
 }
 
 // The paste row's tap. Listing the clipboard's providers asks nothing. Loading
 // one raises the system's Allow Paste prompt, unless the user set Paste from
 // Other Apps to Allow.
-- (void)pasteClipboardLink {
-    [self pasteItemProviders:UIPasteboard.generalPasteboard.itemProviders];
+- (void)pasteClipboardLinkFromScreen:(UIViewController *)screen {
+    [self pasteItemProviders:UIPasteboard.generalPasteboard.itemProviders fromScreen:screen];
 }
 
 // The paste row's items. The first web link opens as the sheet's Open does.
 // Other text fails as an address that is no link. A paste while a link
 // resolves gives that link up and loads nothing, as a second tap on a
 // spinning row does.
-- (void)pasteItemProviders:(NSArray<NSItemProvider *> *)itemProviders {
+- (void)pasteItemProviders:(NSArray<NSItemProvider *> *)itemProviders fromScreen:(UIViewController *)screen {
     dispatch_block_t cancel = _cancelLinkResolve;
     if (cancel) {
         cancel();
         return;
     }
-    __weak FilesRootViewController *weakSelf = self;
+    __weak FilesTabRows *weakSelf = self;
+    __weak UIViewController *weakScreen = screen;
     VibeLoadPastedItems(itemProviders, ^(NSArray<NSDictionary<NSString *, NSString *> *> *items) {
-        FilesRootViewController *strongSelf = weakSelf;
+        FilesTabRows *strongSelf = weakSelf;
+        UIViewController *strongScreen = weakScreen;
         NSURL *link = VibePasteLinkOfItems(items);
         // TRAP: a denied paste still lists its items, with their types. Only
         // the loads fail (PBErrorDomain 13). Nothing was read, so nothing is
@@ -317,11 +328,13 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
             read = read || item.count > 0;
         }
         if (link) {
-            [strongSelf openLinkText:link.absoluteString];
+            if (strongScreen) {
+                [strongSelf openLinkText:link.absoluteString fromScreen:strongScreen];
+            }
         }
-        else if (read && strongSelf.viewIfLoaded.window) {
+        else if (read && strongScreen.viewIfLoaded.window) {
             NSError *invalid = [NSError errorWithDomain:VibeLinkErrorDomain code:VibeLinkErrorInvalid userInfo:nil];
-            [strongSelf.vibeTopmostPresenter vibePresentAlertWithTitle:STR_LINK_ERROR_TITLE
+            [strongScreen.vibeTopmostPresenter vibePresentAlertWithTitle:STR_LINK_ERROR_TITLE
                                                                message:VibeLinkMessageForError(invalid, NO)];
         }
     });
@@ -329,7 +342,7 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 
 - (void)reloadPasteRow {
     if (_clipboardHasLink) {
-        [self reloadAppSection:kActionsSection animated:NO];
+        [_host rootSectionDidChange:kActionsSection animated:NO];
     }
 }
 
@@ -337,24 +350,25 @@ static void VibeLoadPastedItems(NSArray<NSItemProvider *> *providers,
 
 // Files and folders from anywhere, for one open. asCopy:NO: the grant must be
 // to the real items.
-- (void)presentFilePicker {
+- (void)presentFilePickerFromScreen:(UIViewController *)screen {
     NSArray<UTType *> *types = [@[UTTypeFolder] arrayByAddingObjectsFromArray:DocumentTypes.declaredFileTypes];
     UIDocumentPickerViewController *picker =
             [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:types asCopy:NO];
     picker.allowsMultipleSelection = YES;
     picker.delegate = self;
     _filePicker = picker;
-    [self presentViewController:picker animated:YES completion:nil];
+    _filePickerScreen = screen;
+    [screen presentViewController:picker animated:YES completion:nil];
 }
 
 - (void)documentPicker:(UIDocumentPickerViewController *)controller
         didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls {
-    if (controller != _filePicker) {
-        [super documentPicker:controller didPickDocumentsAtURLs:urls];
+    UIViewController *screen = _filePickerScreen;
+    if (controller != _filePicker || !screen) {
         return;
     }
     // One picked file expands to its folder.
-    [_playbackHost openURLs:urls inFolder:YES fromScreen:self];
+    [_host openURLs:urls inFolder:YES fromScreen:screen];
 }
 
 #if DEBUG

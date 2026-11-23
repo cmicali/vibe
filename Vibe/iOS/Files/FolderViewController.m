@@ -180,6 +180,12 @@ static const NSUInteger kFilterThreshold = 12;
     }
 }
 
+// The refreshing source's words for a failed refresh, else the host's.
+- (NSString *)unavailableMessage {
+    return [_refreshingSource respondsToSelector:@selector(unavailableMessage)]
+            ? _refreshingSource.unavailableMessage : [_host label:VibeBrowserLabelUnavailable];
+}
+
 // Asked in the initializer, so it never touches the disk.
 - (id<VibeBrowserSource>)refreshingSourceForURL:(NSURL *)url {
     for (id<VibeBrowserSource> source in _host.sources) {
@@ -372,7 +378,7 @@ static const NSUInteger kFilterThreshold = 12;
         case VibeBrowserFolderEmptyStateUnavailable:
             empty = [UIContentUnavailableConfiguration emptyConfiguration];
             empty.image = [UIImage systemImageNamed:@"wifi.exclamationmark"];
-            empty.text = [_host label:VibeBrowserLabelUnavailable];
+            empty.text = [self unavailableMessage];
             break;
         case VibeBrowserFolderEmptyStateEmpty:
             empty = [UIContentUnavailableConfiguration emptyConfiguration];
@@ -596,7 +602,7 @@ static const NSUInteger kFilterThreshold = 12;
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section {
     // A relist that failed over rows already here: they may be out of date.
     if (section == VibeBrowserSectionFiles && _refreshError && !self.isEmpty) {
-        return [_host label:VibeBrowserLabelUnavailable];
+        return [self unavailableMessage];
     }
     return nil;
 }

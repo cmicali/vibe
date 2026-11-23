@@ -12,7 +12,7 @@
 #import "DropboxStubProtocol.h"
 #import "FavoritesStore.h"
 #import "FolderSession.h"
-#import "LocationStore.h"
+#import "LocationStore+Vibe.h"
 #import "RecentsStore.h"
 #import "TestFilesystemGuard.h"
 
@@ -42,7 +42,7 @@ static void VibeInstallShellSingletons(void) {
 - (void)setUp {
     [super setUp];
     VibeInstallShellSingletons();
-    LocationStore.deviceModelName = @"iPhone";
+    [LocationStore installVibeWithDeviceModelName:@"iPhone"];
     // The singletons outlive a test. Emptied through their own API, which
     // also removes their stored keys.
     while (FavoritesStore.shared.favorites.count > 0) {

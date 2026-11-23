@@ -12,7 +12,7 @@
 #import "DropboxMirror+Shared.h"
 #import "Formatters.h"
 #import "LinkStore.h"
-#import "LocationStore.h"
+#import "LocationStore+Vibe.h"
 #import "NSBundle+BuildInfo.h"
 #import "PINCache+VibeAudioCache.h"
 #import "SettingsRules.h"
@@ -50,7 +50,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     // Before any scene makes its card.
     VibePlayerCardInstallHost(self);
     // Before any scene names a folder.
-    LocationStore.deviceModelName = UIDevice.currentDevice.localizedModel;
+    [LocationStore installVibeWithDeviceModelName:UIDevice.currentDevice.localizedModel];
     // Before the scene restores a playlist, which may name a mirror file or a
     // link. From here their placeholders are dataless. Opening one downloads
     // it, and its tags are read by range. Opening a folder then does not

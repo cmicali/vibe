@@ -5,6 +5,10 @@
 
 #import "VibeBrowserHost.h"
 
+#import <objc/runtime.h>
+
+#import "AudioTrackMetadataCache.h"
+
 @implementation VibeBrowserFolderSource
 
 @synthesize rootURL = _rootURL;
@@ -25,6 +29,24 @@
 
 - (NSString *)subtitle {
     return nil;
+}
+
+@end
+
+@implementation VibeBrowserRootRow
+
++ (instancetype)rowWithTitle:(NSString *)title
+                       image:(UIImage *)image
+                     handler:(void (^)(UIViewController *screen))handler {
+    VibeBrowserRootRow *row = [[self alloc] initPrivate];
+    row->_title = [title copy];
+    row->_image = image;
+    row->_handler = [handler copy];
+    return row;
+}
+
+- (instancetype)initPrivate {
+    return [super init];
 }
 
 @end
@@ -60,4 +82,17 @@ void VibeBrowserPresentAlert(UIViewController *screen, id<VibeBrowserHost> host,
                                               style:UIAlertActionStyleDefault
                                             handler:then ? ^(UIAlertAction *action) { then(); } : nil]];
     [screen presentViewController:alert animated:YES completion:nil];
+}
+
+static const void *const kDefaultArtCacheKey = &kDefaultArtCacheKey;
+
+// Each cache opens its own store, which lists the whole metadata cache
+// directory when made, so the browser makes one for a host only when asked.
+AudioTrackMetadataCache *VibeBrowserArtCache(id<VibeBrowserHost> host) {
+    AudioTrackMetadataCache *cache = objc_getAssociatedObject(host, kDefaultArtCacheKey);
+    if (!cache) {
+        cache = [[AudioTrackMetadataCache alloc] init];
+        objc_setAssociatedObject(host, kDefaultArtCacheKey, cache, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+    }
+    return cache;
 }

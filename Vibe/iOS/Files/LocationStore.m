@@ -6,24 +6,21 @@
 #import "LocationStore.h"
 #import "FilePaths.h"
 
-#import "DropboxMirror+Shared.h"
-#import "FileSearchRules.h"
+#import "BrowserRules.h"
 #import "LocationStoreInternal.h"
-#import "VibeStrings.h"
 
 NSNotificationName const VibeSearchFoldersDidChangeNotification =
         @"VibeSearchFoldersDidChangeNotification";
 
-// iOS app-layer state, so not AppSettings.
-static NSString *const kSearchFolderBookmarksKey = @"VibeiOSSearchFolderBookmarks";
-static NSString *const kSearchFolderRestoreSuppressionsKey =
-        @"VibeiOSSearchFolderRestoreSuppressions";
+// The app's, set at launch (configureWithBookmarksKey:…).
+static NSString *kSearchFolderBookmarksKey;
+static NSString *kSearchFolderRestoreSuppressionsKey;
 static NSString *const kSuppressedBookmarkKey = @"bookmark";
 static NSString *const kSuppressedRootPathsKey = @"rootPaths";
 static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 
-// Main only. The app delegate sets UIDevice's name before any scene connects.
-static NSString *sDeviceModelName = @"iPhone";
+// Main only. The app sets it before any scene connects.
+static NSString *_Nullable (^sRootNamer)(NSURL *, NSString *);
 
 @interface LocationEntry : NSObject
 @property (nonatomic) NSURL *url;
@@ -125,6 +122,8 @@ static NSString *sDeviceModelName = @"iPhone";
 }
 
 - (instancetype)initPrivate {
+    NSAssert(kSearchFolderBookmarksKey && kSearchFolderRestoreSuppressionsKey,
+             @"LocationStore: the app sets its keys before the store is used");
     self = [super init];
     if (self) {
         _folders = [NSMutableArray array];
@@ -151,12 +150,12 @@ static NSString *sDeviceModelName = @"iPhone";
 
 #pragma mark - Reading
 
-+ (NSString *)deviceModelName {
-    return sDeviceModelName;
-}
-
-+ (void)setDeviceModelName:(NSString *)deviceModelName {
-    sDeviceModelName = [deviceModelName copy];
++ (void)configureWithBookmarksKey:(NSString *)bookmarksKey
+                  suppressionsKey:(NSString *)suppressionsKey
+                        rootNamer:(NSString *_Nullable (^)(NSURL *, NSString *))rootNamer {
+    kSearchFolderBookmarksKey = [bookmarksKey copy];
+    kSearchFolderRestoreSuppressionsKey = [suppressionsKey copy];
+    sRootNamer = [rootNamer copy];
 }
 
 - (NSArray<NSURL *> *)folderURLs {
@@ -186,18 +185,10 @@ static NSString *sDeviceModelName = @"iPhone";
 // Spelling and stored names only, never the disk: asking a provider's folder
 // for its name is IPC that can block main.
 + (NSString *)displayNameForFolderURL:(NSURL *)url {
-    // The account's mirror directory is named for its Dropbox account id.
-    if ([[DropboxMirror.shared derivedDropboxPathForURL:url] isEqualToString:@""]) {
-        return VibeNotLocalized(@"Dropbox");
-    }
-    static NSString *documentsPath;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        documentsPath = VibeComparablePath(LocationStore.containerDocumentsURL.path);
-    });
     NSString *path = VibeComparablePath(url.path);
-    if ([path isEqualToString:documentsPath]) {
-        return [NSString stringWithFormat:STR_BROWSER_ON_DEVICE, sDeviceModelName];
+    NSString *rootName = sRootNamer ? sRootNamer(url, path ?: @"") : nil;
+    if (rootName) {
+        return rootName;
     }
     for (LocationEntry *folder in LocationStore.shared->_folders) {
         if ([VibeComparablePath(folder.url.path) isEqualToString:path]) {

@@ -62,7 +62,7 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     BOOL _holdsScope;
 
     // Album art through the metadata pipeline: the stack's one cache (the
-    // host's artCache), and a holder per row that has been near the screen.
+    // browser's for the host, VibeBrowserArtCache), and a holder per row that has been near the screen.
     // Every song may show art the cache already holds; only the local ones
     // may be parsed for it.
     AudioTrackMetadataCache *_artCache;
