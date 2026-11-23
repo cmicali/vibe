@@ -4,12 +4,21 @@ The Home Screen and Lock Screen widget runs in its own process, the `VibeWidget`
 
 | File | Role |
 | --- | --- |
-| `WidgetPublisher` | The only writer of the shared app group. `PlaybackController` owns one and feeds it from the Now Playing publish (`PlaybackController+NowPlaying.m`). Main thread only. |
+| `WidgetPublisher` | The only writer of the shared app group. `PlaybackController` owns one and feeds it from the Now Playing publish (`PlaybackController+NowPlaying.m`). Main thread only. It reads no setting and no model class (The seam, below). |
 | `VibeWidgetState` | The snapshot the app writes and the widget reads. **Compiled into both targets**, so it is Foundation only. |
 | `VibeWidgetIntents.swift` | The widget's buttons. **Compiled into both targets.** The app owns the bodies. |
 | `VibeWidgetReloader.swift` | WidgetKit's reload and placed query, which have no Objective-C API. Keep it small. |
 
 `project.yml` names the two shared files one by one. The rest of the directory reaches for app classes and must never join the extension.
+
+## The seam
+
+The publisher is moving to vibe-libs, so another app can publish to a widget of its own. vibe-libs' rule 21 says a shell piece reads no app setting, string, theme, or model. So the app hands the publisher what it needs:
+
+- **Each track is a `VibeWidgetTrack`** (`WidgetPublisher.h`): a `VibePlayableItem` with its display title and artist and its decoded art. `AudioTrack` adopts it in a category with no code (`PlaybackControllerInternal.h`). The publisher keeps the object and tells tracks apart by identity. It spells `trackKey` from the item's path and window itself, so the file names stay the piece's.
+- **The strip's look is pushed** through `updateWaveformStyle:centered:drawsPlayheadLine:themeProvider:`, as the card pushes the scrubber's. `PlaybackController.pushWidgetWaveformSettings` resolves it from the widget's settings at launch and on every `VibeDisplaySettingsDidChangeNotification`.
+
+Still Vibe's in the publisher: the app group's name and the read notification's (`VibeWidgetState.m`), its queue label, and `Vibe-Swift.h` for the reloader.
 
 ## The snapshot
 
@@ -32,11 +41,11 @@ The state is a plist in the app group container, with up to three images beside 
 
 ## The waveform bake
 
-The app bakes the current track's envelope twice, once in each half of the palette, at the medium widget's aspect. The widget reveals the played image up to the playhead, so nothing re-renders per entry. The style is `widgetWaveformStyle`, or the app's style when it is nil. The theme, the custom colors, Centered and Playhead line are the widget's own copies of the card's settings, read with `widget:YES` (`Common/AGENTS.md`). Under Match app every one of them reads as the card's. The theme is always dark, because the widget's background is.
+The app bakes the current track's envelope twice, once in each half of the palette, at the medium widget's aspect. The widget reveals the played image up to the playhead, so nothing re-renders per entry. `PlaybackController` pushes the look. The style is `widgetWaveformStyle`, or the app's style when it is nil. The theme, the custom colors, Centered and Playhead line are the widget's copies of the card's settings, read with `widget:YES` (`Common/AGENTS.md`). Under Match app every one of them reads as the card's. The theme is always dark, because the widget's background is.
 
 **Under a playhead line both images are the whole strip as played, and the widget draws the line.** `VibeWidgetState.playheadLine` says so. The bake sets it, and commits the plist again when it changed, after the images.
 
-A waveform is baked only for the published track, so a page swiped past cannot overwrite the strip. A bake runs only when its signature changes: the resolved style, alignment, playhead line, palette and waveform object. **TRAP: the Custom theme's colour wells post continuously while dragged.** The signature compare and the cancel of a queued bake keep a drag from queuing dozens.
+A waveform is baked only for the published track, so a page swiped past cannot overwrite the strip. A bake runs only when its signature changes: the resolved style, alignment, playhead line, palette and waveform object. **TRAP: the Custom theme's colour wells post continuously while dragged,** and the app pushes the look for each post. The signature compare and the cancel of a queued bake keep a drag from queuing dozens.
 
 ## The buttons
 

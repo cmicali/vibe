@@ -7,7 +7,6 @@
 //
 
 #import "PlaybackControllerInternal.h"
-#import "WidgetPublisher.h"
 #import "PlaybackController+NowPlaying.h"
 #import "PlaybackController+PlayerEvents.h"
 
@@ -69,6 +68,11 @@ static const NSUInteger kUIUpdateHz = 3;
         // remembered row.
         [self pushTransportModes];
         _widgetPublisher = [[WidgetPublisher alloc] init];
+        [self pushWidgetWaveformSettings];
+        [NSNotificationCenter.defaultCenter addObserver:self
+                                               selector:@selector(pushWidgetWaveformSettings)
+                                                   name:VibeDisplaySettingsDidChangeNotification
+                                                 object:nil];
         _launchOpenWaiters = [NSMutableArray array];
         // The setting as is: no bit-perfect mode here to outrank it.
         _player = [[AudioPlayer alloc] initWithDeviceUID:@"" name:@""
@@ -876,6 +880,9 @@ static const NSTimeInterval kDeferredMetadataFallbackSeconds = 2;
 
 // Every selector the protocols name is already the class's own.
 @implementation AudioTrack (VibePlayerCard)
+@end
+
+@implementation AudioTrack (VibeWidget)
 @end
 
 @implementation VibePlaylist (VibePlayerCard)

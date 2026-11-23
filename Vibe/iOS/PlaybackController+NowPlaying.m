@@ -12,7 +12,8 @@
 #import "AudioTrack.h"
 #import "NowPlayingRules.h"
 #import "PlaybackShellRules.h"
-#import "WidgetPublisher.h"
+#import "WaveformRendererRegistry.h"
+#import "WaveformTheme+Settings.h"
 
 // Held once: the publisher's dirty check compares artwork by identity, and
 // imageNamed: is an asset-catalog lookup on every tick otherwise.
@@ -58,6 +59,24 @@ UIImage *VibeNowPlayingPlaceholderArt(void) {
                              duration:duration
                               playing:playing
                          startPending:_trackStartPending];
+}
+
+// A nil widget style means Match app, and then every widget setting reads as
+// the card's (AppSettings.h).
+- (void)pushWidgetWaveformSettings {
+    AppSettings *settings = AppSettings.sharedInstance;
+    NSString *style = [WaveformRendererRegistry
+            resolveStyleIdentifier:settings.widgetWaveformStyle ?: settings.waveformStyle];
+    BOOL line = [WaveformRendererRegistry drawsPlayheadLineForIdentifier:style
+                                                                  chosen:[settings waveformPlayheadLineForWidget:YES]];
+    // A global block, so the push costs nothing.
+    [_widgetPublisher updateWaveformStyle:style
+                                 centered:[settings waveformCenteredForWidget:YES]
+                        drawsPlayheadLine:line
+                            themeProvider:^WaveformTheme *(BOOL isDark, UIColor *artworkColor) {
+        return [WaveformTheme themeForSettings:AppSettings.sharedInstance widget:YES isDark:isDark
+                                  artworkColor:artworkColor];
+    }];
 }
 
 #pragma mark - NowPlayingControllerDelegate

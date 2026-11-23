@@ -16,6 +16,10 @@ NS_ASSUME_NONNULL_BEGIN
 // Called from notifyDidTick. The widget's snapshot rides the same publish.
 - (void)publishNowPlaying;
 
+// The widget's waveform settings, pushed into its publisher at launch and on
+// every display-settings change, because the publisher reads no setting.
+- (void)pushWidgetWaveformSettings;
+
 @end
 
 NS_ASSUME_NONNULL_END
