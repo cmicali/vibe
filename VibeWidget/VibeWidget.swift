@@ -118,6 +118,11 @@ struct VibeProvider: TimelineProvider {
 // medium families on the original kind.
 @main
 struct VibeWidgetBundle: WidgetBundle {
+    // Before any provider reads the snapshot.
+    init() {
+        VibeWidgetState.use(appGroup: VIBE_WIDGET_APP_GROUP, readNotification: VIBE_WIDGET_READ_NOTIFICATION)
+    }
+
     var body: some Widget {
         VibeNowPlayingWidget(kind: "VibeNowPlayingWaveformPlay", families: [.systemSmall],
                              smallLayout: .waveformPlay)

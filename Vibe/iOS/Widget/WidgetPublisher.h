@@ -30,12 +30,20 @@ NS_ASSUME_NONNULL_BEGIN
 // row's window, so rows of one file render and seek apart. nil with no path.
 + (nullable NSString *)trackKeyForTrack:(nullable id<VibePlayableItem>)track NS_SWIFT_NAME(trackKey(for:));
 
+// WidgetKit has no Objective-C API, so the app hands in its two calls.
+// reloadTimelines runs on the publisher's queue. queryPlaced passes whether
+// WidgetKit lists any configuration, or its error, on any queue.
+typedef void (^VibeWidgetPlacedQuery)(void (^completion)(BOOL placed, NSError *_Nullable error));
+
 // The theme is always asked for dark, because the widget's background is.
-- (instancetype)initWithThemeProvider:(WaveformThemeProvider)themeProvider NS_DESIGNATED_INITIALIZER;
+// Set VibeWidgetState's app group first.
+- (instancetype)initWithThemeProvider:(WaveformThemeProvider)themeProvider
+                      reloadTimelines:(dispatch_block_t)reloadTimelines
+                          queryPlaced:(VibeWidgetPlacedQuery)queryPlaced NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
 // Turned off only by WidgetKit's answer (refreshPlaced); turned on by that or
-// by the extension's read signal (kVibeWidgetReadNotification).
+// by the extension's read signal (VibeWidgetState.readNotification).
 @property (nonatomic, readonly) BOOL widgetPlaced;
 
 // Call on return to the foreground to detect removed widgets.

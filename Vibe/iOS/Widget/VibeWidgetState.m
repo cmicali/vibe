@@ -7,8 +7,8 @@
 
 #import <notify.h>
 
-NSString *const kVibeWidgetAppGroup = @"group.com.commonwealthrecordings.Vibe";
-const char *const kVibeWidgetReadNotification = "com.commonwealthrecordings.Vibe.widget.read";
+static NSString *sAppGroup;
+static NSString *sReadNotification;
 
 static NSString *const kStateFileName = @"state.plist";
 // The image files carry their track's key, so the container can hold two
@@ -35,13 +35,25 @@ static const NSInteger kStateVersion = 3;
 
 @implementation VibeWidgetState
 
++ (void)useAppGroup:(NSString *)appGroup readNotification:(NSString *)readNotification {
+    sAppGroup = [appGroup copy];
+    sReadNotification = [readNotification copy];
+}
+
++ (NSString *)readNotification {
+    return sReadNotification;
+}
+
 + (NSURL *)containerURL {
-    // Once: the container manager answers over XPC.
+    // Once: the container manager answers over XPC. Not before the group is
+    // set, so an early read cannot strand the process without one.
+    if (!sAppGroup) {
+        return nil;
+    }
     static NSURL *container;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        container = [NSFileManager.defaultManager
-                containerURLForSecurityApplicationGroupIdentifier:kVibeWidgetAppGroup];
+        container = [NSFileManager.defaultManager containerURLForSecurityApplicationGroupIdentifier:sAppGroup];
     });
     return container;
 }
@@ -88,7 +100,9 @@ static const NSInteger kStateVersion = 3;
 
 + (VibeWidgetState *)loadState {
     // Before the read: an empty container is still a widget asking.
-    notify_post(kVibeWidgetReadNotification);
+    if (sReadNotification) {
+        notify_post(sReadNotification.UTF8String);
+    }
     NSURL *url = [self fileNamed:kStateFileName];
     if (!url) {
         return nil;
