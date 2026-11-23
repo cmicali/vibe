@@ -5,7 +5,7 @@
 //  Owns the picked locations of the current playlist: a base folder or file
 //  plus any additions, their security scopes, the restore bookmarks and the
 //  listing. It never touches playback. The system pickers belong to the Files
-//  tab's browser and to RootViewController. Their URLs reach this class
+//  tab's browser and to PlaybackShellHost. Their URLs reach this class
 //  through PlaybackController. What an open brings is recorded in RecentsStore.
 //
 
