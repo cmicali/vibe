@@ -1,6 +1,6 @@
 # iOS app shell (VibeiOS target)
 
-This directory holds the iOS app shell: the app and scene delegates, the tab shell (`RootViewController`), the model (`PlaybackController`), `FolderSession`, the Playlist tab, and the mini player. Its subdirectories hold the Files tab, Favorites and Search, Settings, and the widget's app side. The now-playing card is vibe-libs' `ui/PlayerCard`. Vibe's side of it is below (The now-playing card).
+This directory holds the iOS app shell: the app and scene delegates, Vibe's side of the tab shell (`PlaybackShellHost`), the model (`PlaybackController`), `FolderSession`, the Playlist tab, and the mini player. Its subdirectories hold the Files tab, Favorites and Search, Settings, and the widget's app side. The tab shell is vibe-libs' `ui/TabShell`, and the now-playing card is vibe-libs' `ui/PlayerCard`. Vibe's side of each is below.
 
 **A playlist starts from an opened folder, file or playlist file and can hold additions.** The user picks a folder or file in the app's own browser, the Files tab. Its sources are Dropbox (`Loading/iOS/Dropbox/AGENTS.md`), the app's Documents, and each location granted once through the system folder picker (iCloud Drive, a drive, any other Files provider). There are three `UITab`s, Playlist, Favorites and Files, with `UISearchTab`'s circle beside the capsule. A mini player strip sits in the tab bar's `bottomAccessory`, and the now-playing card presents up from it. Opening anything replaces the playlist, starts playing, selects the Playlist tab and presents the card. A single file played alone keeps its current tab. An active Search tab also keeps the selection. **Add to Playlist** appends tracks without touching playback, the tab or the card. An Add onto nothing is an Open.
 
@@ -78,9 +78,9 @@ It owns the picked locations of the current playlist: a **base** folder or file 
 - **Each launch removes the cache stores other builds left**, off main (`VibeiOSAppDelegate`). The rule is shared with the mac (`Audio/AGENTS.md`, Metadata and artwork).
 - **A launch prunes links once its open settles** (`VibeiOSSceneDelegate`, `performWhenLaunchOpenSettled:`). It keeps every link the playlist's rows or the recents name (`pruneKeepingTracks:recentURLs:`, `VibeRecentItemURLs`). **TRAP: a recent's URL is built from its recorded folder flag, never by `fileURLWithPath:` alone** (`Files/FilesTabRules.h`). That call can stat an unreachable path on main and block launch.
 
-## RootViewController
+## The tab shell
 
-The scene's root: a `UITabBarController` child, the mini player in its `bottomAccessory`, and the card above both. It alone knows whether the card is up, and it owns expand and minimize. **It knows nothing of Vibe.** The app hands it the tabs and the card, pushes the strip's row, and answers its delegate.
+`RootViewController` is vibe-libs' `ui/TabShell`. It is the scene's root: a `UITabBarController` child, the mini player in its `bottomAccessory`, and the card above both. It alone knows whether the card is up, and it owns expand and minimize. **It knows nothing of Vibe.** The app hands it the tabs and the card, pushes the strip's row, and answers its delegate.
 
 **`PlaybackShellHost` is Vibe's side of it.** It builds the tabs and the card, and it is the card's delegate, so it forwards the card's drag and its grabber. It fills the strip from `PlaybackController` and forwards the strip's play, pause and next. It maps the root's `tabsExposed` and `cardAtRest` onto each screen's surface flag. It decides what the model's events do to the shell: an open brings the Playlist tab forward and presents the card, an empty open brings it forward over an empty playlist, and a sheet that needs its folder asks for it. Settings rides the Playlist tab's stack, and leaving that tab pops it (`rootViewController:didSelectTab:previousTab:`). The scene delegate keeps the host, because the root holds its delegate weakly. **The host registers its observers in `rootViewControllerDidLoad:`**, after the card's own, so the card hears each broadcast first, as it did when the root registered in `viewDidLoad`.
 
@@ -88,17 +88,11 @@ The scene's root: a `UITabBarController` child, the mini player in its `bottomAc
 
 The host's `+AddedRows` holds the flight of an Add's rows into the Playlist tab (`Files/AGENTS.md`). The rows fly in the root's view to the tab's item (`getCenterOfTabWithIdentifier:center:`). Its state is declared in `PlaybackShellHostInternal.h`.
 
-**It is a container, not a `UITabBarController` subclass**, so it can put the card and the backdrop snapshot above the tab bar controller's whole view. A card at rest hides the tabs, or the glass tab bar would keep sampling for nothing.
-
 **The card is built once and never torn down.** Minimize translates it off the bottom. Its pager, art window and waveform snapshots survive, so an expand re-reads and re-decodes nothing. Art is not pruned on minimize either: the byte budget bounds it.
 
-**TRAP: what scales under a moving card is a snapshot of the tabs, never the tabs view.** Scaling the view moves its edges off the screen's, and UIKit removes the safe-area insets and edge margins. The bars and rows then re-lay out, and the screen jumps under the card. A snapshot has no layout to lose (`beginBackdropSnapshot`, taken as the card starts moving and dropped once it rests). **The mini player strip stays installed under the card** (`refreshMiniPlayer`). Removing the accessory shrinks every tab's bottom inset, and a list scrolled to its end is clamped up under the snapshot. `check-layout-stability.sh` on a playlist scrolled to its end is the oracle for both.
+The shell's traps are in vibe-libs' `ui/TabShell/AGENTS.md`: the backdrop snapshot, the strip kept under the card, the move by transform, and the appearance forwarding. Its oracle is `check-layout-stability.sh` on a playlist scrolled to its end, across an expand and a dismiss.
 
-**TRAP: the card moves by transform, never by frame.** Its pages carry `WaveformScrubberView`s, which redraw on any bounds change.
-
-**TRAP: `shouldAutomaticallyForwardAppearanceMethods` is per-parent.** Turning it off for the card turns it off for the tabs, so both are forwarded by hand. Each begin snapshots its exact children and the end consumes that snapshot, because `_expanded` can change between them.
-
-Foreground-inactive counts as off: the scene delegate's foreground-active bit drives the Playlist tab's surface and the card's display link. The custom card transition supplies what a presentation would. Reduce Motion settles at once, the card is the modal accessibility surface while up, and completion moves VoiceOver focus.
+Foreground-inactive counts as off. The scene delegate's foreground-active bit drives the Playlist tab's surface and the card's display link.
 
 ## The mini player
 

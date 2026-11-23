@@ -120,6 +120,9 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
         case VibePlayerCardLabelFXAxisReverbDelay: return STR_PLAYER_FX_AXIS_REVERB_DELAY;
         case VibePlayerCardLabelFXPad: return STR_A11Y_PLAYER_FX_PAD;
         case VibePlayerCardLabelFXPadHint: return STR_A11Y_PLAYER_FX_PAD_HINT;
+        // Vibe shows neither the queue control nor the standard scrubber.
+        case VibePlayerCardLabelQueue:
+        case VibePlayerCardLabelPosition: return @"";
     }
     return @"";
 }

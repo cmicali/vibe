@@ -22,7 +22,7 @@
 | `VibeWidgetState` | `VibeWidgetStateTests` |
 | `PlayerScreenRules.h`, `DropboxRules.h` | `PlayerScreenRulesTests`, `DropboxRulesTests` |
 
-The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `FilesRootViewController`, `VibeBrowserFolderViewController`, `RootViewController` and `PlaylistViewController` sit beside the UIKit calls that act on them.
+The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `VibeBrowserRootViewController`, `VibeBrowserFolderViewController`, `RootViewController`, and `PlaylistViewController` sit beside the UIKit calls that act on them.
 
 ## Three moves, in order of payoff
 
@@ -57,7 +57,7 @@ Write first the tests for the doc's `TRAP:`s:
 A header-only seam that the shipping class calls, tested from the Mac (`Tests/AGENTS.md`). Each seam is a new file, so each is a request argued on its own terms.
 
 - **The browser's row actions.** What a tap and a long press offer per row kind (file, folder, Dropbox placeholder, CUE sheet, M3U), in the browser and the Add sheet. The replace-confirm rule (`PlaybackController`'s `confirmReplacingPlaylistFrom:…` asks only when the playlist was built by hand). Select mode's glyphs, the filter field's threshold and the subfolder walk's caps.
-- **The card fold in `RootViewController`.** `expanded`, `cardAnimating` and `interactiveDrag` resolve to: tabs hidden, snapshot present, strip wanted, and whether lifted rows settle. `updateBackdropVisibility`, `refreshMiniPlayer` and `syncTabSurfaces` each restate part of it today.
+- **The card fold in `RootViewController`.** `expanded`, `cardAnimating` and `interactiveDrag` resolve to: tabs hidden, snapshot present, strip wanted, and whether lifted rows settle. `updateBackdropVisibility`, `refreshMiniPlayer` and `syncTabSurfaces` each restate part of it today. The root and its `updateBackdropVisibility` and `syncTabSurfaces` now live in vibe-libs' `ui/TabShell`, so that seam would be made there. `refreshMiniPlayer` stays Vibe's, in `PlaybackShellHost`.
 - **The Playlist tab's follow rule.** A track change scrolls to the playing row, or defers it while hidden, except under shuffle.
 - **The pager's waveform gate** (`WaveformWaitsForOpen` in `PlayerViewController+Pager.m`). Ask for a waveform unless the file is a provider's dataless file. A Dropbox placeholder is asked, since the cache answers from its stat.
 
@@ -96,9 +96,10 @@ It pulls in the real `AudioPlayer`, `AppSettings`, both stores, `DropboxMirror` 
 | `FileRow`, `TrackPageViews`, `VibeMiniPlayerView` | The tile, the icon slot, the opening spinner, and the viewport test. The time control and the card shapes. The strip's lines, its play button, and its delegate. |
 | `PlayerViewController` | Each screen state's times and progress. The error line, the chrome's fade, the play glyph, and Next on the last page. The art's color on its own page. A scrub or seek from another page is dropped. A pager hold is released by its holder. |
 | `RootViewController` | The card fold: tabs hidden at rest up, a snapshot while the card moves or is dragged, a short drag springs back, and a flick minimizes. The strip is wanted when the screen describes a track. |
+| `VibeBrowserRootViewController`, `VibeBrowserFolderViewController` | `FolderScreenHostTests`, over a host that is not Vibe's. The root lists the host's sources and rows. A folder screen's bar draws the host's actions and words. A file's tap and a row's swipe go to the host. |
 | `Settings/*` | Each screen's rows against `SettingsRules.h` and the registry. Each choice is read back from `AppSettings`, and a model write reaches the model. |
 
-Still without a test here: the Files tab's browser (`FilesRootViewController`, `VibeBrowserFolderViewController`, `RecentsViewController`), `SearchViewController`, `FavoritesViewController`, `TrackPageCell`'s layouts, `FXPadView`, `OutputRouteView`, `OpenURLSheetController`, `CueFolderGrantPrompt`, and `WidgetPublisher`'s image side. Each reaches a provider, the system picker, AVKit, or the app group container, so each needs its own fake first. They are the next candidates for this tier.
+Still without a test here: `RecentsViewController`, `SearchViewController`, `FavoritesViewController`, `TrackPageCell`'s layouts, `FXPadView`, `OutputRouteView`, `OpenURLSheetController`, `CueFolderGrantPrompt`, and `WidgetPublisher`'s image side. Each reaches a provider, the system picker, AVKit, or the app group container, so each needs its own fake first. They are the next candidates for this tier.
 
 ## What stays in the simulator
 

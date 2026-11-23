@@ -1,6 +1,8 @@
-// The root's card fold, driven through the delegate calls the strip and the
-// card make: expanded, animating and dragging resolve to the tabs hidden or
-// shown, the backdrop snapshot present or gone, and the strip wanted.
+// vibe-libs' tab shell (ui/TabShell). Its tests are Vibe's, because they need
+// a hosted app. The root's card fold, driven through the delegate calls the
+// strip and the card make: expanded, animating and dragging resolve to the
+// tabs hidden or shown, the backdrop snapshot present or gone, and the strip
+// wanted.
 
 #import "IOSSimTestCase.h"
 

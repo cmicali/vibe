@@ -494,7 +494,7 @@ targets:
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsRows, VibeLibsNowPlaying, VibeLibsDebugChannel,
                 VibeLibsDebugVerbs, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsFilesBrowser,
-                VibeLibsPlayerCard, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsPlayerCard, VibeLibsTabShell, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
