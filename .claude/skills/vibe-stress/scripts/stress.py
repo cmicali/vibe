@@ -2472,7 +2472,8 @@ IOS_LINK_FAULTS = tuple(fault for fault in LINK_FAULTS if fault != ["stall"])
 # A query no corpus name contains. Its reply must have no rows.
 IOS_NO_MATCH = "zqxjvw"
 IOS_VERB_TIMEOUTS = {"open_url": 60, "search": 15}
-# What a card move must leave where it was (iOS/AGENTS.md's backdrop TRAP).
+# What a card move must leave where it was (vibe-libs' ui/TabShell/AGENTS.md,
+# the backdrop TRAP).
 # The navigation bar is left out, since a track change can scroll the list
 # and collapse a large title.
 IOS_ANCHORS = ("tabBar", "strip", "tabsSafeAreaInsets")
@@ -2749,7 +2750,8 @@ def ios_op_tab(rng, run):
 
 def ios_op_card(rng, run):
     """Expand and minimize around a track change, with the tabs' anchors read
-    at rest before and after. A moved anchor is the backdrop TRAP."""
+    at rest before and after. A moved anchor is the backdrop TRAP in vibe-libs'
+    ui/TabShell/AGENTS.md."""
     count = ios_count(run)
     change = rng.choice([["next"], ["previous"]] + ([["play_index", str(rng.randrange(count))]] if count else []))
     for step in ({"command": ["minimize_player"]}, {"check": "anchors"}, {"command": ["expand_player"]},

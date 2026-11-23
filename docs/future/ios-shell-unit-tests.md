@@ -57,7 +57,7 @@ Write first the tests for the doc's `TRAP:`s:
 A header-only seam that the shipping class calls, tested from the Mac (`Tests/AGENTS.md`). Each seam is a new file, so each is a request argued on its own terms.
 
 - **The browser's row actions.** What a tap and a long press offer per row kind (file, folder, Dropbox placeholder, CUE sheet, M3U), in the browser and the Add sheet. The replace-confirm rule (`PlaybackController`'s `confirmReplacingPlaylistFrom:…` asks only when the playlist was built by hand). Select mode's glyphs, the filter field's threshold and the subfolder walk's caps.
-- **The card fold in `RootViewController`.** `expanded`, `cardAnimating` and `interactiveDrag` resolve to: tabs hidden, snapshot present, strip wanted, and whether lifted rows settle. `updateBackdropVisibility`, `refreshMiniPlayer` and `syncTabSurfaces` each restate part of it today.
+- **The card fold in `RootViewController`.** `expanded`, `cardAnimating` and `interactiveDrag` resolve to: tabs hidden, snapshot present, strip wanted, and whether lifted rows settle. `updateBackdropVisibility`, `refreshMiniPlayer` and `syncTabSurfaces` each restate part of it today. The root and its `updateBackdropVisibility` and `syncTabSurfaces` now live in vibe-libs' `ui/TabShell`, so that seam would be made there. `refreshMiniPlayer` stays Vibe's, in `PlaybackShellHost`.
 - **The Playlist tab's follow rule.** A track change scrolls to the playing row, or defers it while hidden, except under shuffle.
 - **The pager's waveform gate** (`WaveformWaitsForOpen` in `PlayerViewController+Pager.m`). Ask for a waveform unless the file is a provider's dataless file. A Dropbox placeholder is asked, since the cache answers from its stat.
 
