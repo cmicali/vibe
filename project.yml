@@ -486,15 +486,15 @@ targets:
   VibeiOS:
     type: application
     platform: iOS
-    # VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, and
-    # VibeLibsFilesBrowser: see the Vibe target.
+    # VibeLibsVorbis before VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib,
+    # VibeLibsFilesBrowser, and VibeLibsPlayerCard: see the Vibe target.
     templates: [VibeLibsAudioTypes, VibeLibsDSP, VibeLibsAnalysis, VibeLibsOutputDevices, VibeLibsFX, VibeLibsMeter,
                 VibeLibsFileLoading, VibeLibsHTTP, VibeLibsRemoteFiles, VibeLibsShareLinks, VibeLibsDropbox, VibeLibsDecode,
                 VibeLibsPlayer, VibeLibsWaveform, VibeLibsWaveformLoading,
                 VibeLibsWaveformStyles, VibeLibsWaveformView, VibeLibsDiskCache, VibeLibsGraphics, VibeLibsPlayQueue,
                 VibeLibsPlaylists, VibeLibsFolderScan, VibeLibsControls, VibeLibsRows, VibeLibsNowPlaying, VibeLibsDebugChannel,
                 VibeLibsDebugVerbs, VibeLibsVorbis, VibeLibsTags, VibeLibsMetadata, VibeLibsTaglib, VibeLibsFilesBrowser,
-                VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
+                VibeLibsPlayerCard, VibeLibsPINCache, VibeLibsR8brain, VibeLibsDrMp3, VibeLibsDrFlac, VibeLibsDrWav]
     templateAttributes:
       excludedPlatform: Mac
     sources:
@@ -832,7 +832,7 @@ targets:
       - path: Vibe/Playlist/Mac/TrackCommands.m
       - path: Vibe/Playlist/Mac/VibePlaylistFile+Session.m
       - path: vibe-libs/core/Common/UIUpdateTimer.m
-      - path: Vibe/iOS/Player/PageWaveformCoordinator.m
+      - path: vibe-libs/ui/PlayerCard/PageWaveformCoordinator.m
       - path: Vibe/iOS/Search/FileSearchIndex.m
       # The iOS shell's Foundation-only model: the session and its stores.
       - path: Vibe/iOS/FolderSession.m
@@ -919,6 +919,8 @@ targets:
           - "$(SRCROOT)/vibe-libs/files/Dropbox"
           # LocationStore and BrowserRules.h, both Foundation only.
           - "$(SRCROOT)/vibe-libs/ui/FilesBrowser"
+          # PageWaveformCoordinator and PlayerScreenRules.h, both Foundation only.
+          - "$(SRCROOT)/vibe-libs/ui/PlayerCard"
           - "$(SRCROOT)/Vibe/Mac/App"
           - "$(SRCROOT)/vibe-libs/files/SandboxAccess/Mac"
           - "$(SRCROOT)/Vibe/Playlist"
@@ -955,9 +957,6 @@ targets:
           - "$(SRCROOT)/Vibe/Mac/Convert"
           # The iOS sources compiled in above are Foundation-only.
           - "$(SRCROOT)/Vibe/iOS"
-          # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
-          # screen's state machine is testable here.
-          - "$(SRCROOT)/Vibe/iOS/Player"
     dependencies:
       - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform

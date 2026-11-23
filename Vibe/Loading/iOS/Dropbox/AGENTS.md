@@ -22,7 +22,7 @@ What stays here is what only Vibe knows.
 
 ## The shell's side
 
-- **The budget's choices are Vibe's.** The user chooses the maximum size in Settings › Files and Dropbox › Maximum Size (`kVibeDropboxDownloadBudgets` in `Common/SettingsRules.h`). Settings saves it under `VibeDropboxDownloadBudgetKey`, which the shared mirror starts from, then sets `downloadBudget`. An evicted track's card draws its cached waveform while parked (`Vibe/iOS/Player/AGENTS.md`).
+- **The budget's choices are Vibe's.** The user chooses the maximum size in Settings › Files and Dropbox › Maximum Size (`kVibeDropboxDownloadBudgets` in `Common/SettingsRules.h`). Settings saves it under `VibeDropboxDownloadBudgetKey`, which the shared mirror starts from, then sets `downloadBudget`. An evicted track's card draws its cached waveform while parked (vibe-libs' `ui/PlayerCard/AGENTS.md`).
 - **The shell lists before it opens.** The browser lists a folder on every visit, a search hit lists its parent before it opens, and an open lists a folder nothing has listed yet (`FolderSession`'s `listFromDropboxIfMirrored:`, which asks `hasListedDirectory:`).
 - **Opens are the shell's ordinary roads.** `FolderSession` treats the mirror as a root every open covers. A file opened alone becomes its folder with it selected, and bookmarks persist.
 
