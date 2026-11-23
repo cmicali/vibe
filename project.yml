@@ -948,10 +948,11 @@ targets:
           - "$(SRCROOT)/Vibe/Debug/Oracles"
           - "$(SRCROOT)/Vibe/Mac/MainWindow"
           - "$(SRCROOT)/Vibe/Mac/Convert"
-          # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
-          # screen's state machine is testable here. The iOS sources compiled in
-          # above are Foundation-only too.
+          # The iOS sources compiled in above are Foundation-only.
           - "$(SRCROOT)/Vibe/iOS"
+          # PlayerScreenRules.h: header-only and Foundation-only, so the iOS
+          # screen's state machine is testable here.
+          - "$(SRCROOT)/Vibe/iOS/Player"
     dependencies:
       - sdk: MediaPlayer.framework
       - sdk: Accelerate.framework            # vDSP, throughout AudioWaveform

@@ -4,7 +4,7 @@
 //
 //  The header's display states and the resolution that picks one.
 //
-//  The iOS twin is Vibe/iOS/PlayerScreenRules.h, deliberately separate: one
+//  The iOS twin is Vibe/iOS/Player/PlayerScreenRules.h, deliberately separate: one
 //  shared enum would carry states each platform never resolves.
 //
 

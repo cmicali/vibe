@@ -16,7 +16,7 @@
 
 // Held once: the publisher's dirty check compares artwork by identity, and
 // imageNamed: is an asset-catalog lookup on every tick otherwise.
-static UIImage *VibeNowPlayingPlaceholderArt(void) {
+UIImage *VibeNowPlayingPlaceholderArt(void) {
     static UIImage *placeholder;
     static dispatch_once_t once;
     dispatch_once(&once, ^{

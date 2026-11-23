@@ -256,4 +256,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 @end
 
+// The art Now Playing and the card show for a track with none. One instance.
+UIImage *VibeNowPlayingPlaceholderArt(void);
+
 NS_ASSUME_NONNULL_END

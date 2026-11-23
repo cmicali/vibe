@@ -268,7 +268,7 @@ static void WaveformWaitsForOpen(NSURL *url, void (^answer)(BOOL waits)) {
 }
 
 - (UIImage *)artworkForPageAtIndex:(NSUInteger)index {
-    return [_playlist trackAtIndex:index].metadata.cachedArt ?: [UIImage imageNamed:@"record-bg"];
+    return [_playlist trackAtIndex:index].metadata.cachedArt ?: VibePlayerCardInstalledHost().playerCardPlaceholderArt;
 }
 
 - (void)configurePage:(TrackPageCell *)cell atIndex:(NSUInteger)index {
