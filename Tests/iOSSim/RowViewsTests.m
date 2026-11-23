@@ -1,6 +1,6 @@
-// The rows and strips that draw one track: PlaylistTrackCell and the Playlist
+// The rows and strips that draw one track: VibeTrackCell and the Playlist
 // tab's wiring of it, FileRow's shared pieces, TrackPageViews and
-// MiniPlayerView. Labels are found by what they show.
+// VibeMiniPlayerView. Labels are found by what they show.
 
 #import "IOSSimTestCase.h"
 
@@ -10,15 +10,15 @@
 #import "EqualizerIndicatorView.h"
 #import "FileRow.h"
 #import "LoadingIndicatorView.h"
-#import "MiniPlayerView.h"
+#import "VibeMiniPlayerView.h"
 #import "VibePlaylist.h"
-#import "PlaylistTrackCell.h"
+#import "VibeTrackCell.h"
 #import "PlaylistViewController.h"
 #import "TrackPageViews.h"
 #import "VibeTrackRow.h"
 #import "VibeStrings.h"
 
-@interface MiniPlayerEvents : NSObject <MiniPlayerViewDelegate>
+@interface MiniPlayerEvents : NSObject <VibeMiniPlayerViewDelegate>
 @property (nonatomic) NSMutableArray<NSString *> *events;
 @end
 
@@ -29,9 +29,9 @@
     }
     return self;
 }
-- (void)miniPlayerViewDidRequestExpand:(MiniPlayerView *)view { [_events addObject:@"expand"]; }
-- (void)miniPlayerViewDidTapPlayPause:(MiniPlayerView *)view { [_events addObject:@"playPause"]; }
-- (void)miniPlayerViewDidTapNext:(MiniPlayerView *)view { [_events addObject:@"next"]; }
+- (void)miniPlayerViewDidRequestExpand:(VibeMiniPlayerView *)view { [_events addObject:@"expand"]; }
+- (void)miniPlayerViewDidTapPlayPause:(VibeMiniPlayerView *)view { [_events addObject:@"playPause"]; }
+- (void)miniPlayerViewDidTapNext:(VibeMiniPlayerView *)view { [_events addObject:@"next"]; }
 @end
 
 @interface RowViewsTests : IOSSimTestCase
@@ -62,11 +62,11 @@ static NSArray<UIButton *> *Buttons(UIView *view) {
     return buttons;
 }
 
-#pragma mark - PlaylistTrackCell
+#pragma mark - VibeTrackCell
 
-- (PlaylistTrackCell *)cell {
-    PlaylistTrackCell *cell = [[PlaylistTrackCell alloc] initWithStyle:UITableViewCellStyleDefault
-                                                       reuseIdentifier:@"t"];
+- (VibeTrackCell *)cell {
+    VibeTrackCell *cell = [[VibeTrackCell alloc] initWithStyle:UITableViewCellStyleDefault
+                                               reuseIdentifier:@"t"];
     cell.frame = CGRectMake(0, 0, 390, 64);
     [self.window addSubview:cell];
     return cell;
@@ -80,7 +80,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
 }
 
 - (void)testATaggedRowShowsTitleArtistNumberAndDuration {
-    PlaylistTrackCell *cell = [self cell];
+    VibeTrackCell *cell = [self cell];
     AudioTrack *track = [self trackNamed:@"a.mp3" title:@"Song" artist:@"Band" duration:125];
     [cell renderRow:Row(track, 7, NO)];
     XCTAssertNotNil(VibeLabelWithText(cell, @"Song"));
@@ -94,7 +94,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
 // The cell keeps a copy of what it drew, so an edit to the caller's row is a
 // change, and a new thumbnail is a change even when it looks the same.
 - (void)testARowRendersAgainOnlyWhenWhatItDrawsChanged {
-    PlaylistTrackCell *cell = [self cell];
+    VibeTrackCell *cell = [self cell];
     VibeTrackRow *row = [[VibeTrackRow alloc] init];
     row.title = @"Song";
     row.numberText = @"1";
@@ -117,7 +117,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
 // The root guarantee: the single line is the title, in the title's color,
 // and no second line is drawn.
 - (void)testAFilenameRowIsOneLineInTheTitlesColor {
-    PlaylistTrackCell *cell = [self cell];
+    VibeTrackCell *cell = [self cell];
     AudioTrack *tagged = [self trackNamed:@"a.mp3" title:@"Song" artist:@"Band" duration:60];
     [cell renderRow:Row(tagged, 1, NO)];
     UIColor *titleColor = VibeLabelWithText(cell, @"Song").textColor;
@@ -134,7 +134,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
 
 // The gutter's precedence: loading bar, playing marker, number.
 - (void)testTheGutterPrefersLoadingThenPlayingThenTheNumber {
-    PlaylistTrackCell *cell = [self cell];
+    VibeTrackCell *cell = [self cell];
     AudioTrack *track = [self trackNamed:@"a.mp3" title:@"Song" artist:@"Band" duration:60];
     EqualizerIndicatorView *marker = FirstSubviewOfClass(cell.contentView, EqualizerIndicatorView.class);
     LoadingIndicatorView *bar = FirstSubviewOfClass(cell.contentView, LoadingIndicatorView.class);
@@ -188,8 +188,8 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
     return screen;
 }
 
-- (PlaylistTrackCell *)cellAtRow:(NSInteger)row of:(PlaylistViewController *)screen {
-    return (PlaylistTrackCell *)[screen.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:row inSection:0]];
+- (VibeTrackCell *)cellAtRow:(NSInteger)row of:(PlaylistViewController *)screen {
+    return (VibeTrackCell *)[screen.tableView cellForRowAtIndexPath:[NSIndexPath indexPathForRow:row inSection:0]];
 }
 
 // CloudTransferRegistry is the one home of "this file is loading": a row
@@ -197,7 +197,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
 - (void)testARowsLoadingBarFollowsTheTransferRegistry {
     FakePlayback *playback = [self playbackWithTracks:3 current:0];
     PlaylistViewController *screen = [self showPlaylistFor:playback];
-    PlaylistTrackCell *row = [self cellAtRow:1 of:screen];
+    VibeTrackCell *row = [self cellAtRow:1 of:screen];
     XCTAssertFalse(row.isLoading);
 
     NSURL *url = [playback.playlist trackAtIndex:1].url;
@@ -249,7 +249,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
     UIImage *tile = VibeFileTileImage(NO);
     XCTAssertEqual(tile, VibeFileTileImage(NO), @"drawn once");
     XCTAssertNotEqual(tile, VibeFileTileImage(YES));
-    XCTAssertEqual(tile.size.width, kFileTileSide);
+    XCTAssertEqual(tile.size.width, kVibeFileTileSide);
     UIImage *dark = [tile.imageAsset imageWithTraitCollection:
             [UITraitCollection traitCollectionWithUserInterfaceStyle:UIUserInterfaceStyleDark]];
     XCTAssertNotNil(dark);
@@ -260,7 +260,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
     UIListContentConfiguration *folder = [UIListContentConfiguration cellConfiguration];
     [folder vibeApplyFileIconForFolder:YES playlist:NO art:nil];
     XCTAssertTrue(CGSizeEqualToSize(folder.imageProperties.reservedLayoutSize,
-                                    CGSizeMake(kFileTileSide, kFileTileSide)));
+                                    CGSizeMake(kVibeFileTileSide, kVibeFileTileSide)));
     UIListContentConfiguration *cue = [UIListContentConfiguration cellConfiguration];
     [cue vibeApplyFileIconForFolder:NO playlist:YES art:nil];
     XCTAssertEqual(cue.image, VibeFileTileImage(YES));
@@ -326,10 +326,10 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
                   @"a stale halo after a resize");
 }
 
-#pragma mark - MiniPlayerView
+#pragma mark - VibeMiniPlayerView
 
-- (MiniPlayerView *)strip {
-    MiniPlayerView *strip = [[MiniPlayerView alloc] initWithFrame:CGRectMake(0, 600, 390, 48)];
+- (VibeMiniPlayerView *)strip {
+    VibeMiniPlayerView *strip = [[VibeMiniPlayerView alloc] initWithFrame:CGRectMake(0, 600, 390, 48)];
     [strip setAccessibilityLabelsForExpand:STR_SETTINGS_NOW_PLAYING_SECTION
                                       play:STR_TRANSPORT_PLAY
                                      pause:STR_TRANSPORT_PAUSE
@@ -340,7 +340,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
 }
 
 - (void)testTheStripDrawsTheTrackItIsGiven {
-    MiniPlayerView *strip = [self strip];
+    VibeMiniPlayerView *strip = [self strip];
     [strip renderRow:[self trackNamed:@"a.mp3" title:@"Song" artist:@"Band" duration:60].trackRow];
     UILabel *title = VibeLabelWithText(strip, @"Song");
     XCTAssertNotNil(title);
@@ -357,7 +357,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
 }
 
 - (void)testThePlayButtonNamesWhatItWillDo {
-    MiniPlayerView *strip = [self strip];
+    VibeMiniPlayerView *strip = [self strip];
     NSArray<NSString *> *(^labels)(void) = ^NSArray<NSString *> * {
         NSMutableArray<NSString *> *names = [NSMutableArray array];
         for (UIButton *button in Buttons(strip)) {
@@ -375,7 +375,7 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
 }
 
 - (void)testTheStripsControlsReachItsDelegate {
-    MiniPlayerView *strip = [self strip];
+    VibeMiniPlayerView *strip = [self strip];
     MiniPlayerEvents *events = [[MiniPlayerEvents alloc] init];
     strip.delegate = events;
     for (UIButton *button in Buttons(strip)) {

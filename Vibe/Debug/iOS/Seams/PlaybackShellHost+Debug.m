@@ -7,7 +7,7 @@
 //
 
 #import "PlaybackShellHost+Debug.h"
-#import "MiniPlayerView.h"
+#import "VibeMiniPlayerView.h"
 
 #if DEBUG
 
@@ -23,7 +23,7 @@ static const NSInteger VibeDebugSearchFilesSection = 1;
 #import "AudioTrack.h"
 #import "AudioTrackMetadataCache.h"
 #import "AudioWaveformCache.h"
-#import "BrowserRootViewController.h"
+#import "VibeBrowserRootViewController.h"
 #import "PlaybackBrowserHost.h"
 #import "FavoritesStore.h"
 #import "PlaylistViewController.h"
@@ -364,12 +364,12 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
     [self.playback openLinkString:link replacingPlaylistFrom:self.root completion:completion];
 }
 
-- (BrowserRootViewController *)debugActiveBrowser {
+- (VibeBrowserRootViewController *)debugActiveBrowser {
     for (UIViewController *shown = self.root.presentedViewController; shown; shown = shown.presentedViewController) {
         UIViewController *first = [shown isKindOfClass:UINavigationController.class]
                 ? ((UINavigationController *)shown).viewControllers.firstObject : nil;
-        if ([first isKindOfClass:BrowserRootViewController.class]) {
-            return (BrowserRootViewController *)first;
+        if ([first isKindOfClass:VibeBrowserRootViewController.class]) {
+            return (VibeBrowserRootViewController *)first;
         }
     }
     return self.filesBrowser;

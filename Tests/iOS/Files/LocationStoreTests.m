@@ -1,11 +1,11 @@
-// LocationStore over the process's in-memory defaults and real bookmarks of
+// VibeLocationStore over the process's in-memory defaults and real bookmarks of
 // temp folders. A store of its own (initPrivate) reads what a relaunch reads.
 
 #import "IOSShellTestCase.h"
 
 #import "FilePaths.h"
-#import "LocationStore+Vibe.h"
-#import "LocationStoreInternal.h"
+#import "VibeLocationStore+Vibe.h"
+#import "VibeLocationStoreInternal.h"
 
 @interface LocationStoreTests : IOSShellTestCase
 @end
@@ -19,7 +19,7 @@
     [super setUp];
     _changes = 0;
     __weak LocationStoreTests *weakSelf = self;
-    _observer = [NSNotificationCenter.defaultCenter addObserverForName:VibeSearchFoldersDidChangeNotification
+    _observer = [NSNotificationCenter.defaultCenter addObserverForName:VibeLocationsDidChangeNotification
                                                                 object:nil queue:nil
                                                             usingBlock:^(NSNotification *note) {
         LocationStoreTests *strongSelf = weakSelf;
@@ -34,7 +34,7 @@
     [super tearDown];
 }
 
-- (NSArray<NSString *> *)names:(LocationStore *)store {
+- (NSArray<NSString *> *)names:(VibeLocationStore *)store {
     NSMutableArray<NSString *> *names = [NSMutableArray array];
     for (NSURL *url in store.folderURLs) {
         [names addObject:url.lastPathComponent];
@@ -45,7 +45,7 @@
 // The add posts once, and its mint lands the name and the bookmark together.
 - (void)add:(NSURL *)url {
     NSUInteger before = _changes;
-    XCTAssertTrue([LocationStore.shared addFolderURL:url]);
+    XCTAssertTrue([VibeLocationStore.shared addFolderURL:url]);
     XCTAssertTrue([self eventually:^BOOL { return self->_changes >= before + 2; }], @"%@ never minted", url);
 }
 
@@ -53,9 +53,9 @@
 
 - (void)testAFolderInsideALocationIsRefused {
     [self add:[self folder:@"Music"]];
-    XCTAssertFalse([LocationStore.shared addFolderURL:[self folder:@"Music/Album"]]);
-    XCTAssertFalse([LocationStore.shared addFolderURL:[self folder:@"Music"]], @"nor the same folder twice");
-    XCTAssertEqualObjects([self names:LocationStore.shared], @[@"Music"]);
+    XCTAssertFalse([VibeLocationStore.shared addFolderURL:[self folder:@"Music/Album"]]);
+    XCTAssertFalse([VibeLocationStore.shared addFolderURL:[self folder:@"Music"]], @"nor the same folder twice");
+    XCTAssertEqualObjects([self names:VibeLocationStore.shared], @[@"Music"]);
 }
 
 - (void)testAFolderThatCoversLocationsReplacesThemInPlace {
@@ -63,47 +63,47 @@
     [self add:[self folder:@"Music/A"]];
     [self add:[self folder:@"Music/B"]];
     [self add:[self folder:@"Music"]];
-    XCTAssertEqualObjects([self names:LocationStore.shared], (@[@"First", @"Music"]));
+    XCTAssertEqualObjects([self names:VibeLocationStore.shared], (@[@"First", @"Music"]));
 }
 
 - (void)testDocumentsIsARootAndNeverARow {
-    NSURL *documents = LocationStore.containerDocumentsURL;
-    XCTAssertFalse([LocationStore.shared addFolderURL:[documents URLByAppendingPathComponent:@"Music"
-                                                                                  isDirectory:YES]]);
+    NSURL *documents = VibeLocationStore.containerDocumentsURL;
+    XCTAssertFalse([VibeLocationStore.shared addFolderURL:[documents URLByAppendingPathComponent:@"Music"
+                                                                                     isDirectory:YES]]);
     [self add:[self folder:@"Music"]];
-    XCTAssertEqualObjects(LocationStore.shared.searchRoots.lastObject, documents);
-    XCTAssertEqual(LocationStore.shared.searchRoots.count, 2u);
+    XCTAssertEqualObjects(VibeLocationStore.shared.searchRoots.lastObject, documents);
+    XCTAssertEqual(VibeLocationStore.shared.searchRoots.count, 2u);
 }
 
 - (void)testAGrantIsTheLongestCoveringLocation {
     NSURL *music = [self folder:@"Music"];
     [self add:music];
     NSURL *song = [self file:@"Music/Album/Song.mp3"];
-    LocationGrant *grant = [LocationStore.shared grantCoveringURL:song];
+    VibeLocationGrant *grant = [VibeLocationStore.shared grantCoveringURL:song];
     XCTAssertEqualObjects(VibeComparablePath(grant.rootURL.path), VibeComparablePath(music.path));
-    XCTAssertNil([LocationStore.shared grantCoveringURL:[self file:@"Elsewhere/Song.mp3"]]);
+    XCTAssertNil([VibeLocationStore.shared grantCoveringURL:[self file:@"Elsewhere/Song.mp3"]]);
 }
 
 #pragma mark - Naming
 
 - (void)testAFolderIsNamedWithoutTheDisk {
-    [LocationStore installVibeWithDeviceModelName:@"iPad"];
-    XCTAssertEqualObjects([LocationStore displayNameForFolderURL:LocationStore.containerDocumentsURL],
+    [VibeLocationStore installVibeWithDeviceModelName:@"iPad"];
+    XCTAssertEqualObjects([VibeLocationStore displayNameForFolderURL:VibeLocationStore.containerDocumentsURL],
                           @"On My iPad");
     NSURL *folder = [self folder:@"Some Folder"];
-    XCTAssertEqualObjects([LocationStore displayNameForFolderURL:folder], @"Some Folder");
+    XCTAssertEqualObjects([VibeLocationStore displayNameForFolderURL:folder], @"Some Folder");
     [self add:folder];
-    XCTAssertEqualObjects([LocationStore displayNameForFolderURL:folder], @"Some Folder",
+    XCTAssertEqualObjects([VibeLocationStore displayNameForFolderURL:folder], @"Some Folder",
                           @"a location by the name resolved with its bookmark");
 }
 
 - (void)testWithNoRootNamerDocumentsIsItsDirectoryName {
-    [LocationStore configureWithBookmarksKey:@"VibeiOSSearchFolderBookmarks"
-                             suppressionsKey:@"VibeiOSSearchFolderRestoreSuppressions"
-                                   rootNamer:nil];
-    XCTAssertEqualObjects([LocationStore displayNameForFolderURL:LocationStore.containerDocumentsURL],
-                          LocationStore.containerDocumentsURL.lastPathComponent);
-    [LocationStore installVibeWithDeviceModelName:@"iPhone"];
+    [VibeLocationStore configureWithBookmarksKey:@"VibeiOSSearchFolderBookmarks"
+                                 suppressionsKey:@"VibeiOSSearchFolderRestoreSuppressions"
+                                       rootNamer:nil];
+    XCTAssertEqualObjects([VibeLocationStore displayNameForFolderURL:VibeLocationStore.containerDocumentsURL],
+                          VibeLocationStore.containerDocumentsURL.lastPathComponent);
+    [VibeLocationStore installVibeWithDeviceModelName:@"iPhone"];
 }
 
 #pragma mark - Persistence
@@ -112,8 +112,8 @@
     [self add:[self folder:@"B"]];
     [self add:[self folder:@"A"]];
     [self add:[self folder:@"C"]];
-    [LocationStore.shared removeFolderAtIndex:2];
-    LocationStore *relaunched = [[LocationStore alloc] initPrivate];
+    [VibeLocationStore.shared removeFolderAtIndex:2];
+    VibeLocationStore *relaunched = [[VibeLocationStore alloc] initPrivate];
     [relaunched restorePersistedFolders];
     XCTAssertTrue([self eventually:^BOOL { return relaunched.folderURLs.count == 2; }]);
     [self settle];
@@ -124,7 +124,7 @@
     [self add:[self folder:@"Kept"]];
     [self add:[self folder:@"Gone"]];
     [NSFileManager.defaultManager removeItemAtURL:[self.root URLByAppendingPathComponent:@"Gone"] error:NULL];
-    LocationStore *relaunched = [[LocationStore alloc] initPrivate];
+    VibeLocationStore *relaunched = [[VibeLocationStore alloc] initPrivate];
     [relaunched restorePersistedFolders];
     XCTAssertTrue([self eventually:^BOOL { return relaunched.folderURLs.count == 1; }]);
     [self settle];
@@ -133,10 +133,10 @@
 
 - (void)testRemovingEveryLocationForgetsTheKey {
     [self add:[self folder:@"A"]];
-    [LocationStore.shared removeFolderAtIndex:0];
-    [LocationStore.shared removeFolderAtIndex:3];
-    XCTAssertEqualObjects(LocationStore.shared.folderURLs, @[]);
-    LocationStore *relaunched = [[LocationStore alloc] initPrivate];
+    [VibeLocationStore.shared removeFolderAtIndex:0];
+    [VibeLocationStore.shared removeFolderAtIndex:3];
+    XCTAssertEqualObjects(VibeLocationStore.shared.folderURLs, @[]);
+    VibeLocationStore *relaunched = [[VibeLocationStore alloc] initPrivate];
     [relaunched restorePersistedFolders];
     [self settle];
     XCTAssertEqualObjects(relaunched.folderURLs, @[]);

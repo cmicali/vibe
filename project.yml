@@ -832,8 +832,8 @@ targets:
       - path: Vibe/iOS/FolderSession.m
       - path: Vibe/iOS/FolderSession+ExternalOpens.m
       - path: Vibe/iOS/FolderSession+Persistence.m
-      - path: vibe-libs/ui/FilesBrowser/LocationStore.m
-      - path: Vibe/iOS/Files/LocationStore+Vibe.m   # the shell tests install Vibe's keys and names
+      - path: vibe-libs/ui/FilesBrowser/VibeLocationStore.m
+      - path: Vibe/iOS/Files/VibeLocationStore+Vibe.m   # the shell tests install Vibe's keys and names
       - path: Vibe/iOS/Files/RecentsStore.m
       - path: Vibe/iOS/Search/FavoritesStore.m
       - path: Vibe/iOS/Search/DropboxSearch.m
@@ -911,7 +911,7 @@ targets:
           - "$(SRCROOT)/Vibe/Loading/Net"
           - "$(SRCROOT)/Vibe/Loading/iOS/Dropbox"
           - "$(SRCROOT)/vibe-libs/files/Dropbox"
-          # LocationStore and BrowserRules.h, both Foundation only.
+          # VibeLocationStore and BrowserRules.h, both Foundation only.
           - "$(SRCROOT)/vibe-libs/ui/FilesBrowser"
           # PageWaveformCoordinator and PlayerScreenRules.h, both Foundation only.
           - "$(SRCROOT)/vibe-libs/ui/PlayerCard"

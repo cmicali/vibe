@@ -5,8 +5,8 @@
 //  What a query matches, for both of the search screen's sections, which must
 //  agree where they overlap. Which sections the screen draws, and when it
 //  says No Results. Then which root covers a path, for the search walk and
-//  LocationStore's merge. Header-only and Foundation-only so the macOS suite
-//  can test it.
+//  VibeLocationStore's merge. Header-only and Foundation-only so the macOS
+//  suite can test it.
 //
 
 #ifndef FileSearchRules_h
@@ -14,7 +14,7 @@
 
 #import <Foundation/Foundation.h>
 
-// The roots' coverage rules are the browser's, which LocationStore reads.
+// The roots' coverage rules are the browser's, which VibeLocationStore reads.
 #import "BrowserRules.h"
 
 NS_ASSUME_NONNULL_BEGIN

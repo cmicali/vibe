@@ -10,7 +10,7 @@
 
 #import "VibeBrowserHost.h"
 
-@class BrowserRootViewController;
+@class VibeBrowserRootViewController;
 @class FilesTabRows;
 @class PlaybackController;
 
@@ -22,7 +22,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 // The Files tab's root, or the Playlist tab's add sheet when appending: the
 // browser's root over a host of its own, titled for its tab.
-+ (BrowserRootViewController *)rootWithPlayback:(PlaybackController *)playback appending:(BOOL)appending;
++ (VibeBrowserRootViewController *)rootWithPlayback:(PlaybackController *)playback appending:(BOOL)appending;
 
 // One of rootSections changed; the screens redraw it.
 - (void)rootSectionDidChange:(NSUInteger)section animated:(BOOL)animated;

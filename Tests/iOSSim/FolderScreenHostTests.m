@@ -10,13 +10,22 @@
 #import <AVFoundation/AVFoundation.h>
 
 #import "AudioTrackMetadata.h"
-#import "VibeBrowserArtHolder.h"
+#import "VibeFileMetadataHolder.h"
 
-#import "BrowserRootViewController.h"
-#import "FolderViewControllerInternal.h"
+#import "VibeBrowserRootViewController.h"
+#import "VibeBrowserFolderViewControllerInternal.h"
+
+// The subfolder walk, which the bar's menu item starts.
+@interface VibeBrowserFolderViewController (Walk)
+- (void)openDirectoryWithSubfolders;
+@end
 
 @interface FakeBrowserHost : NSObject <VibeBrowserHost>
 @property (nonatomic, copy, nullable) NSString *prompt;
+@property (nonatomic, copy, nullable) NSString *rootPrompt;
+// The folder each walk started from, and the folders it handed over.
+@property (nonatomic, readonly) NSMutableArray<NSURL *> *walkedFrom;
+@property (nonatomic, readonly) NSMutableArray<NSArray<NSURL *> *> *walked;
 @property (nonatomic) BOOL showsCloseButton;
 @property (nonatomic) BOOL showsSortMenu;
 @property (nonatomic) VibeFolderOpenSort folderSort;
@@ -38,6 +47,8 @@
         _rootSections = @[];
         _tapped = [NSMutableArray array];
         _imported = [NSMutableArray array];
+        _walkedFrom = [NSMutableArray array];
+        _walked = [NSMutableArray array];
         __weak FakeBrowserHost *weakSelf = self;
         _selectionAction = [VibeBrowserAction actionWithTitle:@"Import"
                                                        symbol:@"square.and.arrow.down"
@@ -78,8 +89,11 @@
     return @"Import with Subfolders";
 }
 
-- (void (^)(NSArray<NSURL *> *))subfoldersHandlerFromScreen:(UIViewController *)screen {
+- (void (^)(NSArray<NSURL *> *))subfoldersHandlerForFolder:(NSURL *)folder fromScreen:(UIViewController *)screen {
+    [_walkedFrom addObject:folder];
+    __weak FakeBrowserHost *weakSelf = self;
     return ^(NSArray<NSURL *> *folders) {
+        [weakSelf.walked addObject:folders];
     };
 }
 
@@ -95,7 +109,7 @@
 @implementation FolderScreenHostTests {
     NSURL *_directory;
     FakeBrowserHost *_host;
-    FolderViewController *_folder;
+    VibeBrowserFolderViewController *_folder;
     // How many imports the host had seen when the rows were lifted; -1 before.
     NSInteger _importsAtLift;
 }
@@ -116,10 +130,10 @@
     _host.prompt = @"Import to Library";
     _host.showsCloseButton = YES;
     _importsAtLift = -1;
-    _folder = [[FolderViewController alloc] initWithHost:_host
-                                            directoryURL:_directory
-                                            highlighting:nil
-                                              holdsScope:NO];
+    _folder = [[VibeBrowserFolderViewController alloc] initWithHost:_host
+                                                       directoryURL:_directory
+                                                       highlighting:nil
+                                                         holdsScope:NO];
     __weak FolderScreenHostTests *weakSelf = self;
     _folder.addedRowsHandler = ^(NSArray<UIView *> *rows) {
         FolderScreenHostTests *strongSelf = weakSelf;
@@ -158,16 +172,74 @@
     XCTAssertFalse([labels containsObject:[_host label:VibeBrowserLabelSort]], @"%@", labels);
     [_folder toggleSelecting];
     XCTAssertEqualObjects(_folder.navigationItem.title, @"0 to import");
+    // Vibe's look: the selection's bar button is the action's glyph.
+    UIBarButtonItem *add = _folder.navigationItem.rightBarButtonItems.lastObject;
+    XCTAssertNotNil(add.image);
+    XCTAssertNil(add.title);
+    XCTAssertEqualObjects(add.accessibilityLabel, @"Import");
+}
+
+- (VibeBrowserFolderViewController *)showFolder:(NSURL *)directory {
+    VibeBrowserFolderViewController *folder = [[VibeBrowserFolderViewController alloc] initWithHost:_host
+                                                                                       directoryURL:directory
+                                                                                       highlighting:nil
+                                                                                         holdsScope:NO];
+    self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:folder];
+    [self.window layoutIfNeeded];
+    return folder;
+}
+
+- (VibeBrowserRootViewController *)showRoot {
+    VibeBrowserRootViewController *root = [[VibeBrowserRootViewController alloc] initWithHost:_host];
+    self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:root];
+    [self.window layoutIfNeeded];
+    return root;
+}
+
+- (void)testAnActionCanAskItsBarButtonForItsTitle {
+    _host.selectionAction.showsTitle = YES;
+    VibeBrowserFolderViewController *folder = [self showFolder:_directory];
+    [folder toggleSelecting];
+    UIBarButtonItem *add = folder.navigationItem.rightBarButtonItems.lastObject;
+    XCTAssertNil(add.image);
+    XCTAssertEqualObjects(add.title, @"Import");
+}
+
+// The walk starts from a folder with no songs of its own, so only the
+// handler's folder can name it.
+- (void)testTheSubfolderWalkTellsTheHostWhereItStarted {
+    NSURL *outer = [_directory URLByAppendingPathComponent:@"Outer" isDirectory:YES];
+    NSURL *inner = [outer URLByAppendingPathComponent:@"Inner" isDirectory:YES];
+    [NSFileManager.defaultManager createDirectoryAtURL:inner withIntermediateDirectories:YES
+                                            attributes:nil error:NULL];
+    [[@"not audio" dataUsingEncoding:NSUTF8StringEncoding]
+            writeToURL:[inner URLByAppendingPathComponent:@"song.mp3"] atomically:YES];
+    VibeBrowserFolderViewController *folder = [self showFolder:outer];
+    [folder openDirectoryWithSubfolders];
+    XCTAssertEqualObjects(_host.walkedFrom, @[outer]);
+    XCTAssertTrue([self eventually:^BOOL {
+        return self->_host.walked.count == 1;
+    }]);
+    XCTAssertEqualObjects(_host.walked.firstObject.firstObject.lastPathComponent, @"Inner");
+}
+
+// Vibe's add sheet: a host with a prompt and no root prompt leaves the root
+// bare.
+- (void)testTheRootShowsAPromptOnlyWhenTheHostGivesItOne {
+    VibeBrowserRootViewController *root = [self showRoot];
+    XCTAssertNil(root.navigationItem.prompt);
+
+    _host.rootPrompt = @"Import";
+    root = [self showRoot];
+    XCTAssertEqualObjects(root.navigationItem.prompt, @"Import");
 }
 
 - (void)testTheRootListsTheHostsSourcesAndOpensThem {
     _host.sources = @[[VibeBrowserFolderSource sourceWithRootURL:_directory
                                                            title:@"Library"
                                                            image:[UIImage systemImageNamed:@"books.vertical"]]];
-    BrowserRootViewController *root = [[BrowserRootViewController alloc] initWithHost:_host];
-    UINavigationController *stack = [[UINavigationController alloc] initWithRootViewController:root];
-    self.window.rootViewController = stack;
-    [self.window layoutIfNeeded];
+    VibeBrowserRootViewController *root = [self showRoot];
+    UINavigationController *stack = root.navigationController;
     [root beginAppearanceTransition:YES animated:NO];
     [root endAppearanceTransition];
     NSIndexPath *first = [NSIndexPath indexPathForRow:0 inSection:0];
@@ -175,7 +247,7 @@
     XCTAssertEqualObjects(((UIListContentConfiguration *)cell.contentConfiguration).text, @"Library");
     [root tableView:root.tableView didSelectRowAtIndexPath:first];
     XCTAssertTrue([self eventually:^BOOL {
-        return [stack.topViewController isKindOfClass:FolderViewController.class];
+        return [stack.topViewController isKindOfClass:VibeBrowserFolderViewController.class];
     }]);
 }
 
@@ -188,9 +260,7 @@
     }];
     row.isAction = YES;
     _host.rootSections = @[@[row]];
-    BrowserRootViewController *root = [[BrowserRootViewController alloc] initWithHost:_host];
-    self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:root];
-    [self.window layoutIfNeeded];
+    VibeBrowserRootViewController *root = [self showRoot];
     XCTAssertEqual([root numberOfSectionsInTableView:root.tableView], 2);
     NSIndexPath *imported = [NSIndexPath indexPathForRow:0 inSection:1];
     UITableViewCell *cell = [root tableView:root.tableView cellForRowAtIndexPath:imported];
@@ -245,17 +315,12 @@
     [NSFileManager.defaultManager createDirectoryAtURL:directory withIntermediateDirectories:YES
                                             attributes:nil error:NULL];
     NSURL *song = [self songWithCoverNamed:@"cover.m4a" inDirectory:directory];
-    FolderViewController *folder = [[FolderViewController alloc] initWithHost:_host
-                                                                 directoryURL:directory
-                                                                 highlighting:nil
-                                                                   holdsScope:NO];
-    self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:folder];
-    [self.window layoutIfNeeded];
+    VibeBrowserFolderViewController *folder = [self showFolder:directory];
     XCTAssertTrue([self eventually:^BOOL {
         // The screen's holders by row, which the screen keeps private.
         NSDictionary *holders = [folder valueForKey:@"_artTracks"];
         id<AudioTrackMetadataHolder> holder = holders[song];
-        return [holder isKindOfClass:VibeBrowserArtHolder.class] && [holder.metadata cachedThumbnail] != nil;
+        return [holder isKindOfClass:VibeFileMetadataHolder.class] && [holder.metadata cachedThumbnail] != nil;
     }]);
     [NSFileManager.defaultManager removeItemAtURL:directory error:NULL];
 }

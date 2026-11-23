@@ -13,7 +13,7 @@
 #import "FolderSessionInternal.h"
 #import "PlaylistRowTestSupport.h"
 #import "LinkStore.h"
-#import "LocationStore.h"
+#import "VibeLocationStore.h"
 #import "RecentsStore.h"
 #import "TestFilesystemGuard.h"
 
@@ -210,7 +210,7 @@
 }
 
 - (void)testAFileOpenedInItsFolderUnderALocationExpandsSelected {
-    XCTAssertTrue([LocationStore.shared addFolderURL:_albumA]);
+    XCTAssertTrue([VibeLocationStore.shared addFolderURL:_albumA]);
     NSURL *song = [_albumA URLByAppendingPathComponent:@"A2.mp3"];
     [_session openURL:song inFolder:YES];
     NSDictionary *event = [self waitForEvent:0];
@@ -221,7 +221,7 @@
 
 - (void)testAnInboxCopyIsOneTrackAndNeverBookmarked {
     NSURL *song = [_albumA URLByAppendingPathComponent:@"A1.mp3"];
-    XCTAssertTrue([LocationStore.shared addFolderURL:_albumA]);
+    XCTAssertTrue([VibeLocationStore.shared addFolderURL:_albumA]);
     [_session openURLs:@[song] openInPlace:NO];
     XCTAssertEqualObjects([self waitForEvent:0][@"names"], @"A1");
     XCTAssertNil(self.storedBase, @"an inbox copy is never bookmarked");
@@ -249,7 +249,7 @@
 }
 
 - (void)testAnAddedFileIsOneTrackNeverItsDirectory {
-    XCTAssertTrue([LocationStore.shared addFolderURL:_albumB]);
+    XCTAssertTrue([VibeLocationStore.shared addFolderURL:_albumB]);
     [self land:_albumA];
     [_session addURLs:@[[_albumB URLByAppendingPathComponent:@"B2.mp3"]]];
     XCTAssertEqualObjects([self waitForEvent:1][@"names"], @"B2");
@@ -461,7 +461,7 @@
 #pragma mark - Recents
 
 - (void)testAnOpenOfMoreThanFiveRecordsTheFolderTheyShare {
-    XCTAssertTrue([LocationStore.shared addFolderURL:[self folder:@"Library"]]);
+    XCTAssertTrue([VibeLocationStore.shared addFolderURL:[self folder:@"Library"]]);
     NSMutableArray<NSURL *> *albums = [NSMutableArray array];
     for (NSUInteger i = 0; i < 6; i++) {
         NSString *name = [NSString stringWithFormat:@"Library/Album%lu", (unsigned long)i];

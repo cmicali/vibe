@@ -16,7 +16,7 @@
 
 #import <UIKit/UIKit.h>
 
-@class MiniPlayerView;
+@class VibeMiniPlayerView;
 @class RootViewController;
 @class VibeTrackRow;
 
@@ -67,7 +67,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly) UITabBarController *tabs;
 // The strip's view; the app sets its VoiceOver labels and renders a row into
 // it as a row's art arrives.
-@property (nonatomic, readonly) MiniPlayerView *miniPlayer;
+@property (nonatomic, readonly) VibeMiniPlayerView *miniPlayer;
 // The snapshot that scales over the tabs while the card moves; nil at rest.
 @property (nonatomic, readonly, nullable) UIView *backdropSnapshot;
 

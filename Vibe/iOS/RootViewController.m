@@ -5,7 +5,7 @@
 
 #import "RootViewController.h"
 
-#import "MiniPlayerView.h"
+#import "VibeMiniPlayerView.h"
 
 static const CGFloat kCardCornerRadius = 14;
 static const CGFloat kBackdropScale = 0.92;
@@ -15,7 +15,7 @@ static const CGFloat kBackdropCornerRadius = 38;
 static const CGFloat kDismissTravelFraction = 0.25;
 static const CGFloat kDismissFlickVelocity = 900;
 
-@interface RootViewController () <MiniPlayerViewDelegate, UITabBarControllerDelegate>
+@interface RootViewController () <VibeMiniPlayerViewDelegate, UITabBarControllerDelegate>
 @end
 
 @implementation RootViewController {
@@ -23,7 +23,7 @@ static const CGFloat kDismissFlickVelocity = 900;
     // What scales under a moving card: a snapshot of the tabs, never the tabs
     // themselves (applyBackdropProgress:). Present only while the card moves.
     UIView               *_backdropSnapshot;
-    MiniPlayerView       *_miniPlayer;
+    VibeMiniPlayerView   *_miniPlayer;
     UIViewController<RootViewControllerCard> *_card;
     BOOL                 _expanded;
     BOOL                 _miniWanted;
@@ -45,7 +45,7 @@ static const CGFloat kDismissFlickVelocity = 900;
         _tabs.delegate = self;
         _tabs.tabs = tabs;
         _card = card;
-        _miniPlayer = [[MiniPlayerView alloc] initWithFrame:CGRectZero];
+        _miniPlayer = [[VibeMiniPlayerView alloc] initWithFrame:CGRectZero];
         _miniPlayer.delegate = self;
     }
     return self;
@@ -55,7 +55,7 @@ static const CGFloat kDismissFlickVelocity = 900;
     return _tabs;
 }
 
-- (MiniPlayerView *)miniPlayer {
+- (VibeMiniPlayerView *)miniPlayer {
     return _miniPlayer;
 }
 
@@ -553,17 +553,17 @@ static const CGFloat kDismissFlickVelocity = 900;
     return NO;
 }
 
-#pragma mark - MiniPlayerViewDelegate
+#pragma mark - VibeMiniPlayerViewDelegate
 
-- (void)miniPlayerViewDidRequestExpand:(MiniPlayerView *)view {
+- (void)miniPlayerViewDidRequestExpand:(VibeMiniPlayerView *)view {
     [self expandCardAnimated:YES];
 }
 
-- (void)miniPlayerViewDidTapPlayPause:(MiniPlayerView *)view {
+- (void)miniPlayerViewDidTapPlayPause:(VibeMiniPlayerView *)view {
     [self.delegate rootViewControllerDidTapPlayPause:self];
 }
 
-- (void)miniPlayerViewDidTapNext:(MiniPlayerView *)view {
+- (void)miniPlayerViewDidTapNext:(VibeMiniPlayerView *)view {
     [self.delegate rootViewControllerDidTapNext:self];
 }
 

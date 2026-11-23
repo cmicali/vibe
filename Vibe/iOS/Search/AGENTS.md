@@ -8,7 +8,7 @@ The shell is `../AGENTS.md`.
 
 **No public API searches the Files app.** The picker and browser have no search hook, and `NSFileProviderSearchQuery` is the extension's side. The app can only walk trees it holds, so scope is granted folder by folder.
 
-**`PlaybackController.searchRoots` composes the scope, and nothing else does.** The transient half is `FolderSession.searchRoots`: the base folder and every folder an Add brought in, gone at the next open. A single added file is a scope, not a root, so it never appears here. The persistent half is `LocationStore.searchRoots` and `FavoritesStore`'s resolved bookmarks. `LocationStore` (`../Files/AGENTS.md`) answers with the Files tab's Locations plus Documents, which needs no grant. `FileSearchIndex` prunes nested and duplicate roots, in both directions (the `TRAP:` in `FileSearchIndex.m`).
+**`PlaybackController.searchRoots` composes the scope, and nothing else does.** The transient half is `FolderSession.searchRoots`: the base folder and every folder an Add brought in, gone at the next open. A single added file is a scope, not a root, so it never appears here. The persistent half is `VibeLocationStore.searchRoots` and `FavoritesStore`'s resolved bookmarks. `VibeLocationStore` (`../Files/AGENTS.md`) answers with the Files tab's Locations plus Documents, which needs no grant. `FileSearchIndex` prunes nested and duplicate roots, in both directions (the `TRAP:` in `FileSearchIndex.m`).
 
 ## SearchViewController
 
@@ -36,7 +36,7 @@ One streaming walk into memory, then a latest-wins filter per query off main.
 - Each batch is one directory's files, appended on main as it arrives. A blocked directory listing delays the next batch. The walk's token is an `NSProgress`. A root change cancels it, and a batch from any other walk is dropped. A query snapshots the files and the walk that filled them. It checks its own generation throughout, scans only the suffix appended since its last answer, and returns at most `kMaxFileResults` rows. The index caps at `kMaxIndexedFiles`, logs, and cancels the scan.
 - **A hit is named from its path alone**: filename over folder, the browser's file tile, nothing stat'd or read. The screen sorts each answer by name. The folder name is matched too, since on a music tree it is the album or artist.
 - **A track the playlist lists is not offered twice.** The screen passes the playlist's paths as the exclusion set, tested before the string match. Both sides are compared as `VibeComparablePath` spells them. The scan resolves its roots, so a hit under `/var` is spelled `/private/var`, and a raw comparison would offer the track again.
-- **`FileSearchRules.h` is the matching rule for both sections**, tested from the macOS suite. It imports `VibeSearchRootCoversPath` from the browser's `BrowserRules.h`, in vibe-libs' `ui/FilesBrowser`. That is the coverage decision the pruning and the Locations list's refusal both read. The one intended disagreement is the empty query: no constraint for the playlist, no match for a file.
+- **`FileSearchRules.h` is the matching rule for both sections**, tested from the macOS suite. It imports `VibeLocationRootCoversPath` from the browser's `BrowserRules.h`, in vibe-libs' `ui/FilesBrowser`. That is the coverage decision the pruning and the Locations list's refusal both read. The one intended disagreement is the empty query: no constraint for the playlist, no match for a file.
 
 ## FavoritesStore and FavoritesViewController
 
@@ -46,10 +46,10 @@ Starred folders, drawn as the Files tab draws a folder row (`FileRow`'s `vibeApp
 
 **Add to Playlist and Remove from Favorites are each reached twice**, since a context menu should never be the only road to an action. The long press gives Play, Add to Playlist and Remove from Favorites. A leading swipe gives Add. The trailing swipe is the system Delete (`canEditRowAtIndexPath:` plus `commitEditingStyle:`), which UIKit draws and localizes itself. Remove acts on the favorite's own path, never the row index, because the list can move while the menu is up.
 
-**A favorite is a place to go, not a grant to hold**, so this store is smaller than `LocationStore` (vibe-libs' `ui/FilesBrowser`):
+**A favorite is a place to go, not a grant to hold**, so this store is smaller than `VibeLocationStore` (vibe-libs' `ui/FilesBrowser`):
 
 - **Nothing resolves and no scope starts until a tap**, or until the search screen appears. Rows draw from the name and location recorded at star time, so favorites cost no provider I/O at launch.
-- **Nesting is allowed**, so identity is exact standardized-path equality. `VibeSearchRootCoversPath` would be the bug here.
+- **Nesting is allowed**, so identity is exact standardized-path equality. `VibeLocationRootCoversPath` would be the bug here.
 - **A row is never added without its bookmark.** Minting needs the folder's scope open, so the star fills when the bookmark lands. `addFolderURL:bookmark:` dedupes by path, which makes re-starring a no-op. **The two minters differ only in where the hold comes from.** `bookmarkOpenFolderWithCompletion:` serves the open folder and takes its hold from the session's scoped list, because the base can be a URL the session derived. `bookmarkFolderURL:completion:` serves a folder the session does not own (the Files tab starring a folder without opening it), which arrives already granted. Both run off main and land on main.
 - **A nil resolve alerts and leaves the row**, since a signed-out provider or an unmounted volume is temporary. A tap refreshes a stale bookmark on the resolve queue and releases its temporary scope. Search keeps its resolved scope until removal and does not refresh the bookmark.
 - **A hit inside a starred folder is opened on a hold the session owns.** `FolderSession.openURL:inFolder:` asks `resolvedRootCoveringURL:` and starts its own scope, so unstarring the playlist's folder does not stop playback reading.

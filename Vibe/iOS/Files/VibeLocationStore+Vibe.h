@@ -1,5 +1,5 @@
 //
-//  LocationStore+Vibe.h
+//  VibeLocationStore+Vibe.h
 //  Vibe (iOS)
 //
 //  What only Vibe knows about its Locations: the defaults keys its grants
@@ -7,11 +7,11 @@
 //  own on disk, On My iPhone and Dropbox.
 //
 
-#import "LocationStore.h"
+#import "VibeLocationStore.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface LocationStore (Vibe)
+@interface VibeLocationStore (Vibe)
 
 // Once at launch, before any scene names a folder. modelName is the
 // device's, as UIDevice gives it (iPhone, iPad).

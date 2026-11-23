@@ -13,7 +13,7 @@
 #import "FavoritesStore.h"
 #import "FilePaths.h"
 #import "FolderSessionRules.h"
-#import "LocationStore.h"
+#import "VibeLocationStore.h"
 
 @implementation PlaybackController (Opening)
 
@@ -177,7 +177,7 @@ static const NSTimeInterval kOpeningTimeout = 25;
 // already browsed.
 - (NSArray<NSURL *> *)searchRoots {
     NSArray<NSURL *> *roots = [[_folderSession.searchRoots
-            arrayByAddingObjectsFromArray:LocationStore.shared.searchRoots]
+            arrayByAddingObjectsFromArray:VibeLocationStore.shared.searchRoots]
             arrayByAddingObjectsFromArray:FavoritesStore.shared.searchRoots];
     DropboxMirror *mirror = DropboxMirror.shared;
     return [roots filteredArrayUsingPredicate:

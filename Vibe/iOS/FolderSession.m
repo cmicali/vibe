@@ -12,7 +12,7 @@
 #import "FileSearchRules.h"
 #import "FolderSessionRules.h"
 #import "LinkStore.h"
-#import "LocationStoreInternal.h"
+#import "VibeLocationStore.h"
 #import "FilePaths.h"
 #import "FolderWalk.h"
 #import "VibePlaylistEntry.h"
@@ -91,7 +91,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 }
 
 - (NSString *)folderDisplayName {
-    return _folderURL ? [LocationStore displayNameForFolderURL:_folderURL] : nil;
+    return _folderURL ? [VibeLocationStore displayNameForFolderURL:_folderURL] : nil;
 }
 
 - (NSArray<NSURL *> *)searchRoots {
@@ -122,7 +122,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
 // playlist goes unreadable mid-play.
 - (NSURL *)rootCoveringPath:(NSString *)path in:(NSArray<NSURL *> *)roots {
     for (NSURL *root in roots) {
-        if (VibeSearchRootCoversPath(VibeComparablePath(root.path), path)) {
+        if (VibeLocationRootCoversPath(VibeComparablePath(root.path), path)) {
             return root;
         }
     }
@@ -189,7 +189,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
     }
     // The app's own trees need no grant, so a file picked in one always
     // reaches its folder: Documents, and the Dropbox mirror.
-    NSString *documents = VibeComparablePath(LocationStore.containerDocumentsURL.path);
+    NSString *documents = VibeComparablePath(VibeLocationStore.containerDocumentsURL.path);
     NSString *dropbox = VibeComparablePath(DropboxMirror.shared.accountURL.path);
     if (documents) {
         [coveringRootPaths addObject:documents];
@@ -198,7 +198,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         [coveringRootPaths addObject:dropbox];
     }
     NSMutableArray<NSURL *> *holds = [NSMutableArray array];
-    NSMutableArray<LocationGrant *> *grants = [NSMutableArray array];
+    NSMutableArray<VibeLocationGrant *> *grants = [NSMutableArray array];
     BOOL keepsSessionBookmark = NO;
     for (NSURL *url in urls) {
         NSString *path = VibeComparablePath(url.path);
@@ -206,12 +206,12 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         // a derived root would also mask the favorites lookup below.
         NSURL *root = [self rootCoveringPath:path in:_scopedURLs];
         NSURL *sessionRoot = root;
-        LocationGrant *grant = [LocationStore.shared grantCoveringURL:url];
+        VibeLocationGrant *grant = [VibeLocationStore.shared grantCoveringURL:url];
         if (!grant) {
             // A removed Location: carry the current playlist's retained
             // grant over rather than revoke it when this result wins.
-            for (LocationGrant *held in _searchGrants) {
-                if (VibeSearchRootCoversPath(VibeComparablePath(held.rootURL.path), path)) {
+            for (VibeLocationGrant *held in _searchGrants) {
+                if (VibeLocationRootCoversPath(VibeComparablePath(held.rootURL.path), path)) {
                     grant = held;
                     break;
                 }
@@ -224,7 +224,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             root = favoriteRoot;
         }
         if (!root && grantedFolder
-                && VibeSearchRootCoversPath(VibeComparablePath(grantedFolder.path), path)) {
+                && VibeLocationRootCoversPath(VibeComparablePath(grantedFolder.path), path)) {
             root = grantedFolder;
         }
         if (sessionRoot && !grant && !favoriteRoot
@@ -296,7 +296,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                    sortedBy:(VibeFolderOpenSort)sort
           coveringRootPaths:(NSArray<NSString *> *)coveringRootPaths
                       holds:(NSArray<NSURL *> *)holds
-                     grants:(NSArray<LocationGrant *> *)grants
+                     grants:(NSArray<VibeLocationGrant *> *)grants
        openIntentGeneration:(uint64_t)openIntentGeneration {
     if (![self isCurrentOpenIntent:openIntentGeneration]) {
         for (NSURL *hold in holds) {
@@ -403,7 +403,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             NSData *bookmark = item[@"bookmark"];
             if (![item[@"folder"] boolValue] || ![recentPath isKindOfClass:NSString.class]
                     || ![bookmark isKindOfClass:NSData.class]
-                    || !VibeSearchRootCoversPath(recentPath, coveredPath)) {
+                    || !VibeLocationRootCoversPath(recentPath, coveredPath)) {
                 continue;
             }
             NSURL *root = recentRoots[recentPath];
@@ -412,7 +412,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
                 recentRoots[recentPath] = root ?: (NSURL *)NSNull.null;
             }
             if ([root isKindOfClass:NSURL.class]
-                    && VibeSearchRootCoversPath(VibeComparablePath(root.path), coveredPath)) {
+                    && VibeLocationRootCoversPath(VibeComparablePath(root.path), coveredPath)) {
                 return root;
             }
         }
@@ -428,7 +428,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         NSURL *held = url;
         if (!started) {
             NSString *path = VibeComparablePath(url.path);
-            if (VibeSearchFolderCoveringRootIndex(coveringRootPaths, path) == NSNotFound) {
+            if (VibeLocationCoveringRootIndex(coveringRootPaths, path) == NSNotFound) {
                 NSURL *recentRoot = resolveRecentRootCovering(path);
                 if (recentRoot && [recentRoot startAccessingSecurityScopedResource]) {
                     held = recentRoot;
@@ -452,11 +452,11 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             NSString *parentPath = VibeComparablePath(parent.path);
             NSURL *bookmarkRoot = nil;
             BOOL bookmarkScopeStarted = NO;
-            BOOL listable = VibeSearchFolderCoveringRootIndex(coveringRootPaths, parentPath) != NSNotFound;
+            BOOL listable = VibeLocationCoveringRootIndex(coveringRootPaths, parentPath) != NSNotFound;
             if (!listable) {
                 // A cold "Open in Vibe" arrives before any restore ran.
                 NSURL *candidate = resolvePersistedBase();
-                if (!(candidate && VibeSearchRootCoversPath(
+                if (!(candidate && VibeLocationRootCoversPath(
                         VibeComparablePath(candidate.path), parentPath))) {
                     candidate = resolveRecentRootCovering(parentPath);
                 }
@@ -556,7 +556,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
         NSString *holdPath = VibeComparablePath(hold.path);
         BOOL covers = NO;
         for (NSString *contributorPath in contributorPaths) {
-            if (VibeSearchRootCoversPath(holdPath, contributorPath)) {
+            if (VibeLocationRootCoversPath(holdPath, contributorPath)) {
                 covers = YES;
                 break;
             }
@@ -645,7 +645,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             common = common ? [common subarrayWithRange:NSMakeRange(0, length)] : components;
         }
         NSString *sharedPath = [NSString pathWithComponents:common ?: @[]];
-        if (VibeSearchFolderCoveringRootIndex(coveringRootPaths, sharedPath) != NSNotFound) {
+        if (VibeLocationCoveringRootIndex(coveringRootPaths, sharedPath) != NSNotFound) {
             shared = [NSURL fileURLWithPath:sharedPath isDirectory:YES];
         }
         opened = @[shared ?: opened.firstObject];
@@ -669,7 +669,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
             NSString *parent = [item[@"path"] stringByDeletingLastPathComponent];
             id host = linkHosts[index];
             item[@"location"] = host != NSNull.null
-                    ? host : [LocationStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]];
+                    ? host : [VibeLocationStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]];
         }];
         [RecentsStore.shared recordRecentItems:recents];
     });
@@ -684,7 +684,7 @@ static const NSTimeInterval kDropboxListingTimeout = 20;
              selectedURL:(NSURL *)selectedURL
                 restored:(BOOL)restored
              ownedScopes:(NSArray<NSURL *> *)ownedScopes
-             ownedGrants:(NSArray<LocationGrant *> *)ownedGrants
+             ownedGrants:(NSArray<VibeLocationGrant *> *)ownedGrants
             baseBookmark:(NSData *)baseBookmark
        additionBookmarks:(NSArray<NSData *> *)additionBookmarks {
     BOOL current = [self isCurrentOpenIntent:openIntentGeneration];

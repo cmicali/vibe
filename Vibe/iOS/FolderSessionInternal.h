@@ -12,7 +12,7 @@
 #import "FolderWalk.h"
 #import <stdatomic.h>
 
-@class LocationGrant;
+@class VibeLocationGrant;
 
 // iOS app-layer state, so not AppSettings.
 static NSString *const kFolderBookmarkKey = @"VibeiOSFolderBookmark";
@@ -28,7 +28,7 @@ static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
     // twice, each start balanced by its own stop.
     NSMutableArray<NSURL *> *_scopedURLs;
     // Persistent-root grants retained for this playlist, same lifetime.
-    NSMutableArray<LocationGrant *> *_searchGrants;
+    NSMutableArray<VibeLocationGrant *> *_searchGrants;
     // The BASE: title, star, bookmark. Appends never move it; nil for a
     // single-file base.
     NSURL *_folderURL;
@@ -78,7 +78,7 @@ static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
                    sortedBy:(VibeFolderOpenSort)sort
           coveringRootPaths:(NSArray<NSString *> *)coveringRootPaths
                       holds:(NSArray<NSURL *> *)holds
-                     grants:(NSArray<LocationGrant *> *)grants
+                     grants:(NSArray<VibeLocationGrant *> *)grants
        openIntentGeneration:(uint64_t)openIntentGeneration;
 
 // Main thread. Every request ends here.
@@ -90,7 +90,7 @@ static NSString *const kLastTrackPathKey = @"VibeiOSLastTrackFileName";
              selectedURL:(NSURL *)selectedURL
                 restored:(BOOL)restored
              ownedScopes:(NSArray<NSURL *> *)ownedScopes
-             ownedGrants:(NSArray<LocationGrant *> *)ownedGrants
+             ownedGrants:(NSArray<VibeLocationGrant *> *)ownedGrants
             baseBookmark:(NSData *)baseBookmark
        additionBookmarks:(NSArray<NSData *> *)additionBookmarks;
 

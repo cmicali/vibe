@@ -62,7 +62,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, nullable) NSURL *folderURL;
 
 // The base folder, if any, then every added folder; never a file. TRANSIENT,
-// gone at the next open, so LocationStore tests coverage against its own
+// gone at the next open, so VibeLocationStore checks coverage against its own
 // persistent roots, never these.
 @property (nonatomic, readonly) NSArray<NSURL *> *searchRoots;
 

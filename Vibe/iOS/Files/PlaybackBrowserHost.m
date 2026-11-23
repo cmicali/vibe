@@ -7,14 +7,14 @@
 
 #import "AppSettings.h"
 #import "AudioTrack.h"
-#import "BrowserRootViewController.h"
+#import "VibeBrowserRootViewController.h"
 #import "DropboxBrowserSource.h"
 #import "DropboxMirror+Shared.h"
 #import "FavoritesStore.h"
 #import "FilePaths.h"
 #import "FilesTabRows.h"
 #import "FilesTabRules.h"
-#import "LocationStore.h"
+#import "VibeLocationStore.h"
 #import "PlaybackController.h"
 #import "PlaybackController+ReplacePrompt.h"
 #import "SettingsRules.h"
@@ -56,11 +56,11 @@
             [weakSelf openURLs:urls inFolder:NO fromScreen:screen];
         }];
         // The device first, then Dropbox once linked.
-        NSURL *documents = LocationStore.containerDocumentsURL;
+        NSURL *documents = VibeLocationStore.containerDocumentsURL;
         UIImage *device = [UIImage systemImageNamed:
                 UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad ? @"ipad" : @"iphone"];
         _sources = @[[VibeBrowserFolderSource sourceWithRootURL:documents
-                                                          title:[LocationStore displayNameForFolderURL:documents]
+                                                          title:[VibeLocationStore displayNameForFolderURL:documents]
                                                           image:device],
                      [[DropboxBrowserSource alloc] init]];
         [playback addObserver:self];
@@ -90,8 +90,8 @@
     [self notifyObservers:@selector(browserHostSourceFilesDidChange)];
 }
 
-+ (BrowserRootViewController *)rootWithPlayback:(PlaybackController *)playback appending:(BOOL)appending {
-    BrowserRootViewController *root = [[BrowserRootViewController alloc]
++ (VibeBrowserRootViewController *)rootWithPlayback:(PlaybackController *)playback appending:(BOOL)appending {
+    VibeBrowserRootViewController *root = [[VibeBrowserRootViewController alloc]
             initWithHost:[[PlaybackBrowserHost alloc] initWithPlayback:playback appending:appending]];
     // The add sheet says what a tap in it does: it is the Files tab's twin,
     // and there a tap plays.
@@ -238,7 +238,8 @@
 
 // The token is the ask's, in the add sheet too: the walk's Dropbox listings
 // come between the ask and the open, and a replace asked for meanwhile wins.
-- (void (^)(NSArray<NSURL *> *folders))subfoldersHandlerFromScreen:(UIViewController *)screen {
+- (void (^)(NSArray<NSURL *> *folders))subfoldersHandlerForFolder:(NSURL *)folder
+                                                       fromScreen:(UIViewController *)screen {
     uint64_t token = [_playback replaceRequestTokenOpening:nil];
     BOOL appending = _appending;
     __weak PlaybackBrowserHost *weakSelf = self;

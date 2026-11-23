@@ -20,7 +20,7 @@
 #import "PlaybackController+ReplacePrompt.h"
 #import "VibePlaylist.h"
 #import "FavoritesStore.h"
-#import "LocationStore.h"
+#import "VibeLocationStore.h"
 #import "UIViewController+Alert.h"
 #import "VibeStrings.h"
 
@@ -112,7 +112,7 @@ static const NSUInteger kMaxFileResults = 200;
     // Launch restores can land while this screen is up.
     [NSNotificationCenter.defaultCenter addObserver:self
                                            selector:@selector(searchFoldersDidChange:)
-                                               name:VibeSearchFoldersDidChangeNotification
+                                               name:VibeLocationsDidChangeNotification
                                              object:nil];
     // Starred roots resolve off main and arrive after this screen is up.
     [NSNotificationCenter.defaultCenter addObserver:self
