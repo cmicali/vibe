@@ -11,9 +11,9 @@
 //  Main thread only.
 //
 
-#import <Foundation/Foundation.h>
+#import <UIKit/UIKit.h>
 
-#import "AudioWaveformLoader.h"
+#import "AudioWaveformCache.h"
 #import "VibePlayerCardPlayback.h"
 
 @class WaveformScrubberView;
@@ -36,6 +36,13 @@ typedef NS_ENUM(NSInteger, VibePlayerCardLabel) {
     VibePlayerCardLabelNext,
     VibePlayerCardLabelPlay,
     VibePlayerCardLabelPause,
+    // The FX pad: its pill, its two axis captions, and its VoiceOver label
+    // and hint.
+    VibePlayerCardLabelFXPill,
+    VibePlayerCardLabelFXAxisLowCut,
+    VibePlayerCardLabelFXAxisReverbDelay,
+    VibePlayerCardLabelFXPad,
+    VibePlayerCardLabelFXPadHint,
 };
 
 @protocol VibePlayerCardHost <NSObject>
@@ -57,12 +64,16 @@ typedef NS_ENUM(NSInteger, VibePlayerCardLabel) {
 @property (nonatomic) BOOL playerCardShowsRemainingTime;
 @property (nonatomic, readonly) BOOL playerCardShowsFXPad;
 @property (nonatomic, readonly) BOOL playerCardShowsShuffleRepeat;
+// The art a page draws when its track has none.
+@property (nonatomic, readonly) UIImage *playerCardPlaceholderArt;
 
 // Pushes every waveform setting into a page's scrubber, which reads no store:
 // the style, Centered, the playhead line and the theme provider.
 - (void)playerCardConfigureWaveformView:(WaveformScrubberView *)view;
-// What each waveform decode also analyzes. Asked once per request.
-- (VibeWaveformAnalysis)playerCardWaveformAnalysis;
+// Once, when the card makes its waveform cache, before the first lookup.
+// The host sets the cache's analysis provider, which is asked once per
+// request, and may queue an invalidation.
+- (void)playerCardConfigureWaveformCache:(AudioWaveformCache *)cache;
 
 @end
 

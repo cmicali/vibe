@@ -6,7 +6,7 @@
 #import "FXPadView.h"
 
 #import "AudioFXMath.h"
-#import "VibeStrings.h"
+#import "VibePlayerCardHost.h"
 
 static const CGFloat kFXPadSide = 260;
 static const CGFloat kFXPadMargin = 16;
@@ -64,14 +64,14 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     // The fill is the owner's, the action bar's own (TrackPageCell).
     self.layer.cornerCurve = kCACornerCurveContinuous;
     self.isAccessibilityElement = YES;
-    self.accessibilityLabel = STR_A11Y_PLAYER_FX_PAD;
-    self.accessibilityHint = STR_A11Y_PLAYER_FX_PAD_HINT;
+    self.accessibilityLabel = VibePlayerCardLabelText(VibePlayerCardLabelFXPad);
+    self.accessibilityHint = VibePlayerCardLabelText(VibePlayerCardLabelFXPadHint);
     // VoiceOver hands the finger straight to the pad: a 2D drag has no
     // spoken equivalent worth building.
     self.accessibilityTraits = UIAccessibilityTraitAllowsDirectInteraction;
 
     _pillLabel = [[UILabel alloc] init];
-    _pillLabel.text = STR_PLAYER_FX_PILL;
+    _pillLabel.text = VibePlayerCardLabelText(VibePlayerCardLabelFXPill);
     _pillLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
     _pillLabel.textColor = UIColor.whiteColor;
     _pillLabel.alpha = kFXPadRestingAlpha;
@@ -86,8 +86,8 @@ static const NSTimeInterval kFXPadCollapseDuration = 0.18;
     _padView.hidden = YES;
     [self addSubview:_padView];
 
-    _verticalCaption = [self makeCaption:STR_PLAYER_FX_AXIS_LOW_CUT];
-    _horizontalCaption = [self makeCaption:STR_PLAYER_FX_AXIS_REVERB_DELAY];
+    _verticalCaption = [self makeCaption:VibePlayerCardLabelText(VibePlayerCardLabelFXAxisLowCut)];
+    _horizontalCaption = [self makeCaption:VibePlayerCardLabelText(VibePlayerCardLabelFXAxisReverbDelay)];
 
     _cursorView = [[UIView alloc] initWithFrame:CGRectMake(0, 0, kFXPadCursorDiameter, kFXPadCursorDiameter)];
     _cursorView.backgroundColor = [UIColor colorWithWhite:1 alpha:kFXPadCursorFillAlpha];

@@ -27,6 +27,8 @@
 #endif
 
 // The now-playing card asks the app for its words, formats and settings.
+static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfilled";
+
 @interface VibeiOSAppDelegate () <VibePlayerCardHost>
 @end
 
@@ -104,6 +106,11 @@
         case VibePlayerCardLabelNext: return STR_TRANSPORT_NEXT;
         case VibePlayerCardLabelPlay: return STR_TRANSPORT_PLAY;
         case VibePlayerCardLabelPause: return STR_TRANSPORT_PAUSE;
+        case VibePlayerCardLabelFXPill: return STR_PLAYER_FX_PILL;
+        case VibePlayerCardLabelFXAxisLowCut: return STR_PLAYER_FX_AXIS_LOW_CUT;
+        case VibePlayerCardLabelFXAxisReverbDelay: return STR_PLAYER_FX_AXIS_REVERB_DELAY;
+        case VibePlayerCardLabelFXPad: return STR_A11Y_PLAYER_FX_PAD;
+        case VibePlayerCardLabelFXPadHint: return STR_A11Y_PLAYER_FX_PAD_HINT;
     }
     return @"";
 }
@@ -173,12 +180,24 @@
 // No key observer: key detection is macOS-only. The bands are for the card's
 // style or the widget's, which bakes from the card's waveform. A nil widget
 // style is the card's.
-- (VibeWaveformAnalysis)playerCardWaveformAnalysis {
-    AppSettings *settings = AppSettings.sharedInstance;
-    return (VibeWaveformAnalysis){
-        .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.waveformStyle]
-              || [WaveformRendererRegistry readsBandsForIdentifier:settings.widgetWaveformStyle],
-        .observers = settings.analyzeBPM ? @[AudioBPMAnalyzer.waveformObserver] : @[],
+- (UIImage *)playerCardPlaceholderArt {
+    return [UIImage imageNamed:@"record-bg"];
+}
+
+- (void)playerCardConfigureWaveformCache:(AudioWaveformCache *)cache {
+    // Queued before the card's first lookup, so no page reads a waveform
+    // cached before its tempo was analyzed.
+    if (![NSUserDefaults.standardUserDefaults boolForKey:kWaveformTempoBackfillKey]) {
+        [cache invalidateWithCompletion:nil];
+        [NSUserDefaults.standardUserDefaults setBool:YES forKey:kWaveformTempoBackfillKey];
+    }
+    cache.analysisProvider = ^VibeWaveformAnalysis{
+        AppSettings *settings = AppSettings.sharedInstance;
+        return (VibeWaveformAnalysis){
+            .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.waveformStyle]
+                  || [WaveformRendererRegistry readsBandsForIdentifier:settings.widgetWaveformStyle],
+            .observers = settings.analyzeBPM ? @[AudioBPMAnalyzer.waveformObserver] : @[],
+        };
     };
 }
 
