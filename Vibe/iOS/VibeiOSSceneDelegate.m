@@ -9,6 +9,7 @@
 #import "LinkStore.h"
 #import "LocationStore.h"
 #import "PlaybackController.h"
+#import "PlaybackShellHost.h"
 #import "VibePlaylist.h"
 #import "RecentsStore.h"
 #import "RootViewController.h"
@@ -16,6 +17,7 @@
 @implementation VibeiOSSceneDelegate {
     // One engine per process, so multi-scene is off.
     PlaybackController *_playback;
+    PlaybackShellHost *_shellHost;
     RootViewController *_root;
 }
 
@@ -29,7 +31,8 @@
     // The card's strip layout needs room for 150pt art and insets. Nil on iPhone.
     windowScene.sizeRestrictions.minimumSize = CGSizeMake(320, 200);
     _playback = [[PlaybackController alloc] init];
-    RootViewController *root = [[RootViewController alloc] initWithPlayback:_playback];
+    _shellHost = [[PlaybackShellHost alloc] initWithPlayback:_playback];
+    RootViewController *root = _shellHost.root;
     _root = root;
     self.window = [[UIWindow alloc] initWithWindowScene:windowScene];
     self.window.rootViewController = root;
@@ -110,7 +113,7 @@
 + (void)showPlaylist {
     VibeiOSSceneDelegate *delegate = [self connectedDelegate];
     if (delegate) {
-        [delegate->_root showPlaylist];
+        [delegate->_shellHost showPlaylist];
     }
 }
 

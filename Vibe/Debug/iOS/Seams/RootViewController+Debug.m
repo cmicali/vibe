@@ -57,6 +57,42 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
     return @[@(insets.top), @(insets.left), @(insets.bottom), @(insets.right)];
 }
 
+@implementation RootViewController (DebugSurface)
+
+- (PlaybackShellHost *)shellHost {
+    return (PlaybackShellHost *)self.delegate;
+}
+
+- (PlaybackController *)playback {
+    return self.shellHost.playback;
+}
+
+- (PlayerViewController *)player {
+    return self.shellHost.player;
+}
+
+- (PlaylistViewController *)playlistScreen {
+    return self.shellHost.playlistScreen;
+}
+
+- (FavoritesViewController *)favorites {
+    return self.shellHost.favorites;
+}
+
+- (SearchViewController *)searchScreen {
+    return self.shellHost.searchScreen;
+}
+
+- (BrowserRootViewController *)filesBrowser {
+    return self.shellHost.filesBrowser;
+}
+
+- (NSArray<NSNumber *> *)liftedRowTimes {
+    return self.shellHost.liftedRowTimes;
+}
+
+@end
+
 @implementation RootViewController (Debug)
 
 // Where the selected tab's chrome and first row sit in the window, with the
@@ -83,7 +119,7 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
     if (tabBar.window) {
         anchors[@"tabBar"] = VibeRectArray([tabBar convertRect:tabBar.bounds toView:nil]);
     }
-    UIView *strip = self.miniPlayerView;
+    UIView *strip = (UIView *)self.miniPlayer;
     if (strip.window) {
         anchors[@"strip"] = VibeRectArray([strip convertRect:strip.bounds toView:nil]);
     }
@@ -135,7 +171,7 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
         @"kind": @(playback.outputRouteKind),
         @"name": playback.outputRouteName ?: @"",
     };
-    ui[@"playerPresentation"] = self.isPlayerExpanded ? @"full" : @"minimized";
+    ui[@"playerPresentation"] = self.isCardExpanded ? @"full" : @"minimized";
     ui[@"miniPlayerShown"] = @(self.isMiniPlayerShown);
     ui[@"selectedTab"] = self.selectedTabIdentifier;
     ui[@"libraryEmpty"] = @(playback.playlist.count == 0);
@@ -297,7 +333,7 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
         @"count": @(playback.playlist.count),
         @"position": @(playback.position),
         @"parked": @(playback.debugParked),
-        @"playerPresentation": self.isPlayerExpanded ? @"full" : @"minimized",
+        @"playerPresentation": self.isCardExpanded ? @"full" : @"minimized",
     };
 }
 

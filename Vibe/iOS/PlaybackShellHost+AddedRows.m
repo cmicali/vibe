@@ -1,9 +1,11 @@
 //
-//  RootViewController+AddedRows.m
+//  PlaybackShellHost+AddedRows.m
 //  Vibe (iOS)
 //
 
-#import "RootViewControllerInternal.h"
+#import "PlaybackShellHostInternal.h"
+
+#import "RootViewController.h"
 
 // An Add in the Files tab changes nothing on its own screen, so its rows say
 // what happened: they lift when asked for, fly into the Playlist tab when the
@@ -16,7 +18,7 @@ static const NSTimeInterval kRowFlightStagger = 0.07;
 static const CGFloat kLiftedRowScale = 1.03;
 static const CGFloat kLandedRowScale = 0.1;
 
-@implementation RootViewController (AddedRows)
+@implementation PlaybackShellHost (AddedRows)
 
 - (void)liftAddedRows:(NSArray<UIView *> *)rows {
     if (rows.count == 0) {
@@ -29,7 +31,7 @@ static const CGFloat kLandedRowScale = 0.1;
     [_liftedRowBatches addObject:rows];
     [_liftedRowBatchTimes addObject:@(CACurrentMediaTime())];
     for (UIView *row in rows) {
-        row.frame = [self.view convertRect:row.frame fromView:nil];
+        row.frame = [self.root.view convertRect:row.frame fromView:nil];
         row.userInteractionEnabled = NO;
         row.layer.shadowOpacity = 0.25f;
         row.layer.shadowRadius = 12;
@@ -37,7 +39,7 @@ static const CGFloat kLandedRowScale = 0.1;
         // Without a path the shadow is re-derived from the snapshot's pixels
         // on every frame of the flight.
         row.layer.shadowPath = [UIBezierPath bezierPathWithRect:row.bounds].CGPath;
-        [self.view addSubview:row];
+        [self.root.view addSubview:row];
     }
     if (!UIAccessibilityIsReduceMotionEnabled()) {
         [UIView animateWithDuration:kRowLiftDuration delay:0 usingSpringWithDamping:0.6 initialSpringVelocity:0

@@ -2,15 +2,16 @@
 //  RootViewController+Debug.h
 //  Vibe (iOS)
 //
-//  The shell adopts VibeDebugPlayerSurface because it is the one object that
-//  sees the whole app: it forwards player and playlist reads to its
-//  PlaybackController and pager reads to its card. The iOS twin of
-//  Mac/Seams/MainPlayerController+DebugPlayerSurface.h.
+//  The shell adopts VibeDebugPlayerSurface because it is the one object the
+//  window reaches: it forwards Vibe's reads to its delegate, PlaybackShellHost,
+//  player and playlist reads to the host's PlaybackController, and pager reads
+//  to the card. The iOS twin of Mac/Seams/MainPlayerController+DebugPlayerSurface.h.
 //
 
 #if DEBUG
 
 #import "RootViewController.h"
+#import "PlaybackShellHost.h"
 #import "DebugPlayerSurface.h"
 #import "BrowserRootViewController.h"   // the categories below need the classes
 #import "FilesTabRows.h"
@@ -26,30 +27,32 @@
 @class PlaybackController;
 @class PlayerViewController;
 
-// Declaration-only access to production methods in RootViewController.m and
-// RootViewController+AddedRows.m.
-@interface RootViewController (DebugSurface)
+// Declaration-only access to production methods in PlaybackShellHost.m and
+// PlaybackShellHost+AddedRows.m.
+@interface PlaybackShellHost (DebugSurface)
 
-@property (nonatomic, readonly) PlaybackController *playback;
 @property (nonatomic, readonly) PlayerViewController *player;
 // Each is nil until its tab's lazy provider has run.
 @property (nonatomic, readonly) PlaylistViewController *playlistScreen;
 @property (nonatomic, readonly) FavoritesViewController *favorites;
 @property (nonatomic, readonly) SearchViewController *searchScreen;
 @property (nonatomic, readonly) BrowserRootViewController *filesBrowser;
-@property (nonatomic, readonly, getter=isPlayerExpanded) BOOL playerExpanded;
-@property (nonatomic, readonly, getter=isMiniPlayerShown) BOOL miniPlayerShown;
-@property (nonatomic, copy) NSString *selectedTabIdentifier;
 // Unsettled row lifts, oldest first, in CACurrentMediaTime units.
 @property (nonatomic, readonly) NSArray<NSNumber *> *liftedRowTimes;
-// The live tabs, the strip, and the snapshot that scales over them while
-// the card moves (nil at rest). For the layout probe.
-@property (nonatomic, readonly) UITabBarController *tabs;
-@property (nonatomic, readonly) UIView *miniPlayerView;
-@property (nonatomic, readonly) UIView *backdropSnapshot;
 
-- (void)expandPlayerAnimated:(BOOL)animated;
-- (void)minimizePlayerAnimated:(BOOL)animated;
+@end
+
+// The host's reads, forwarded through the root's delegate.
+@interface RootViewController (DebugSurface)
+
+@property (nonatomic, readonly) PlaybackShellHost *shellHost;
+@property (nonatomic, readonly) PlaybackController *playback;
+@property (nonatomic, readonly) PlayerViewController *player;
+@property (nonatomic, readonly) PlaylistViewController *playlistScreen;
+@property (nonatomic, readonly) FavoritesViewController *favorites;
+@property (nonatomic, readonly) SearchViewController *searchScreen;
+@property (nonatomic, readonly) BrowserRootViewController *filesBrowser;
+@property (nonatomic, readonly) NSArray<NSNumber *> *liftedRowTimes;
 
 @end
 

@@ -3,24 +3,11 @@
 //  Vibe (iOS)
 //
 
-#import "RootViewControllerInternal.h"
+#import "RootViewController.h"
 
-#import "AppSettings.h"
-#import "AudioTrack+TrackRow.h"
-#import "AudioTrackMetadata.h"
-#import "CueFolderGrantPrompt.h"
-#import "FavoritesViewController.h"
-#import "BrowserRootViewController.h"
-#import "PlaybackBrowserHost.h"
 #import "MiniPlayerView.h"
-#import "PlaybackController.h"
-#import "PlayerScreenRules.h"
-#import "PlayerViewController.h"
-#import "VibePlaylist.h"
-#import "PlaylistViewController.h"
-#import "SearchViewController.h"
-#import "UIViewController+Alert.h"
-#import "VibeStrings.h"
+
+NSString *const RootViewControllerSearchTabIdentifier = @"search";
 
 static const CGFloat kCardCornerRadius = 14;
 static const CGFloat kBackdropScale = 0.92;
@@ -30,63 +17,46 @@ static const CGFloat kBackdropCornerRadius = 38;
 static const CGFloat kDismissTravelFraction = 0.25;
 static const CGFloat kDismissFlickVelocity = 900;
 
-static NSString *const kTabPlaylist = @"playlist";
-static NSString *const kTabFavorites = @"favorites";
-static NSString *const kTabFiles = @"files";
-static NSString *const kTabSearch = @"search";
-
-@interface RootViewController () <PlaybackObserver, MiniPlayerViewDelegate,
-        PlayerViewControllerDelegate, UITabBarControllerDelegate>
+@interface RootViewController () <MiniPlayerViewDelegate, UITabBarControllerDelegate>
 @end
 
 @implementation RootViewController {
-    PlaybackController   *_playback;
+    NSArray<UITab *>     *_tabList;
     UITabBarController   *_tabs;
     // What scales under a moving card: a snapshot of the tabs, never the tabs
     // themselves (applyBackdropProgress:). Present only while the card moves.
     UIView               *_backdropSnapshot;
-    BrowserRootViewController *_filesController;
-    FavoritesViewController *_favorites;
-    PlaylistViewController *_playlistScreen;
-    SearchViewController *_searchController;
     MiniPlayerView       *_miniPlayer;
-    PlayerViewController *_player;
+    UIViewController<RootViewControllerCard> *_card;
     BOOL                 _expanded;
     BOOL                 _miniWanted;
     // The card between up and away; see updateBackdropVisibility.
     BOOL                 _cardAnimating;
     BOOL                 _interactiveDrag;
     UIViewPropertyAnimator *_cardAnimator;
-    CueFolderGrantPrompt   *_cueFolderGrantPrompt;
-    BOOL                   _playerAppearanceTransitionActive;
+    BOOL                   _cardAppearanceTransitionActive;
     NSArray<UIViewController *> *_parentAppearanceChildren;
     BOOL                   _rootPresentationVisible;
     BOOL                   _sceneActive;
     uint64_t               _accessibilityPresentationGeneration;
 }
 
-- (instancetype)initWithPlayback:(PlaybackController *)playback {
+- (instancetype)initWithTabs:(NSArray<UITab *> *)tabs card:(UIViewController<RootViewControllerCard> *)card {
     self = [super initWithNibName:nil bundle:nil];
     if (self) {
-        _playback = playback;
-        _cueFolderGrantPrompt = [[CueFolderGrantPrompt alloc] init];
+        _tabList = [tabs copy];
+        _card = card;
+        _miniPlayer = [[MiniPlayerView alloc] initWithFrame:CGRectZero];
+        _miniPlayer.delegate = self;
     }
     return self;
-}
-
-- (PlayerViewController *)player {
-    return _player;
-}
-
-- (PlaybackController *)playback {
-    return _playback;
 }
 
 - (UITabBarController *)tabs {
     return _tabs;
 }
 
-- (UIView *)miniPlayerView {
+- (MiniPlayerView *)miniPlayer {
     return _miniPlayer;
 }
 
@@ -94,137 +64,23 @@ static NSString *const kTabSearch = @"search";
     return _backdropSnapshot;
 }
 
-- (PlaylistViewController *)playlistScreen {
-    return _playlistScreen;
-}
-
-- (BrowserRootViewController *)filesBrowser {
-    return _filesController;
-}
-
-- (FavoritesViewController *)favorites {
-    return _favorites;
-}
-
-- (SearchViewController *)searchScreen {
-    return _searchController;
-}
-
 - (void)viewDidLoad {
     [super viewDidLoad];
     self.view.backgroundColor = UIColor.blackColor;
 
     [self buildTabs];
-    [self buildMiniPlayer];
     [self buildCard];
-
-    [_playback addObserver:self];
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(thumbnailDidLoad:)
-                                               name:AudioTrackMetadataThumbnailDidLoadNotification
-                                             object:nil];
-    [NSNotificationCenter.defaultCenter addObserver:self
-                                           selector:@selector(displaySettingsDidChange)
-                                               name:VibeDisplaySettingsDidChangeNotification
-                                             object:nil];
-    [self refreshMiniPlayer];
+    if (_miniWanted) {
+        [self applyMiniPlayerAccessory];
+    }
+    [self.delegate rootViewControllerDidLoad:self];
     [self syncTabSurfaces];
 }
 
-- (void)dealloc {
-    [NSNotificationCenter.defaultCenter removeObserver:self];
-}
-
-// The card reads no setting itself.
-- (void)displaySettingsDidChange {
-    [_player reloadSettings];
-}
-
-- (void)thumbnailDidLoad:(NSNotification *)notification {
-    AudioTrack *displayed = _playback.displayedTrack;
-    if (displayed.metadata == notification.object) {
-        [_miniPlayer renderRow:displayed.trackRow];
-    }
-}
-
-// Lazy providers, so a tab never visited costs nothing; the Files browser is
-// not cheap.
 - (void)buildTabs {
-    __weak RootViewController *weakSelf = self;
-
-    UITab *playlist = [[UITab alloc] initWithTitle:STR_TAB_PLAYLIST
-                                             image:[UIImage systemImageNamed:@"music.note.list"]
-                                        identifier:kTabPlaylist
-                         viewControllerProvider:^UIViewController *(__kindof UITab *tab) {
-        RootViewController *root = weakSelf;
-        if (!root) {
-            return nil;
-        }
-        PlaylistViewController *playlistScreen =
-                [[PlaylistViewController alloc] initWithPlayback:root->_playback];
-        root->_playlistScreen = playlistScreen;
-        // The empty state's Open; the Playlist tab knows nothing about tabs.
-        playlistScreen.openFilesHandler = ^{
-            [weakSelf setSelectedTabIdentifier:kTabFiles];
-        };
-        [root syncTabSurfaces];
-        return [[UINavigationController alloc] initWithRootViewController:playlistScreen];
-    }];
-
-    UITab *favorites = [[UITab alloc] initWithTitle:STR_TAB_FAVORITES
-                                              image:[UIImage systemImageNamed:@"star"]
-                                         identifier:kTabFavorites
-                         viewControllerProvider:^UIViewController *(__kindof UITab *tab) {
-        RootViewController *root = weakSelf;
-        if (!root) {
-            return nil;
-        }
-        FavoritesViewController *starred =
-                [[FavoritesViewController alloc] initWithPlayback:root->_playback];
-        root->_favorites = starred;
-        starred.showDirectoryHandler = ^(NSURL *directory) {
-            [weakSelf showDirectoryInFiles:directory highlighting:nil];
-        };
-        return [[UINavigationController alloc] initWithRootViewController:starred];
-    }];
-
-    UITab *files = [[UITab alloc] initWithTitle:STR_TAB_FILES
-                                          image:[UIImage systemImageNamed:@"folder"]
-                                     identifier:kTabFiles
-                         viewControllerProvider:^UIViewController *(__kindof UITab *tab) {
-        RootViewController *root = weakSelf;
-        if (!root) {
-            return nil;
-        }
-        BrowserRootViewController *browser = [PlaybackBrowserHost rootWithPlayback:root->_playback appending:NO];
-        root->_filesController = browser;
-        browser.addedRowsHandler = ^(NSArray<UIView *> *rows) {
-            [weakSelf liftAddedRows:rows];
-        };
-        [root syncTabSurfaces];
-        return [[UINavigationController alloc] initWithRootViewController:browser];
-    }];
-
-    UISearchTab *search = [[UISearchTab alloc] initWithViewControllerProvider:
-            ^UIViewController *(__kindof UITab *tab) {
-        RootViewController *root = weakSelf;
-        if (!root) {
-            return nil;
-        }
-        SearchViewController *results =
-                [[SearchViewController alloc] initWithPlayback:root->_playback];
-        root->_searchController = results;
-        results.showDirectoryHandler = ^(NSURL *directory, NSURL *file) {
-            [weakSelf showDirectoryInFiles:directory highlighting:file];
-        };
-        [root syncTabSurfaces];
-        return [[UINavigationController alloc] initWithRootViewController:results];
-    }];
-    search.automaticallyActivatesSearch = YES;
-
     _tabs = [[UITabBarController alloc] init];
     _tabs.delegate = self;
-    _tabs.tabs = @[playlist, favorites, files, search];
+    _tabs.tabs = _tabList;
 
     [self addChildViewController:_tabs];
     _tabs.view.frame = self.view.bounds;
@@ -234,40 +90,29 @@ static NSString *const kTabSearch = @"search";
     [self syncTabSurfaces];
 }
 
-- (void)buildMiniPlayer {
-    _miniPlayer = [[MiniPlayerView alloc] initWithFrame:CGRectZero];
-    _miniPlayer.delegate = self;
-    [_miniPlayer setAccessibilityLabelsForExpand:STR_SETTINGS_NOW_PLAYING_SECTION
-                                            play:STR_TRANSPORT_PLAY
-                                           pause:STR_TRANSPORT_PAUSE
-                                            next:STR_TRANSPORT_NEXT];
-}
-
 - (void)buildCard {
-    _player = [[PlayerViewController alloc] initWithPlayback:_playback];
-    _player.delegate = self;
-    _player.sceneActive = _sceneActive;
-    [self addChildViewController:_player];
-    _player.view.frame = self.view.bounds;
-    _player.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    _player.view.layer.cornerRadius = kCardCornerRadius;
-    _player.view.layer.cornerCurve = kCACornerCurveContinuous;
-    _player.view.layer.masksToBounds = YES;
-    [self.view addSubview:_player.view];
-    [_player didMoveToParentViewController:self];
+    _card.sceneActive = _sceneActive;
+    [self addChildViewController:_card];
+    _card.view.frame = self.view.bounds;
+    _card.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    _card.view.layer.cornerRadius = kCardCornerRadius;
+    _card.view.layer.cornerCurve = kCACornerCurveContinuous;
+    _card.view.layer.masksToBounds = YES;
+    [self.view addSubview:_card.view];
+    [_card didMoveToParentViewController:self];
     // Built minimized; the manual appearance forwarding below keeps its
     // viewWillAppear: from firing just because it is in the hierarchy.
-    _player.view.transform = [self minimizedCardTransform];
-    _player.view.hidden = YES;
-    _player.view.accessibilityViewIsModal = NO;
-    _player.presented = NO;
+    _card.view.transform = [self minimizedCardTransform];
+    _card.view.hidden = YES;
+    _card.view.accessibilityViewIsModal = NO;
+    _card.presented = NO;
 }
 
 - (void)viewDidLayoutSubviews {
     [super viewDidLayoutSubviews];
     if (!_expanded) {
         // The offset is the view's height, which a rotation or resize moves.
-        _player.view.transform = [self minimizedCardTransform];
+        _card.view.transform = [self minimizedCardTransform];
     }
 }
 
@@ -286,7 +131,7 @@ static NSString *const kTabSearch = @"search";
 
 // Expand and minimize own the card's transitions while it is down.
 - (NSArray<UIViewController *> *)appearingChildren {
-    return _expanded ? @[_tabs, _player] : @[_tabs];
+    return _expanded ? @[_tabs, _card] : @[_tabs];
 }
 
 - (void)finishParentAppearanceTransition {
@@ -305,7 +150,7 @@ static NSString *const kTabSearch = @"search";
     // any open pair, then snapshot the children: `_expanded` may change before
     // the matching end.
     [self finishParentAppearanceTransition];
-    [self finishPlayerAppearanceTransition];
+    [self finishCardAppearanceTransition];
     _parentAppearanceChildren = [[self appearingChildren] copy];
     for (UIViewController *child in _parentAppearanceChildren) {
         [child beginAppearanceTransition:YES animated:animated];
@@ -322,7 +167,7 @@ static NSString *const kTabSearch = @"search";
     _rootPresentationVisible = NO;
     [self syncTabSurfaces];
     [self finishParentAppearanceTransition];
-    [self finishPlayerAppearanceTransition];
+    [self finishCardAppearanceTransition];
     _parentAppearanceChildren = [[self appearingChildren] copy];
     for (UIViewController *child in _parentAppearanceChildren) {
         [child beginAppearanceTransition:NO animated:animated];
@@ -339,7 +184,7 @@ static NSString *const kTabSearch = @"search";
         return;
     }
     _sceneActive = sceneActive;
-    _player.sceneActive = sceneActive;
+    _card.sceneActive = sceneActive;
     [self syncTabSurfaces];
 }
 
@@ -348,18 +193,17 @@ static NSString *const kTabSearch = @"search";
 }
 
 // What no descendant can know: scene activity and whether the card leaves the
-// selected tab exposed.
+// selected tab exposed. The delegate maps it onto its screens.
+- (BOOL)tabsExposed {
+    return _sceneActive && _rootPresentationVisible && !_tabs.view.hidden;
+}
+
+- (BOOL)cardAtRest {
+    return !_expanded && !_cardAnimating && !_interactiveDrag;
+}
+
 - (void)syncTabSurfaces {
-    BOOL tabsExposed = _sceneActive && _rootPresentationVisible && !_tabs.view.hidden;
-    _playlistScreen.equalizerSurfaceVisible = tabsExposed
-            && [_tabs.selectedTab.identifier isEqualToString:kTabPlaylist];
-    _filesController.equalizerSurfaceVisible = tabsExposed
-            && [_tabs.selectedTab.identifier isEqualToString:kTabFiles];
-    BOOL searchSelected = [_tabs.selectedTab isKindOfClass:UISearchTab.class];
-    BOOL cardAtRestBelowTabs = !_expanded && !_cardAnimating && !_interactiveDrag;
-    _searchController.materialSurfaceVisible = _sceneActive
-            && _rootPresentationVisible && !_tabs.view.hidden
-            && cardAtRestBelowTabs && searchSelected;
+    [self.delegate rootViewControllerDidChangeExposure:self];
 }
 
 #pragma mark - The mini player
@@ -369,20 +213,29 @@ static NSString *const kTabSearch = @"search";
 // to its end is clamped up by that much under the snapshot, and putting it
 // back on dismiss moves nothing: one card cycle left the last row behind
 // the strip. The card hides the tabs, strip included, so it costs nothing.
-- (void)refreshMiniPlayer {
-    BOOL wanted = VibeMiniPlayerVisible(_playback.screenState);
+- (void)setMiniPlayerRow:(VibeTrackRow *)row playing:(BOOL)playing {
+    BOOL wanted = row != nil;
     if (wanted) {
-        [_miniPlayer renderRow:_playback.displayedTrack.trackRow];
-        [_miniPlayer setPlaying:_playback.isPlaying];
+        [_miniPlayer renderRow:row];
+        [_miniPlayer setPlaying:playing];
     }
     if (wanted == _miniWanted) {
         return;
     }
     _miniWanted = wanted;
-    UITabAccessory *accessory = wanted
+    [self applyMiniPlayerAccessory];
+}
+
+// Before the view loads, viewDidLoad applies it.
+- (void)applyMiniPlayerAccessory {
+    UITabAccessory *accessory = _miniWanted
             ? [[UITabAccessory alloc] initWithContentView:_miniPlayer]
             : nil;
     [_tabs setBottomAccessory:accessory animated:!UIAccessibilityIsReduceMotionEnabled()];
+}
+
+- (BOOL)isMiniPlayerShown {
+    return _miniWanted;
 }
 
 #pragma mark - Expanding and minimizing
@@ -391,15 +244,15 @@ static NSString *const kTabSearch = @"search";
     return requested && !UIAccessibilityIsReduceMotionEnabled();
 }
 
-- (void)beginPlayerAppearanceTransition:(BOOL)appearing animated:(BOOL)animated {
+- (void)beginCardAppearanceTransition:(BOOL)appearing animated:(BOOL)animated {
     if (!_rootPresentationVisible) {
         return;
     }
     // A card intent can land between this container's will/did; appearance
     // transitions cannot nest, so end the parent's pair first.
     [self finishParentAppearanceTransition];
-    [_player beginAppearanceTransition:appearing animated:animated];
-    _playerAppearanceTransitionActive = YES;
+    [_card beginAppearanceTransition:appearing animated:animated];
+    _cardAppearanceTransitionActive = YES;
 }
 
 - (UIView *)firstAccessibleDescendantInView:(UIView *)view {
@@ -422,7 +275,7 @@ static NSString *const kTabSearch = @"search";
     uint64_t generation = ++_accessibilityPresentationGeneration;
     if (expanded) {
         // Not a presentation, so UIKit cannot infer the modal surface.
-        _player.view.accessibilityViewIsModal = YES;
+        _card.view.accessibilityViewIsModal = YES;
         _tabs.view.accessibilityElementsHidden = YES;
     }
     return generation;
@@ -434,7 +287,7 @@ static NSString *const kTabSearch = @"search";
         return;
     }
     if (!expanded) {
-        _player.view.accessibilityViewIsModal = NO;
+        _card.view.accessibilityViewIsModal = NO;
         _tabs.view.accessibilityElementsHidden = NO;
     }
     if (!_rootPresentationVisible || !UIAccessibilityIsVoiceOverRunning()) {
@@ -447,42 +300,38 @@ static NSString *const kTabSearch = @"search";
                 || expanded != self->_expanded || !self->_rootPresentationVisible) {
             return;
         }
-        UIView *surface = expanded ? self->_player.view : self->_miniPlayer;
+        UIView *surface = expanded ? self->_card.view : self->_miniPlayer;
         UIView *focus = [self firstAccessibleDescendantInView:surface];
         UIAccessibilityPostNotification(UIAccessibilityScreenChangedNotification, focus);
     });
 }
 
-- (BOOL)isPlayerExpanded {
+- (BOOL)isCardExpanded {
     return _expanded;
 }
 
-- (BOOL)isMiniPlayerShown {
-    return _miniWanted;
-}
-
-- (void)expandPlayerAnimated:(BOOL)animated {
-    if (_expanded || _playback.playlist.count == 0) {
+- (void)expandCardAnimated:(BOOL)animated {
+    if (_expanded || ![self.delegate rootViewControllerCanExpandCard:self]) {
         return;
     }
     [self interruptCardAnimationPreservingVisualState];
     BOOL shouldAnimate = [self shouldAnimateCard:animated];
     _expanded = YES;
     uint64_t accessibilityGeneration = [self beginAccessibilityTransitionToExpanded:YES];
-    _player.view.hidden = NO;
-    [self beginPlayerAppearanceTransition:YES animated:shouldAnimate];
-    _player.presented = YES;
+    _card.view.hidden = NO;
+    [self beginCardAppearanceTransition:YES animated:shouldAnimate];
+    _card.presented = YES;
     [self animateCardAnimated:shouldAnimate changes:^{
-        self->_player.view.transform = CGAffineTransformIdentity;
+        self->_card.view.transform = CGAffineTransformIdentity;
         [self applyBackdropProgress:0];
     } completion:^{
-        [self finishPlayerAppearanceTransition];
+        [self finishCardAppearanceTransition];
         [self completeAccessibilityTransitionToExpanded:YES
                                              generation:accessibilityGeneration];
     }];
 }
 
-- (void)minimizePlayerAnimated:(BOOL)animated {
+- (void)minimizeCardAnimated:(BOOL)animated {
     if (!_expanded) {
         return;
     }
@@ -490,14 +339,14 @@ static NSString *const kTabSearch = @"search";
     BOOL shouldAnimate = [self shouldAnimateCard:animated];
     _expanded = NO;
     uint64_t accessibilityGeneration = [self beginAccessibilityTransitionToExpanded:NO];
-    [self beginPlayerAppearanceTransition:NO animated:shouldAnimate];
-    _player.presented = NO;
+    [self beginCardAppearanceTransition:NO animated:shouldAnimate];
+    _card.presented = NO;
     [self animateCardAnimated:shouldAnimate changes:^{
-        self->_player.view.transform = [self minimizedCardTransform];
+        self->_card.view.transform = [self minimizedCardTransform];
         [self applyBackdropProgress:1];
     } completion:^{
-        self->_player.view.hidden = YES;
-        [self finishPlayerAppearanceTransition];
+        self->_card.view.hidden = YES;
+        [self finishCardAppearanceTransition];
         [self completeAccessibilityTransitionToExpanded:NO
                                              generation:accessibilityGeneration];
     }];
@@ -544,27 +393,27 @@ static NSString *const kTabSearch = @"search";
     if (!_cardAnimator) {
         return;
     }
-    CALayer *presentation = _player.view.layer.presentationLayer;
+    CALayer *presentation = _card.view.layer.presentationLayer;
     CGAffineTransform visibleTransform = presentation
             ? presentation.affineTransform
-            : _player.view.transform;
+            : _card.view.transform;
     UIViewPropertyAnimator *animator = _cardAnimator;
     _cardAnimator = nil;
     [animator stopAnimation:YES];
-    _player.view.transform = visibleTransform;
+    _card.view.transform = visibleTransform;
     CGFloat height = MAX(1, self.view.bounds.size.height);
     [self applyBackdropProgress:visibleTransform.ty / height];
     _cardAnimating = NO;
     // The snapshot stays: the intent that interrupted is about to animate.
-    [self finishPlayerAppearanceTransition];
+    [self finishCardAppearanceTransition];
 }
 
-- (void)finishPlayerAppearanceTransition {
-    if (!_playerAppearanceTransitionActive) {
+- (void)finishCardAppearanceTransition {
+    if (!_cardAppearanceTransitionActive) {
         return;
     }
-    _playerAppearanceTransitionActive = NO;
-    [_player endAppearanceTransition];
+    _cardAppearanceTransitionActive = NO;
+    [_card endAppearanceTransition];
 }
 
 // A card at rest covers the tabs, so they are hidden: shown, the glass tab
@@ -624,10 +473,9 @@ static NSString *const kTabSearch = @"search";
 
 // `presented` holds for the whole gesture, so a cancelled drag has not stopped
 // the card's display link.
-- (void)playerViewController:(PlayerViewController *)controller
-       didPanWithTranslation:(CGFloat)translation
-                    velocity:(CGFloat)velocity
-                       state:(UIGestureRecognizerState)state {
+- (void)cardDidPanWithTranslation:(CGFloat)translation
+                         velocity:(CGFloat)velocity
+                            state:(UIGestureRecognizerState)state {
     if (!_expanded) {
         return;
     }
@@ -639,14 +487,14 @@ static NSString *const kTabSearch = @"search";
         case UIGestureRecognizerStateChanged:
             _interactiveDrag = YES;
             [self beginBackdropSnapshot];
-            _player.view.transform = CGAffineTransformMakeTranslation(0, translation);
+            _card.view.transform = CGAffineTransformMakeTranslation(0, translation);
             [self applyBackdropProgress:translation / height];
             break;
         case UIGestureRecognizerStateEnded:
             // Before the settle, whose animation then owns the backdrop.
             _interactiveDrag = NO;
             if (translation > height * kDismissTravelFraction || velocity > kDismissFlickVelocity) {
-                [self minimizePlayerAnimated:YES];
+                [self minimizeCardAnimated:YES];
             }
             else {
                 [self springCardBackUp];
@@ -664,7 +512,7 @@ static NSString *const kTabSearch = @"search";
 
 - (void)springCardBackUp {
     [self animateCardAnimated:[self shouldAnimateCard:YES] changes:^{
-        self->_player.view.transform = CGAffineTransformIdentity;
+        self->_card.view.transform = CGAffineTransformIdentity;
         [self applyBackdropProgress:0];
     } completion:^{
         // A drag can interrupt the expand before its accessibility completion.
@@ -675,37 +523,24 @@ static NSString *const kTabSearch = @"search";
 
 #pragma mark - Tabs
 
-// Settings rides the Playlist tab's stack: leaving the tab pops it, so
-// coming back shows the playlist, not the screen left open.
 - (void)tabBarController:(UITabBarController *)tabBarController
             didSelectTab:(UITab *)selectedTab
              previousTab:(UITab *)previousTab {
-    if (selectedTab != previousTab && [previousTab.identifier isEqualToString:kTabPlaylist]) {
-        [_playlistScreen.navigationController popToRootViewControllerAnimated:NO];
-    }
+    [self.delegate rootViewController:self didSelectTab:selectedTab previousTab:previousTab];
     [self syncTabSurfaces];
-}
-
-// The stack is built before the tab shows, so the tab arrives on the folder
-// rather than on its old screen and then jumping.
-- (void)showDirectoryInFiles:(NSURL *)directory highlighting:(NSURL *)file {
-    // A tab's controller is built on first ask: one never visited has none yet.
-    (void)[_tabs tabForIdentifier:kTabFiles].viewController;
-    [_filesController showDirectory:directory highlighting:file];
-    [self setSelectedTabIdentifier:kTabFiles];
 }
 
 // UISearchTab's identifier is UIKit's, so it is matched by kind.
 - (NSString *)selectedTabIdentifier {
     UITab *selected = _tabs.selectedTab;
     if ([selected isKindOfClass:UISearchTab.class]) {
-        return kTabSearch;
+        return RootViewControllerSearchTabIdentifier;
     }
-    return selected.identifier ?: kTabPlaylist;
+    return selected.identifier ?: _tabList.firstObject.identifier;
 }
 
 - (void)setSelectedTabIdentifier:(NSString *)identifier {
-    BOOL wantsSearch = [identifier isEqualToString:kTabSearch];
+    BOOL wantsSearch = [identifier isEqualToString:RootViewControllerSearchTabIdentifier];
     for (UITab *tab in _tabs.tabs) {
         BOOL isSearch = [tab isKindOfClass:UISearchTab.class];
         if (wantsSearch ? isSearch : [tab.identifier isEqualToString:identifier]) {
@@ -716,31 +551,12 @@ static NSString *const kTabSearch = @"search";
     }
 }
 
-- (void)bringPlaylistTabForward {
-    if (![_tabs.selectedTab isKindOfClass:UISearchTab.class]) {
-        [self setSelectedTabIdentifier:kTabPlaylist];
-    }
-}
-
-// A sheet or alert keeps the screen as the user left it. Closing it would
-// drop what they started. A tab switch under it would leave it over the
-// wrong tab.
-- (void)showPlaylist {
-    if (self.vibeTopmostPresenter != self) {
-        return;
-    }
-    [self minimizePlayerAnimated:NO];
-    [self setSelectedTabIdentifier:kTabPlaylist];
-    [_playlistScreen.navigationController popToRootViewControllerAnimated:NO];
-}
-
-// The Playlist tab's item, in this view. UITab has no view of its own, so the
-// bar's is found by the label it draws; a bar that is not on screen (the
-// iPad's is elsewhere), or one drawn without that label, answers NO and the
-// rows fade where they are.
-- (BOOL)getPlaylistTabCenter:(CGPoint *)center {
+// UITab has no view of its own, so the bar's is found by the label it draws;
+// a bar that is not on screen (the iPad's is elsewhere), or one drawn without
+// that label, answers NO.
+- (BOOL)getCenterOfTabWithIdentifier:(NSString *)identifier center:(CGPoint *)center {
     UITabBar *bar = _tabs.tabBar;
-    NSString *title = [_tabs tabForIdentifier:kTabPlaylist].title;
+    NSString *title = [_tabs tabForIdentifier:identifier].title;
     if (!bar.window || bar.hidden || CGRectIsEmpty(bar.bounds) || title.length == 0) {
         return NO;
     }
@@ -758,98 +574,18 @@ static NSString *const kTabSearch = @"search";
     return NO;
 }
 
-#pragma mark - PlayerViewControllerDelegate
-
-- (void)playerViewControllerDidRequestMinimize:(PlayerViewController *)controller {
-    [self minimizePlayerAnimated:YES];
-}
-
 #pragma mark - MiniPlayerViewDelegate
 
 - (void)miniPlayerViewDidRequestExpand:(MiniPlayerView *)view {
-    [self expandPlayerAnimated:YES];
+    [self expandCardAnimated:YES];
 }
 
 - (void)miniPlayerViewDidTapPlayPause:(MiniPlayerView *)view {
-    [_playback playPause];
+    [self.delegate rootViewControllerDidTapPlayPause:self];
 }
 
 - (void)miniPlayerViewDidTapNext:(MiniPlayerView *)view {
-    [_playback next];
-}
-
-#pragma mark - PlaybackObserver
-
-- (void)playbackDidReplacePlaylist:(PlaybackController *)playback {
-    [self refreshMiniPlayer];
-    // An Add onto nothing became an open: the card says so.
-    [self settleEveryLiftedRowUnlanded];
-}
-
-// Every Add ends here; the oldest lift is its.
-- (void)playback:(PlaybackController *)playback didSettleAddLanding:(BOOL)landed {
-    if (_liftedRowBatches.count > 0) {
-        [self settleLiftedRows:_liftedRowBatches.firstObject landed:landed];
-    }
-}
-
-// The only place the card presents by itself. The Playlist tab comes forward
-// so minimizing lands on what was opened — except over Search, whose tab owns
-// the selection while its field is up, and except a single file played
-// alone — one track, no folder — whose tab stays where it was picked, so
-// minimizing lands back in the browser rather than on a one-row playlist.
-- (void)playbackDidOpenNewFolder:(PlaybackController *)playback {
-    if (playback.playlist.count > 1 || playback.folderURL) {
-        [self bringPlaylistTabForward];
-    }
-    [self expandPlayerAnimated:YES];
-}
-
-// Only the Playlist tab's empty state says a pick found no audio, so the tab
-// comes forward only over an empty playlist. An open supersedes every Add in
-// flight whatever it found, so their lifted rows settle here as they do on
-// a replace that landed.
-- (void)playbackDidOpenEmptyFolder:(PlaybackController *)playback {
-    if (playback.playlist.count == 0) {
-        [self bringPlaylistTabForward];
-    }
-    [self settleEveryLiftedRowUnlanded];
-}
-
-- (void)playbackDidCancelOpening:(PlaybackController *)playback {
-    [self settleEveryLiftedRowUnlanded];
-}
-
-- (void)playback:(PlaybackController *)playback didGiveUpOpeningPath:(NSString *)path {
-    [self.vibeTopmostPresenter vibePresentAlertWithTitle:path.lastPathComponent message:STR_ERROR_OPEN_TOO_SLOW];
-}
-
-// "Open in Vibe" can arrive with the card presented.
-- (void)playback:(PlaybackController *)playback
-        needsFolderOfSheetAtURL:(NSURL *)sheetURL
-                      appending:(BOOL)appending {
-    [_cueFolderGrantPrompt askForFolderOfSheetAtURL:sheetURL
-                                          appending:appending
-                                           playback:playback
-                                          presenter:self.vibeTopmostPresenter];
-}
-
-- (void)playbackDidMoveToCurrentTrack:(PlaybackController *)playback animated:(BOOL)animated {
-    [self refreshMiniPlayer];
-}
-
-- (void)playbackDidRenderCurrentTrack:(PlaybackController *)playback {
-    [self refreshMiniPlayer];
-}
-
-- (void)playbackDidChangePlayState:(PlaybackController *)playback {
-    [self refreshMiniPlayer];
-}
-
-- (void)playback:(PlaybackController *)playback didLoadMetadataForTrack:(AudioTrack *)track {
-    if ([playback.playlist isCurrentTrack:track]) {
-        [_miniPlayer renderRow:playback.displayedTrack.trackRow];
-    }
+    [self.delegate rootViewControllerDidTapNext:self];
 }
 
 @end

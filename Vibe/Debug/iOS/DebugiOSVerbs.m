@@ -129,11 +129,11 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // The card presents and dismisses by gesture, which the channel
             // cannot synthesize.
             VibeDebugCmd(@"expand_player", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                [controller expandPlayerAnimated:NO];
+                [controller expandCardAnimated:NO];
                 return VibeJSONString([controller debugActionSummary]);
             }),
             VibeDebugCmd(@"minimize_player", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                [controller minimizePlayerAnimated:NO];
+                [controller minimizeCardAnimated:NO];
                 return VibeJSONString([controller debugActionSummary]);
             }),
             // Stands in for the pinch. Both numbers come back because they may
