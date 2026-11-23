@@ -14,6 +14,7 @@
 #import "FXPadView.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
+#import "VibeMacros.h"
 #import "WaveformScrubberView.h"
 #import "PlaceholderFiles.h"
 

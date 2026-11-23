@@ -8,6 +8,7 @@
 #import "OutputRouteView.h"
 #import "UIImage+Blur.h"
 #import "UIImage+DominantColor.h"
+#import "VibeMacros.h"
 #import "VibePlayerCardHost.h"
 #import "WaveformScrubberView.h"
 
