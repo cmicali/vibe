@@ -1,12 +1,13 @@
 //
-//  RootViewController+Debug.m
+//  PlaybackShellHost+Debug.m
 //  Vibe (iOS)
 //
 //  Composes the model's handles (PlaybackController+Debug), the chrome and art
 //  window (PlayerViewController+Debug) and the shell's own tab and card state.
 //
 
-#import "RootViewController+Debug.h"
+#import "PlaybackShellHost+Debug.h"
+#import "MiniPlayerView.h"
 
 #if DEBUG
 
@@ -57,14 +58,30 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
     return @[@(insets.top), @(insets.left), @(insets.bottom), @(insets.right)];
 }
 
-@implementation RootViewController (Debug)
+@implementation PlaybackShellHost (Debug)
+
+- (NSString *)debugSelectedTabName {
+    if ([self.root.tabs.selectedTab isKindOfClass:UISearchTab.class]) {
+        return @"search";
+    }
+    return self.root.selectedTabIdentifier;
+}
+
+- (void)setDebugSelectedTabName:(NSString *)name {
+    for (UITab *tab in self.root.tabs.tabs) {
+        if ([name isEqualToString:@"search"] && [tab isKindOfClass:UISearchTab.class]) {
+            name = tab.identifier;
+        }
+    }
+    self.root.selectedTabIdentifier = name;
+}
 
 // Where the selected tab's chrome and first row sit in the window, with the
 // insets the layout is laid out against, read from the LIVE views: under a
 // moving card none of them may move, since what scales is a snapshot.
 - (NSDictionary *)debugLayoutAnchors {
     NSMutableDictionary *anchors = [NSMutableDictionary dictionary];
-    UINavigationController *navigation = (UINavigationController *)self.tabs.selectedViewController;
+    UINavigationController *navigation = (UINavigationController *)self.root.tabs.selectedViewController;
     UIViewController *top = navigation.topViewController;
     UINavigationBar *bar = navigation.navigationBar;
     if (bar.window) {
@@ -79,18 +96,18 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
         // The large title's collapse shows here before anywhere else.
         anchors[@"adjustedContentInset"] = VibeInsetsArray(table.adjustedContentInset);
     }
-    UITabBar *tabBar = self.tabs.tabBar;
+    UITabBar *tabBar = self.root.tabs.tabBar;
     if (tabBar.window) {
         anchors[@"tabBar"] = VibeRectArray([tabBar convertRect:tabBar.bounds toView:nil]);
     }
-    UIView *strip = self.miniPlayerView;
+    UIView *strip = self.root.miniPlayer;
     if (strip.window) {
         anchors[@"strip"] = VibeRectArray([strip convertRect:strip.bounds toView:nil]);
     }
-    anchors[@"tabsSafeAreaInsets"] = VibeInsetsArray(self.tabs.view.safeAreaInsets);
+    anchors[@"tabsSafeAreaInsets"] = VibeInsetsArray(self.root.tabs.view.safeAreaInsets);
     anchors[@"topSafeAreaInsets"] = VibeInsetsArray(top.view.safeAreaInsets);
-    anchors[@"tabsHidden"] = @(self.tabs.view.hidden);
-    anchors[@"backdropScale"] = @(self.backdropSnapshot ? self.backdropSnapshot.transform.a : 1);
+    anchors[@"tabsHidden"] = @(self.root.tabs.view.hidden);
+    anchors[@"backdropScale"] = @(self.root.backdropSnapshot ? self.root.backdropSnapshot.transform.a : 1);
     anchors[@"cardOffset"] = @(self.player.view.transform.ty);
     anchors[@"time"] = @(CACurrentMediaTime());
     return anchors;
@@ -135,9 +152,9 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
         @"kind": @(playback.outputRouteKind),
         @"name": playback.outputRouteName ?: @"",
     };
-    ui[@"playerPresentation"] = self.isPlayerExpanded ? @"full" : @"minimized";
-    ui[@"miniPlayerShown"] = @(self.isMiniPlayerShown);
-    ui[@"selectedTab"] = self.selectedTabIdentifier;
+    ui[@"playerPresentation"] = self.root.isCardExpanded ? @"full" : @"minimized";
+    ui[@"miniPlayerShown"] = @(self.root.isMiniPlayerShown);
+    ui[@"selectedTab"] = self.debugSelectedTabName;
     ui[@"libraryEmpty"] = @(playback.playlist.count == 0);
     // Open URL's paste row and sheet, on the add sheet's browser while it is up.
     [ui addEntriesFromDictionary:[self.debugActiveTabRows debugLinkState] ?: @{}];
@@ -297,7 +314,7 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
         @"count": @(playback.playlist.count),
         @"position": @(playback.position),
         @"parked": @(playback.debugParked),
-        @"playerPresentation": self.isPlayerExpanded ? @"full" : @"minimized",
+        @"playerPresentation": self.root.isCardExpanded ? @"full" : @"minimized",
     };
 }
 
@@ -344,11 +361,11 @@ static NSArray<NSNumber *> *VibeInsetsArray(UIEdgeInsets insets) {
 }
 
 - (void)debugOpenLink:(NSString *)link completion:(void (^)(NSURL *, NSError *))completion {
-    [self.playback openLinkString:link replacingPlaylistFrom:self completion:completion];
+    [self.playback openLinkString:link replacingPlaylistFrom:self.root completion:completion];
 }
 
 - (BrowserRootViewController *)debugActiveBrowser {
-    for (UIViewController *shown = self.presentedViewController; shown; shown = shown.presentedViewController) {
+    for (UIViewController *shown = self.root.presentedViewController; shown; shown = shown.presentedViewController) {
         UIViewController *first = [shown isKindOfClass:UINavigationController.class]
                 ? ((UINavigationController *)shown).viewControllers.firstObject : nil;
         if ([first isKindOfClass:BrowserRootViewController.class]) {

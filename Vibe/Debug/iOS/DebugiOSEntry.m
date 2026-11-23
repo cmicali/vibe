@@ -21,20 +21,21 @@
 #import "PlaceholderFiles.h"
 #import "PlaceholderFiles+Debug.h"
 #import "RootViewController.h"
-#import "RootViewController+Debug.h"
+#import "PlaybackShellHost+Debug.h"
 #import "DebugFrameProbe.h"
 
-// The shell adopts VibeDebugPlayerSurface: the one object that reaches both
-// the model and the card.
-static RootViewController *VibeDebugRootController(void) {
+// The shell's host adopts VibeDebugPlayerSurface: the one object that reaches
+// both the model and the card.
+static PlaybackShellHost *VibeDebugRootController(void) {
     for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
         if (![scene isKindOfClass:UIWindowScene.class]) {
             continue;
         }
         for (UIWindow *window in ((UIWindowScene *)scene).windows) {
             UIViewController *root = window.rootViewController;
-            if ([root isKindOfClass:RootViewController.class]) {
-                return (RootViewController *)root;
+            if ([root isKindOfClass:RootViewController.class]
+                    && [((RootViewController *)root).delegate isKindOfClass:PlaybackShellHost.class]) {
+                return (PlaybackShellHost *)((RootViewController *)root).delegate;
             }
         }
     }
@@ -47,7 +48,7 @@ static NSArray<NSArray<NSDictionary *> *> *VibeDebugiOSTables(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         VibeDebugStandardOptions *options = [VibeDebugStandardOptions new];
-        options.healthExtras = ^NSDictionary *(RootViewController *controller) {
+        options.healthExtras = ^NSDictionary *(PlaybackShellHost *controller) {
             return VibeDebugHealthExtras(controller);
         };
         options.chainableVerbs = ^NSArray<NSDictionary *> *{
@@ -60,7 +61,7 @@ static NSArray<NSArray<NSDictionary *> *> *VibeDebugiOSTables(void) {
 
 static NSString *VibeiOSExecuteDebugCommand(NSArray<NSString *> *tokens, NSString *commandId) {
     NSString *verb = tokens.firstObject ?: @"";
-    RootViewController *controller = VibeDebugRootController();
+    PlaybackShellHost *controller = VibeDebugRootController();
     if (!controller) {
         return VibeErrorJSON(@"app not fully launched");
     }

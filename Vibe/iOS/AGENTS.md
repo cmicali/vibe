@@ -42,7 +42,7 @@ The card is vibe-libs' `ui/PlayerCard` (its `AGENTS.md`). Vibe supplies three th
 
 - **The host is `VibeiOSAppDelegate`.** Its words come from `VibeStrings.h`, its formats from `Formatters`, and its settings from `AppSettings`. It keeps the zoom under `VibeiOSWaveformZoom`. When it configures the card's waveform cache, it clears the cache once under `kWaveformTempoBackfillKey`. That migration drops waveforms cached before tempo detection.
 - **The model adopts the card's four protocols.** `PlaybackController` adopts the playback protocol. `VibePlaylist` and `AudioTrack` adopt the queue and item protocols (`PlaybackController.h`). `PlaybackObserver` refines the card's observer, so one broadcast reaches every screen.
-- **`RootViewController` sends `reloadSettings`** on `VibeDisplaySettingsDidChangeNotification`.
+- **`PlaybackShellHost` sends `reloadSettings`** on `VibeDisplaySettingsDidChangeNotification`.
 
 The card's debug seam stays in Vibe (`Debug/AGENTS.md`). Its verbs are the `vibe-debug` skill's. Its tests stay in Vibe too (the piece's `AGENTS.md`, Tests).
 
@@ -80,11 +80,13 @@ It owns the picked locations of the current playlist: a **base** folder or file 
 
 ## RootViewController
 
-The scene's root: a `UITabBarController` child, the mini player in its `bottomAccessory`, and the card above both. It alone knows whether the card is up, and it owns expand and minimize. Settings rides the Playlist tab's stack. Leaving that tab pops it (`tabBarController:didSelectTab:previousTab:`).
+The scene's root: a `UITabBarController` child, the mini player in its `bottomAccessory`, and the card above both. It alone knows whether the card is up, and it owns expand and minimize. **It knows nothing of Vibe.** The app hands it the tabs and the card, pushes the strip's row, and answers its delegate.
 
-**The tabs are `UITab`s, not view controllers.** `UISearchTab` draws the circle outside the capsule, and `automaticallyActivatesSearch` collapses the bar behind a field and restores the previous tab on cancel. Each tab's view controller comes from a lazy provider. Ask `_filesController`, never `UITab.viewController`, whether Files exists, since the getter resolves the provider. The search tab's identifier is UIKit's, so `selectedTabIdentifier` matches it by kind.
+**`PlaybackShellHost` is Vibe's side of it.** It builds the tabs and the card, and it is the card's delegate, so it forwards the card's drag and its grabber. It fills the strip from `PlaybackController` and forwards the strip's play, pause and next. It maps the root's `tabsExposed` and `cardAtRest` onto each screen's surface flag. It decides what the model's events do to the shell: an open brings the Playlist tab forward and presents the card, an empty open brings it forward over an empty playlist, and a sheet that needs its folder asks for it. Settings rides the Playlist tab's stack, and leaving that tab pops it (`rootViewController:didSelectTab:previousTab:`). The scene delegate keeps the host, because the root holds its delegate weakly. **The host registers its observers in `rootViewControllerDidLoad:`**, after the card's own, so the card hears each broadcast first, as it did when the root registered in `viewDidLoad`.
 
-`+AddedRows` holds the flight of an Add's rows into the Playlist tab (`Files/AGENTS.md`). Its state is declared in `RootViewControllerInternal.h`.
+**The tabs are `UITab`s, not view controllers.** `UISearchTab` draws the circle outside the capsule, and `automaticallyActivatesSearch` collapses the bar behind a field and restores the previous tab on cancel. Each tab's view controller comes from a lazy provider. Ask the host's `_filesController`, never `UITab.viewController`, whether Files exists, since the getter resolves the provider. The search tab's identifier is UIKit's, so the host matches it by kind.
+
+The host's `+AddedRows` holds the flight of an Add's rows into the Playlist tab (`Files/AGENTS.md`). The rows fly in the root's view to the tab's item (`getCenterOfTabWithIdentifier:center:`). Its state is declared in `PlaybackShellHostInternal.h`.
 
 **It is a container, not a `UITabBarController` subclass**, so it can put the card and the backdrop snapshot above the tab bar controller's whole view. A card at rest hides the tabs, or the glass tab bar would keep sampling for nothing.
 
@@ -100,7 +102,7 @@ Foreground-inactive counts as off: the scene delegate's foreground-active bit dr
 
 ## The mini player
 
-The accessory's content is vibe-libs' `MiniPlayerView` (`ui/Rows`): the thumbnail, title over artist, play or pause, and next. `RootViewController` fills its `VibeTrackRow` from the displayed track (`AudioTrack+TrackRow`) and pushes the controls' VoiceOver labels. The strip's two traps, its fixed 48 pt height and its designated give, are in `ui/Rows/AGENTS.md`.
+The accessory's content is vibe-libs' `MiniPlayerView` (`ui/Rows`): the thumbnail, title over artist, play or pause, and next. The root owns the view and installs it. `PlaybackShellHost` pushes its `VibeTrackRow` from the displayed track (`AudioTrack+TrackRow`), or nil to take the strip away, and sets the controls' VoiceOver labels. The strip's two traps, its fixed 48 pt height and its designated give, are in `ui/Rows/AGENTS.md`.
 
 ## The Files tab
 
@@ -122,4 +124,4 @@ The Playlist tab: number (the shared `EqualizerIndicatorView` on the playing row
 
 ## Building and verifying
 
-The `vibe-debug` skill's "iOS: the simulator loop" section covers launch, feeding audio, screenshots and logs. `RootViewController+Debug` adopts the channel's protocol and composes `PlaybackController+Debug` and `PlayerViewController+Debug`. All three live in `Vibe/Debug/iOS/Seams/`. `expand_player`, `minimize_player` and `select_tab` exist because the channel cannot synthesize a touch; gestures go through `drive-ios.sh`. **Interruptions, route changes, background audio past lock and the lock-screen card need a real device.**
+The `vibe-debug` skill's "iOS: the simulator loop" section covers launch, feeding audio, screenshots and logs. `PlaybackShellHost+Debug` adopts the channel's protocol and composes `PlaybackController+Debug` and `PlayerViewController+Debug`. It reads the tabs and the card's state from the root. All three live in `Vibe/Debug/iOS/Seams/`. `expand_player`, `minimize_player` and `select_tab` exist because the channel cannot synthesize a touch; gestures go through `drive-ios.sh`. **Interruptions, route changes, background audio past lock and the lock-screen card need a real device.**

@@ -19,7 +19,7 @@
 #import "AppSettings.h"
 #import "PlaybackController.h"
 #import "RootViewController.h"
-#import "RootViewController+Debug.h"
+#import "PlaybackShellHost+Debug.h"
 #import "PlayerViewController+Debug.h"
 #import "LocationStore.h"
 #import "RecentsStore.h"
@@ -40,7 +40,7 @@ static NSItemProvider *VibeDebugPasteProvider(NSString *text) {
 
 // roots: what the search walk covers, composed by the model. folders: the rows
 // Settings shows, the only part a user can change.
-static NSDictionary *VibeSearchScopeDictionary(RootViewController *controller) {
+static NSDictionary *VibeSearchScopeDictionary(PlaybackShellHost *controller) {
     NSMutableArray<NSString *> *roots = [NSMutableArray array];
     for (NSURL *root in controller.playback.searchRoots) {
         [roots addObject:root.path ?: @""];
@@ -113,11 +113,11 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
     static dispatch_once_t once;
     dispatch_once(&once, ^{
         NSArray<NSDictionary *> *own = @[
-            VibeDebugCmd(@"dump_art", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_art", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 return VibeJSONString([controller debugArtDictionary]);
             }),
             VibeDebugCmd(@"check_waveform_preparation <refresh|transition|interaction|color>", 0,
-                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                         ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 if (tokens.count != 2) {
                     return VibeErrorJSON(@"usage: check_waveform_preparation <refresh|transition|interaction|color>");
                 }
@@ -128,18 +128,18 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             }),
             // The card presents and dismisses by gesture, which the channel
             // cannot synthesize.
-            VibeDebugCmd(@"expand_player", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                [controller expandPlayerAnimated:NO];
+            VibeDebugCmd(@"expand_player", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
+                [controller.root expandCardAnimated:NO];
                 return VibeJSONString([controller debugActionSummary]);
             }),
-            VibeDebugCmd(@"minimize_player", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
-                [controller minimizePlayerAnimated:NO];
+            VibeDebugCmd(@"minimize_player", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
+                [controller.root minimizeCardAnimated:NO];
                 return VibeJSONString([controller debugActionSummary]);
             }),
             // Stands in for the pinch. Both numbers come back because they may
             // differ: the request is persisted, the drawn zoom is clamped to
             // what this layout's bitmap can hold.
-            VibeDebugCmd(@"set_waveform_zoom <fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"set_waveform_zoom <fraction>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 double fraction = 0;
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &fraction)) {
                     return VibeErrorJSON(@"usage: set_waveform_zoom <fraction 0-1>");
@@ -157,7 +157,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // Takes the persisted identifier, never the localized name, and
             // refuses an unknown one, since the renderer's fallback would make
             // a typo look like a style.
-                        VibeDebugCmd(@"set_waveform_style <identifier>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+                        VibeDebugCmd(@"set_waveform_style <identifier>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 NSArray<NSString *> *available = [WaveformRendererRegistry availableIdentifiers];
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: set_waveform_style <%@>",
@@ -174,10 +174,10 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // The live layout under the card, in window points. Sampled every
             // frame across a gesture (sample, then drive-ios.sh, then dump),
             // every anchor must hold still: what moves is a snapshot.
-            VibeDebugCmd(@"dump_layout_anchors", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_layout_anchors", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 return VibeJSONString([controller debugLayoutAnchors]);
             }),
-            VibeDebugCmd(@"sample_layout_anchors <seconds>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"sample_layout_anchors <seconds>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 double seconds = 0;
                 if (tokens.count < 2 || !VibeParseDouble(tokens[1], &seconds) || seconds <= 0 || seconds > 60) {
                     return VibeErrorJSON(@"usage: sample_layout_anchors <seconds (0-60)>");
@@ -185,7 +185,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 [controller debugBeginLayoutSamplingForSeconds:seconds];
                 return VibeJSONString(@{@"ok": @YES, @"seconds": @(seconds)});
             }),
-            VibeDebugCmd(@"dump_layout_samples", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_layout_samples", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 return VibeJSONString([controller debugLayoutSamples]);
             }),
             // The real grant path is the system document picker, another
@@ -197,10 +197,10 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // plain bookmark, and the next launch restores it unless it no
             // longer resolves. A test removes what it added; dump_search after
             // a relaunch shows whether it came back.
-            VibeDebugCmd(@"dump_search", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_search", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 return VibeJSONString(VibeSearchScopeDictionary(controller));
             }),
-            VibeDebugCmd(@"add_search_folder <path>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"add_search_folder <path>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 if (tokens.count < 2) {
                     return VibeErrorJSON(@"usage: add_search_folder <path>");
                 }
@@ -213,7 +213,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 reply[@"added"] = @(added);
                 return VibeJSONString(reply);
             }),
-            VibeDebugCmd(@"remove_search_folder <index>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"remove_search_folder <index>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
                 if (index < 0 || (NSUInteger)index >= LocationStore.shared.folderURLs.count) {
                     return VibeErrorJSON(@"usage: remove_search_folder <index in dump_search.folders>");
@@ -227,7 +227,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // The pad's touch is a gesture the channel cannot synthesize; this
             // drives the model's funnel the pad's delegate takes. The pad does
             // not draw for it.
-            VibeDebugCmd(@"set_fx_pad <x 0-1> <y 0-1> | off", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"set_fx_pad <x 0-1> <y 0-1> | off", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 if (tokens.count == 2 && [tokens[1] isEqualToString:@"off"]) {
                     [controller.playback setFXPadPosition:CGPointZero engaged:NO];
                 }
@@ -243,7 +243,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // The simulator reports only the built-in speaker and a route
             // cannot be faked at the session, so this draws the indicator
             // alone; the next real route event overwrites it.
-            VibeDebugCmd(@"set_output_route <none|speaker|receiver|wired|bluetooth|airplay|carplay|other> [name]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"set_output_route <none|speaker|receiver|wired|bluetooth|airplay|carplay|other> [name]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 NSDictionary<NSString *, NSNumber *> *kinds = @{
                     @"none": @(VibeOutputRouteKindNone),
                     @"speaker": @(VibeOutputRouteKindBuiltInSpeaker),
@@ -275,7 +275,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                     @"routeShown": ui[@"routeShown"] ?: @NO,
                 });
             }),
-            VibeDebugCmd(@"dump_favorites", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"dump_favorites", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 return VibeJSONString(VibeFavoritesDictionary());
             }),
             // Drives the star's real handler. There is deliberately no
@@ -285,7 +285,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // TRAP: the add is asynchronous (the bookmark is minted off main).
             // ok:true means the handler ran, not that the row exists; poll
             // dump_favorites.
-            VibeDebugCmd(@"tap_favorite_star", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"tap_favorite_star", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 if (![controller debugTapFavoriteStar]) {
                     return VibeErrorJSON(@"no open folder on the playlist tab to star");
                 }
@@ -295,7 +295,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // openFavorite:appending:, so the resolve, the open and the
             // unreachable-folder alert are the tap's. The Favorites tab must
             // have been selected once: its provider is lazy.
-            VibeDebugCmd(@"open_favorite <index in dump_favorites.favorites>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"open_favorite <index in dump_favorites.favorites>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
                 if (index < 0) {
                     return VibeErrorJSON(@"usage: open_favorite <index in dump_favorites.favorites>");
@@ -306,7 +306,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 return VibeJSONString(@{@"ok": @YES});
             }),
             // open_favorite's row, appended instead of opened.
-            VibeDebugCmd(@"append_favorite <index in dump_favorites.favorites>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"append_favorite <index in dump_favorites.favorites>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
                 if (index < 0) {
                     return VibeErrorJSON(@"usage: append_favorite <index in dump_favorites.favorites>");
@@ -320,7 +320,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // synthesize. Both verbs go through the screen's own methods, so
             // the matching and open use the real search path. The reply waits for
             // stable row counts or the six-second polling limit.
-            VibeDebugCmd(@"search <query>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"search <query>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 NSString *query = tokens.count > 1 ? tokens[1] : @"";
                 BOOL started = [controller debugSearchQuery:query
                                                  completion:^(NSDictionary *result) {
@@ -331,7 +331,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 return nil;
             }),
-            VibeDebugCmd(@"open_search_hit <index into search.sections[1].rows>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"open_search_hit <index into search.sections[1].rows>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
                 if (index < 0 || ![controller debugTapSearchFileAtIndex:(NSUInteger)index]) {
                     return VibeErrorJSON(@"no such file hit (run `search <query>` first)");
@@ -344,7 +344,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // line-break rule and Open's state run. paste hands the field what
             // the system's Paste would. open and cancel are the bar's buttons.
             // Read dump_state.ui.linkSheet after.
-            VibeDebugCmd(@"open_url_sheet show | type <text> | paste <text> | open | cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"open_url_sheet show | type <text> | paste <text> | open | cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 BrowserRootViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
@@ -391,7 +391,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // The paste row without the clipboard: the browser's own
             // pasteItemProviders:, handed what a clipboard read would. A real
             // read of another app's copy raises the system's prompt.
-            VibeDebugCmd(@"paste_link <text>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"paste_link <text>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 BrowserRootViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
@@ -403,19 +403,19 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                                                        fromScreen:browser];
                 return VibeJSONString(@{@"ok": @YES});
             }),
-            VibeDebugCmd(@"select_tab <playlist|favorites|files|search>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"select_tab <playlist|favorites|files|search>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 NSString *identifier = tokens.count > 1 ? tokens[1] : nil;
                 if (![@[@"playlist", @"favorites", @"files", @"search"] containsObject:identifier ?: @""]) {
                     return VibeErrorJSON(@"usage: select_tab <playlist|favorites|files|search>");
                 }
-                controller.selectedTabIdentifier = identifier;
-                return VibeJSONString(@{@"ok": @YES, @"selectedTab": controller.selectedTabIdentifier});
+                controller.debugSelectedTabName = identifier;
+                return VibeJSONString(@{@"ok": @YES, @"selectedTab": controller.debugSelectedTabName});
             }),
             // The Files tab's stack without a touch. show builds it through
             // Open Folder's road. tap is a row's didSelectRow:, so a folder
             // pushes and a file plays alone. play is the bar's play button.
             // back pops. Every form answers the top screen's rows.
-            VibeDebugCmd(@"browse [show <directory> | tap <name> | play | back]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"browse [show <directory> | tap <name> | play | back]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 BrowserRootViewController *browser = controller.filesBrowser;
                 UINavigationController *stack = browser.navigationController;
                 if (!stack) {
@@ -454,7 +454,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // Every open records a recent, and Recents is persisted. save
             // keeps a copy in memory. restore writes it back. The copy dies
             // with the app.
-            VibeDebugCmd(@"recents [save | restore]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, RootViewController *controller) {
+            VibeDebugCmd(@"recents [save | restore]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 static NSArray<NSDictionary *> *saved;
                 NSString *action = tokens.count > 1 ? tokens[1] : @"";
                 if ([action isEqualToString:@"save"]) {

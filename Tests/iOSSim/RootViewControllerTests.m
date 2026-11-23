@@ -7,6 +7,7 @@
 #import "AudioTrack.h"
 #import "MiniPlayerView.h"
 #import "PlaybackController.h"
+#import "PlaybackShellHost.h"
 #import "PlayerViewController.h"
 #import "VibePlaylist.h"
 #import "RootViewController.h"
@@ -16,6 +17,7 @@
 
 @implementation RootViewControllerTests {
     FakePlayback *_playback;
+    PlaybackShellHost *_host;
     RootViewController *_root;
 }
 
@@ -28,7 +30,8 @@
     ] startingAtIndex:0];
     _playback.screenState = VibePlayerScreenStateTrack;
     _playback.displayedTrack = _playback.playlist.currentTrack;
-    _root = [[RootViewController alloc] initWithPlayback:_playback.asPlayback];
+    _host = [[PlaybackShellHost alloc] initWithPlayback:_playback.asPlayback];
+    _root = _host.root;
     self.window.rootViewController = _root;
     [self.window layoutIfNeeded];
     _root.sceneActive = YES;
@@ -37,6 +40,7 @@
 
 - (void)tearDown {
     _root = nil;
+    _host = nil;
     [super tearDown];
 }
 
@@ -73,7 +77,7 @@
 }
 
 - (void)pan:(CGFloat)translation velocity:(CGFloat)velocity state:(UIGestureRecognizerState)state {
-    [(id<PlayerViewControllerDelegate>)_root playerViewController:self.card
+    [(id<PlayerViewControllerDelegate>)_host playerViewController:self.card
                                             didPanWithTranslation:translation
                                                          velocity:velocity
                                                             state:state];
@@ -165,7 +169,7 @@
 
 - (void)testTheGrabberMinimizes {
     [self expandAndSettle];
-    [(id<PlayerViewControllerDelegate>)_root playerViewControllerDidRequestMinimize:self.card];
+    [(id<PlayerViewControllerDelegate>)_host playerViewControllerDidRequestMinimize:self.card];
     XCTAssertTrue([self eventually:^BOOL { return self.settled && self.card.view.hidden; }]);
     XCTAssertFalse(self.tabs.view.hidden);
 }

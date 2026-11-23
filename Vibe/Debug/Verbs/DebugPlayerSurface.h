@@ -3,7 +3,7 @@
 //  Vibe
 //
 //  What the shared verbs need from the app: adopted by MainPlayerController
-//  on macOS and RootViewController on iOS. Deliberately the smallest surface
+//  on macOS and PlaybackShellHost on iOS. Deliberately the smallest surface
 //  that serves them; anything only one platform can answer belongs in that
 //  platform's own table.
 //
