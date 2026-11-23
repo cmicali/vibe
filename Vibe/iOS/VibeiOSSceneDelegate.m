@@ -12,6 +12,18 @@
 #import "VibePlaylist.h"
 #import "RecentsStore.h"
 #import "RootViewController.h"
+#import "Vibe-Swift.h"                  // VibeWidgetActions is declared in Swift
+#import "WidgetPublisher.h"
+
+// The widget's buttons, each on the connected scene. With no scene, an
+// intent opens the app, and the playlist button does nothing.
+@interface VibeWidgetSceneActions : NSObject <VibeWidgetActions>
+@end
+
+@interface VibeiOSSceneDelegate ()
++ (nullable VibeiOSSceneDelegate *)connectedDelegate;
+- (void)showPlaylist;
+@end
 
 @implementation VibeiOSSceneDelegate {
     // One engine per process, so multi-scene is off.
@@ -103,15 +115,59 @@
     return nil;
 }
 
-+ (PlaybackController *)connectedPlayback {
-    return [self connectedDelegate].playback;
++ (void)installWidgetActions {
+    [VibeWidgetIntents install:[[VibeWidgetSceneActions alloc] init]];
 }
 
-+ (void)showPlaylist {
-    VibeiOSSceneDelegate *delegate = [self connectedDelegate];
-    if (delegate) {
-        [delegate->_root showPlaylist];
+- (void)showPlaylist {
+    [_root showPlaylist];
+}
+
+@end
+
+@implementation VibeWidgetSceneActions
+
+static PlaybackController *ConnectedPlayback(void) {
+    return [VibeiOSSceneDelegate connectedDelegate].playback;
+}
+
+- (BOOL)widgetHasPlayback {
+    return ConnectedPlayback() != nil;
+}
+
+// The block always runs, or the intent waiting on it never ends.
+- (void)widgetWhenRestored:(void (^)(void))block {
+    PlaybackController *playback = ConnectedPlayback();
+    if (playback) {
+        [playback performWhenLaunchOpenSettled:block];
     }
+    else {
+        block();
+    }
+}
+
+- (void)widgetPlayPause {
+    [ConnectedPlayback() playPause];
+}
+
+- (void)widgetNext {
+    [ConnectedPlayback() next];
+}
+
+- (void)widgetPrevious {
+    [ConnectedPlayback() previous];
+}
+
+- (NSString *)widgetDisplayedTrackKey {
+    return [WidgetPublisher trackKeyForTrack:ConnectedPlayback().displayedTrack];
+}
+
+- (void)widgetSeekToProgress:(float)progress {
+    [ConnectedPlayback() seekToProgress:progress];
+}
+
+- (void)widgetShowPlaylist {
+    [[VibeiOSSceneDelegate connectedDelegate] showPlaylist];
 }
 
 @end

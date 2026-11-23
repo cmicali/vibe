@@ -6,7 +6,7 @@ The Home Screen and Lock Screen widget runs in its own process, the `VibeWidget`
 | --- | --- |
 | `WidgetPublisher` | The only writer of the shared app group. `PlaybackController` owns one and feeds it from the Now Playing publish (`PlaybackController+NowPlaying.m`). Main thread only. It reads no setting and no model class (The seam, below). |
 | `VibeWidgetState` | The snapshot the app writes and the widget reads. **Compiled into both targets**, so it is Foundation only. |
-| `VibeWidgetIntents.swift` | The widget's buttons. **Compiled into both targets.** The app owns the bodies. |
+| `VibeWidgetIntents.swift` | The widget's buttons, and `VibeWidgetActions`, what they ask of the app. **Compiled into both targets.** |
 | `VibeWidgetGroup.h` | Vibe's app group and read signal, as C string macros so Swift can read them. **Compiled into both targets.** |
 | `VibeWidgetReloader.swift` | WidgetKit's reload and placed query, which have no Objective-C API. `PlaybackController` hands them to the publisher as blocks. Keep it small. |
 
@@ -21,7 +21,9 @@ The publisher is moving to vibe-libs, so another app can publish to a widget of 
 - **WidgetKit's two calls are blocks.** The publisher takes `reloadTimelines` and `queryPlaced` at init, and `PlaybackController` wraps `VibeWidgetReloader` in them. So the publisher imports no `Vibe-Swift.h`. The query hands back WidgetKit's error, and the publisher fails open on it.
 - **The strip's look is pushed**, as the card pushes the scrubber's. The theme provider comes once, at `initWithThemeProvider:`. The style, Centered, and the playhead line come through `updateWaveformStyle:centered:drawsPlayheadLine:`, which `PlaybackController.pushWidgetWaveformSettings` calls at launch and on every `VibeDisplaySettingsDidChangeNotification`. Both pushes resolve the look through `WaveformTheme+Settings`, so the card and the widget follow one rule.
 
-The publisher and the snapshot name nothing of Vibe's. The intents still do, behind `VIBE_APP`.
+- **The buttons act through one protocol object.** `VibeWidgetActions` (`VibeWidgetIntents.swift`) is what a tap asks of the app: whether a scene has connected, the wait for the launch restore, the transport, the seek, the displayed track's key, and showing the playlist. Vibe's is `VibeWidgetSceneActions`, which `VibeiOSSceneDelegate.installWidgetActions` installs at launch. Each call goes to the connected scene.
+
+The publisher, the snapshot, and the intents name nothing of Vibe's.
 
 ## The snapshot
 
@@ -56,7 +58,7 @@ The transport and seek intents are `AudioPlaybackIntent`s. The system performs t
 
 The playlist button's intent, `VibeShowPlaylistIntent`, is a plain `AppIntent` whose `supportedModes` is `.foreground`. The system opens the app and performs it there. It lowers the card and shows the Playlist tab's list (`RootViewController.showPlaylist`), even over Search. A launch already lands there. So with no connected scene it does nothing. It also does nothing while a sheet or alert is up, so the app only comes forward.
 
-- **TRAP: the bodies are behind `VIBE_APP`**, because the extension cannot link an app class. They are no-ops there. If a transport button does nothing, first check that its intent is still an `AudioPlaybackIntent`. If the playlist button only opens the app, check that its intent is still `.foreground`.
-- **TRAP: a tap can be the app's launch.** `VibeWidgetTransport.perform` continues in the foreground when no scene has connected. It then always waits for the launch restore to settle (`performWhenLaunchOpenSettled`). A local restore usually wins that race, so skipping the wait seems to work. A cloud folder loses it, and the tap lands on an empty playlist.
+- **TRAP: the bodies act only through the installed `VibeWidgetActions`.** The extension installs none, so they are no-ops there. If a transport button does nothing, first check that the app installs its actions before an intent can run. Then check that its intent is still an `AudioPlaybackIntent`. If the playlist button only opens the app, check that its intent is still `.foreground`.
+- **TRAP: a tap can be the app's launch.** `VibeWidgetTransport.perform` continues in the foreground when no scene has connected. It then always waits for the launch restore to settle (`widgetWhenRestored:`, which is `performWhenLaunchOpenSettled` in Vibe). A local restore usually wins that race, so skipping the wait seems to work. A cloud folder loses it, and the tap lands on an empty playlist.
 - **TRAP: intent titles are literals**, because the metadata processor reads them statically. Each key and English default must match its `STR_WIDGET_INTENT_*` entry in `VibeStrings.h`.
 - The seek intent maps a zone to the zone's centre. It drops a tap whose `trackKey` is not the displayed track's.

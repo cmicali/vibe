@@ -604,16 +604,10 @@ targets:
         # and the extension carries a matching copy.
         CODE_SIGN_ENTITLEMENTS: "$(SRCROOT)/Vibe/iOS/Vibe.entitlements"
         # The target's Swift is the WidgetKit reloader and the widget's App
-        # Intent bodies: WidgetCenter and AppIntents have no Objective-C API.
-        # The bridging header is what lets the intents reach VibeiOSSceneDelegate
-        # and PlaybackController; ObjC reaches the Swift through Vibe-Swift.h.
+        # Intents: WidgetCenter and AppIntents have no Objective-C API. The
+        # Swift reaches no Objective-C, so there is no bridging header. ObjC
+        # reaches the Swift through Vibe-Swift.h.
         SWIFT_VERSION: "5.0"
-        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/Vibe/iOS/Widget/Vibe-Bridging-Header.h"
-        # VIBE_APP switches on the App Intent bodies in VibeWidgetIntents.swift,
-        # which compiles into this target AND the extension; only this one can
-        # link the classes they drive. settingPresets is none, so nothing sets
-        # this for us.
-        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) VIBE_APP"
         ENABLE_USER_SCRIPT_SANDBOXING: NO     # vibe-libs' generate-git-info.sh reads .git
         PROVISIONING_PROFILE_SPECIFIER: ""
         LD_RUNPATH_SEARCH_PATHS:
@@ -654,8 +648,8 @@ targets:
       - path: Vibe/iOS/Widget/VibeWidgetState.h
       - path: Vibe/iOS/Widget/VibeWidgetState.m
       - path: Vibe/iOS/Widget/VibeWidgetGroup.h
-      # Shared with the app, which owns the bodies (VIBE_APP). The extension
-      # needs the TYPES so its buttons can name them.
+      # Shared with the app, which installs what the bodies act on. The
+      # extension needs the TYPES so its buttons can name them.
       - path: Vibe/iOS/Widget/VibeWidgetIntents.swift
       # Its catalog is VibeWidget/Localizable.xcstrings, picked up by the entry
       # above — the widget.* subset `make strings` derives, never edited by

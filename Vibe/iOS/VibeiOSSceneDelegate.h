@@ -17,11 +17,9 @@ NS_ASSUME_NONNULL_BEGIN
 // any scene. A scene property, not a global, because the scene owns the engine.
 @property (nonatomic, readonly, nullable) PlaybackController *playback;
 
-// Nil when the app launched with no scene; an intent then opens the app.
-+ (nullable PlaybackController *)connectedPlayback;
-
-// The widget's playlist button. Without a scene it does nothing.
-+ (void)showPlaylist;
+// Installs Vibe's VibeWidgetActions, which act on the connected scene. Once,
+// at launch, before any intent can run.
++ (void)installWidgetActions;
 
 @end
 
