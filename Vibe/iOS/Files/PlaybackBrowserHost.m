@@ -7,6 +7,7 @@
 
 #import "AppSettings.h"
 #import "AudioTrack.h"
+#import "AudioTrackMetadataCache.h"
 #import "DropboxBrowserSource.h"
 #import "DropboxMirror+Shared.h"
 #import "FavoritesStore.h"
@@ -26,6 +27,7 @@
     PlaybackController *_playback;
     BOOL _appending;
     NSHashTable<id<VibeBrowserHostObserver>> *_observers;
+    AudioTrackMetadataCache *_artCache;
 }
 
 @synthesize selectionAction = _selectionAction;
@@ -145,6 +147,16 @@
     return VibeFolderOpenSortDisplayName(sort);
 }
 
+// One cache for a stack of folders, made by the first screen that needs it:
+// each cache opens its own store, which lists the whole metadata cache
+// directory when made.
+- (AudioTrackMetadataCache *)artCache {
+    if (!_artCache) {
+        _artCache = [[AudioTrackMetadataCache alloc] init];
+    }
+    return _artCache;
+}
+
 - (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url {
     return [AudioTrack withURL:url];
 }
@@ -167,7 +179,7 @@
     return _playback;
 }
 
-- (void)addObserver:(id<VibeBrowserHostObserver>)observer {
+- (void)addBrowserObserver:(id<VibeBrowserHostObserver>)observer {
     [_observers addObject:observer];
 }
 

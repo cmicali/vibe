@@ -6,14 +6,10 @@
 
 #import "IOSSimTestCase.h"
 
-#import "AudioTrack.h"
 #import "BrowserRootViewController.h"
 #import "FolderViewControllerInternal.h"
 
 @interface FakeBrowserHost : NSObject <VibeBrowserHost>
-@property (nonatomic, copy, nullable) NSString *playingPath;
-@property (nonatomic, copy, nullable) NSString *openingPath;
-@property (nonatomic) BOOL audioOutputActive;
 @property (nonatomic, copy, nullable) NSString *prompt;
 @property (nonatomic) BOOL showsCloseButton;
 @property (nonatomic) BOOL showsSortMenu;
@@ -66,17 +62,6 @@
     return @"sort";
 }
 
-- (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url {
-    return [AudioTrack withURL:url];
-}
-
-- (id<EqualizerLevelSource>)levelSource {
-    return nil;
-}
-
-- (void)addObserver:(id<VibeBrowserHostObserver>)observer {
-}
-
 - (void)screen:(UIViewController *)screen didTapFile:(NSURL *)url {
     [_tapped addObject:url];
 }
@@ -125,9 +110,6 @@
     _importsAtLift = -1;
     _folder = [[FolderViewController alloc] initWithHost:_host
                                             directoryURL:_directory
-                                           stackArtCache:^AudioTrackMetadataCache *{
-        return nil;
-    }
                                             highlighting:nil
                                               holdsScope:NO];
     __weak FolderScreenHostTests *weakSelf = self;

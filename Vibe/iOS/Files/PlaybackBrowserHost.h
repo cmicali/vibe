@@ -14,7 +14,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface PlaybackBrowserHost : NSObject <VibeBrowserHost>
+@interface PlaybackBrowserHost : NSObject <VibeBrowserPlaybackHost>
 
 - (instancetype)initWithPlayback:(PlaybackController *)playback appending:(BOOL)appending NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;

@@ -37,14 +37,12 @@ static const NSUInteger kFilterThreshold = 12;
 
 - (instancetype)initWithHost:(id<VibeBrowserHost>)host
                 directoryURL:(NSURL *)directoryURL
-               stackArtCache:(AudioTrackMetadataCache *(^)(void))stackArtCache
                 highlighting:(NSURL *)file
                   holdsScope:(BOOL)holdsScope {
     self = [super initWithStyle:UITableViewStylePlain];
     if (self) {
         _host = host;
         _directoryURL = [directoryURL copy];
-        _stackArtCache = [stackArtCache copy];
         _highlightURL = [file copy];
         _holdsScope = holdsScope;
         _allFolders = @[];
@@ -59,7 +57,9 @@ static const NSUInteger kFilterThreshold = 12;
         _refreshingSource = [self refreshingSourceForURL:directoryURL];
         _standardizedPath = VibeComparablePath(directoryURL.path);
         _title = [LocationStore displayNameForFolderURL:directoryURL];
-        _playingPath = host.playingPath;
+        _playback = [host conformsToProtocol:@protocol(VibeBrowserPlaybackHost)]
+                ? (id<VibeBrowserPlaybackHost>)host : nil;
+        _playingPath = _playback.playingPath;
     }
     return self;
 }
@@ -131,7 +131,9 @@ static const NSUInteger kFilterThreshold = 12;
     UIRefreshControl *refresh = [[UIRefreshControl alloc] init];
     [refresh addTarget:self action:@selector(refreshDirectory) forControlEvents:UIControlEventValueChanged];
     self.refreshControl = refresh;
-    [_host addObserver:self];
+    if ([_host respondsToSelector:@selector(addBrowserObserver:)]) {
+        [_host addBrowserObserver:self];
+    }
 }
 
 - (void)dealloc {
@@ -146,7 +148,7 @@ static const NSUInteger kFilterThreshold = 12;
     _viewPresentationVisible = YES;
     // The track can change while this screen sits unloaded under another, so
     // the playing row is read again before the equalizer is placed.
-    _playingPath = _host.playingPath;
+    _playingPath = _playback.playingPath;
     [self syncEqualizer];
     [self reloadFromDisk];
     if (_refreshingSource && CFAbsoluteTimeGetCurrent() - _listedAt > kRelistInterval) {
@@ -528,7 +530,6 @@ static const NSUInteger kFilterThreshold = 12;
 - (void)pushDirectory:(NSURL *)url {
     FolderViewController *folder = [[FolderViewController alloc] initWithHost:_host
                                                                  directoryURL:url
-                                                                stackArtCache:_stackArtCache
                                                                  highlighting:nil
                                                                    holdsScope:NO];
     folder.addedRowsHandler = _addedRowsHandler;
@@ -565,7 +566,7 @@ static const NSUInteger kFilterThreshold = 12;
 #pragma mark - VibeBrowserHostObserver
 
 - (void)browserHostPlayingFileDidChange {
-    _playingPath = _host.playingPath;
+    _playingPath = _playback.playingPath;
     if (self.viewIfLoaded.window && ![self isSelecting]) {
         [self.tableView reloadData];
     }
@@ -646,7 +647,7 @@ static const NSUInteger kFilterThreshold = 12;
         equalizer.audioOutputActive = NO;
     }
     cell.accessoryView = accessory;
-    [cell vibeApplyRowContent:content opening:[path isEqualToString:_host.openingPath]];
+    [cell vibeApplyRowContent:content opening:[path isEqualToString:_playback.openingPath]];
     return cell;
 }
 
@@ -659,7 +660,7 @@ static const NSUInteger kFilterThreshold = 12;
 
 - (EqualizerIndicatorView *)makeEqualizer {
     EqualizerIndicatorView *equalizer = [[EqualizerIndicatorView alloc] initWithFrame:CGRectMake(0, 0, 16, 14)];
-    equalizer.levelSource = _host.levelSource;
+    equalizer.levelSource = _playback.levelSource;
     return equalizer;
 }
 
@@ -677,7 +678,7 @@ static const NSUInteger kFilterThreshold = 12;
     for (UITableViewCell *cell in self.tableView.visibleCells) {
         if ([cell.accessoryView isKindOfClass:EqualizerIndicatorView.class]) {
             EqualizerIndicatorView *equalizer = (EqualizerIndicatorView *)cell.accessoryView;
-            equalizer.audioOutputActive = _host.audioOutputActive;
+            equalizer.audioOutputActive = _playback.audioOutputActive;
             equalizer.presentationVisible = surface && [cell vibeIsInViewportOfTableView:self.tableView];
         }
     }

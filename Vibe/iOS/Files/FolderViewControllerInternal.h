@@ -19,6 +19,8 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
 
 @interface FolderViewController () <UISearchResultsUpdating, VibeBrowserHostObserver> {
     id<VibeBrowserHost> _host;
+    // The host, when it plays; nil otherwise, so its rows read nil and NO.
+    id<VibeBrowserPlaybackHost> _playback;
     NSURL *_directoryURL;
 
     // A directory's whole listing, in the folder-open order. Which of the
@@ -59,11 +61,10 @@ typedef NS_ENUM(NSInteger, VibeBrowserSection) {
     // it read under it. The session's hold may be gone with the playlist.
     BOOL _holdsScope;
 
-    // Album art through the app's own metadata pipeline: the stack's one
-    // cache (stackArtCache), and a track per row that has been near the
-    // screen. Every song may show art the cache already holds; only the
-    // local ones may be parsed for it.
-    AudioTrackMetadataCache *(^_stackArtCache)(void);
+    // Album art through the metadata pipeline: the stack's one cache (the
+    // host's artCache), and a holder per row that has been near the screen.
+    // Every song may show art the cache already holds; only the local ones
+    // may be parsed for it.
     AudioTrackMetadataCache *_artCache;
     NSSet<NSURL *> *_songFiles;
     NSSet<NSURL *> *_localFiles;

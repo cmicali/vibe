@@ -17,6 +17,7 @@
 
 #import "FolderOpenSort.h"
 
+@class AudioTrackMetadataCache;
 @protocol AudioTrackMetadataHolder;
 @protocol EqualizerLevelSource;
 
@@ -110,18 +111,6 @@ FOUNDATION_EXTERN void VibeBrowserPresentAlert(UIViewController *screen, id<Vibe
 
 @protocol VibeBrowserHost <NSObject>
 
-#pragma mark What the rows show
-
-// Comparable paths (VibeComparablePath). The playing file's row carries the
-// equalizer, and the row being opened spins.
-@property (nonatomic, readonly, copy, nullable) NSString *playingPath;
-@property (nonatomic, readonly, copy, nullable) NSString *openingPath;
-// Whether audio is coming out, and what the equalizer reads its levels from.
-@property (nonatomic, readonly) BOOL audioOutputActive;
-@property (nonatomic, readonly, nullable) id<EqualizerLevelSource> levelSource;
-// Held weakly.
-- (void)addObserver:(id<VibeBrowserHostObserver>)observer;
-
 #pragma mark Where the files are
 
 // Listed first at the root, in order, before the granted folders.
@@ -143,9 +132,6 @@ FOUNDATION_EXTERN void VibeBrowserPresentAlert(UIViewController *screen, id<Vibe
 // The order every listing and walk uses. The sort menu writes it.
 @property (nonatomic) VibeFolderOpenSort folderSort;
 - (NSString *)titleForSort:(VibeFolderOpenSort)sort;
-// The holder a file row's album art loads into, through the stack's metadata
-// cache.
-- (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url;
 
 #pragma mark The actions
 
@@ -164,6 +150,30 @@ FOUNDATION_EXTERN void VibeBrowserPresentAlert(UIViewController *screen, id<Vibe
 // A row's long press. Asked each time the menu opens.
 - (NSArray<VibeBrowserAction *> *)menuActionsForURL:(NSURL *)url isFolder:(BOOL)isFolder;
 
+@optional
+
+// Held weakly, by a host whose state changes: its playback or its sources.
+- (void)addBrowserObserver:(id<VibeBrowserHostObserver>)observer;
+
+#pragma mark Album art
+
+// The stack's one metadata cache, asked only once a row needs art. Without
+// it, every file row shows its tile.
+@property (nonatomic, readonly) AudioTrackMetadataCache *artCache;
+// The holder a file row's art loads into. A VibeBrowserArtHolder without it.
+- (id<AudioTrackMetadataHolder>)artHolderForFileURL:(NSURL *)url;
+
+@end
+
+// A host that plays. The playing file's row carries the equalizer, and the
+// row being opened spins. A host that is not one shows neither.
+@protocol VibeBrowserPlaybackHost <VibeBrowserHost>
+// Comparable paths (VibeComparablePath).
+@property (nonatomic, readonly, copy, nullable) NSString *playingPath;
+@property (nonatomic, readonly, copy, nullable) NSString *openingPath;
+// Whether audio is coming out, and what the equalizer reads its levels from.
+@property (nonatomic, readonly) BOOL audioOutputActive;
+@property (nonatomic, readonly, nullable) id<EqualizerLevelSource> levelSource;
 @end
 
 NS_ASSUME_NONNULL_END

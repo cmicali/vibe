@@ -7,7 +7,6 @@
 
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
-#import "AudioTrackMetadataCache.h"
 #import "BrowserRules.h"
 #import "FileRow.h"
 #import "FileSearchRules.h"
@@ -41,8 +40,6 @@ static NSString *const kActionCellIdentifier = @"action";
 @implementation BrowserRootViewController {
     // What every folder screen of the stack reads and acts through.
     id<VibeBrowserHost> _host;
-    // The stack's one metadata cache, made when its first folder needs art.
-    AudioTrackMetadataCache *_artCache;
     // The picker that grants a location, while it is up.
     __weak UIDocumentPickerViewController *_locationPicker;
     // The sources that had a root when the root last reloaded. The rows read
@@ -79,7 +76,9 @@ static NSString *const kActionCellIdentifier = @"action";
                                                                      menu:[self addLocationMenu]];
     addLocation.accessibilityLabel = [_host label:VibeBrowserLabelAddLocation];
     self.navigationItem.rightBarButtonItem = addLocation;
-    [_host addObserver:self];
+    if ([_host respondsToSelector:@selector(addBrowserObserver:)]) {
+        [_host addBrowserObserver:self];
+    }
 }
 
 - (void)dealloc {
@@ -103,16 +102,6 @@ static NSString *const kActionCellIdentifier = @"action";
 }
 
 #pragma mark - What the stack shares
-
-// One cache for a stack of folders, made by the first screen that needs it:
-// each cache opens its own store, which lists the whole metadata cache
-// directory when made.
-- (AudioTrackMetadataCache *)stackArtCache {
-    if (!_artCache) {
-        _artCache = [[AudioTrackMetadataCache alloc] init];
-    }
-    return _artCache;
-}
 
 // Every folder of the stack follows. A folder pushed later is handed it.
 - (void)setEqualizerSurfaceVisible:(BOOL)equalizerSurfaceVisible {
@@ -185,12 +174,8 @@ static NSString *const kActionCellIdentifier = @"action";
 // A screen of this stack. Open Folder hands its last one the file to
 // highlight, and a scope to hold.
 - (FolderViewController *)folderForDirectory:(NSURL *)url highlighting:(NSURL *)file holdsScope:(BOOL)holdsScope {
-    __weak BrowserRootViewController *weakSelf = self;
     FolderViewController *folder = [[FolderViewController alloc] initWithHost:_host
                                                                  directoryURL:url
-                                                                stackArtCache:^AudioTrackMetadataCache *{
-        return [weakSelf stackArtCache];
-    }
                                                                  highlighting:file
                                                                    holdsScope:holdsScope];
     folder.addedRowsHandler = _addedRowsHandler;
