@@ -273,7 +273,7 @@ static NSArray<NSString *> *VibeComparablePaths(NSArray<NSURL *> *urls) {
     NSMutableArray<NSString *> *keptPaths = [NSMutableArray arrayWithCapacity:roots.count];
     for (NSURL *root in shortestFirst) {
         NSString *path = VibeComparablePath(root.path);
-        if (path.length == 0 || VibeSearchFolderCoveringRootIndex(keptPaths, path) != NSNotFound) {
+        if (path.length == 0 || VibeLocationCoveringRootIndex(keptPaths, path) != NSNotFound) {
             continue;
         }
         [kept addObject:root];

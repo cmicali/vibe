@@ -6,7 +6,7 @@
 #import "PlaylistViewController.h"
 
 #import "AudioTrack+TrackRow.h"
-#import "BrowserRootViewController.h"
+#import "VibeBrowserRootViewController.h"
 #import "PlaybackBrowserHost.h"
 #import "AudioTrackMetadata.h"
 #import "CloudTransferRegistry.h"
@@ -17,7 +17,7 @@
 #import "LoadingIndicatorView.h"
 #import "PlaybackController.h"
 #import "VibePlaylist.h"
-#import "PlaylistTrackCell.h"
+#import "VibeTrackCell.h"
 #import "SettingsViewController.h"
 #import "VibeTrackRow.h"
 #import "VibeStrings.h"
@@ -39,7 +39,7 @@ static NSString *const kTrackCellIdentifier = @"track";
     BOOL               _viewPresentationVisible;
     BOOL               _equalizerSurfaceVisible;
     // The add sheet's browser, which this screen's exposure exposes.
-    __weak BrowserRootViewController *_addSheet;
+    __weak VibeBrowserRootViewController *_addSheet;
     // A hidden track change, parked at once on the next reveal.
     NSUInteger         _pendingScrollIndex;
     UIBarButtonItem    *_settingsItem;
@@ -93,9 +93,9 @@ static NSString *const kTrackCellIdentifier = @"track";
     self.navigationController.navigationBar.prefersLargeTitles = YES;
 
     self.tableView.rowHeight = UITableViewAutomaticDimension;
-    self.tableView.estimatedRowHeight = kEstimatedRowHeight;
-    self.tableView.separatorInset = UIEdgeInsetsMake(0, PlaylistTrackCell.separatorLeadingInset, 0, 0);
-    [self.tableView registerClass:PlaylistTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
+    self.tableView.estimatedRowHeight = kVibeTrackCellEstimatedHeight;
+    self.tableView.separatorInset = UIEdgeInsetsMake(0, VibeTrackCell.separatorLeadingInset, 0, 0);
+    [self.tableView registerClass:VibeTrackCell.class forCellReuseIdentifier:kTrackCellIdentifier];
 
     [_playback addObserver:self];
     [CloudTransferRegistry.sharedRegistry addObserver:self];
@@ -191,7 +191,7 @@ static NSString *const kTrackCellIdentifier = @"track";
 
 // The Files tab's browser as a sheet in which every action appends.
 - (void)addTapped {
-    BrowserRootViewController *browser = [PlaybackBrowserHost rootWithPlayback:_playback appending:YES];
+    VibeBrowserRootViewController *browser = [PlaybackBrowserHost rootWithPlayback:_playback appending:YES];
     browser.equalizerSurfaceVisible = _equalizerSurfaceVisible;
     _addSheet = browser;
     [self presentViewController:[[UINavigationController alloc] initWithRootViewController:browser]
@@ -298,8 +298,8 @@ static NSString *const kTrackCellIdentifier = @"track";
 
 - (UITableViewCell *)tableView:(UITableView *)tableView
          cellForRowAtIndexPath:(NSIndexPath *)indexPath {
-    PlaylistTrackCell *cell = [tableView dequeueReusableCellWithIdentifier:kTrackCellIdentifier
-                                                              forIndexPath:indexPath];
+    VibeTrackCell *cell = [tableView dequeueReusableCellWithIdentifier:kTrackCellIdentifier
+                                                          forIndexPath:indexPath];
     NSUInteger index = (NSUInteger)indexPath.row;
     cell.levelSource = _playback;
     [cell renderRow:[self rowAtIndex:index]];
@@ -311,25 +311,25 @@ static NSString *const kTrackCellIdentifier = @"track";
 - (void)tableView:(UITableView *)tableView
   willDisplayCell:(UITableViewCell *)cell
 forRowAtIndexPath:(NSIndexPath *)indexPath {
-    if ([cell isKindOfClass:PlaylistTrackCell.class]) {
+    if ([cell isKindOfClass:VibeTrackCell.class]) {
         // TRAP: UIKit displays a prepared cell without re-running
         // cellForRowAtIndexPath:, and the thumbnail and metadata refreshes
         // repaint only visible rows, so a prepared cell can arrive stale.
         // Re-render here; the art read is a non-blocking cache lookup.
         NSUInteger index = (NSUInteger)indexPath.row;
         if (index < _playlist.count) {
-            [(PlaylistTrackCell *)cell renderRow:[self rowAtIndex:index]];
-            [self syncLoadingForCell:(PlaylistTrackCell *)cell trackIndex:index];
+            [(VibeTrackCell *)cell renderRow:[self rowAtIndex:index]];
+            [self syncLoadingForCell:(VibeTrackCell *)cell trackIndex:index];
         }
-        [self syncEqualizerActivityForCell:(PlaylistTrackCell *)cell];
+        [self syncEqualizerActivityForCell:(VibeTrackCell *)cell];
     }
 }
 
 - (void)tableView:(UITableView *)tableView
 didEndDisplayingCell:(UITableViewCell *)cell
  forRowAtIndexPath:(NSIndexPath *)indexPath {
-    if ([cell isKindOfClass:PlaylistTrackCell.class]) {
-        PlaylistTrackCell *trackCell = (PlaylistTrackCell *)cell;
+    if ([cell isKindOfClass:VibeTrackCell.class]) {
+        VibeTrackCell *trackCell = (VibeTrackCell *)cell;
         trackCell.equalizerPresentationVisible = NO;
         trackCell.equalizerAudioOutputActive = NO;
         trackCell.loading = NO;
@@ -340,11 +340,11 @@ didEndDisplayingCell:(UITableViewCell *)cell
     [self syncCurrentEqualizerActivity];
 }
 
-- (BOOL)isCellMateriallyVisible:(PlaylistTrackCell *)cell {
+- (BOOL)isCellMateriallyVisible:(VibeTrackCell *)cell {
     return _equalizerSurfaceVisible && _viewPresentationVisible && [cell vibeIsInViewportOfTableView:self.tableView];
 }
 
-- (void)syncEqualizerActivityForCell:(PlaylistTrackCell *)cell {
+- (void)syncEqualizerActivityForCell:(VibeTrackCell *)cell {
     NSIndexPath *path = [self.tableView indexPathForCell:cell];
     BOOL current = path && _playlist.count > 0
             && (NSUInteger)path.row == _playlist.currentIndex;
@@ -354,7 +354,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
     cell.equalizerPresentationVisible = eligible && [self isCellMateriallyVisible:cell];
 }
 
-- (void)syncLoadingForCell:(PlaylistTrackCell *)cell trackIndex:(NSUInteger)index {
+- (void)syncLoadingForCell:(VibeTrackCell *)cell trackIndex:(NSUInteger)index {
     AudioTrack *track = index < _playlist.count ? [_playlist trackAtIndex:index] : nil;
     CloudTransferRegistry *registry = CloudTransferRegistry.sharedRegistry;
     BOOL loading = track.url != nil && [registry isTransferringURL:track.url];
@@ -366,16 +366,16 @@ didEndDisplayingCell:(UITableViewCell *)cell
 // and disturb its demand balancing.
 - (void)cloudTransferRegistryDidChange:(CloudTransferRegistry *)registry {
     for (UITableViewCell *cell in self.tableView.visibleCells) {
-        if (![cell isKindOfClass:PlaylistTrackCell.class]) {
+        if (![cell isKindOfClass:VibeTrackCell.class]) {
             continue;
         }
         NSIndexPath *path = [self.tableView indexPathForCell:cell];
         if (!path) {
             continue;
         }
-        [self syncLoadingForCell:(PlaylistTrackCell *)cell
+        [self syncLoadingForCell:(VibeTrackCell *)cell
                       trackIndex:(NSUInteger)path.row];
-        [self syncEqualizerActivityForCell:(PlaylistTrackCell *)cell];
+        [self syncEqualizerActivityForCell:(VibeTrackCell *)cell];
     }
 }
 
@@ -386,8 +386,8 @@ didEndDisplayingCell:(UITableViewCell *)cell
     NSIndexPath *path = [NSIndexPath indexPathForRow:(NSInteger)_playlist.currentIndex
                                            inSection:0];
     UITableViewCell *cell = [self.tableView cellForRowAtIndexPath:path];
-    if ([cell isKindOfClass:PlaylistTrackCell.class]) {
-        [self syncEqualizerActivityForCell:(PlaylistTrackCell *)cell];
+    if ([cell isKindOfClass:VibeTrackCell.class]) {
+        [self syncEqualizerActivityForCell:(VibeTrackCell *)cell];
     }
 }
 
@@ -401,7 +401,7 @@ didEndDisplayingCell:(UITableViewCell *)cell
         return;
     }
     NSIndexPath *path = [NSIndexPath indexPathForRow:(NSInteger)index inSection:0];
-    PlaylistTrackCell *cell = [self.tableView cellForRowAtIndexPath:path];
+    VibeTrackCell *cell = [self.tableView cellForRowAtIndexPath:path];
     if (!cell) {
         return;
     }

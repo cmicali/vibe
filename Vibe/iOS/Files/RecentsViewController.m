@@ -7,7 +7,7 @@
 
 #import "BrowserRules.h"
 #import "FilesTabRules.h"
-#import "BrowserRootViewController.h"
+#import "VibeBrowserRootViewController.h"
 #import "FileRow.h"
 #import "LinkStore.h"
 #import "FilePaths.h"
@@ -211,11 +211,12 @@ static NSString *const kRecentCellIdentifier = @"item";
     __weak RecentsViewController *weakSelf = self;
     [RecentsStore.shared resolveRecentItem:item completion:^(NSURL *url) {
         RecentsViewController *strongSelf = weakSelf;
-        BrowserRootViewController *root = (BrowserRootViewController *)strongSelf.navigationController.viewControllers.firstObject;
+        VibeBrowserRootViewController *root =
+                (VibeBrowserRootViewController *)strongSelf.navigationController.viewControllers.firstObject;
         if (!url) {
             [strongSelf showUnavailableAlertForName:name];
         }
-        else if ([root isKindOfClass:BrowserRootViewController.class]) {
+        else if ([root isKindOfClass:VibeBrowserRootViewController.class]) {
             [root showDirectory:folder ? url : url.URLByDeletingLastPathComponent
                    highlighting:folder ? nil : url];
         }

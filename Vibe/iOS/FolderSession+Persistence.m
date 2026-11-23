@@ -10,7 +10,7 @@
 #import "AppSettings.h"
 #import "FilePaths.h"
 
-// LocationStore's bound, for its reason: one stalled provider must not
+// VibeLocationStore's bound, for its reason: one stalled provider must not
 // head-of-line every other bookmark.
 static const NSInteger kMaximumConcurrentBookmarkRestorations = 3;
 

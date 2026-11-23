@@ -8,10 +8,10 @@
 #import "AppSettings.h"
 #import "AudioTrack+TrackRow.h"
 #import "AudioTrackMetadata.h"
-#import "BrowserRootViewController.h"
+#import "VibeBrowserRootViewController.h"
 #import "CueFolderGrantPrompt.h"
 #import "FavoritesViewController.h"
-#import "MiniPlayerView.h"
+#import "VibeMiniPlayerView.h"
 #import "PlaybackBrowserHost.h"
 #import "PlaybackController.h"
 #import "PlayerScreenRules.h"
@@ -40,7 +40,7 @@ static NSString *const kTabFiles = @"files";
     PlaybackController     *_playback;
     RootViewController     *_root;
     PlayerViewController   *_player;
-    BrowserRootViewController *_filesController;
+    VibeBrowserRootViewController *_filesController;
     FavoritesViewController *_favorites;
     PlaylistViewController *_playlistScreen;
     SearchViewController   *_searchController;
@@ -84,7 +84,7 @@ static NSString *const kTabFiles = @"files";
     return _playlistScreen;
 }
 
-- (BrowserRootViewController *)filesBrowser {
+- (VibeBrowserRootViewController *)filesBrowser {
     return _filesController;
 }
 
@@ -156,7 +156,7 @@ static NSString *const kTabFiles = @"files";
         if (!host) {
             return nil;
         }
-        BrowserRootViewController *browser = [PlaybackBrowserHost rootWithPlayback:host->_playback appending:NO];
+        VibeBrowserRootViewController *browser = [PlaybackBrowserHost rootWithPlayback:host->_playback appending:NO];
         host->_filesController = browser;
         browser.addedRowsHandler = ^(NSArray<UIView *> *rows) {
             [weakSelf liftAddedRows:rows];

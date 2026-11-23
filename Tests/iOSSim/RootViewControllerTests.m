@@ -5,7 +5,7 @@
 #import "IOSSimTestCase.h"
 
 #import "AudioTrack.h"
-#import "MiniPlayerView.h"
+#import "VibeMiniPlayerView.h"
 #import "PlaybackController.h"
 #import "PlaybackShellHost.h"
 #import "PlayerViewController.h"
@@ -73,7 +73,7 @@
 }
 
 - (void)expand {
-    [(id<MiniPlayerViewDelegate>)_root miniPlayerViewDidRequestExpand:(MiniPlayerView *)[UIView new]];
+    [(id<VibeMiniPlayerViewDelegate>)_root miniPlayerViewDidRequestExpand:(VibeMiniPlayerView *)[UIView new]];
 }
 
 - (void)pan:(CGFloat)translation velocity:(CGFloat)velocity state:(UIGestureRecognizerState)state {
@@ -195,8 +195,8 @@
 
 - (void)testTheStripsButtonsReachTheModel {
     [_playback clearCalls];
-    [(id<MiniPlayerViewDelegate>)_root miniPlayerViewDidTapPlayPause:(MiniPlayerView *)[UIView new]];
-    [(id<MiniPlayerViewDelegate>)_root miniPlayerViewDidTapNext:(MiniPlayerView *)[UIView new]];
+    [(id<VibeMiniPlayerViewDelegate>)_root miniPlayerViewDidTapPlayPause:(VibeMiniPlayerView *)[UIView new]];
+    [(id<VibeMiniPlayerViewDelegate>)_root miniPlayerViewDidTapNext:(VibeMiniPlayerView *)[UIView new]];
     XCTAssertEqualObjects(_playback.calls, (@[@"playPause", @"next"]));
 }
 

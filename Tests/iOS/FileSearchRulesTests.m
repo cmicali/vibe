@@ -112,41 +112,41 @@
 #pragma mark - Root coverage
 
 - (void)testARootCoversItself {
-    XCTAssertTrue(VibeSearchRootCoversPath(@"/Data/Music", @"/Data/Music"));
+    XCTAssertTrue(VibeLocationRootCoversPath(@"/Data/Music", @"/Data/Music"));
 }
 
 - (void)testARootCoversWhatIsInsideIt {
-    XCTAssertTrue(VibeSearchRootCoversPath(@"/Data/Music", @"/Data/Music/Albums/Kid A"));
+    XCTAssertTrue(VibeLocationRootCoversPath(@"/Data/Music", @"/Data/Music/Albums/Kid A"));
 }
 
 - (void)testARootDoesNotCoverItsOwnParent {
-    XCTAssertFalse(VibeSearchRootCoversPath(@"/Data/Music/Albums", @"/Data/Music"));
+    XCTAssertFalse(VibeLocationRootCoversPath(@"/Data/Music/Albums", @"/Data/Music"));
 }
 
 // On a bare prefix test "/Music" would swallow "/Music Videos".
 - (void)testARootDoesNotCoverASiblingSharingItsPrefix {
-    XCTAssertFalse(VibeSearchRootCoversPath(@"/Data/Music", @"/Data/Music Videos"));
-    XCTAssertFalse(VibeSearchRootCoversPath(@"/Data/Music", @"/Data/Musical"));
+    XCTAssertFalse(VibeLocationRootCoversPath(@"/Data/Music", @"/Data/Music Videos"));
+    XCTAssertFalse(VibeLocationRootCoversPath(@"/Data/Music", @"/Data/Musical"));
 }
 
 - (void)testATrailingSeparatorOnEitherSideChangesNothing {
-    XCTAssertTrue(VibeSearchRootCoversPath(@"/Data/Music/", @"/Data/Music/track.mp3"));
-    XCTAssertTrue(VibeSearchRootCoversPath(@"/Data/Music", @"/Data/Music/"));
-    XCTAssertTrue(VibeSearchRootCoversPath(@"/Data/Music/", @"/Data/Music"));
+    XCTAssertTrue(VibeLocationRootCoversPath(@"/Data/Music/", @"/Data/Music/track.mp3"));
+    XCTAssertTrue(VibeLocationRootCoversPath(@"/Data/Music", @"/Data/Music/"));
+    XCTAssertTrue(VibeLocationRootCoversPath(@"/Data/Music/", @"/Data/Music"));
 }
 
 - (void)testAnEmptyPathCoversNothingAndIsCoveredByNothing {
-    XCTAssertFalse(VibeSearchRootCoversPath(@"", @"/Data/Music"));
-    XCTAssertFalse(VibeSearchRootCoversPath(@"/Data/Music", @""));
+    XCTAssertFalse(VibeLocationRootCoversPath(@"", @"/Data/Music"));
+    XCTAssertFalse(VibeLocationRootCoversPath(@"/Data/Music", @""));
 }
 
 #pragma mark - Persistent-root merging
 
 - (void)testExistingAncestorAbsorbsARestoredOrLiveChild {
     NSArray<NSString *> *roots = @[@"/Data/Music", @"/Provider/Dropbox"];
-    XCTAssertEqual(VibeSearchFolderCoveringRootIndex(
+    XCTAssertEqual(VibeLocationCoveringRootIndex(
             roots, @"/Data/Music/Albums/Kid A"), 0u);
-    XCTAssertEqual(VibeSearchFolderIndexesCoveredByRoot(
+    XCTAssertEqual(VibeLocationIndexesCoveredByRoot(
             roots, @"/Data/Music/Albums/Kid A").count, 0u);
 }
 
@@ -156,31 +156,31 @@
         @"/Provider/Dropbox",
         @"/Data/Music/Singles"
     ];
-    XCTAssertEqual(VibeSearchFolderCoveringRootIndex(roots, @"/Data/Music"), NSNotFound);
+    XCTAssertEqual(VibeLocationCoveringRootIndex(roots, @"/Data/Music"), NSNotFound);
     NSMutableIndexSet *expected = [NSMutableIndexSet indexSetWithIndex:0];
     [expected addIndex:2];
-    XCTAssertEqualObjects(VibeSearchFolderIndexesCoveredByRoot(roots, @"/Data/Music"),
+    XCTAssertEqualObjects(VibeLocationIndexesCoveredByRoot(roots, @"/Data/Music"),
                           expected);
 }
 
 - (void)testExactDuplicateTakesTheAbsorbPathOnly {
     NSArray<NSString *> *roots = @[@"/Data/Music"];
-    XCTAssertEqual(VibeSearchFolderCoveringRootIndex(roots, @"/Data/Music"), 0u);
+    XCTAssertEqual(VibeLocationCoveringRootIndex(roots, @"/Data/Music"), 0u);
 }
 
 - (void)testRemovedParentSuppressesOnlyItsPendingSubtree {
     NSArray<NSString *> *removedRoots = @[@"/Data/Music"];
-    XCTAssertTrue(VibeSearchPendingRestoreShouldBeSuppressed(
+    XCTAssertTrue(VibeLocationRestoreIsSuppressed(
             removedRoots, @[], @"/Data/Music/Albums/Kid A"));
-    XCTAssertFalse(VibeSearchPendingRestoreShouldBeSuppressed(
+    XCTAssertFalse(VibeLocationRestoreIsSuppressed(
             removedRoots, @[], @"/Provider/Dropbox"));
 }
 
 - (void)testExplicitReAddSupersedesAnOlderParentRemoval {
-    XCTAssertFalse(VibeSearchPendingRestoreShouldBeSuppressed(
+    XCTAssertFalse(VibeLocationRestoreIsSuppressed(
             @[@"/Data/Music"], @[@"/Data/Music/Albums"],
             @"/Data/Music/Albums/Kid A"));
-    XCTAssertTrue(VibeSearchPendingRestoreShouldBeSuppressed(
+    XCTAssertTrue(VibeLocationRestoreIsSuppressed(
             @[@"/Data/Music"], @[@"/Provider/Dropbox"],
             @"/Data/Music/Albums/Kid A"));
 }

@@ -15,13 +15,13 @@
 #import "DebugCommandDispatch.h"
 #import "DebugCommonVerbs.h"
 #import "FavoritesStore.h"
-#import "FolderViewControllerInternal.h"
+#import "VibeBrowserFolderViewControllerInternal.h"
 #import "AppSettings.h"
 #import "PlaybackController.h"
 #import "RootViewController.h"
 #import "PlaybackShellHost+Debug.h"
 #import "PlayerViewController+Debug.h"
-#import "LocationStore.h"
+#import "VibeLocationStore.h"
 #import "RecentsStore.h"
 #import "WaveformRendererRegistry.h"
 
@@ -45,11 +45,11 @@ static NSDictionary *VibeSearchScopeDictionary(PlaybackShellHost *controller) {
     for (NSURL *root in controller.playback.searchRoots) {
         [roots addObject:root.path ?: @""];
     }
-    LocationStore *store = LocationStore.shared;
+    VibeLocationStore *store = VibeLocationStore.shared;
     NSMutableArray<NSDictionary *> *folders = [NSMutableArray array];
     NSArray<NSURL *> *urls = store.folderURLs;
     for (NSUInteger i = 0; i < urls.count; i++) {
-        [folders addObject:@{@"name": [LocationStore displayNameForFolderURL:urls[i]],
+        [folders addObject:@{@"name": [VibeLocationStore displayNameForFolderURL:urls[i]],
                              @"path": urls[i].path ?: @""}];
     }
     return @{@"roots": roots, @"folders": folders};
@@ -70,7 +70,7 @@ static NSDictionary *VibeFavoritesDictionary(void) {
 // A folder screen's row names as its listing has drawn them so far, one
 // array per VibeBrowserSection. The listing lands off main, so a caller polls
 // until the row it wants is there.
-static NSArray<NSArray<NSString *> *> *VibeBrowserRows(FolderViewController *folder) {
+static NSArray<NSArray<NSString *> *> *VibeBrowserRows(VibeBrowserFolderViewController *folder) {
     NSMutableArray<NSArray<NSString *> *> *sections = [NSMutableArray array];
     for (NSInteger section = 0; section < VibeBrowserSectionCount; section++) {
         NSMutableArray<NSString *> *names = [NSMutableArray array];
@@ -86,14 +86,14 @@ static NSArray<NSArray<NSString *> *> *VibeBrowserRows(FolderViewController *fol
 // The top screen of the Files tab's stack and, on a folder screen, its rows.
 static NSDictionary *VibeBrowserDictionary(UINavigationController *stack) {
     UIViewController *top = stack.topViewController;
-    NSArray<NSArray<NSString *> *> *rows = [top isKindOfClass:FolderViewController.class]
-            ? VibeBrowserRows((FolderViewController *)top) : @[@[], @[]];
+    NSArray<NSArray<NSString *> *> *rows = [top isKindOfClass:VibeBrowserFolderViewController.class]
+            ? VibeBrowserRows((VibeBrowserFolderViewController *)top) : @[@[], @[]];
     return @{@"ok": @YES, @"depth": @(stack.viewControllers.count - 1),
              @"title": top.navigationItem.title ?: top.title ?: @"",
              @"folders": rows[VibeBrowserSectionFolders], @"files": rows[VibeBrowserSectionFiles]};
 }
 
-static NSIndexPath *VibeBrowserRowNamed(FolderViewController *folder, NSString *name) {
+static NSIndexPath *VibeBrowserRowNamed(VibeBrowserFolderViewController *folder, NSString *name) {
     NSArray<NSArray<NSString *> *> *rows = VibeBrowserRows(folder);
     for (NSInteger section = 0; section < VibeBrowserSectionCount; section++) {
         NSUInteger row = [rows[section] indexOfObject:name];
@@ -206,7 +206,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 }
                 NSURL *url = [NSURL fileURLWithPath:tokens[1] isDirectory:YES];
                 // added:NO is the "already covered" answer, not a failure.
-                BOOL added = [LocationStore.shared addFolderURL:url];
+                BOOL added = [VibeLocationStore.shared addFolderURL:url];
                 NSMutableDictionary *reply =
                         [VibeSearchScopeDictionary(controller) mutableCopy];
                 reply[@"ok"] = @YES;
@@ -215,10 +215,10 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             }),
             VibeDebugCmd(@"remove_search_folder <index>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
                 NSInteger index = tokens.count > 1 ? tokens[1].integerValue : -1;
-                if (index < 0 || (NSUInteger)index >= LocationStore.shared.folderURLs.count) {
+                if (index < 0 || (NSUInteger)index >= VibeLocationStore.shared.folderURLs.count) {
                     return VibeErrorJSON(@"usage: remove_search_folder <index in dump_search.folders>");
                 }
-                [LocationStore.shared removeFolderAtIndex:(NSUInteger)index];
+                [VibeLocationStore.shared removeFolderAtIndex:(NSUInteger)index];
                 NSMutableDictionary *reply =
                         [VibeSearchScopeDictionary(controller) mutableCopy];
                 reply[@"ok"] = @YES;
@@ -345,7 +345,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // the system's Paste would. open and cancel are the bar's buttons.
             // Read dump_state.ui.linkSheet after.
             VibeDebugCmd(@"open_url_sheet show | type <text> | paste <text> | open | cancel", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
-                BrowserRootViewController *browser = controller.debugActiveBrowser;
+                VibeBrowserRootViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
                 }
@@ -392,7 +392,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // pasteItemProviders:, handed what a clipboard read would. A real
             // read of another app's copy raises the system's prompt.
             VibeDebugCmd(@"paste_link <text>", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
-                BrowserRootViewController *browser = controller.debugActiveBrowser;
+                VibeBrowserRootViewController *browser = controller.debugActiveBrowser;
                 if (!browser) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
                 }
@@ -416,7 +416,7 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
             // pushes and a file plays alone. play is the bar's play button.
             // back pops. Every form answers the top screen's rows.
             VibeDebugCmd(@"browse [show <directory> | tap <name> | play | back]", 0, ^NSString *(NSArray<NSString *> *tokens, NSString *commandId, PlaybackShellHost *controller) {
-                BrowserRootViewController *browser = controller.filesBrowser;
+                VibeBrowserRootViewController *browser = controller.filesBrowser;
                 UINavigationController *stack = browser.navigationController;
                 if (!stack) {
                     return VibeErrorJSON(@"the Files tab was never visited (select_tab files first)");
@@ -425,8 +425,10 @@ NSArray<NSDictionary *> *VibeiOSCommandTable(void) {
                 NSString *argument = tokens.count > 2
                         ? [[tokens subarrayWithRange:NSMakeRange(2, tokens.count - 2)] componentsJoinedByString:@" "]
                         : nil;
-                FolderViewController *folder = [stack.topViewController isKindOfClass:FolderViewController.class]
-                        ? (FolderViewController *)stack.topViewController : nil;
+                UIViewController *top = stack.topViewController;
+                VibeBrowserFolderViewController *folder =
+                        [top isKindOfClass:VibeBrowserFolderViewController.class]
+                        ? (VibeBrowserFolderViewController *)top : nil;
                 if ([action isEqualToString:@"show"] && argument) {
                     [browser showDirectory:[NSURL fileURLWithPath:argument isDirectory:YES] highlighting:nil];
                 }

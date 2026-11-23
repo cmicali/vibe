@@ -17,12 +17,12 @@
 | `BrowserRules.h` | `BrowserRulesTests` |
 | `PageWaveformCoordinator` | `PageWaveformCoordinatorTests` |
 | `FolderSession` | `FolderSessionTests` |
-| `LocationStore`, `RecentsStore`, `FavoritesStore` | `LocationStoreTests`, `RecentsStoreTests`, `FavoritesStoreTests` |
+| `VibeLocationStore`, `RecentsStore`, `FavoritesStore` | `LocationStoreTests`, `RecentsStoreTests`, `FavoritesStoreTests` |
 | `DropboxSearch` | `DropboxSearchTests` |
 | `VibeWidgetState` | `VibeWidgetStateTests` |
 | `PlayerScreenRules.h`, `DropboxRules.h` | `PlayerScreenRulesTests`, `DropboxRulesTests` |
 
-The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `FilesRootViewController`, `FolderViewController`, `RootViewController` and `PlaylistViewController` sit beside the UIKit calls that act on them.
+The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `FilesRootViewController`, `VibeBrowserFolderViewController`, `RootViewController` and `PlaylistViewController` sit beside the UIKit calls that act on them.
 
 ## Three moves, in order of payoff
 
@@ -39,7 +39,7 @@ The biggest win. `FolderSession` owns the open and Add orchestration that `Vibe/
 
 Each is a race or an ordering rule. Tests with held provider calls can exercise these races deterministically.
 
-Its header imports only Foundation. Its implementation spans `FolderSession.m`, `FolderSession+ExternalOpens.m` and `FolderSession+Persistence.m`. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FolderSessionRules.h`, `FilePaths.h`, `FolderWalk`, `LocationStoreInternal.h`, `PlaceholderFiles` and `VibePlaylistFile`. Both stores are in the target now. `FavoritesStore` has no UIKit reference. `LocationStore` reads no `UIDevice`. The app delegate sets its `deviceModelName` at launch.
+Its header imports only Foundation. Its implementation spans `FolderSession.m`, `FolderSession+ExternalOpens.m` and `FolderSession+Persistence.m`. Its dependencies include `AppSettings`, `AppStats`, `AudioTrack`, `DropboxMirror`, `FavoritesStore`, `FileSearchRules.h`, `FolderSessionRules.h`, `FilePaths.h`, `FolderWalk`, `VibeLocationStore.h`, `PlaceholderFiles` and `VibePlaylistFile`. Both stores are in the target now. `FavoritesStore` has no UIKit reference. `VibeLocationStore` reads no `UIDevice`. The app delegate sets its `deviceModelName` at launch.
 
 Follow `DropboxMirrorTests`' shape: a temp root for the folders and real listings on disk. Compile the two main-only stores with the in-memory `VibeTestUserDefaults` supplied by `TestFilesystemGuard`, or stub their queries (`grantCoveringURL:`, `resolvedRootCoveringURL:`). A plain temp file URL does not exercise a picker grant. `startAccessingSecurityScopedResource` answers NO for that URL. The session treats that as "not failure". The bookkeeping can still be tested: which URLs are held, that a replace installs the new set before stopping the old one, and that an append extends the set.
 
@@ -92,13 +92,13 @@ It pulls in the real `AudioPlayer`, `AppSettings`, both stores, `DropboxMirror` 
 | --- | --- |
 | `WaveformScrubberView` and its categories | A waveform draws and enables scrubbing. The playhead sits where `WaveformZoomMath.h` puts it. The zoom stops at the track's floor and keeps the request. The theme beats the style's palette, and `album_art` reads only the art's color. A slow open keeps its indicator over a landed waveform. Taps, drags, and pinches seek once per gesture. |
 | `EqualizerIndicatorView`, `LoadingIndicatorView` | Demand follows the window, `hidden`, and the source. The alpha and the bar color follow UIKit's hooks. A bar leaves with its window. |
-| `PlaylistTrackCell`, `PlaylistViewController` | The gutter's precedence. The filename's single line takes the title's color. The loading bar follows `CloudTransferRegistry`. The playing row asks for levels only while it is seen and sounding. |
-| `FileRow`, `TrackPageViews`, `MiniPlayerView` | The tile, the icon slot, the opening spinner, and the viewport test. The time control and the card shapes. The strip's lines, its play button, and its delegate. |
+| `VibeTrackCell`, `PlaylistViewController` | The gutter's precedence. The filename's single line takes the title's color. The loading bar follows `CloudTransferRegistry`. The playing row asks for levels only while it is seen and sounding. |
+| `FileRow`, `TrackPageViews`, `VibeMiniPlayerView` | The tile, the icon slot, the opening spinner, and the viewport test. The time control and the card shapes. The strip's lines, its play button, and its delegate. |
 | `PlayerViewController` | Each screen state's times and progress. The error line, the chrome's fade, the play glyph, and Next on the last page. The art's color on its own page. A scrub or seek from another page is dropped. A pager hold is released by its holder. |
 | `RootViewController` | The card fold: tabs hidden at rest up, a snapshot while the card moves or is dragged, a short drag springs back, and a flick minimizes. The strip is wanted when the screen describes a track. |
 | `Settings/*` | Each screen's rows against `SettingsRules.h` and the registry. Each choice is read back from `AppSettings`, and a model write reaches the model. |
 
-Still without a test here: the Files tab's browser (`FilesRootViewController`, `FolderViewController`, `RecentsViewController`), `SearchViewController`, `FavoritesViewController`, `TrackPageCell`'s layouts, `FXPadView`, `OutputRouteView`, `OpenURLSheetController`, `CueFolderGrantPrompt`, and `WidgetPublisher`'s image side. Each reaches a provider, the system picker, AVKit, or the app group container, so each needs its own fake first. They are the next candidates for this tier.
+Still without a test here: the Files tab's browser (`FilesRootViewController`, `VibeBrowserFolderViewController`, `RecentsViewController`), `SearchViewController`, `FavoritesViewController`, `TrackPageCell`'s layouts, `FXPadView`, `OutputRouteView`, `OpenURLSheetController`, `CueFolderGrantPrompt`, and `WidgetPublisher`'s image side. Each reaches a provider, the system picker, AVKit, or the app group container, so each needs its own fake first. They are the next candidates for this tier.
 
 ## What stays in the simulator
 

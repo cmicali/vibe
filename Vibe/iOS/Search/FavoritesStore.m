@@ -7,7 +7,7 @@
 
 #import "FilePaths.h"
 #import "FileSearchRules.h"
-#import "LocationStore.h"
+#import "VibeLocationStore.h"
 
 NSNotificationName const VibeFavoritesDidChangeNotification =
         @"VibeFavoritesDidChangeNotification";
@@ -155,11 +155,11 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     if (path.length == 0 || !bookmark || [self indexOfPath:path] != NSNotFound) {
         return;
     }
-    NSString *name = [LocationStore displayNameForFolderURL:url];
+    NSString *name = [VibeLocationStore displayNameForFolderURL:url];
     NSString *parent = path.stringByDeletingLastPathComponent;
     // Empty rather than "/": the row drops its second line.
     NSString *location = parent.length > 1
-            ? [LocationStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]]
+            ? [VibeLocationStore displayNameForFolderURL:[NSURL fileURLWithPath:parent isDirectory:YES]]
             : @"";
     FavoriteFolder *favorite = [[FavoriteFolder alloc] initWithName:name location:location
                                                                path:path bookmark:bookmark];
@@ -259,7 +259,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     FavoriteFolder *best = nil;
     for (FavoriteFolder *favorite in _favorites) {
         // Longest match: nesting is legitimate here.
-        if (VibeSearchRootCoversPath(favorite.resolvedPath, path)
+        if (VibeLocationRootCoversPath(favorite.resolvedPath, path)
                 && favorite.resolvedPath.length > best.resolvedPath.length) {
             best = favorite;
         }
@@ -311,7 +311,7 @@ static const NSInteger kMaximumConcurrentScopeResolutions = 3;
     }];
 }
 
-// No refcounted grant, unlike LocationStore: FolderSession always takes a
+// No refcounted grant, unlike VibeLocationStore: FolderSession always takes a
 // hold of its OWN, so dropping this scope cannot strand a playlist.
 - (void)releaseScopeForFavorite:(FavoriteFolder *)favorite {
     // A resolve in flight checks membership and releases its own hold.

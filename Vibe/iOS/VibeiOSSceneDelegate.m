@@ -7,7 +7,7 @@
 #import "AudioTrack.h"
 #import "FilesTabRules.h"
 #import "LinkStore.h"
-#import "LocationStore.h"
+#import "VibeLocationStore.h"
 #import "PlaybackController.h"
 #import "PlaybackShellHost.h"
 #import "VibePlaylist.h"
@@ -52,7 +52,7 @@
     [root loadViewIfNeeded];
     [self setSceneActive:scene.activationState == UISceneActivationStateForegroundActive];
     // Opens and plays nothing, and resolves off main.
-    [LocationStore.shared restorePersistedFolders];
+    [VibeLocationStore.shared restorePersistedFolders];
     if (connectionOptions.URLContexts.count > 0) {
         [_playback handleOpenURLContexts:connectionOptions.URLContexts];
     }

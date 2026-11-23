@@ -13,7 +13,7 @@
 #import "RootViewController.h"
 #import "PlaybackShellHost.h"
 #import "DebugPlayerSurface.h"
-#import "BrowserRootViewController.h"   // the categories below need the classes
+#import "VibeBrowserRootViewController.h"   // the categories below need the classes
 #import "FilesTabRows.h"
 #import "FavoritesViewController.h"
 #import "PlaylistViewController.h"
@@ -36,7 +36,7 @@
 @property (nonatomic, readonly) PlaylistViewController *playlistScreen;
 @property (nonatomic, readonly) FavoritesViewController *favorites;
 @property (nonatomic, readonly) SearchViewController *searchScreen;
-@property (nonatomic, readonly) BrowserRootViewController *filesBrowser;
+@property (nonatomic, readonly) VibeBrowserRootViewController *filesBrowser;
 // Unsettled row lifts, oldest first, in CACurrentMediaTime units.
 @property (nonatomic, readonly) NSArray<NSNumber *> *liftedRowTimes;
 
@@ -120,7 +120,7 @@
 - (void)debugOpenLink:(NSString *)link completion:(void (^)(NSURL *file, NSError *error))completion;
 // The root browser Open URL acts on: the add sheet's while it is up, else
 // the Files tab's. nil until the Files tab was visited.
-- (BrowserRootViewController *)debugActiveBrowser;
+- (VibeBrowserRootViewController *)debugActiveBrowser;
 // The active browser's Vibe groups.
 - (FilesTabRows *)debugActiveTabRows;
 - (AudioTrackMetadataCache *)debugMetadataCache;
