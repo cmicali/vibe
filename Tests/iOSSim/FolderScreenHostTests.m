@@ -172,6 +172,11 @@
     XCTAssertFalse([labels containsObject:[_host label:VibeBrowserLabelSort]], @"%@", labels);
     [_folder toggleSelecting];
     XCTAssertEqualObjects(_folder.navigationItem.title, @"0 to import");
+    // Vibe's look: the selection's bar button is the action's glyph.
+    UIBarButtonItem *add = _folder.navigationItem.rightBarButtonItems.lastObject;
+    XCTAssertNotNil(add.image);
+    XCTAssertNil(add.title);
+    XCTAssertEqualObjects(add.accessibilityLabel, @"Import");
 }
 
 - (VibeBrowserFolderViewController *)showFolder:(NSURL *)directory {
@@ -184,13 +189,11 @@
     return folder;
 }
 
-// Vibe's look: the selection's bar button is the action's glyph.
-- (void)testTheSelectionsBarButtonIsTheGlyphByDefault {
-    [_folder toggleSelecting];
-    UIBarButtonItem *add = _folder.navigationItem.rightBarButtonItems.lastObject;
-    XCTAssertNotNil(add.image);
-    XCTAssertNil(add.title);
-    XCTAssertEqualObjects(add.accessibilityLabel, @"Import");
+- (VibeBrowserRootViewController *)showRoot {
+    VibeBrowserRootViewController *root = [[VibeBrowserRootViewController alloc] initWithHost:_host];
+    self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:root];
+    [self.window layoutIfNeeded];
+    return root;
 }
 
 - (void)testAnActionCanAskItsBarButtonForItsTitle {
@@ -223,15 +226,11 @@
 // Vibe's add sheet: a host with a prompt and no root prompt leaves the root
 // bare.
 - (void)testTheRootShowsAPromptOnlyWhenTheHostGivesItOne {
-    VibeBrowserRootViewController *root = [[VibeBrowserRootViewController alloc] initWithHost:_host];
-    self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:root];
-    [self.window layoutIfNeeded];
+    VibeBrowserRootViewController *root = [self showRoot];
     XCTAssertNil(root.navigationItem.prompt);
 
     _host.rootPrompt = @"Import";
-    root = [[VibeBrowserRootViewController alloc] initWithHost:_host];
-    self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:root];
-    [self.window layoutIfNeeded];
+    root = [self showRoot];
     XCTAssertEqualObjects(root.navigationItem.prompt, @"Import");
 }
 
@@ -239,10 +238,8 @@
     _host.sources = @[[VibeBrowserFolderSource sourceWithRootURL:_directory
                                                            title:@"Library"
                                                            image:[UIImage systemImageNamed:@"books.vertical"]]];
-    VibeBrowserRootViewController *root = [[VibeBrowserRootViewController alloc] initWithHost:_host];
-    UINavigationController *stack = [[UINavigationController alloc] initWithRootViewController:root];
-    self.window.rootViewController = stack;
-    [self.window layoutIfNeeded];
+    VibeBrowserRootViewController *root = [self showRoot];
+    UINavigationController *stack = root.navigationController;
     [root beginAppearanceTransition:YES animated:NO];
     [root endAppearanceTransition];
     NSIndexPath *first = [NSIndexPath indexPathForRow:0 inSection:0];
@@ -263,9 +260,7 @@
     }];
     row.isAction = YES;
     _host.rootSections = @[@[row]];
-    VibeBrowserRootViewController *root = [[VibeBrowserRootViewController alloc] initWithHost:_host];
-    self.window.rootViewController = [[UINavigationController alloc] initWithRootViewController:root];
-    [self.window layoutIfNeeded];
+    VibeBrowserRootViewController *root = [self showRoot];
     XCTAssertEqual([root numberOfSectionsInTableView:root.tableView], 2);
     NSIndexPath *imported = [NSIndexPath indexPathForRow:0 inSection:1];
     UITableViewCell *cell = [root tableView:root.tableView cellForRowAtIndexPath:imported];
