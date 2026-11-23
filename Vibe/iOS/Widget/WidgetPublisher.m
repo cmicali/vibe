@@ -10,7 +10,6 @@
 #import "NSURL+Hash.h"
 #import "NowPlayingRules.h"
 #import "UIImage+DominantColor.h"
-#import "Vibe-Swift.h"                 // WidgetCenter has no ObjC API
 #import "VibeWidgetState.h"
 #import "WaveformRendererRegistry.h"
 
@@ -63,6 +62,10 @@ static const CGFloat kWidgetWaveformScale = 3;
     BOOL                  _widgetPlaced;
     int                   _readToken;
 
+    // WidgetKit's two calls, from the app.
+    dispatch_block_t      _reloadTimelines;
+    VibeWidgetPlacedQuery _queryPlaced;
+
     dispatch_queue_t      _queue;
 }
 
@@ -70,18 +73,22 @@ static const CGFloat kWidgetWaveformScale = 3;
     return VibeKeyByAppendingCueWindow(track.url.pathKey, track.cueStart, track.cueEnd);
 }
 
-- (instancetype)initWithThemeProvider:(WaveformThemeProvider)themeProvider {
+- (instancetype)initWithThemeProvider:(WaveformThemeProvider)themeProvider
+                      reloadTimelines:(dispatch_block_t)reloadTimelines
+                          queryPlaced:(VibeWidgetPlacedQuery)queryPlaced {
     self = [super init];
     if (self) {
-        _themeProvider = [themeProvider copy];
+        _themeProvider   = [themeProvider copy];
+        _reloadTimelines = [reloadTimelines copy];
+        _queryPlaced     = [queryPlaced copy];
         // Serial: an image must never land after the plist naming it, and two
         // bakes must never interleave writing the same PNGs.
-        _queue = dispatch_queue_create("com.commonwealthrecordings.Vibe.widget-publish",
+        _queue = dispatch_queue_create("vibe-libs.widget.publish",
                                        DISPATCH_QUEUE_SERIAL);
         // On main, ordered with everything that touches _published.
         __weak WidgetPublisher *weakSelf = self;
         _readToken = NOTIFY_TOKEN_INVALID;
-        notify_register_dispatch(kVibeWidgetReadNotification, &_readToken,
+        notify_register_dispatch(VibeWidgetState.readNotification.UTF8String, &_readToken,
                                  dispatch_get_main_queue(), ^(int token) {
             [weakSelf setWidgetPlaced:YES];
         });
@@ -101,11 +108,11 @@ static const CGFloat kWidgetWaveformScale = 3;
 
 - (void)refreshPlaced {
     __weak WidgetPublisher *weakSelf = self;
-    [VibeWidgetReloader queryPlaced:^(BOOL placed) {
+    _queryPlaced(^(BOOL placed) {
         dispatch_async(dispatch_get_main_queue(), ^{
             [weakSelf setWidgetPlaced:placed];
         });
-    }];
+    });
 }
 
 - (void)setWidgetPlaced:(BOOL)placed {
@@ -252,7 +259,7 @@ static const CGFloat kWidgetWaveformScale = 3;
     dispatch_block_t reload = ^{
         self->_reloadQueued = NO;
         self->_lastReloadAt = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
-        [VibeWidgetReloader reload];
+        self->_reloadTimelines();
     };
     uint64_t since = clock_gettime_nsec_np(CLOCK_UPTIME_RAW) - _lastReloadAt;
     if (_lastReloadAt == 0 || since >= kWidgetReloadMinInterval) {

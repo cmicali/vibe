@@ -13,13 +13,19 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-// Both targets' entitlements carry it; a mismatch makes containerURL nil.
-extern NSString *const kVibeWidgetAppGroup;
-
-// Posted by loadState to enable publishing, including during gallery previews.
-extern const char *const kVibeWidgetReadNotification;
-
 @interface VibeWidgetState : NSObject
+
+#pragma mark - Which app
+
+// Set once by each process before its first read or write: the app at
+// launch, and the extension when its widget bundle is made. Both targets'
+// entitlements must carry the group, or containerURL is nil.
++ (void)useAppGroup:(NSString *)appGroup readNotification:(NSString *)readNotification
+        NS_SWIFT_NAME(use(appGroup:readNotification:));
+
+// The Darwin notification loadState posts, which turns publishing on, gallery
+// previews included. nil until set.
+@property (class, nonatomic, readonly, nullable) NSString *readNotification;
 
 // A nil artist means a filename-derived single line (AudioTrack.displayTitle).
 @property (nonatomic, copy, nullable) NSString *title;
@@ -44,7 +50,8 @@ extern const char *const kVibeWidgetReadNotification;
 
 #pragma mark - Where it lives
 
-// nil when the app group is not provisioned; the widget draws its empty state.
+// nil when the app group is not set or not provisioned; the widget draws its
+// empty state.
 @property (class, nonatomic, readonly, nullable) NSURL *containerURL;
 
 // This snapshot's own images, named by its trackKey; nil with no key.
@@ -56,7 +63,7 @@ extern const char *const kVibeWidgetReadNotification;
 
 #pragma mark - Reading and writing
 
-// Posts kVibeWidgetReadNotification even when it returns nil. The Swift names
+// Posts readNotification even when it returns nil. The Swift names
 // are pinned: a rename would break the extension, a build the app never runs.
 + (nullable VibeWidgetState *)loadState NS_SWIFT_NAME(load());
 - (BOOL)save;

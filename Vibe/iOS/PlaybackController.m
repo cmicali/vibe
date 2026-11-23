@@ -25,6 +25,7 @@
 #import "PlaybackShellRules.h"
 #import "SettingsRules.h"
 #import "UIUpdateTimer.h"
+#import "Vibe-Swift.h"          // WidgetCenter has no Objective-C API
 #import "WaveformTheme+Settings.h"
 #if DEBUG
 #import "DebugCommonVerbs.h"
@@ -69,7 +70,9 @@ static const NSUInteger kUIUpdateHz = 3;
         // remembered row.
         [self pushTransportModes];
         _widgetPublisher = [[WidgetPublisher alloc]
-                initWithThemeProvider:[WaveformTheme themeProviderForWidget:YES]];
+                initWithThemeProvider:[WaveformTheme themeProviderForWidget:YES]
+                      reloadTimelines:^{ [VibeWidgetReloader reload]; }
+                          queryPlaced:^(void (^completion)(BOOL)) { [VibeWidgetReloader queryPlaced:completion]; }];
         [self pushWidgetWaveformSettings];
         [NSNotificationCenter.defaultCenter addObserver:self
                                                selector:@selector(pushWidgetWaveformSettings)

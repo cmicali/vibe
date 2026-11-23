@@ -7,18 +7,21 @@ The Home Screen and Lock Screen widget runs in its own process, the `VibeWidget`
 | `WidgetPublisher` | The only writer of the shared app group. `PlaybackController` owns one and feeds it from the Now Playing publish (`PlaybackController+NowPlaying.m`). Main thread only. It reads no setting and no model class (The seam, below). |
 | `VibeWidgetState` | The snapshot the app writes and the widget reads. **Compiled into both targets**, so it is Foundation only. |
 | `VibeWidgetIntents.swift` | The widget's buttons. **Compiled into both targets.** The app owns the bodies. |
-| `VibeWidgetReloader.swift` | WidgetKit's reload and placed query, which have no Objective-C API. Keep it small. |
+| `VibeWidgetGroup.h` | Vibe's app group and read signal, as C string macros so Swift can read them. **Compiled into both targets.** |
+| `VibeWidgetReloader.swift` | WidgetKit's reload and placed query, which have no Objective-C API. `PlaybackController` hands them to the publisher as blocks. Keep it small. |
 
-`project.yml` names the two shared files one by one. The rest of the directory reaches for app classes and must never join the extension.
+`project.yml` names the shared files one by one. The rest of the directory reaches for app classes and must never join the extension.
 
 ## The seam
 
 The publisher is moving to vibe-libs, so another app can publish to a widget of its own. vibe-libs' rule 21 says a shell piece reads no app setting, string, theme, or model. So the app hands the publisher what it needs:
 
 - **Each track is a `VibeWidgetTrack`** (`WidgetPublisher.h`): a `VibePlayableItem` with its display title and artist and its decoded art. `AudioTrack` adopts it in a category with no code (`PlaybackControllerInternal.h`). The publisher keeps the object and tells tracks apart by identity. It spells `trackKey` from the item's path and window itself, so the file names stay the piece's.
+- **The app group and the read signal are set once per process** with `VibeWidgetState.useAppGroup:readNotification:`, from `VibeWidgetGroup.h`. The app sets them at launch (`VibeiOSAppDelegate`), and the extension when its widget bundle is made. **TRAP: a read before the set leaves that process without a container**, because `containerURL` is resolved once.
+- **WidgetKit's two calls are blocks.** The publisher takes `reloadTimelines` and `queryPlaced` at init, and `PlaybackController` wraps `VibeWidgetReloader` in them. So the publisher imports no `Vibe-Swift.h`. Its queue label is `vibe-libs.widget.publish`.
 - **The strip's look is pushed**, as the card pushes the scrubber's. The theme provider comes once, at `initWithThemeProvider:`. The style, Centered, and the playhead line come through `updateWaveformStyle:centered:drawsPlayheadLine:`, which `PlaybackController.pushWidgetWaveformSettings` calls at launch and on every `VibeDisplaySettingsDidChangeNotification`. Both pushes resolve the look through `WaveformTheme+Settings`, so the card and the widget follow one rule.
 
-Still Vibe's in the publisher: the app group's name and the read notification's (`VibeWidgetState.m`), its queue label, and `Vibe-Swift.h` for the reloader.
+The publisher and the snapshot now name nothing of Vibe's. The intents still do, behind `VIBE_APP`.
 
 ## The snapshot
 
@@ -33,7 +36,7 @@ The state is a plist in the app group container, with up to three images beside 
 ## Writing
 
 - **Writes are gated on `widgetPlaced`. The bookkeeping is not.** The publisher keeps `_published` current either way, so a widget that appears mid-track gets the current snapshot at once (`republish`).
-- **Two sources decide `widgetPlaced`, each right about one direction.** WidgetKit's configurations, asked at launch and on every return to the foreground, turn it off. The extension posts `kVibeWidgetReadNotification` on every read, which turns it on the instant a widget renders. The query fails open.
+- **Two sources decide `widgetPlaced`, each right about one direction.** WidgetKit's configurations, asked at launch and on every return to the foreground, turn it off. The extension posts `VibeWidgetState.readNotification` on every read, which turns it on the instant a widget renders. The query fails open.
 - **TRAP: artwork lands before the plist.** The waveform bake can follow later. The widget reads the plist first. The sweep of old images runs last and spares the outgoing track's, which a plist just read may still name.
 - **TRAP: `cachedArt` is nil until the art decodes**, so a track change usually writes nil and deletes the file. `_artworkOnDisk` re-fires the write on the first tick with decoded art.
 - One serial queue orders file writes and reload requests. Requests are throttled to four a second. The first of a quiet period is queued at once. A burst schedules one trailing request. WidgetKit decides when to refresh.
