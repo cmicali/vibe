@@ -170,20 +170,12 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     return AppSettings.sharedInstance.showShuffleRepeat;
 }
 
-// The playhead line is the style's default until the switch is touched
-// (Settings/AGENTS.md), decided here as the widget decides its own.
 - (void)playerCardConfigureWaveformView:(WaveformScrubberView *)view {
     AppSettings *settings = AppSettings.sharedInstance;
-    NSString *style = [WaveformRendererRegistry resolveStyleIdentifier:settings.waveformStyle];
-    // A global block, so the assignment costs nothing.
-    view.themeProvider = ^WaveformTheme *(BOOL isDark, UIColor *artworkColor) {
-        return [WaveformTheme themeForSettings:AppSettings.sharedInstance widget:NO isDark:isDark
-                                  artworkColor:artworkColor];
-    };
+    view.themeProvider = [WaveformTheme themeProviderForWidget:NO];
     view.centered = [settings waveformCenteredForWidget:NO];
-    view.drawsPlayheadLine = [WaveformRendererRegistry
-            drawsPlayheadLineForIdentifier:style chosen:[settings waveformPlayheadLineForWidget:NO]];
-    [view syncWaveformStyle:style];
+    view.drawsPlayheadLine = [WaveformTheme drawsPlayheadLineForSettings:settings widget:NO];
+    [view syncWaveformStyle:[WaveformTheme styleForSettings:settings widget:NO]];
     [view syncWaveformTheme];
 }
 

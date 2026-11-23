@@ -16,7 +16,7 @@ The Home Screen and Lock Screen widget runs in its own process, the `VibeWidget`
 The publisher is moving to vibe-libs, so another app can publish to a widget of its own. vibe-libs' rule 21 says a shell piece reads no app setting, string, theme, or model. So the app hands the publisher what it needs:
 
 - **Each track is a `VibeWidgetTrack`** (`WidgetPublisher.h`): a `VibePlayableItem` with its display title and artist and its decoded art. `AudioTrack` adopts it in a category with no code (`PlaybackControllerInternal.h`). The publisher keeps the object and tells tracks apart by identity. It spells `trackKey` from the item's path and window itself, so the file names stay the piece's.
-- **The strip's look is pushed** through `updateWaveformStyle:centered:drawsPlayheadLine:themeProvider:`, as the card pushes the scrubber's. `PlaybackController.pushWidgetWaveformSettings` resolves it from the widget's settings at launch and on every `VibeDisplaySettingsDidChangeNotification`.
+- **The strip's look is pushed**, as the card pushes the scrubber's. The theme provider comes once, at `initWithThemeProvider:`. The style, Centered, and the playhead line come through `updateWaveformStyle:centered:drawsPlayheadLine:`, which `PlaybackController.pushWidgetWaveformSettings` calls at launch and on every `VibeDisplaySettingsDidChangeNotification`. Both pushes resolve the look through `WaveformTheme+Settings`, so the card and the widget follow one rule.
 
 Still Vibe's in the publisher: the app group's name and the read notification's (`VibeWidgetState.m`), its queue label, and `Vibe-Swift.h` for the reloader.
 
@@ -45,7 +45,7 @@ The app bakes the current track's envelope twice, once in each half of the palet
 
 **Under a playhead line both images are the whole strip as played, and the widget draws the line.** `VibeWidgetState.playheadLine` says so. The bake sets it, and commits the plist again when it changed, after the images.
 
-A waveform is baked only for the published track, so a page swiped past cannot overwrite the strip. A bake runs only when its signature changes: the resolved style, alignment, playhead line, palette and waveform object. **TRAP: the Custom theme's colour wells post continuously while dragged,** and the app pushes the look for each post. The signature compare and the cancel of a queued bake keep a drag from queuing dozens.
+A waveform is baked only for the published track, so a page swiped past cannot overwrite the strip. A bake runs only when its signature changes: the resolved style, alignment, playhead line, palette and waveform object. **TRAP: the Custom theme's colour wells post continuously while dragged.** The signature compare and the cancel of a queued bake keep a drag from queuing dozens.
 
 ## The buttons
 

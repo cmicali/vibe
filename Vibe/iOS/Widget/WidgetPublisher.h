@@ -30,6 +30,10 @@ NS_ASSUME_NONNULL_BEGIN
 // row's window, so rows of one file render and seek apart. nil with no path.
 + (nullable NSString *)trackKeyForTrack:(nullable id<VibePlayableItem>)track NS_SWIFT_NAME(trackKey(for:));
 
+// The theme is always asked for dark, because the widget's background is.
+- (instancetype)initWithThemeProvider:(WaveformThemeProvider)themeProvider NS_DESIGNATED_INITIALIZER;
+- (instancetype)init NS_UNAVAILABLE;
+
 // Turned off only by WidgetKit's answer (refreshPlaced); turned on by that or
 // by the extension's read signal (kVibeWidgetReadNotification).
 @property (nonatomic, readonly) BOOL widgetPlaced;
@@ -48,12 +52,10 @@ NS_ASSUME_NONNULL_BEGIN
 // The strip's look. The app pushes it once before the first publish, and
 // again on every change to a setting it reads. style is a resolved
 // identifier (WaveformRendererRegistry), and drawsPlayheadLine is already
-// resolved for it. The theme is always asked for dark, because the widget's
-// background is. Bakes again only when the look moved.
+// resolved for it. Bakes again only when the look moved.
 - (void)updateWaveformStyle:(NSString *)style
                    centered:(BOOL)centered
-          drawsPlayheadLine:(BOOL)drawsPlayheadLine
-              themeProvider:(WaveformThemeProvider)themeProvider;
+          drawsPlayheadLine:(BOOL)drawsPlayheadLine;
 
 // Bakes only for the published track; the caller filters partial envelopes.
 // Retained, so a settings change re-bakes without the card.

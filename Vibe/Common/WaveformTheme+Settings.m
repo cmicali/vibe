@@ -4,9 +4,7 @@
 //
 
 #import "WaveformTheme+Settings.h"
-#if TARGET_OS_OSX
 #import "WaveformRendererRegistry.h"
-#endif
 
 @implementation WaveformTheme (Settings)
 
@@ -69,6 +67,26 @@
     resolved.spectrumColorsBySection = [[settings waveformSpectrumColoringForWidget:widget]
             isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS];
     return resolved;
+}
+
++ (NSString *)styleForSettings:(AppSettings *)settings widget:(BOOL)widget {
+    NSString *style = (widget ? settings.widgetWaveformStyle : nil) ?: settings.waveformStyle;
+    return [WaveformRendererRegistry resolveStyleIdentifier:style];
+}
+
++ (BOOL)drawsPlayheadLineForSettings:(AppSettings *)settings widget:(BOOL)widget {
+    return [WaveformRendererRegistry drawsPlayheadLineForIdentifier:[self styleForSettings:settings widget:widget]
+                                                             chosen:[settings waveformPlayheadLineForWidget:widget]];
+}
+
++ (WaveformThemeProvider)themeProviderForWidget:(BOOL)widget {
+    return widget ? ^WaveformTheme *(BOOL isDark, VibeColor *artworkColor) {
+        return [WaveformTheme themeForSettings:AppSettings.sharedInstance widget:YES isDark:isDark
+                                  artworkColor:artworkColor];
+    } : ^WaveformTheme *(BOOL isDark, VibeColor *artworkColor) {
+        return [WaveformTheme themeForSettings:AppSettings.sharedInstance widget:NO isDark:isDark
+                                  artworkColor:artworkColor];
+    };
 }
 #endif
 

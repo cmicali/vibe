@@ -30,6 +30,15 @@ NS_ASSUME_NONNULL_BEGIN
 // (AppSettings.h).
 + (WaveformTheme *)themeForSettings:(AppSettings *)settings widget:(BOOL)widget isDark:(BOOL)isDark
                        artworkColor:(nullable VibeColor *)artworkColor;
+
+// The rest of the look the card's scrubber and the widget's publisher are
+// pushed. The style is resolved. A nil widget style is Match app, which
+// draws the card's. The playhead line is the style's default until its
+// switch is touched (Settings/AGENTS.md).
++ (NSString *)styleForSettings:(AppSettings *)settings widget:(BOOL)widget;
++ (BOOL)drawsPlayheadLineForSettings:(AppSettings *)settings widget:(BOOL)widget;
+// A global block that reads the settings at each call.
++ (WaveformThemeProvider)themeProviderForWidget:(BOOL)widget;
 #endif
 
 @end

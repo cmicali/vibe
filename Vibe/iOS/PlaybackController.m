@@ -25,6 +25,7 @@
 #import "PlaybackShellRules.h"
 #import "SettingsRules.h"
 #import "UIUpdateTimer.h"
+#import "WaveformTheme+Settings.h"
 #if DEBUG
 #import "DebugCommonVerbs.h"
 #endif
@@ -67,7 +68,8 @@ static const NSUInteger kUIUpdateHz = 3;
         // Before any restore, so a shuffled restore starts its order on the
         // remembered row.
         [self pushTransportModes];
-        _widgetPublisher = [[WidgetPublisher alloc] init];
+        _widgetPublisher = [[WidgetPublisher alloc]
+                initWithThemeProvider:[WaveformTheme themeProviderForWidget:YES]];
         [self pushWidgetWaveformSettings];
         [NSNotificationCenter.defaultCenter addObserver:self
                                                selector:@selector(pushWidgetWaveformSettings)

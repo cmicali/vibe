@@ -42,12 +42,12 @@ static const CGFloat kWidgetWaveformScale = 3;
 
     CodableAudioWaveform *_waveform;
     __weak id<VibeWidgetTrack> _waveformTrack;
-    // The look the app pushed (updateWaveformStyle:...).
+    // The look the app gave, all of which the bake reads.
+    WaveformThemeProvider _themeProvider;
     NSString             *_waveformStyle;
     BOOL                  _waveformCentered;
     BOOL                  _drawsPlayheadLine;
-    WaveformThemeProvider _themeProvider;
-    // Everything the bake reads; see updateWaveformStyle:.
+    // The last bake's; see bakeWaveformIfNeeded.
     NSString             *_bakedSignature;
     // Not yet started, so the next request can cancel it.
     dispatch_block_t      _pendingBake;
@@ -70,9 +70,10 @@ static const CGFloat kWidgetWaveformScale = 3;
     return VibeKeyByAppendingCueWindow(track.url.pathKey, track.cueStart, track.cueEnd);
 }
 
-- (instancetype)init {
+- (instancetype)initWithThemeProvider:(WaveformThemeProvider)themeProvider {
     self = [super init];
     if (self) {
+        _themeProvider = [themeProvider copy];
         // Serial: an image must never land after the plist naming it, and two
         // bakes must never interleave writing the same PNGs.
         _queue = dispatch_queue_create("com.commonwealthrecordings.Vibe.widget-publish",
@@ -278,24 +279,22 @@ static const CGFloat kWidgetWaveformScale = 3;
 }
 
 // Re-bakes only when the push moved something the bake reads.
-// TRAP: the Custom theme's colour wells post continuously while dragged, so
-// the app pushes for each step, each a new signature. A bake is two renders,
-// two PNG encodes and two writes, so the signature compare and the
-// _pendingBake cancel keep a drag from queuing dozens.
+// TRAP: the Custom theme's colour wells post continuously while dragged, each a
+// new signature. A bake is two renders, two PNG encodes and two writes, so the
+// signature compare and the _pendingBake cancel keep a drag from queuing
+// dozens.
 - (void)updateWaveformStyle:(NSString *)style
                    centered:(BOOL)centered
-          drawsPlayheadLine:(BOOL)drawsPlayheadLine
-              themeProvider:(WaveformThemeProvider)themeProvider {
+          drawsPlayheadLine:(BOOL)drawsPlayheadLine {
     _waveformStyle     = [style copy];
     _waveformCentered  = centered;
     _drawsPlayheadLine = drawsPlayheadLine;
-    _themeProvider     = [themeProvider copy];
     [self bakeWaveformIfNeeded];
 }
 
 - (void)bakeWaveformIfNeeded {
     CodableAudioWaveform *waveform = _waveform;
-    if (!waveform || !_waveformTrack || _waveformTrack != _publishedTrack || !_themeProvider) {
+    if (!waveform || !_waveformTrack || _waveformTrack != _publishedTrack) {
         return;
     }
     if (!_widgetPlaced) {
