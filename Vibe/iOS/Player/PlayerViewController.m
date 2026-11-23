@@ -10,16 +10,11 @@
 #import "PlayerViewController+Delivery.h"
 #import "PlayerViewController+Pager.h"
 
-#import "AppSettings.h"
-#import "AudioAnalysisObservers.h"
 #import "AudioWaveformCache.h"
 #import "FXPadView.h"
 #import "PageWaveformCoordinator.h"
 #import "TrackPageCell.h"
-#import "Formatters.h"
-#import "VibeStrings.h"
 #import "VibeWeakProxy.h"
-#import "WaveformRendererRegistry.h"
 #import "WaveformScrubberView.h"
 
 // Bounded because AVKit's end edge is not guaranteed.
@@ -97,18 +92,9 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
         [_waveformCache invalidateWithCompletion:nil];
         [NSUserDefaults.standardUserDefaults setBool:YES forKey:kWaveformTempoBackfillKey];
     }
-    // Asked once per request, so Settings > Playback lands on the next load
-    // with nothing to republish. No key observer: key detection is
-    // macOS-only. The bands for the card's style or the widget's, which bakes
-    // from the card's waveform; a nil widget style is the card's.
-    AudioWaveformObserver *tempo = AudioBPMAnalyzer.waveformObserver;
+    id<VibePlayerCardHost> host = VibePlayerCardInstalledHost();
     _waveformCache.analysisProvider = ^VibeWaveformAnalysis{
-        AppSettings *settings = AppSettings.sharedInstance;
-        return (VibeWaveformAnalysis){
-            .bands = [WaveformRendererRegistry readsBandsForIdentifier:settings.waveformStyle]
-                  || [WaveformRendererRegistry readsBandsForIdentifier:settings.widgetWaveformStyle],
-            .observers = settings.analyzeBPM ? @[tempo] : @[],
-        };
+        return [host playerCardWaveformAnalysis];
     };
     _waveformBandsWanted = _waveformCache.analysisProvider().bands;
     _waveformCoordinator = [[PageWaveformCoordinator alloc] initWithCache:_waveformCache delegate:self];
@@ -123,15 +109,11 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     [_scrollLink addToRunLoop:NSRunLoop.mainRunLoop forMode:NSRunLoopCommonModes];
 
     [_playback addObserver:self];
-
-    NSNotificationCenter *center = [NSNotificationCenter defaultCenter];
-    [center addObserver:self selector:@selector(displaySettingsDidChange)
-                   name:VibeDisplaySettingsDidChangeNotification object:nil];
 }
 
 // All settings at once, visible pages only: a pooled cell is configured from
 // scratch on its way back.
-- (void)displaySettingsDidChange {
+- (void)reloadSettings {
     // The pages in hand were likely decoded without the bands: forgotten,
     // each is asked for again as it comes up.
     BOOL bandsWanted = _waveformCache.analysisProvider().bands;
@@ -155,16 +137,32 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     [_scrollLink invalidate];
 }
 
+#pragma mark - The host
+
+static id<VibePlayerCardHost> sHost;
+
+void VibePlayerCardInstallHost(id<VibePlayerCardHost> host) {
+    sHost = host;
+}
+
+id<VibePlayerCardHost> VibePlayerCardInstalledHost(void) {
+    return sHost;
+}
+
+NSString *VibePlayerCardLabelText(VibePlayerCardLabel label) {
+    return [sHost playerCardLabel:label] ?: @"";
+}
+
 #pragma mark - The right time label's mode
 
 NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
-    Formatters *formatters = [Formatters sharedInstance];
-    if (!AppSettings.sharedInstance.showRemainingTime) {
-        return [formatters durationStringFromTimeInterval:duration];
+    id<VibePlayerCardHost> host = VibePlayerCardInstalledHost();
+    if (!host.playerCardShowsRemainingTime) {
+        return [host playerCardDuration:duration];
     }
     // Arithmetic notation, not prose, so not localized.
     return [VibeNotLocalized(@"-") stringByAppendingString:
-            [formatters durationStringFromTimeInterval:MAX(0, duration - position)]];
+            [host playerCardDuration:MAX(0, duration - position)]];
 }
 
 #pragma mark - UI construction
@@ -214,7 +212,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     // The bar itself is five points tall.
     UIButton *grabberTarget = [UIButton buttonWithType:UIButtonTypeCustom];
     grabberTarget.backgroundColor = UIColor.clearColor;
-    grabberTarget.accessibilityLabel = STR_A11Y_PLAYER_MINIMIZE;
+    grabberTarget.accessibilityLabel = VibePlayerCardLabelText(VibePlayerCardLabelMinimize);
     [grabberTarget addTarget:self action:@selector(minimizeTapped)
             forControlEvents:UIControlEventTouchUpInside];
     grabberTarget.translatesAutoresizingMaskIntoConstraints = NO;
@@ -255,11 +253,12 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
                          remaining:(TrackPageTimeControl *)remaining {
     BOOL known = track.duration > 0;
     elapsed.text = known
-            ? [[Formatters sharedInstance] durationStringFromTimeInterval:0]
-            : STR_LABEL_TIME_UNKNOWN;
+            ? [VibePlayerCardInstalledHost() playerCardDuration:0]
+            : VibePlayerCardLabelText(VibePlayerCardLabelTimeUnknown);
     // Through the one rule, or a resting page would show a bare total beside
     // a playing one's minus-prefixed remaining.
-    remaining.text = known ? VibeRightTimeText(0, track.duration) : STR_LABEL_TIME_UNKNOWN;
+    remaining.text = known ? VibeRightTimeText(0, track.duration)
+                          : VibePlayerCardLabelText(VibePlayerCardLabelTimeUnknown);
 }
 
 - (void)renderRestingTimesForTrack:(id<VibePlayerCardItem>)track {
@@ -510,7 +509,7 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
     NSTimeInterval duration = _playback.duration;
     if (duration > 0) {
         // Both change once a second; the control skips an unchanged text itself.
-        NSString *elapsed = [[Formatters sharedInstance] durationStringFromTimeInterval:position];
+        NSString *elapsed = [VibePlayerCardInstalledHost() playerCardDuration:position];
         if (![_elapsedLabel.text isEqualToString:elapsed]) {
             _elapsedLabel.text = elapsed;
         }
@@ -520,8 +519,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
         }
     }
     else {
-        _elapsedLabel.text = STR_LABEL_TIME_UNKNOWN;
-        _remainingTimeControl.text = STR_LABEL_TIME_UNKNOWN;
+        _elapsedLabel.text = VibePlayerCardLabelText(VibePlayerCardLabelTimeUnknown);
+        _remainingTimeControl.text = VibePlayerCardLabelText(VibePlayerCardLabelTimeUnknown);
     }
 }
 
@@ -548,7 +547,8 @@ NSString *VibeRightTimeText(NSTimeInterval position, NSTimeInterval duration) {
 }
 
 - (void)remainingTimeTapped {
-    AppSettings.sharedInstance.showRemainingTime = !AppSettings.sharedInstance.showRemainingTime;
+    id<VibePlayerCardHost> host = VibePlayerCardInstalledHost();
+    host.playerCardShowsRemainingTime = !host.playerCardShowsRemainingTime;
     [self repaintTimesOnVisiblePages];
 }
 

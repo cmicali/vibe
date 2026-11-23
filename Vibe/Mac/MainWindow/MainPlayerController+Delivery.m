@@ -8,6 +8,7 @@
 
 #import "AudioAnalysisObservers.h"
 #import "AudioTrack.h"
+#import "PlaybackShellRules.h"
 #import "PlaylistController.h"
 #import "TrackDisplayController.h"
 #import "FolderArtResolver.h"
@@ -59,11 +60,12 @@
                   forTrack:(AudioTrack *)analyzed {
     float bpm = [AudioBPMAnalyzer tempoInResults:results];
     VibeMusicalKey key = [AudioKeyAnalyzer keyInResults:results];
-    if (bpm <= 0 && key == VibeMusicalKeyNone) {
+    BOOL stampsTempo = VibePlaybackStampsDetectedTempo(bpm);
+    if (!stampsTempo && key == VibeMusicalKeyNone) {
         return;
     }
     [self stampTracksSounding:analyzed usingBlock:^(AudioTrack *track) {
-        if (bpm > 0) {
+        if (stampsTempo) {
             track.detectedBPM = bpm;
         }
         if (key != VibeMusicalKeyNone) {

@@ -7,7 +7,7 @@
 
 #import <AVKit/AVKit.h>
 
-#import "VibeStrings.h"
+#import "VibePlayerCardHost.h"
 
 static const CGFloat kRouteGlyphPointSize = 23;
 static const CGFloat kRouteContentSpacing = 5;
@@ -131,7 +131,7 @@ static const CGFloat kRoutePressedAlpha = 0.35;
     _content.alpha = _showsDeviceName ? kRouteActiveAlpha : kRouteRestingAlpha;
 
     // Ours, not AVKit's: one wording across every route.
-    _routePicker.accessibilityLabel = STR_A11Y_PLAYER_OUTPUT_ROUTE;
+    _routePicker.accessibilityLabel = VibePlayerCardLabelText(VibePlayerCardLabelOutputRoute);
     _routePicker.accessibilityValue = _showsDeviceName ? name : nil;
 }
 

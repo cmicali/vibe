@@ -46,6 +46,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, weak) id<PlayerViewControllerDelegate> delegate;
 
+// The host's settings changed (VibePlayerCardHost.h). Every visible page is
+// configured again, and the times repaint.
+- (void)reloadSettings;
+
 @end
 
 NS_ASSUME_NONNULL_END

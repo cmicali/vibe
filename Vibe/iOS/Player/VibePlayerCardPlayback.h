@@ -152,9 +152,10 @@ NS_ASSUME_NONNULL_BEGIN
 
 #pragma mark What the card noticed
 
-// The waveform decode detected a tempo for what track sounds. The card hears
-// it back as the metadata event when a row's tempo changed.
-- (void)noteDetectedBPM:(float)bpm forTrack:(id<VibePlayableItem>)track;
+// The waveform decode's analysis results for what track sounds, keyed by
+// observer. The card hears a tempo back as the metadata event when a row's
+// tempo changed.
+- (void)noteWaveformAnalysis:(NSDictionary<NSString *, id> *)results forTrack:(id<VibePlayableItem>)track;
 // One track's tags ahead of any sweep. A no-op once the track is parsed.
 - (void)loadMetadataNowForTrack:(nullable id<VibePlayerCardItem>)track;
 // A page's complete waveform, for a track that may no longer be current.

@@ -12,6 +12,7 @@
 #import "PlaybackController+PlayerEvents.h"
 
 #import "AppSettings.h"
+#import "AudioAnalysisObservers.h"
 #import "AudioFX.h"
 #import "AudioFXMath.h"
 #import "AudioPlayer.h"
@@ -570,9 +571,14 @@ static const NSUInteger kUIUpdateHz = 3;
     _player.fx.delayTapBPM = _playlist.currentTrack.bpm;
 }
 
-// Stamped on every row sounding the analyzed track's window, each redrawn, the
-// delay taps refed. The match closes the race with a track change.
-- (void)noteDetectedBPM:(float)bpm forTrack:(id<VibePlayableItem>)analyzed {
+// The tempo only: key detection is macOS-only. It is stamped on every row
+// sounding the analyzed track's window, each redrawn, and the delay taps are
+// refed. The match closes the race with a track change.
+- (void)noteWaveformAnalysis:(NSDictionary<NSString *, id> *)results forTrack:(id<VibePlayableItem>)analyzed {
+    float bpm = [AudioBPMAnalyzer tempoInResults:results];
+    if (!VibePlaybackStampsDetectedTempo(bpm)) {
+        return;
+    }
     // The match reads only the URL and sourceKey.
     [_playlist stampTracksSounding:(AudioTrack *)analyzed usingBlock:^(AudioTrack *track) {
         float shown = track.bpm;

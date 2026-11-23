@@ -3,7 +3,8 @@
 //  Vibe
 //
 //  How a shell's transport reads the player: when Previous is available, when
-//  a seek's settlement is current, and when the deferred metadata sweep runs.
+//  a seek's settlement is current, when the deferred metadata sweep runs, and
+//  which detected tempo is stamped.
 //  Functions of plain values, so both shells agree and they are tested
 //  without a player. What the player itself decides is vibe-libs'
 //  PlaybackDeliveryRules.h.
@@ -43,6 +44,12 @@ static inline BOOL VibePlaybackConsumePendingMetadataLoad(
     }
     *pending = NO;
     return YES;
+}
+
+// Only what a waveform decode found is stamped on a row. A tempo of 0 or less
+// was not found, so the row keeps the one it had.
+static inline BOOL VibePlaybackStampsDetectedTempo(float bpm) {
+    return bpm > 0;
 }
 
 NS_ASSUME_NONNULL_END
