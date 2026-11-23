@@ -64,6 +64,9 @@ typedef NS_ENUM(NSInteger, VibePlayerCardLabel) {
 @property (nonatomic) BOOL playerCardShowsRemainingTime;
 @property (nonatomic, readonly) BOOL playerCardShowsFXPad;
 @property (nonatomic, readonly) BOOL playerCardShowsShuffleRepeat;
+// The waveform's zoom, as the visible fraction the user last asked for.
+// 0 before the first write, which the card's clamp sends to the default.
+@property (nonatomic) double playerCardWaveformZoom;
 // The art a page draws when its track has none.
 @property (nonatomic, readonly) UIImage *playerCardPlaceholderArt;
 

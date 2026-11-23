@@ -16,6 +16,7 @@
 #import "NSBundle+BuildInfo.h"
 #import "PINCache+VibeAudioCache.h"
 #import "SettingsRules.h"
+#import "PlaybackController.h"
 #import "VibePlayerCardHost.h"
 #import "VibeStrings.h"
 #import "WaveformRendererRegistry.h"
@@ -27,6 +28,7 @@
 #endif
 
 // The now-playing card asks the app for its words, formats and settings.
+static NSString *const kWaveformZoomKey = @"VibeiOSWaveformZoom";
 static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfilled";
 
 @interface VibeiOSAppDelegate () <VibePlayerCardHost>
@@ -152,6 +154,14 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
     AppSettings.sharedInstance.showRemainingTime = shows;
 }
 
+- (double)playerCardWaveformZoom {
+    return [NSUserDefaults.standardUserDefaults doubleForKey:kWaveformZoomKey];
+}
+
+- (void)setPlayerCardWaveformZoom:(double)fraction {
+    [NSUserDefaults.standardUserDefaults setDouble:fraction forKey:kWaveformZoomKey];
+}
+
 - (BOOL)playerCardShowsFXPad {
     return AppSettings.sharedInstance.audioFXEnabled;
 }
@@ -181,7 +191,7 @@ static NSString *const kWaveformTempoBackfillKey = @"VibeiOSWaveformTempoBackfil
 // style or the widget's, which bakes from the card's waveform. A nil widget
 // style is the card's.
 - (UIImage *)playerCardPlaceholderArt {
-    return [UIImage imageNamed:@"record-bg"];
+    return VibeNowPlayingPlaceholderArt();
 }
 
 - (void)playerCardConfigureWaveformCache:(AudioWaveformCache *)cache {

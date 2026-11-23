@@ -24,7 +24,7 @@ The track pager and the chrome over it. It owns no playback state. **The card na
 
 **The playhead display link runs the waveform's position on at real time** (`VibePlayheadShownPosition`, `PlayerScreenRules.h`). The player's position moves a render buffer at a time, about 23 ms. At deep zoom that is 2 pt, so a waveform written the player's position on each frame judders. Each frame pulls the shown position a tenth of the way to the player's. A miss past 0.15 s, from a seek, a stall or a track change, jumps to it. Pausing the link starts the next frame from the player's.
 
-**The waveform zoom is one value for the whole pager.** `+Delivery`'s `didChangeVisibleFraction:` stores it in `VibeiOSWaveformZoom`, and every `willDisplayCell:` re-applies it. What is stored is the user's request, never what a view drew (vibe-libs' `waveform/WaveformView/AGENTS.md`).
+**The waveform zoom is one value for the whole pager.** `+Delivery`'s `didChangeVisibleFraction:` stores it through the host's `playerCardWaveformZoom`. Vibe keeps it under `VibeiOSWaveformZoom`. Every `willDisplayCell:` re-applies it. What is stored is the user's request, never what a view drew (vibe-libs' `waveform/WaveformView/AGENTS.md`).
 
 ## Output route
 
