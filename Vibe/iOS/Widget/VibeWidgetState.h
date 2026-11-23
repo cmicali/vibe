@@ -18,8 +18,8 @@ NS_ASSUME_NONNULL_BEGIN
 #pragma mark - Which app
 
 // Set once by each process before its first read or write: the app at
-// launch, and the extension when its widget bundle is made. Both targets'
-// entitlements must carry the group, or containerURL is nil.
+// launch, and the extension when its widget bundle is made. Until then
+// containerURL is nil. Both targets' entitlements must carry the group.
 + (void)useAppGroup:(NSString *)appGroup readNotification:(NSString *)readNotification
         NS_SWIFT_NAME(use(appGroup:readNotification:));
 

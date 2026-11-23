@@ -7,7 +7,6 @@
 
 #import <notify.h>
 
-// Set once, before any reader (useAppGroup:readNotification:).
 static NSString *sAppGroup;
 static NSString *sReadNotification;
 
@@ -46,13 +45,15 @@ static const NSInteger kStateVersion = 3;
 }
 
 + (NSURL *)containerURL {
-    // Once: the container manager answers over XPC. So a read before
-    // useAppGroup: leaves this process without a container.
+    // Once: the container manager answers over XPC. Not before the group is
+    // set, so an early read cannot strand the process without one.
+    if (!sAppGroup) {
+        return nil;
+    }
     static NSURL *container;
     static dispatch_once_t once;
     dispatch_once(&once, ^{
-        container = sAppGroup ? [NSFileManager.defaultManager
-                containerURLForSecurityApplicationGroupIdentifier:sAppGroup] : nil;
+        container = [NSFileManager.defaultManager containerURLForSecurityApplicationGroupIdentifier:sAppGroup];
     });
     return container;
 }

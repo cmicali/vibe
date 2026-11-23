@@ -72,7 +72,7 @@ static const NSUInteger kUIUpdateHz = 3;
         _widgetPublisher = [[WidgetPublisher alloc]
                 initWithThemeProvider:[WaveformTheme themeProviderForWidget:YES]
                       reloadTimelines:^{ [VibeWidgetReloader reload]; }
-                          queryPlaced:^(void (^completion)(BOOL)) { [VibeWidgetReloader queryPlaced:completion]; }];
+                          queryPlaced:^(void (^done)(BOOL, NSError *)) { [VibeWidgetReloader queryPlaced:done]; }];
         [self pushWidgetWaveformSettings];
         [NSNotificationCenter.defaultCenter addObserver:self
                                                selector:@selector(pushWidgetWaveformSettings)

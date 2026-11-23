@@ -17,11 +17,11 @@ The Home Screen and Lock Screen widget runs in its own process, the `VibeWidget`
 The publisher is moving to vibe-libs, so another app can publish to a widget of its own. vibe-libs' rule 21 says a shell piece reads no app setting, string, theme, or model. So the app hands the publisher what it needs:
 
 - **Each track is a `VibeWidgetTrack`** (`WidgetPublisher.h`): a `VibePlayableItem` with its display title and artist and its decoded art. `AudioTrack` adopts it in a category with no code (`PlaybackControllerInternal.h`). The publisher keeps the object and tells tracks apart by identity. It spells `trackKey` from the item's path and window itself, so the file names stay the piece's.
-- **The app group and the read signal are set once per process** with `VibeWidgetState.useAppGroup:readNotification:`, from `VibeWidgetGroup.h`. The app sets them at launch (`VibeiOSAppDelegate`), and the extension when its widget bundle is made. **TRAP: a read before the set leaves that process without a container**, because `containerURL` is resolved once.
-- **WidgetKit's two calls are blocks.** The publisher takes `reloadTimelines` and `queryPlaced` at init, and `PlaybackController` wraps `VibeWidgetReloader` in them. So the publisher imports no `Vibe-Swift.h`. Its queue label is `vibe-libs.widget.publish`.
+- **The app group and the read signal are set once per process** with `VibeWidgetState.useAppGroup:readNotification:`, from `VibeWidgetGroup.h`. The app sets them at launch (`VibeiOSAppDelegate`), and the extension when its widget bundle is made. Until then `containerURL` is nil.
+- **WidgetKit's two calls are blocks.** The publisher takes `reloadTimelines` and `queryPlaced` at init, and `PlaybackController` wraps `VibeWidgetReloader` in them. So the publisher imports no `Vibe-Swift.h`. The query hands back WidgetKit's error, and the publisher fails open on it.
 - **The strip's look is pushed**, as the card pushes the scrubber's. The theme provider comes once, at `initWithThemeProvider:`. The style, Centered, and the playhead line come through `updateWaveformStyle:centered:drawsPlayheadLine:`, which `PlaybackController.pushWidgetWaveformSettings` calls at launch and on every `VibeDisplaySettingsDidChangeNotification`. Both pushes resolve the look through `WaveformTheme+Settings`, so the card and the widget follow one rule.
 
-The publisher and the snapshot now name nothing of Vibe's. The intents still do, behind `VIBE_APP`.
+The publisher and the snapshot name nothing of Vibe's. The intents still do, behind `VIBE_APP`.
 
 ## The snapshot
 

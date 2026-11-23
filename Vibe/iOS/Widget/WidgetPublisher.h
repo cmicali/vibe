@@ -31,10 +31,9 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable NSString *)trackKeyForTrack:(nullable id<VibePlayableItem>)track NS_SWIFT_NAME(trackKey(for:));
 
 // WidgetKit has no Objective-C API, so the app hands in its two calls.
-// reloadTimelines runs on the publisher's queue. queryPlaced may answer on
-// any queue, and should answer YES when WidgetKit fails, because a wrong NO
-// silences the widget until the next foreground.
-typedef void (^VibeWidgetPlacedQuery)(void (^completion)(BOOL placed));
+// reloadTimelines runs on the publisher's queue. queryPlaced passes whether
+// WidgetKit lists any configuration, or its error, on any queue.
+typedef void (^VibeWidgetPlacedQuery)(void (^completion)(BOOL placed, NSError *_Nullable error));
 
 // The theme is always asked for dark, because the widget's background is.
 // Set VibeWidgetState's app group first.

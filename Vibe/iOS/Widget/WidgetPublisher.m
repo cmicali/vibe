@@ -106,11 +106,13 @@ static const CGFloat kWidgetWaveformScale = 3;
 
 #pragma mark - Whether anyone is looking
 
+// Fails OPEN: a wrong NO silences the widget until the next foreground, and
+// a wrong YES costs one unread publish.
 - (void)refreshPlaced {
     __weak WidgetPublisher *weakSelf = self;
-    _queryPlaced(^(BOOL placed) {
+    _queryPlaced(^(BOOL placed, NSError *error) {
         dispatch_async(dispatch_get_main_queue(), ^{
-            [weakSelf setWidgetPlaced:placed];
+            [weakSelf setWidgetPlaced:placed || error != nil];
         });
     });
 }
