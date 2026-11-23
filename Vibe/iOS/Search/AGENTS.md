@@ -36,7 +36,7 @@ One streaming walk into memory, then a latest-wins filter per query off main.
 - Each batch is one directory's files, appended on main as it arrives. A blocked directory listing delays the next batch. The walk's token is an `NSProgress`. A root change cancels it, and a batch from any other walk is dropped. A query snapshots the files and the walk that filled them. It checks its own generation throughout, scans only the suffix appended since its last answer, and returns at most `kMaxFileResults` rows. The index caps at `kMaxIndexedFiles`, logs, and cancels the scan.
 - **A hit is named from its path alone**: filename over folder, the browser's file tile, nothing stat'd or read. The screen sorts each answer by name. The folder name is matched too, since on a music tree it is the album or artist.
 - **A track the playlist lists is not offered twice.** The screen passes the playlist's paths as the exclusion set, tested before the string match. Both sides are compared as `VibeComparablePath` spells them. The scan resolves its roots, so a hit under `/var` is spelled `/private/var`, and a raw comparison would offer the track again.
-- **`FileSearchRules.h` is the matching rule for both sections**, tested from the macOS suite. It imports `VibeSearchRootCoversPath` from the browser's `Files/BrowserRules.h`. That is the coverage decision the pruning and the Locations list's refusal both read. The one intended disagreement is the empty query: no constraint for the playlist, no match for a file.
+- **`FileSearchRules.h` is the matching rule for both sections**, tested from the macOS suite. It imports `VibeSearchRootCoversPath` from the browser's `BrowserRules.h`, in vibe-libs' `ui/FilesBrowser`. That is the coverage decision the pruning and the Locations list's refusal both read. The one intended disagreement is the empty query: no constraint for the playlist, no match for a file.
 
 ## FavoritesStore and FavoritesViewController
 
@@ -46,7 +46,7 @@ Starred folders, drawn as the Files tab draws a folder row (`FileRow`'s `vibeApp
 
 **Add to Playlist and Remove from Favorites are each reached twice**, since a context menu should never be the only road to an action. The long press gives Play, Add to Playlist and Remove from Favorites. A leading swipe gives Add. The trailing swipe is the system Delete (`canEditRowAtIndexPath:` plus `commitEditingStyle:`), which UIKit draws and localizes itself. Remove acts on the favorite's own path, never the row index, because the list can move while the menu is up.
 
-**A favorite is a place to go, not a grant to hold**, so this store is smaller than `LocationStore` (`../Files/AGENTS.md`):
+**A favorite is a place to go, not a grant to hold**, so this store is smaller than `LocationStore` (vibe-libs' `ui/FilesBrowser`):
 
 - **Nothing resolves and no scope starts until a tap**, or until the search screen appears. Rows draw from the name and location recorded at star time, so favorites cost no provider I/O at launch.
 - **Nesting is allowed**, so identity is exact standardized-path equality. `VibeSearchRootCoversPath` would be the bug here.
