@@ -305,6 +305,9 @@ struct VibeWidgetView: View {
 
     // TRAP: Text("\(title)\(rest)") is a localized key, "%@%@", looked up in
     // the catalog. Text + Text is deprecated. An attributed string is neither.
+    // An attribute takes a color, not a style, so the artist is Color.secondary.
+    // It matches the .secondary style in full color. The Lock Screen's vibrant
+    // mode converts it by brightness instead.
     private var oneLine: Text {
         guard let state else { return Text(verbatim: "Vibe") }
         var line = AttributedString(state.title ?? "")

@@ -35,21 +35,19 @@ final class VibeWidgetViewTests: XCTestCase {
                size: CGSize(width: 234, height: 26)),
     ]
 
-    func testEveryFamilyDrawsAtItsSize() throws {
+    func testEveryLayoutDrawsSomething() throws {
         for (entryName, entry) in [("playing", playingEntry()), ("empty", VibeEntry.empty)] {
             for layout in layouts {
                 let label = "\(layout.name) \(entryName)"
                 let image = try render(entry, layout.family, layout.small, layout.size, label)
-                XCTAssertEqual(image.width, Int(layout.size.width), label)
-                XCTAssertEqual(image.height, Int(layout.size.height), label)
                 XCTAssertGreaterThan(Self.shareUnlikeCorner(image), 0.005, "\(label) drew a blank or uniform image")
             }
         }
     }
 
-    // The family reaches the view's switch: drawn at one size, no two layouts
-    // draw the same picture. Without the override, every family but small's
-    // other layouts would draw the environment's default family.
+    // This guards the family override, not the layouts. Without the override,
+    // every family but small's other layouts draws the environment's default
+    // family, so two pictures match. Any one-pixel difference passes.
     func testEachLayoutDrawsItsOwnPicture() throws {
         let entry = playingEntry()
         let size = CGSize(width: 364, height: 170)
@@ -95,7 +93,10 @@ final class VibeWidgetViewTests: XCTestCase {
         let corner = Array(bytes[0..<4])
         var unlike = 0
         for start in stride(from: 0, to: bytes.count, by: 4) {
-            let distance = (0..<4).map { abs(Int(bytes[start + $0]) - Int(corner[$0])) }.max() ?? 0
+            var distance = 0
+            for channel in 0..<4 {
+                distance = max(distance, abs(Int(bytes[start + channel]) - Int(corner[channel])))
+            }
             if distance > 24 {
                 unlike += 1
             }

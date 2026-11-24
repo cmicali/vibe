@@ -32,9 +32,9 @@ The target compiles this directory, vibe-libs' `system/WidgetState` through its 
 
 **TRAP: `.disabled` dims a plain button a second time.** The full-bleed tile's disabled glyphs then fall below the mac's disabled white.
 
-**TRAP: `Text("\(title)\(rest)")` is a localized key.** SwiftUI looks up "%@%@" in the catalog. `Text + Text` is deprecated. So the Lock Screen's one line is an attributed string.
+**TRAP: `Text("\(title)\(rest)")` is a localized key.** SwiftUI looks up "%@%@" in the catalog. `Text + Text` is deprecated. So the Lock Screen's one line is an attributed string. An attribute takes a color, not a style. So the artist is `Color.secondary`, not the hierarchical `.secondary` style it had. In full color both draw the same. In the Lock Screen's vibrant mode the system converts the color by brightness, so it may draw a little differently. No test can draw that mode.
 
-No test can place a widget. So `VibeWidgetTests` (`Tests/iOSWidget/`) draws the view in every family and layout, with the family given through `familyOverride`. It asserts each image's size and that it is not uniform. It also checks that no two layouts draw the same picture. The target compiles the view and the two shared files, as the extension does. `make test-ios` runs it.
+No test can place a widget. So `VibeWidgetTests` (`Tests/iOSWidget/`) draws the view in every family and layout, with the family given through `familyOverride`. It asserts that each image is not uniform. It also checks that no two layouts draw the same picture, which guards the override, not the layouts. The target compiles the view and the two shared files, as the extension does. `make test-ios` runs it.
 
 ## The timeline
 
