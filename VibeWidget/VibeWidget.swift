@@ -20,20 +20,6 @@ private let kTailEntries = 8
 // Pixels; the blurred background's longest side. See blurred(_:).
 private let kBlurSide: CGFloat = 96
 
-struct VibeEntry: TimelineEntry {
-    let date: Date
-    let state: VibeWidgetState?
-    // Share decoded images across entries to stay within the extension’s memory cap.
-    let artwork: UIImage?
-    // Share the blur too; it is identical across entries.
-    let blurredArtwork: UIImage?
-    let played: UIImage?
-    let unplayed: UIImage?
-
-    static let empty = VibeEntry(date: Date(), state: nil, artwork: nil,
-                                 blurredArtwork: nil, played: nil, unplayed: nil)
-}
-
 struct VibeProvider: TimelineProvider {
     // Reuse the Metal context across timelines in this memory-limited process.
     private static let blurContext = CIContext()

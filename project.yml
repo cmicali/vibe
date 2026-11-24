@@ -748,6 +748,41 @@ targets:
           - "$(inherited)"
           - "VIBE_TEST_HANG_TIMEOUT=10"
 
+  # The widget's view, drawn in every family on a simulator (Tests/AGENTS.md).
+  # Host-less: it compiles the extension's view and the files the extension
+  # shares with the app, as VibeWidget does. It cannot take them from the
+  # app, whose module lacks the view and whose intents would load twice.
+  VibeWidgetTests:
+    type: bundle.unit-test
+    platform: iOS
+    templates: [VibeLibsWidgetState]
+    templateAttributes:
+      excludedPlatform: Mac
+    sources:
+      - path: Tests/iOSWidget
+        excludes: ["**/.DS_Store", "**/*.md"]
+      - path: VibeWidget/VibeWidgetView.swift
+      - path: Vibe/iOS/Widget/VibeWidgetGroup.h
+      - path: Vibe/iOS/Widget/VibeWidgetIntents.swift
+    settings:
+      base:
+        PRODUCT_NAME: "$(TARGET_NAME)"
+        PRODUCT_BUNDLE_IDENTIFIER: com.commonwealthrecordings.VibeWidgetTests
+        SDKROOT: iphoneos
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+        IPHONEOS_DEPLOYMENT_TARGET: "26.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        PROVISIONING_PROFILE_SPECIFIER: ""
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: "$(SRCROOT)/VibeWidget/VibeWidget-Bridging-Header.h"
+        GCC_PREFIX_HEADER: ""                 # no app pch, as VibeWidget
+    dependencies:
+      - sdk: AppIntents.framework
+      - sdk: SwiftUI.framework
+      - sdk: WidgetKit.framework
+
   # Host-LESS: no TEST_HOST, so the suite never launches the app and never
   # inherits its sandbox (which would block reading fixtures from the repo).
   # Sources under test are compiled in, so the list below is the deliberately
@@ -771,6 +806,7 @@ targets:
           - "AudioRender/**"                  # VibeAudioTests' suite
           - "Playlist/AudioTrackTagTests.mm"  # VibeAudioTests': TagLib
           - "iOSSim/**"                       # VibeiOSTests' suite: UIKit, on a simulator
+          - "iOSWidget/**"                    # VibeWidgetTests' suite: SwiftUI, on a simulator
       - path: Vibe/Playlist/AudioAnalysisObservers.m
       - path: vibe-libs/waveform/WaveformLoading/AudioWaveformObserver.m
       - path: vibe-libs/waveform/WaveformLoading/AudioWaveformLoader.mm
@@ -1154,15 +1190,18 @@ schemes:
       targets:
         - VibeiOSDriver
   # `make test-ios`. Serial: a hosted bundle runs in the one app process.
+  # VibeWidgetTests is host-less and runs beside it.
   VibeiOSTests:
     build:
       parallelizeBuild: true
       targets:
         VibeiOSTests: [test]
+        VibeWidgetTests: [test]
     test:
       config: Debug
       targets:
         - VibeiOSTests
+        - VibeWidgetTests
   Vibe:
     build:
       parallelizeBuild: true
