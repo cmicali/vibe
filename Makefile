@@ -9,7 +9,7 @@ RESULT_BUNDLE ?= build/TestResults.xcresult
 # This shell's build slot (scripts/vibe-env.sh), read only where a recipe uses it.
 vibe_env = $(or $(shell scripts/vibe-env.sh --print $(1)),$(error scripts/vibe-env.sh resolved no $(1)))
 
-.PHONY: help audio-test-bundle audio-fixtures compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-ios test-ios-summary test-summary check-cloud-scenarios analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
+.PHONY: help audio-test-bundle audio-fixtures compile-commands bench-components bench-components-releases bench-app bench-releases bench-report build-test-blackhole test-bit-perfect test-audio test-audio-summary test-audio-loopback test-audio-device setup project build build-ios install-ios test test-ios test-ios-summary test-summary check-cloud-scenarios check-scripts ready-to-push analyze stress torture release github-release deploy-web web-set-version brew-set-version appstore-build appstore-upload-signed-build appstore-build-ios appstore-upload-signed-build-ios install clean run screenshots appstore-generate-store-screenshots appstore-generate-store-screenshots-all appstore-capture-app-screenshots appstore-validate-copy appstore-upload-metadata strings check-strings check-translations check-vocabulary check-layout reset-state
 
 # Install the dev-tool dependencies (xcodegen, jq, gh) from the Brewfile.
 setup:
@@ -39,9 +39,19 @@ help:
 # share one checkout, and rewriting the project under another session's
 # xcodebuild fails that build or feeds it a half-written project.
 # It first brings in the vibe-libs submodule for a fresh clone or worktree.
+# It also installs the commit-msg hook in .githooks/. Git reads a relative
+# hooks path from each worktree's root.
 project:
 	@scripts/build/vibe-libs-submodule.sh
+	@git config core.hooksPath .githooks
 	scripts/build/build-lock.sh xcodegen generate
+
+# Run every step CI runs on a pull request, in order, read from
+# .github/workflows/build.yml. It skips what needs GitHub, with a line each, and
+# stops at the first failing step. It builds with no slot, as CI does, because
+# CI's steps name build/DerivedData. Nothing here launches the app.
+ready-to-push:
+	VIBE_NO_SLOT=1 python3 -I scripts/checks/ready-to-push.py .github/workflows/build.yml
 
 # The macOS app, into the slot's DerivedData. A slotted Debug build is
 # Vibe-<slot>.app (scripts/build/build.sh). `project` has already regenerated,
@@ -111,7 +121,7 @@ compile-commands: project
 # coverage, which test-summary reports. CI passes it. It adds about a quarter
 # to a clean run's time, so it is off by default.
 COVERAGE_FLAG = $(if $(filter 1,$(COVERAGE)),-enableCodeCoverage YES)
-test: project check-cloud-scenarios
+test: project check-cloud-scenarios check-scripts
 	rm -rf $(RESULT_BUNDLE)
 	xcodebuild \
 	    -project Vibe.xcodeproj \
@@ -218,6 +228,11 @@ test-audio-device: build/verify-bit-perfect
 # in CI so a broken oracle cannot make the live run green.
 check-cloud-scenarios:
 	python3 -m unittest discover -s .claude/skills/vibe-stress/tests -p 'test_*.py'
+
+# The commit-msg hook's and ready-to-push's tests. `make test` runs them, so CI does.
+check-scripts:
+	python3 -I scripts/checks/commit-msg-test.py
+	python3 -I scripts/checks/ready-to-push-test.py
 
 # The last `make test` as a markdown pass/fail table; CI appends it to the run
 # summary.

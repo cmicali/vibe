@@ -47,6 +47,8 @@ Releases go through the **`vibe-release` skill**. The Developer ID path (`make r
 
 All of these run in CI (`.github/workflows/build.yml`). `make test-ios` runs only nightly and on manual runs. Run it yourself when a change touches the iOS shell.
 
+**Run `make ready-to-push` before you push.** It reads `.github/workflows/build.yml` and runs each step CI runs on a pull request, in order. It prints a line for each step it skips because the step needs GitHub, and it stops at the first failing step. `make project` installs `.githooks/commit-msg`. The hook rejects a commit message with a `Co-Authored-By:` trailer or a line that starts with "Generated with".
+
 | Command | Gate |
 | --- | --- |
 | `make test` | Host-less unit and orchestration tests (`Tests/`, always Debug) plus the cloud-runner oracle tests. **Read `Tests/AGENTS.md` before adding to it.** |
