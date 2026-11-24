@@ -1,8 +1,8 @@
 # The widget extension
 
-`VibeWidget` is the iOS widget extension. It has no engine, no playlist and no audio session, and it never reads an audio file. Everything it knows is the `VibeWidgetState` snapshot the app writes into the shared app group. The app side, including the snapshot and the buttons' intents, is `Vibe/iOS/Widget/AGENTS.md`.
+`VibeWidget` is the iOS widget extension. It has no engine, no playlist and no audio session, and it never reads an audio file. Everything it knows is the `VibeWidgetState` snapshot the app writes into the shared app group. The snapshot is vibe-libs' `system/WidgetState`, and the publisher is its `system/Widget`. The buttons' intents are `Vibe/iOS/Widget/AGENTS.md`.
 
-The target compiles this directory plus `VibeWidgetState.{h,m}`, `VibeWidgetGroup.h`, and `VibeWidgetIntents.swift` from `Vibe/iOS/Widget/`. It links no app class. `VibeWidgetBundle.init` sets the app group and the read signal before any provider reads. Both targets' entitlements must carry the app group, or `containerURL` is nil and the widget draws its empty state.
+The target compiles this directory, vibe-libs' `system/WidgetState` through its template, and `VibeWidgetGroup.h` and `VibeWidgetIntents.swift` from `Vibe/iOS/Widget/`. It links no app class. `VibeWidgetBundle.init` sets the app group and the read signal before any provider reads. Both targets' entitlements must carry the app group, or `containerURL` is nil and the widget draws its empty state.
 
 ## Kinds and families
 
@@ -34,7 +34,7 @@ The target compiles this directory plus `VibeWidgetState.{h,m}`, `VibeWidgetGrou
 
 A widget is not a live view. WidgetKit renders each entry ahead of time. A paused or empty state has one entry with policy `.never`. A playing state has entries every 5 s through 115 s, or until the remaining duration is shorter. Longer tracks then get up to 8 coarse entries through the end. The full-bleed tile always has one entry, because nothing on it moves (`VibeProvider.artworkOnly`). It also skips the blur and both waveform images. Every publish reloads every kind, which keeps its play glyph current.
 
-**The app requests a new timeline every minute during playback** (`Vibe/iOS/Widget/AGENTS.md`). WidgetKit controls delivery. **TRAP: keep coarse entries through the track’s end.** Without them, a delayed reload leaves the playhead frozen after the last dense entry. `.atEnd` also requests a reload on WidgetKit’s schedule.
+**The app requests a new timeline every minute during playback** (vibe-libs' `system/Widget/AGENTS.md`). WidgetKit controls delivery. **TRAP: keep coarse entries through the track’s end.** Without them, a delayed reload leaves the playhead frozen after the last dense entry. `.atEnd` also requests a reload on WidgetKit’s schedule.
 
 The extension has a hard memory cap. So the artwork and both waveform images are decoded once per timeline and shared by every entry. The blurred background is made once per timeline at 96 px, with one `CIContext` per process.
 

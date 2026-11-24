@@ -19,7 +19,7 @@
 | `FolderSession` | `FolderSessionTests` |
 | `VibeLocationStore`, `RecentsStore`, `FavoritesStore` | `LocationStoreTests`, `RecentsStoreTests`, `FavoritesStoreTests` |
 | `DropboxSearch` | `DropboxSearchTests` |
-| `VibeWidgetState` | `VibeWidgetStateTests` |
+| `VibeWidgetState` | vibe-libs' `VibeWidgetStateTests`, which moved with it |
 | `PlayerScreenRules.h`, `DropboxRules.h` | `PlayerScreenRulesTests`, `DropboxRulesTests` |
 
 The rest of the shell is reached only through the debug channel and the touch driver. Most decisions in `VibeBrowserRootViewController`, `VibeBrowserFolderViewController`, `RootViewController`, and `PlaylistViewController` sit beside the UIKit calls that act on them.
