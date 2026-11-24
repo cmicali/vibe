@@ -386,4 +386,19 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
     [strip removeFromSuperview];
 }
 
+// The accessory fits its width to the strip once, not per song, so in a
+// regular width the strip asks for the same room whatever it shows.
+- (void)testTheStripAsksForRoomOutsideACompactWidth {
+    VibeMiniPlayerView *strip = [self strip];
+    [strip renderRow:[self trackNamed:@"a.mp3" title:@"Song" artist:@"Band" duration:60].trackRow];
+    CGFloat (^fittedWidth)(UIUserInterfaceSizeClass) = ^CGFloat(UIUserInterfaceSizeClass sizeClass) {
+        strip.traitOverrides.horizontalSizeClass = sizeClass;
+        [strip updateTraitsIfNeeded];
+        return [strip systemLayoutSizeFittingSize:UILayoutFittingCompressedSize].width;
+    };
+    XCTAssertGreaterThanOrEqual(fittedWidth(UIUserInterfaceSizeClassRegular), 360);
+    XCTAssertLessThan(fittedWidth(UIUserInterfaceSizeClassCompact), 360, @"the system frames a compact strip");
+    [strip removeFromSuperview];
+}
+
 @end
