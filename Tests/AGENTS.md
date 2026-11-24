@@ -1,8 +1,8 @@
 # Unit tests
 
-This directory holds the tests of the three test targets, `VibeTests`, `VibeAudioTests`, and `VibeiOSTests`, and their shared helpers in `Support/`. It also holds `BenchComponents/`, a tool that is not a test suite.
+This directory holds the tests of the four test targets, `VibeTests`, `VibeAudioTests`, `VibeiOSTests`, and `VibeWidgetTests`, and their shared helpers in `Support/`. It also holds `BenchComponents/`, a tool that is not a test suite.
 
-`make test` runs `VibeTests` (always Debug) and the cloud-runner oracle tests (`check-cloud-scenarios`). `make test-audio` runs `VibeAudioTests`, and `make test-ios` runs `VibeiOSTests` (both below). All three are defined in `project.yml`, so editing a source list means re-running `xcodegen generate`.
+`make test` runs `VibeTests` (always Debug) and the cloud-runner oracle tests (`check-cloud-scenarios`). `make test-audio` runs `VibeAudioTests`, and `make test-ios` runs `VibeiOSTests` and `VibeWidgetTests` (below). All four are defined in `project.yml`, so editing a source list means re-running `xcodegen generate`.
 
 The `vibe-debug` skill's touch driver is vibe-libs' `dev/iOSDriver`, a resident XCUITest. `VibeiOSDriver` compiles it, and `drive-ios.sh` starts it. `BenchComponents/` is the `vibe-perf` skill's benchmark tool, and `VibeTests`' `Tests` source entry excludes it. Its `--waveform` mode is the `vibe-waveform` skill's probe.
 
@@ -101,6 +101,8 @@ The pump proves the software path, **not** DAC samples, hardware negotiation, ex
 `make test-ios` runs **VibeiOSTests** on an iOS simulator. `IOS_TEST_DEVICE` names it, and the default is `iPhone 17`. A Mac without that simulator runs on its first available iPhone, unless the caller names one. CI runs it nightly and on manual runs, and reads `make test-ios-summary` after it. A simulator's first boot and the tests' launch cost a runner four to eight minutes. Pull requests and pushes skip it. Run it yourself when a change touches the iOS shell. The suite lives in `iOSSim/`, which `VibeTests` excludes. It is one directory, like the render suite, because it is one target's suite. Its classes are named for the code they test.
 
 **It is hosted, unlike the other two.** `TEST_HOST` is the Debug `VibeiOS` app. The card, the root, and the settings screens reach `PlaybackController`, and through it the whole engine. Compiling them in would repeat the app's source list. So the bundle links against the app (`BUNDLE_LOADER`) and compiles only its tests, `TestFilesystemGuard.m` and `FakeTrackMetadata.m`. The guard is in before the app registers its defaults, so the host's settings are the in-memory store too. `HostSmokeTests` checks that the registered defaults landed there. The cost is the app's launch, a few seconds per run. The host's own scene and its one `AudioPlayer` stay up underneath and are never driven. The debug channel is not used.
+
+**`VibeWidgetTests` runs beside it, host-less.** Its tests are in `iOSWidget/`, which `VibeTests` excludes. They draw the widget's view. It compiles the extension's view and the two files the extension shares with the app. The app's module has no view, and the intents would load twice in the hosted bundle. `VibeWidget/AGENTS.md` says what it asserts.
 
 **No second player.** `FakePlayback` (`IOSSimTestCase.h`) is a duck-typed `PlaybackController`. The screens read its properties. A test sets `screenState` and sends a `PlaybackObserver` event (`notify:`). Any other selector `PlaybackController` declares is recorded in `calls` and answers zero. Tracks carry the duck-typed `FakeTrackMetadata` from `Support/`, which `VibeTests` uses too. `IOSSimTestCase` gives each test a window of its own on the host's scene. It puts back every setting a test wrote.
 

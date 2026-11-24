@@ -603,10 +603,11 @@ scenario_rev-change() {
     check "the part was deleted, the file a placeholder" '.placeholder' "$m"
 }
 
-# No tail window: an MP3 (its open reads the last 128 bytes) waits for the
-# whole download.
+# No tail window: an M4A with moov last needs its tail to open, so it waits
+# for the whole download. An MP3 is no test, since dr_mp3 opens it from the
+# head.
 scenario_tail-fail() {
-    fixture 12 long.mp3 short.wav || return 1
+    fixture 12 moovlast.m4a short.wav || return 1
     must fake_dropbox_fault tail-fail file=$F0 || return 1
     open_folder "$FOLDER" || return 1
     wait_for 50 '.state == "playing" and .pos > 0.3' || true
@@ -615,7 +616,7 @@ scenario_tail-fail() {
          installed: (.tracks[0].ph == false), errors: [.err | select(. != "")]}')"
     record "$m"
     check "the tail read answered 500" '.tailStatuses == [500]' "$m"
-    check "the MP3 opened only at the end of the download" '.startedAt >= 10 and .installed' "$m"
+    check "the M4A opened only at the end of the download" '.startedAt >= 10 and .installed' "$m"
     check "no error" '.errors == []' "$m"
 }
 

@@ -4,6 +4,20 @@ import SwiftUI
 import UIKit
 import WidgetKit
 
+struct VibeEntry: TimelineEntry {
+    let date: Date
+    let state: VibeWidgetState?
+    // Share decoded images across entries to stay within the extension’s memory cap.
+    let artwork: UIImage?
+    // Share the blur too; it is identical across entries.
+    let blurredArtwork: UIImage?
+    let played: UIImage?
+    let unplayed: UIImage?
+
+    static let empty = VibeEntry(date: Date(), state: nil, artwork: nil,
+                                 blurredArtwork: nil, played: nil, unplayed: nil)
+}
+
 private let kCornerRadius: CGFloat = 8
 // The scrubber's (kVibePlayheadLineWidth), the height of the strip.
 private let kPlayheadLineWidth: CGFloat = 2
@@ -51,10 +65,17 @@ enum VibeSmallLayout {
 }
 
 struct VibeWidgetView: View {
-    @Environment(\.widgetFamily) private var family
+    @Environment(\.widgetFamily) private var widgetFamily
     @Environment(\.widgetRenderingMode) private var renderingMode
     let entry: VibeEntry
     let smallLayout: VibeSmallLayout
+    // The test's family. Outside a widget the environment cannot be given
+    // one. nil in the widget.
+    var familyOverride: WidgetFamily? = nil
+
+    private var family: WidgetFamily {
+        familyOverride ?? widgetFamily
+    }
 
     private var progress: Double {
         state.map { $0.progress(at: entry.date) } ?? 0
@@ -282,12 +303,21 @@ struct VibeWidgetView: View {
         }
     }
 
+    // TRAP: Text("\(title)\(rest)") is a localized key, "%@%@", looked up in
+    // the catalog. Text + Text is deprecated. An attributed string is neither.
+    // An attribute takes a color, not a style, so the artist is Color.secondary.
+    // It matches the .secondary style in full color. The Lock Screen's vibrant
+    // mode converts it by brightness instead.
     private var oneLine: Text {
         guard let state else { return Text(verbatim: "Vibe") }
-        let title = Text(verbatim: state.title ?? "").bold()
-        guard let artist = state.artist, !artist.isEmpty else { return title }
-        let rest = Text(verbatim: " – \(artist)").foregroundStyle(.secondary)
-        return Text("\(title)\(rest)")
+        var line = AttributedString(state.title ?? "")
+        line.inlinePresentationIntent = .stronglyEmphasized
+        if let artist = state.artist, !artist.isEmpty {
+            var rest = AttributedString(" – \(artist)")
+            rest.swiftUI.foregroundColor = .secondary
+            line += rest
+        }
+        return Text(line)
     }
 
     // MARK: - Shared pieces

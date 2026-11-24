@@ -199,7 +199,7 @@ static CodableAudioWaveform *CompleteWaveform(bool bands = false) {
     [self showAndDraw:CompleteWaveform()];
     [_view prepareForWaveformLoad];
     XCTAssertEqual(self.renderedTint.coverage, 0);
-    XCTAssertFalse(_view.isScrubbingEnabled);
+    XCTAssertFalse(_view.hasWaveform);
     XCTAssertEqual(_view.progress, 0);
 }
 

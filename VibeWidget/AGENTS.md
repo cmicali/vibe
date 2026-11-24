@@ -4,6 +4,8 @@
 
 The target compiles this directory, vibe-libs' `system/WidgetState` through its template, and `VibeWidgetGroup.h` and `VibeWidgetIntents.swift` from `Vibe/iOS/Widget/`. It links no app class. `VibeWidgetBundle.init` sets the app group and the read signal before any provider reads. Both targets' entitlements must carry the app group, or `containerURL` is nil and the widget draws its empty state.
 
+**TRAP: another app's widget mirrors this view and the timeline.** Its view copies `VibeWidgetView.swift`, and its timeline copies `VibeProvider`. A fix here must be made there too, until a shared Swift piece exists.
+
 ## Kinds and families
 
 `VibeWidget.swift` declares five kinds of one widget type. The gallery shows each kind as its own page, so every small layout can sit on one Home Screen. The app's reload reaches all of them.
@@ -29,6 +31,10 @@ The target compiles this directory, vibe-libs' `system/WidgetState` through its 
 **TRAP: the art needs a widget rendering mode** (`widgetAccentedRenderingMode`). Without one, a tinted Home Screen draws the art as a solid shape in the tint.
 
 **TRAP: `.disabled` dims a plain button a second time.** The full-bleed tile's disabled glyphs then fall below the mac's disabled white.
+
+**TRAP: `Text("\(title)\(rest)")` is a localized key.** SwiftUI looks up "%@%@" in the catalog. `Text + Text` is deprecated. So the Lock Screen's one line is an attributed string. An attribute takes a color, not a style. So the artist is `Color.secondary`, not the hierarchical `.secondary` style it had. In full color both draw the same. In the Lock Screen's vibrant mode the system converts the color by brightness, so it may draw a little differently. No test can draw that mode.
+
+No test can place a widget. So `VibeWidgetTests` (`Tests/iOSWidget/`) draws the view in every family and layout, with the family given through `familyOverride`. It asserts that each image is not uniform. It also checks that no two layouts draw the same picture, which guards the override, not the layouts. The target compiles the view and the two shared files, as the extension does. `make test-ios` runs it.
 
 ## The timeline
 
