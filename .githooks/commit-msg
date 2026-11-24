@@ -1,0 +1,8 @@
+#!/bin/sh
+# Rejects agent attribution (AGENTS.md, Key patterns): a Co-Authored-By
+# trailer, or a line that starts with "Generated with", in any case.
+# make project installs it.
+found=$(grep -v '^#' "$1" | grep -iE '^[[:space:]]*co-authored-by:|^[^[:alnum:]]*generated with')
+[ -z "$found" ] && exit 0
+printf 'commit-msg: remove the agent attribution:\n%s\n' "$found" >&2
+exit 1
