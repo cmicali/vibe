@@ -14,18 +14,22 @@
 #import "VibePlaylist.h"
 #import "RootViewController.h"
 
-// Stands in as the root's delegate: notes cardExpanded at each exposure call,
-// and forwards every call to the host.
+// Stands in as the root's delegate: notes what the first exposure call
+// reports, and forwards every call to the host.
 @interface ExposureRecorder : NSObject
 @property (nonatomic, weak) id host;
 @property (nonatomic) NSUInteger calls;
-@property (nonatomic) BOOL lastSawExpanded;
+@property (nonatomic) BOOL firstSawExpanded;
+@property (nonatomic) BOOL firstSawAtRest;
 @end
 
 @implementation ExposureRecorder
 - (void)rootViewControllerDidChangeExposure:(RootViewController *)root {
+    if (self.calls == 0) {
+        self.firstSawExpanded = root.cardExpanded;
+        self.firstSawAtRest = root.cardAtRest;
+    }
     self.calls += 1;
-    self.lastSawExpanded = root.cardExpanded;
     [self.host rootViewControllerDidChangeExposure:root];
 }
 - (BOOL)respondsToSelector:(SEL)selector {
@@ -215,9 +219,9 @@
     _root.delegate = (id<RootViewControllerDelegate>)_recorder;
 }
 
-// The drag's snapshot is still up when the minimize starts, so the delegate
-// must hear from the minimize itself, not only when the spring ends.
-- (void)testADragThatMinimizesTellsTheDelegateAtOnce {
+// The drag's snapshot is still up when the minimize starts, so the move must
+// tell the delegate itself: at once, and never as at rest while it springs.
+- (void)testADragThatMinimizesTellsTheDelegateAtOnceAndNotAtRest {
     [self expandAndSettle];
     CGFloat height = _root.view.bounds.size.height;
     [self pan:height * 0.5 velocity:0 state:UIGestureRecognizerStateBegan];
@@ -226,19 +230,27 @@
     [self pan:height * 0.5 velocity:0 state:UIGestureRecognizerStateEnded];
     XCTAssertFalse(_root.cardExpanded);
     XCTAssertGreaterThan(_recorder.calls, 0u, @"heard before the spring ends");
-    XCTAssertFalse(_recorder.lastSawExpanded);
+    XCTAssertFalse(_recorder.firstSawExpanded);
+    XCTAssertFalse(_recorder.firstSawAtRest, @"the card is moving");
 }
 
-// An interrupted move keeps its snapshot too, so the expand that interrupts
-// it tells the delegate itself.
-- (void)testAnExpandThatInterruptsAMinimizeTellsTheDelegateAtOnce {
-    [self expandAndSettle];
-    [(id<PlayerViewControllerDelegate>)_host playerViewControllerDidRequestMinimize:self.card];
-    [self recordExposure];
+// A minimize that interrupts an expand keeps the expand's snapshot, so it
+// too must tell the delegate itself, with the card moving.
+- (void)testAMinimizeThatInterruptsAnExpandTellsTheDelegateAtOnceAndNotAtRest {
+    // A view never committed to the screen snapshots nothing.
+    [CATransaction flush];
+    [self eventually:^BOOL { return [self.tabs.view snapshotViewAfterScreenUpdates:NO] != nil; }];
     [self expand];
-    XCTAssertTrue(_root.cardExpanded);
+    if (UIAccessibilityIsReduceMotionEnabled()) {
+        return;  // unanimated: the expand has landed, so nothing interrupts
+    }
+    XCTAssertNotNil(self.snapshot, @"the expand is moving");
+    [self recordExposure];
+    [(id<PlayerViewControllerDelegate>)_host playerViewControllerDidRequestMinimize:self.card];
+    XCTAssertFalse(_root.cardExpanded);
     XCTAssertGreaterThan(_recorder.calls, 0u, @"heard before the spring ends");
-    XCTAssertTrue(_recorder.lastSawExpanded);
+    XCTAssertFalse(_recorder.firstSawExpanded);
+    XCTAssertFalse(_recorder.firstSawAtRest, @"the card is moving");
 }
 
 #pragma mark - The strip

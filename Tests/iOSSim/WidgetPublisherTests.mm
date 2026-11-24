@@ -1,35 +1,27 @@
 // vibe-libs' widget publisher (system/Widget), where it needs UIKit and the
-// app's launch. The key that names a track's images is spelled from the item
-// alone, so a widget placed before an update keeps finding its files. A
-// publisher with a bake queued is still freed.
+// app's launch, which names the app group. A publisher with a bake queued is
+// still freed. The track key's own test is vibe-libs'.
 
 #import <XCTest/XCTest.h>
 
 #import "AppSettings.h"
 #import "AudioWaveform.h"
 #import "IOSSimTestCase.h"
-#import "NSURL+Hash.h"
+#import "VibeWidgetState.h"
 #import "WaveformRendererRegistry.h"
 #import "WaveformTheme+Settings.h"
 #import "WidgetPublisher.h"
 
-// Only what the key reads, so the test moves with the publisher.
-@interface WidgetKeyItem : NSObject <VibePlayableItem>
+// A track as the widget reads it, with nothing behind it.
+@interface WidgetTestTrack : NSObject <VibeWidgetTrack>
 @property (copy) NSURL *url;
 @property NSUInteger cueStart;
 @property NSUInteger cueEnd;
 @end
 
-@implementation WidgetKeyItem
+@implementation WidgetTestTrack
 - (NSString *)sourceKey { return self.url.path; }
 - (NSString *)cacheKey { return nil; }
-@end
-
-// A track as the widget reads it, with nothing behind it.
-@interface WidgetTestTrack : WidgetKeyItem <VibeWidgetTrack>
-@end
-
-@implementation WidgetTestTrack
 - (NSString *)displayTitle { return @"Song"; }
 - (NSString *)displayArtist { return nil; }
 - (UIImage *)cachedArt { return nil; }
@@ -46,29 +38,50 @@ static CodableAudioWaveform *CompleteWaveform(void) {
     return [[CodableAudioWaveform alloc] initWithWaveform:std::move(waveform)];
 }
 
+// The app group's files by name. A test publisher writes the host app's real
+// container, which the piece resolves once per process, so the test puts back
+// what it found.
+static NSDictionary<NSString *, NSData *> *ContainerFiles(void) {
+    NSMutableDictionary<NSString *, NSData *> *files = [NSMutableDictionary dictionary];
+    NSURL *container = VibeWidgetState.containerURL;
+    if (!container) {
+        return files;
+    }
+    NSArray<NSURL *> *contents = [NSFileManager.defaultManager contentsOfDirectoryAtURL:container
+            includingPropertiesForKeys:nil options:NSDirectoryEnumerationSkipsHiddenFiles error:NULL];
+    for (NSURL *url in contents) {
+        NSData *data = [NSData dataWithContentsOfURL:url];
+        if (data) {
+            files[url.lastPathComponent] = data;
+        }
+    }
+    return files;
+}
+
+static void RestoreContainerFiles(NSDictionary<NSString *, NSData *> *files) {
+    NSURL *container = VibeWidgetState.containerURL;
+    if (!container) {
+        return;
+    }
+    for (NSString *name in ContainerFiles()) {
+        if (!files[name]) {
+            [NSFileManager.defaultManager removeItemAtURL:[container URLByAppendingPathComponent:name] error:NULL];
+        }
+    }
+    [files enumerateKeysAndObjectsUsingBlock:^(NSString *name, NSData *data, BOOL *stop) {
+        [data writeToURL:[container URLByAppendingPathComponent:name] atomically:YES];
+    }];
+}
+
 @interface WidgetPublisherTests : IOSSimTestCase
 @end
 
 @implementation WidgetPublisherTests
 
-- (void)testATrackKeyIsItsFilesPathKeyAndACueRowAddsItsWindow {
-    WidgetKeyItem *item = [WidgetKeyItem new];
-    item.url = [NSURL fileURLWithPath:@"/Music/mix.flac"];
-    NSString *pathKey = item.url.pathKey;
-    XCTAssertNotNil(pathKey);
-    XCTAssertEqualObjects([WidgetPublisher trackKeyForTrack:item], pathKey);
-
-    item.cueStart = 4500;
-    item.cueEnd = 9000;
-    XCTAssertEqualObjects([WidgetPublisher trackKeyForTrack:item],
-                          [pathKey stringByAppendingString:@"#4500-9000"]);
-    XCTAssertNil([WidgetPublisher trackKeyForTrack:nil]);
-}
-
 // A queued bake once held the publisher through a block the publisher kept,
-// so a publisher that had baked was never freed. The app group is the app's,
-// set at launch.
+// so a publisher that had baked was never freed.
 - (void)testAPublisherWithABakeQueuedIsFreed {
+    NSDictionary<NSString *, NSData *> *found = ContainerFiles();
     __weak WidgetPublisher *weakPublisher = nil;
     WidgetTestTrack *track = [WidgetTestTrack new];
     track.url = [NSURL fileURLWithPath:@"/Music/song.flac"];
@@ -87,8 +100,11 @@ static CodableAudioWaveform *CompleteWaveform(void) {
         [publisher updateWithTrack:track position:0 duration:100 playing:NO startPending:NO];
         [publisher offerWaveform:CompleteWaveform() forTrack:track];
     }
+    // Freed only once its queue has run every write, since each holds it.
     XCTAssertTrue([self eventually:^BOOL { return weakPublisher == nil; }],
                   @"the queued bake keeps the publisher");
+    RestoreContainerFiles(found);
+    XCTAssertEqualObjects(ContainerFiles(), found, @"the app group as the test found it");
 }
 
 @end
