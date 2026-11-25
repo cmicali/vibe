@@ -965,6 +965,7 @@ targets:
           - "$(SRCROOT)/vibe-libs/audio/Player"
           - "$(SRCROOT)/vibe-libs/audio/Player/Mac"
           - "$(SRCROOT)/vibe-libs/audio/Meter"
+          - "$(SRCROOT)/vibe-libs/audio/LoudnessEqualizer"
           - "$(SRCROOT)/vibe-libs/media/Metadata"
           - "$(SRCROOT)/vibe-libs/media/Metadata/Artwork"
           - "$(SRCROOT)/vibe-libs/media/Metadata/Artwork/FolderArt"
@@ -1081,6 +1082,8 @@ targetTemplates:
       - path: vibe-libs/audio/FX/AudioFX.m
         compilerFlags: *render-path-flags
       - path: vibe-libs/audio/DSP/AudioVarispeed.m
+        compilerFlags: *render-path-flags
+      - path: vibe-libs/audio/LoudnessEqualizer/VibeLoudnessEqualizer.m   # the master bus's loudness stage
         compilerFlags: *render-path-flags
       - path: vibe-libs/audio/Player/AudioError.m   # VibeTests' error rules and its filesystem guard push the domain
       - path: vibe-libs/files/FileLoading/Claim/AudioLoadingConfiguration.m
