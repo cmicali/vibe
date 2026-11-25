@@ -302,6 +302,8 @@ static NSString *const kTrackCellIdentifier = @"track";
                                                           forIndexPath:indexPath];
     NSUInteger index = (NSUInteger)indexPath.row;
     cell.levelSource = _playback;
+    // The rows size themselves, so the largest text sizes cut no title.
+    cell.wrapsTextAtAccessibilitySizes = YES;
     [cell renderRow:[self rowAtIndex:index]];
     [self syncLoadingForCell:cell trackIndex:index];
     [self syncEqualizerActivityForCell:cell];
