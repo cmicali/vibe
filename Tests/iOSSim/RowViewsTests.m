@@ -132,6 +132,36 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
     [cell removeFromSuperview];
 }
 
+// At an accessibility size, a row that wraps shows its whole title, and
+// grows to hold it. A row that doesn't, as in a table of one row height,
+// keeps one line at every size.
+- (void)testATitleWrapsAtAnAccessibilitySizeOnlyWhenAsked {
+    VibeTrackCell *cell = [self cell];
+    cell.traitOverrides.preferredContentSizeCategory = UIContentSizeCategoryAccessibilityExtraLarge;
+    [cell updateTraitsIfNeeded];
+    VibeTrackRow *row = [[VibeTrackRow alloc] init];
+    row.title = @"A Song Whose Title Is Far Too Long For One Line At This Size";
+    row.subtitle = @"An Artist";
+    [cell renderRow:row];
+    UILabel *title = VibeLabelWithText(cell, row.title);
+    XCTAssertEqual(title.numberOfLines, 1, @"off by default");
+    CGSize fits = CGSizeMake(390, UILayoutFittingCompressedSize.height);
+    CGFloat oneLine = [cell systemLayoutSizeFittingSize:fits withHorizontalFittingPriority:UILayoutPriorityRequired
+                           verticalFittingPriority:UILayoutPriorityFittingSizeLevel].height;
+
+    cell.wrapsTextAtAccessibilitySizes = YES;
+    XCTAssertEqual(title.numberOfLines, 0);
+    XCTAssertEqual(VibeLabelWithText(cell, @"An Artist").numberOfLines, 2);
+    CGFloat wrapped = [cell systemLayoutSizeFittingSize:fits withHorizontalFittingPriority:UILayoutPriorityRequired
+                           verticalFittingPriority:UILayoutPriorityFittingSizeLevel].height;
+    XCTAssertGreaterThan(wrapped, oneLine, @"the row grows to hold the wrapped title");
+
+    cell.traitOverrides.preferredContentSizeCategory = UIContentSizeCategoryLarge;
+    [cell updateTraitsIfNeeded];
+    XCTAssertEqual(title.numberOfLines, 1, @"below the accessibility sizes, one line");
+    [cell removeFromSuperview];
+}
+
 // The gutter's precedence: loading bar, playing marker, number.
 - (void)testTheGutterPrefersLoadingThenPlayingThenTheNumber {
     VibeTrackCell *cell = [self cell];
