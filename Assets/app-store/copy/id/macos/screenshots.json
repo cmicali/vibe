@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Pemutar cepat dan minimal untuk file musik Anda",
-    "subhead": "MP3, FLAC, AIFF, WAV, dan lainnya. Klik bentuk gelombang untuk berpindah posisi."
+    "headline": "Pemutar cepat dan minimal untuk file musik Anda"
   },
   {
     "id": "playlist",
-    "headline": "Letakkan folder, langsung putar",
-    "subhead": "Artwork, tag, dan BPM dibaca di latar belakang dan di-cache agar cepat."
+    "headline": "Letakkan folder atau playlist"
   },
   {
     "id": "themes",
-    "headline": "Tema",
-    "subhead": "Sesuaikan tampilan dengan editor tema yang lengkap."
+    "headline": "Tema"
   },
   {
     "id": "pitch",
-    "headline": "DJ akan merasa seperti di rumah",
-    "subhead": "Fader pitch gaya turntable, lompatan akurat per bar, dan FX performa."
+    "headline": "DJ akan merasa seperti di rumah"
   }
 ]

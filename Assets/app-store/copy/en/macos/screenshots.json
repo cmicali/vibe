@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "A fast, minimal player for your music files",
-    "subhead": "MP3, FLAC, AIFF, WAV, and more. Click the waveform to seek."
+    "headline": "A fast, minimal player for your music files"
   },
   {
     "id": "playlist",
-    "headline": "Drop a folder, start playing",
-    "subhead": "Artwork, tags, and BPM read in the background, cached for speed."
+    "headline": "Drop a folder or playlist"
   },
   {
     "id": "themes",
-    "headline": "Themes",
-    "subhead": "Customize the look with a comprehensive theme editor."
+    "headline": "Themes"
   },
   {
     "id": "pitch",
-    "headline": "DJs will feel at home",
-    "subhead": "Turntable-style pitch fader, bar-accurate skips, and performance FX."
+    "headline": "DJs will feel at home"
   }
 ]

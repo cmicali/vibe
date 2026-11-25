@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Müzik dosyalarınız için hızlı ve sade bir çalar",
-    "subhead": "MP3, FLAC, AIFF, WAV ve daha fazlası. Dalga biçimine tıklayıp atlayın."
+    "headline": "Müzik dosyalarınız için hızlı ve sade bir çalar"
   },
   {
     "id": "playlist",
-    "headline": "Klasörü bırakın, çalmaya başlasın",
-    "subhead": "Kapak, etiketler ve BPM arka planda okunur, hız için önbelleğe alınır."
+    "headline": "Klasör veya çalma listesi bırakın"
   },
   {
     "id": "themes",
-    "headline": "Temalar",
-    "subhead": "Kapsamlı bir tema düzenleyiciyle görünümü özelleştirin."
+    "headline": "Temalar"
   },
   {
     "id": "pitch",
-    "headline": "DJ'ler kendini evinde hissedecek",
-    "subhead": "Pikap tarzı pitch fader, ölçü hassasiyetinde atlamalar ve performans FX’leri."
+    "headline": "DJ'ler kendini evinde hissedecek"
   }
 ]

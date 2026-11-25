@@ -1,23 +1,26 @@
-// Composite a window-only Vibe capture onto a designed App Store background.
+// Composite a Vibe capture into an App Store frame.
 //
 // Compiled once by its callers (`swift file.swift` recompiles every run):
 //     swiftc -O -o compose scripts/appstore/compose-app-store-overlay.swift
 //
 //     compose <shot.png> <out.png> [--headline …] [--subhead …] [--lang …]
-//         [--canvas WxH] [--width frac] [--glyphs a,b] [--wash-color RRGGBB]
-//         [--headline-scale x] [--subhead-scale x] [--block-y frac] [--center-text]
+//         [--canvas WxH] [--width frac] [--ground RRGGBB]
+//         [--headline-scale x] [--subhead-scale x] [--block-y frac]
 //     compose --measure --headline … [--subhead …] [--lang …] [--canvas WxH]
-//         [--headline-scale x]         # exit 1 if the caption cannot fit
+//                                      # exit 1 if the caption cannot fit
 //     compose --header <out.png> --canvas WxH
 //     compose --row <art.png> <out.png> <left> <middle> <right> --canvas WxH
 //
 // A mock-up, unlike appstore-capture-app-screenshots.sh: it lays an
-// already-captured window (the alpha-channel PNGs in Assets/readme/) over a generated
-// background. Honest only because those captures are effectively opaque, so
-// the background is decoration around the window, never through it.
+// already-captured window (the alpha-channel PNGs in Assets/readme/) over a
+// ground. Honest only because those captures are effectively opaque, so the
+// ground is around the window, never through it.
 //
-// The background is the app icon's vinyl-groove texture lit by a blurred wash
-// of the track's artwork (cropped from the shot), then vignetted.
+// The frame is a flat field of the capture's own colour, the caption set
+// flush left on the window's left edge, and the window as wide as the margin
+// allows. The canvas's shape picks the layout (Frame): landscape holds a mac
+// window, portrait a full-screen device capture. The creative assets keep the
+// app icon's vinyl-groove background (buildBackground).
 //
 // Image math follows PIL's semantics where they differ from Core Image's
 // defaults (enhance factors, content-mean contrast, gamma-space blurs); the
@@ -37,38 +40,43 @@ let ROOT = URL(fileURLWithPath: #filePath)
 let CANVAS_W = 2880
 let CANVAS_H = 1800
 
-// How much of the canvas the window may take; width usually binds. The README
-// captures are 1360-1550px wide, so this upscales ~1.5-1.8x, which the 2x
-// source takes without visible softening.
-let WINDOW_W_FRAC = 0.84
-let WINDOW_H_FRAC = 0.72
+// A landscape canvas holds a mac window capture, this wide. The margin left
+// over is the frame's one measure: the text starts on it and the window sits on
+// it. The README captures are 1450-1650px wide, so this upscales ~1.6-1.8x,
+// which the 2x source takes without visible softening.
+let WINDOW_W_FRAC = 0.90  // --width overrides
+// Above a tall window, the text starts this many margins from the top.
+let LANDSCAPE_TOP_MARGINS = 2.0
 
-// Vertical placement of the headline + window block within the free space.
-let BLOCK_Y_FRAC = 0.5  // --block-y overrides
+// A portrait canvas holds a full-screen device capture. The screen is pinned
+// this far from the bottom, and the text starts this far from the top. Both
+// are fractions of the canvas height.
+let PORTRAIT_EDGE_FRAC = 0.045
+let PORTRAIT_GAP_FRAC = 0.024
 
-// --center-text pins the window this far from the bottom and centres the text
-// above it. Centring the whole stack lets the window jump between shots whose
-// headlines wrap differently.
-let WINDOW_BOTTOM_FRAC = 0.063
+// Headline and subhead sizes, as multiples of LINES' nominal sizes. A phone
+// shot is drawn small in the store, so its one line runs larger.
+let LANDSCAPE_SCALES = (1.55, 1.2)
+// A window this short, as a fraction of the canvas height, leaves the frame
+// half empty. Its headline starts this much larger and fills it.
+let SHORT_WINDOW_FRAC = 0.45
+let DISPLAY_HEADLINE = 1.5
+let PORTRAIT_SCALES = (1.6, 1.0)
+
+// The screen's own corner, as a fraction of its width: 55pt of 430 on the
+// iPhone, 18pt of 1024 on the iPad.
+let PHONE_CORNER_FRAC = 0.128
+let PAD_CORNER_FRAC = 0.0176
 
 let GROOVE = "\(ROOT)/Assets/record background.png"
 
 // Tracking is a fraction of the point size. Negative tracking is a Latin
 // display convention, so CJK stays at 0.
-let HEADLINE_TRACKING = -0.014
+let HEADLINE_TRACKING = -0.028
 let SUBHEAD_TRACKING = 0.0
 let CJK_LANGS: Set<String> = ["ja", "ko", "zh-Hans", "zh-Hant"]
-
-// SF Symbols row above the headline (--glyphs), sized as fractions of the
-// canvas width and larger than the headline so it reads as artwork. Drawn
-// through NSImage(systemSymbolName:), as the app's FX menu draws them.
-let GLYPH_H_FRAC = 0.050
-let GLYPH_GAP_FRAC = 0.030
-let GLYPH_BLOCK_GAP_FRAC = 0.026
-let GLYPH_ALPHA = 235.0 / 255.0
-let GLYPH_WEIGHT = NSFont.Weight.regular
-// Rasterizer resolution only; keep it above the drawn height.
-let GLYPH_RENDER_PT = 220.0
+// Written without spaces, so a line may break at any character.
+let CHAR_BREAK_LANGS: Set<String> = ["ja", "zh-Hans", "zh-Hant"]
 
 func die(_ message: String) -> Never {
     FileHandle.standardError.write((message + "\n").data(using: .utf8)!)
@@ -156,9 +164,7 @@ func blurred(_ buffer: Buffer, sigma: Double) -> Buffer {
 // --- the window -------------------------------------------------------------
 
 // Crop a capture down to the window body, dropping the baked-in shadow.
-// Returns the cropped buffer and the side of its square album-art tile (which
-// is the header height, since the artwork fills the header).
-func loadWindow(_ path: String) -> (Buffer, Int) {
+func loadWindow(_ path: String) -> Buffer {
     let cg = loadCGImage(path)
     let full = Buffer(cgImage: cg, w: cg.width, h: cg.height)
 
@@ -201,31 +207,7 @@ func loadWindow(_ path: String) -> (Buffer, Int) {
         win.data[i] = min(win.data[i], mask.data[i])
     }
 
-    return (win, headerHeight(win))
-}
-
-// Height of the player header, i.e. the side of the square artwork tile.
-// Found by walking down the left edge: inside the artwork the pixels are
-// photographic and vary row to row; the playlist below starts a long run of
-// near-identical dark rows. The playlist's first row is the biggest edge in
-// the upper half.
-func headerHeight(_ win: Buffer) -> Int {
-    if win.h <= win.w / 3 { return win.h }  // no playlist — the header is the whole window
-    let cols = min(12, win.w)
-    var rowMean = [[Double]](repeating: [0, 0, 0], count: win.h)
-    for y in 0..<win.h {
-        for x in 0..<cols {
-            for c in 0..<3 { rowMean[y][c] += Double(win[x, y, c]) }
-        }
-        for c in 0..<3 { rowMean[y][c] /= Double(cols) }
-    }
-    let lo = Int(Double(win.h) * 0.2), hi = Int(Double(win.h) * 0.75)
-    var best = lo, bestDelta = -1.0
-    for y in lo..<min(hi, win.h - 1) {
-        let d = (0..<3).reduce(0.0) { $0 + abs(rowMean[y + 1][$1] - rowMean[y][$1]) }
-        if d > bestDelta { bestDelta = d; best = y }
-    }
-    return best
+    return win
 }
 
 func resized(_ buffer: Buffer, w: Int, h: Int) -> Buffer {
@@ -241,7 +223,82 @@ func crop(_ buffer: Buffer, x: Int, y: Int, w: Int, h: Int) -> Buffer {
     return out
 }
 
-// --- the background ---------------------------------------------------------
+// --- the ground -------------------------------------------------------------
+
+// A frame's ground is one flat colour, and it is the capture's own. Each pixel
+// votes for its hue with its chroma, so the artwork and the waveform outvote
+// the window's greys. The winning hue's pixels are averaged. The tone is then
+// held in one band, so a set of frames reads as one family whatever the art.
+let GROUND_LIGHTNESS = 0.26...0.40
+let GROUND_MAX_SATURATION = 0.62
+// A capture with no colour to speak of gets this neutral instead.
+let GROUND_NEUTRAL: RGB = (0.105, 0.105, 0.115)
+
+typealias RGB = (r: Double, g: Double, b: Double)
+
+func hueOf(_ c: RGB) -> Double {  // 0..<6
+    let mx = max(c.r, c.g, c.b), d = mx - min(c.r, c.g, c.b)
+    if d == 0 { return 0 }
+    let h = mx == c.r ? (c.g - c.b) / d : mx == c.g ? 2 + (c.b - c.r) / d : 4 + (c.r - c.g) / d
+    return h < 0 ? h + 6 : h
+}
+
+func hslToRGB(_ h: Double, _ s: Double, _ l: Double) -> RGB {
+    let c = (1 - abs(2 * l - 1)) * s, x = c * (1 - abs(h.truncatingRemainder(dividingBy: 2) - 1)), m = l - c / 2
+    let (r, g, b) = [(c, x, 0.0), (x, c, 0.0), (0.0, c, x), (0.0, x, c), (x, 0.0, c), (c, 0.0, x)][min(5, Int(h))]
+    return (r + m, g + m, b + m)
+}
+
+func parseHex(_ hex: String) -> RGB {
+    guard hex.count == 6, let v = UInt32(hex, radix: 16) else { die("--ground takes six hex digits, got '\(hex)'") }
+    return (Double(v >> 16 & 0xFF) / 255, Double(v >> 8 & 0xFF) / 255, Double(v & 0xFF) / 255)
+}
+
+func groundColor(_ win: Buffer) -> RGB {
+    let bins = 24
+    var votes = [Double](repeating: 0, count: bins)
+    var sums = [RGB](repeating: (0, 0, 0), count: bins)
+    for i in stride(from: 0, to: win.data.count, by: 4) where win.data[i + 3] == 255 {
+        let c: RGB = (Double(win.data[i]) / 255, Double(win.data[i + 1]) / 255, Double(win.data[i + 2]) / 255)
+        let chroma = max(c.r, c.g, c.b) - min(c.r, c.g, c.b)
+        if chroma < 0.12 { continue }
+        let bin = Int(hueOf(c) / 6 * Double(bins)) % bins
+        votes[bin] += chroma
+        sums[bin] = (sums[bin].r + c.r * chroma, sums[bin].g + c.g * chroma, sums[bin].b + c.b * chroma)
+    }
+    let best = votes.indices.max { votes[$0] < votes[$1] }!
+    // Under 1% of the window at full chroma is an accent, not the capture's colour.
+    if votes[best] < Double(win.w * win.h) * 0.01 { return GROUND_NEUTRAL }
+    let c: RGB = (sums[best].r / votes[best], sums[best].g / votes[best], sums[best].b / votes[best])
+    let mx = max(c.r, c.g, c.b), mn = min(c.r, c.g, c.b)
+    let l = (mx + mn) / 2
+    let sat = mx == mn ? 0 : (mx - mn) / (1 - abs(2 * l - 1))
+    return hslToRGB(
+        hueOf(c), min(sat, GROUND_MAX_SATURATION),
+        min(max(l, GROUND_LIGHTNESS.lowerBound), GROUND_LIGHTNESS.upperBound))
+}
+
+func luminance(_ c: RGB) -> Double { 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b }
+
+// A capture with the screen's own rounded corner and a hairline, without which
+// a black screen dissolves into a dark ground.
+func deviceScreen(_ cg: CGImage, w: Double, h: Double, hairline: Double) -> Buffer {
+    let radius = w * (h / w > 1.7 ? PHONE_CORNER_FRAC : PAD_CORNER_FRAC)
+    let rect = CGRect(x: 0, y: 0, width: w.rounded(), height: h.rounded())
+    return drawn(w: Int(rect.width), h: Int(rect.height)) { ctx in
+        let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
+        ctx.interpolationQuality = .high
+        ctx.addPath(path)
+        ctx.clip()
+        ctx.draw(cg, in: rect)
+        ctx.addPath(path)
+        ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.14))
+        ctx.setLineWidth(hairline)
+        ctx.strokePath()
+    }
+}
+
+// --- the creative assets' background ----------------------------------------
 
 func aspectFill(_ buffer: Buffer, w: Int, h: Int) -> Buffer {
     let scale = max(Double(w) / Double(buffer.w), Double(h) / Double(buffer.h))
@@ -313,15 +370,14 @@ func vignette(w: Int, h: Int, strength: Double = 0.7) -> [Double] {
     return mask
 }
 
-// A flat field of one colour, for --wash-color. It skips enhanceColor, which
-// exists to rescue washed-out ALBUM ART: a colour named on the command line is
-// already the hue that was wanted, and pushing it 2.1x past its own luma only
-// drives a channel to 0 or 255. Brightness still drops, because this sits
-// behind the headline. The groove texture and the vignette are what keep it
-// from reading as a flat rectangle, so this stays uniform on purpose.
+// A flat field of one named colour. It skips enhanceColor, which exists to
+// rescue washed-out ALBUM ART: a named colour is already the hue that was
+// wanted, and pushing it 2.1x past its own luma only drives a channel to 0 or
+// 255. The groove texture and the vignette are what keep it from reading as a
+// flat rectangle, so this stays uniform on purpose.
 func solidWash(_ hex: String, w: Int, h: Int) -> Buffer {
     var v = UInt32(hex, radix: 16) ?? 0
-    if hex.count != 6 { die("--wash-color takes six hex digits, got '\(hex)'") }
+    if hex.count != 6 { die("a wash colour takes six hex digits, got '\(hex)'") }
     let b = UInt8(v & 0xFF); v >>= 8
     let g = UInt8(v & 0xFF); v >>= 8
     let r = UInt8(v & 0xFF)
@@ -362,14 +418,57 @@ func buildBackground(art: Buffer, washColor: String?, w: Int, h: Int) -> Buffer 
 // MEAN, sqrt(w*h), not its width: 1290x2796 has nearly 2880x1800's area but
 // 45% of its width, and width-based type read as a caption there.
 let LINES: [(String, Double, Double, Double)] = [
-    ("headline", 0.041742, 1.30, 255), ("subhead", 0.022768, 1.40, 195),
+    ("headline", 0.041742, 1.08, 255), ("subhead", 0.022768, 1.36, 190),
 ]
-// Widest a line may run, as a fraction of the canvas width. Text past it wraps
-// to two lines, then shrinks; below MIN_SHRINK of nominal it is too long to read
-// at store size, so it fails and the translation must be shortened.
-let MAX_TEXT_W_FRAC = 0.92
+// Space between the headline and the subhead, in headline sizes.
+let SUBHEAD_GAP = 0.2
+// Text wider than the frame's measure wraps to two lines, then shrinks; below
+// MIN_SHRINK of nominal it is too long to read at store size, so it fails and
+// the translation must be shortened.
 let MIN_SHRINK = 0.72
 let SHRINK_STEP = 0.96
+
+// Where the text and the window go. compose and --measure both read it, so the
+// fit check measures the frame that is drawn. The text and the window share
+// one left edge and one width.
+struct Frame {
+    let portrait: Bool
+    let left: Double
+    let width: Double
+    let headlineScale: Double
+    let subheadScale: Double
+    // Portrait only: the box the device screen fills, pinned whatever the text.
+    let screenTop: Double
+    let screenH: Double
+
+    init(w: Int, h: Int, widthFrac: Double?, headlineScale: Double?, subheadScale: Double?) {
+        portrait = h > w
+        let defaults = portrait ? PORTRAIT_SCALES : LANDSCAPE_SCALES
+        self.headlineScale = headlineScale ?? defaults.0
+        self.subheadScale = subheadScale ?? defaults.1
+        if portrait {
+            // Room for a two-line headline is kept above the screen on every
+            // shot, or the device jumps between a one-line shot and the next.
+            let edge = Double(h) * PORTRAIT_EDGE_FRAC
+            let line = nominalSize("headline", w, h, self.headlineScale) * LINES[0].2
+            screenH = Double(h) - 2 * edge - 2 * line - Double(h) * PORTRAIT_GAP_FRAC
+            screenTop = Double(h) - edge - screenH
+            // A device capture has its canvas's shape.
+            width = screenH * Double(w) / Double(h)
+        } else {
+            width = Double(w) * (widthFrac ?? WINDOW_W_FRAC)
+            screenTop = 0
+            screenH = 0
+        }
+        left = (Double(w) - width) / 2
+    }
+}
+
+// Sizes scale with the canvas's area.
+func nominalSize(_ kind: String, _ w: Int, _ h: Int, _ scale: Double) -> Double {
+    let frac = LINES.first { $0.0 == kind }!.1
+    return Double(Int((Double(w) * Double(h)).squareRoot() * frac * scale))
+}
 
 struct Line {
     let text: String
@@ -377,14 +476,15 @@ struct Line {
     let tracking: Double
     let leading: Double
     let alpha: Double
+    let gapAbove: Double
 }
 
 func makeFont(_ kind: String, _ size: Double) -> NSFont {
-    NSFont.systemFont(ofSize: size, weight: kind == "headline" ? .semibold : .regular)
+    NSFont.systemFont(ofSize: size, weight: kind == "headline" ? .bold : .regular)
 }
 
 // The attributed run applies the tracking between glyphs, not after the last,
-// so a centred line has no trailing slack.
+// so a line carries no trailing slack.
 func attributed(_ text: String, _ font: NSFont, _ tracking: Double, _ color: CGColor) -> NSAttributedString {
     let s = NSMutableAttributedString(string: text, attributes: [
         .font: font, .foregroundColor: NSColor(cgColor: color)!,
@@ -401,23 +501,23 @@ func lineWidth(_ text: String, _ font: NSFont, _ tracking: Double) -> Double {
     return CTLineGetTypographicBounds(line, nil, nil, nil)
 }
 
-// Greedy wrap into at most two lines; nil if two don't fit. ja/zh have no
-// spaces, so they may break at any character (kinsoku deliberately not
+// Wrap into at most two lines; nil if two don't fit. Of the breaks that fit,
+// the one with the shorter long line wins, so no last word is left alone. ja/zh
+// have no spaces, so they may break at any character (kinsoku deliberately not
 // implemented — two marketing lines don't warrant it).
 func wrapTwo(_ text: String, _ font: NSFont, _ tracking: Double, _ maxW: Double, _ lang: String) -> [String]? {
     if lineWidth(text, font, tracking) <= maxW { return [text] }
-    let charBreak = ["ja", "zh-Hans", "zh-Hant"].contains(lang)
+    let charBreak = CHAR_BREAK_LANGS.contains(lang)
     let units = charBreak ? text.map(String.init) : text.components(separatedBy: " ")
     let joiner = charBreak ? "" : " "
-    for cut in stride(from: units.count - 1, to: 0, by: -1) {
+    var best: [String]?, bestW = maxW
+    for cut in 1..<max(units.count, 1) {
         let first = units[..<cut].joined(separator: joiner).trimmingTrailingSpaces()
-        if lineWidth(first, font, tracking) <= maxW {
-            let second = units[cut...].joined(separator: joiner).trimmingLeadingSpaces()
-            if lineWidth(second, font, tracking) <= maxW { return [first, second] }
-            break
-        }
+        let second = units[cut...].joined(separator: joiner).trimmingLeadingSpaces()
+        let longer = max(lineWidth(first, font, tracking), lineWidth(second, font, tracking))
+        if longer <= bestW { best = [first, second]; bestW = longer }
     }
-    return nil
+    return best
 }
 
 extension String {
@@ -430,128 +530,83 @@ extension String {
 }
 
 // renderTextLayer and textHeight both consume this, so the drawn stack and the
-// centring cannot disagree. Dies (exit 1) when a string cannot fit: the
-// --measure contract. Each scale multiplies only its own line (iOS captions
-// are headline-only).
-func layoutText(_ headline: String, _ subhead: String, _ w: Int, _ h: Int, _ lang: String,
-                _ headlineScale: Double = 1.0, _ subheadScale: Double = 1.0) -> [Line] {
-    let maxW = Double(w) * MAX_TEXT_W_FRAC
-    // Sizes scale with area; the line cap stays a fraction of WIDTH.
-    let typeBase = (Double(w) * Double(h)).squareRoot()
+// placement cannot disagree. Dies (exit 1) when a string cannot fit: the
+// --measure contract. An empty line is dropped (iOS captions are
+// headline-only).
+//
+// display starts the headline larger. It still shrinks to the same floor, so
+// --measure, which never passes it, answers for both.
+func layoutText(
+    _ headline: String, _ subhead: String, _ frame: Frame, _ w: Int, _ h: Int, _ lang: String,
+    display: Double = 1.0
+) -> [Line] {
     let headlineTracking = CJK_LANGS.contains(lang) ? 0.0 : HEADLINE_TRACKING
     var out: [Line] = []
-    for ((kind, sizeFrac, leading, alpha), (content, trackingFrac)) in zip(
-        LINES, [(headline, headlineTracking), (subhead, SUBHEAD_TRACKING)])
+    for ((kind, _, leading, alpha), (content, trackingFrac, scale)) in zip(
+        LINES, [(headline, headlineTracking, frame.headlineScale), (subhead, SUBHEAD_TRACKING, frame.subheadScale)])
     {
         if content.isEmpty { continue }
-        let roleScale = kind == "headline" ? headlineScale : subheadScale
-        let nominal = Double(Int(typeBase * sizeFrac * roleScale))
-        var size = nominal
+        let nominal = nominalSize(kind, w, h, scale)
+        let floor = nominal * MIN_SHRINK
+        var size = kind == "headline" ? (nominal * display).rounded(.down) : nominal
         var lines: [String]?
+        // A break at any character can split a word, so those languages
+        // shrink to keep one line, and wrap only when no size allows it.
+        if CHAR_BREAK_LANGS.contains(lang) {
+            var one = size
+            while one >= floor && lineWidth(content, makeFont(kind, one), trackingFrac * one) > frame.width {
+                one = (one * SHRINK_STEP).rounded(.down)
+            }
+            if one >= floor { size = one } else { size = min(size, nominal) }
+        }
         while true {
-            let font = makeFont(kind, size)
-            let tracking = trackingFrac * size
-            lines = wrapTwo(content, font, tracking, maxW, lang)
+            lines = wrapTwo(content, makeFont(kind, size), trackingFrac * size, frame.width, lang)
             if lines != nil { break }
             size = (size * SHRINK_STEP).rounded(.down)
-            if size < nominal * MIN_SHRINK {
+            if size < floor {
                 die("\(lang): \(kind) too long even at \(Int(MIN_SHRINK * 100))% size: '\(content)'")
             }
         }
         let font = makeFont(kind, size)
-        let tracking = trackingFrac * size
-        for line in lines! {
-            out.append(Line(text: line, font: font, tracking: tracking, leading: size * leading, alpha: alpha))
+        for (i, line) in lines!.enumerated() {
+            out.append(Line(
+                text: line, font: font, tracking: trackingFrac * size, leading: size * leading, alpha: alpha,
+                gapAbove: i == 0 ? (out.last.map { Double($0.font.pointSize) * SUBHEAD_GAP } ?? 0) : 0))
         }
     }
     return out
 }
 
 func textHeight(_ layout: [Line]) -> Double {
-    layout.reduce(0) { $0 + $1.leading }
+    layout.reduce(0) { $0 + $1.gapAbove + $1.leading }
 }
 
-// Render the layout, centred, into a transparent canvas-size buffer with the
-// given color role. Line y is the ascender top, as the block math expects.
-func renderTextLayer(_ layout: [Line], top: Double, w: Int, h: Int, halo: Bool) -> Buffer {
-    var layer = Buffer(w: w, h: h)
-    layer.data.withUnsafeMutableBytes { raw in
-        let ctx = CGContext(
-            data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8,
-            bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+// Render the layout from its left edge into a transparent canvas-size buffer.
+// Line y is the ascender top, as the block math expects.
+func renderTextLayer(_ layout: [Line], top: Double, left: Double, ink: Double, w: Int, h: Int) -> Buffer {
+    drawn(w: w, h: h) { ctx in
         var y = top
         for line in layout {
-            let color = halo
-                ? CGColor(red: 0, green: 0, blue: 0, alpha: 150.0 / 255.0)
-                : CGColor(red: 1, green: 1, blue: 1, alpha: line.alpha / 255.0)
-            let ct = CTLineCreateWithAttributedString(
-                attributed(line.text, line.font, line.tracking, color))
-            let width = CTLineGetTypographicBounds(ct, nil, nil, nil)
+            y += line.gapAbove
+            let color = CGColor(red: ink, green: ink, blue: ink, alpha: line.alpha / 255.0)
+            let ct = CTLineCreateWithAttributedString(attributed(line.text, line.font, line.tracking, color))
             let baseline = y + Double(line.font.ascender)
-            ctx.textPosition = CGPoint(x: (Double(w) - width) / 2, y: Double(h) - baseline)
+            ctx.textPosition = CGPoint(x: left, y: Double(h) - baseline)
             CTLineDraw(ct, ctx)
             y += line.leading
         }
     }
-    return layer
-}
-
-// --- SF Symbol row ----------------------------------------------------------
-
-// White-tinted rasterizations at their natural (optically sized) bounds.
-func renderGlyphs(_ names: [String]) -> [Buffer] {
-    names.map { name in
-        guard let base = NSImage(systemSymbolName: name, accessibilityDescription: nil),
-            let image = base.withSymbolConfiguration(
-                NSImage.SymbolConfiguration(pointSize: GLYPH_RENDER_PT, weight: GLYPH_WEIGHT))
-        else { die("no such SF Symbol: \(name)") }
-        let w = Int(ceil(image.size.width)), h = Int(ceil(image.size.height))
-        var buffer = Buffer(w: w, h: h)
-        buffer.data.withUnsafeMutableBytes { raw in
-            let ctx = CGContext(
-                data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8,
-                bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
-            NSGraphicsContext.saveGraphicsState()
-            NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: false)
-            let rect = NSRect(x: 0, y: 0, width: w, height: h)
-            image.draw(in: rect)
-            // Symbols are template images and draw black; tint the drawn
-            // pixels white without touching the transparent surround.
-            NSColor.white.set()
-            rect.fill(using: .sourceAtop)
-            NSGraphicsContext.restoreGraphicsState()
-        }
-        return buffer
-    }
-}
-
-// Scale the row uniformly. Uniform scaling matters: the symbols were
-// rasterized at one point size, so their differing natural heights are SF
-// Symbols' own optical sizing, and normalizing each to the same height would
-// distort the set relative to how the app draws them.
-func layoutGlyphs(_ images: [Buffer], _ w: Int) -> (scaled: [Buffer], total: Double, rowH: Int) {
-    let target = Double(w) * GLYPH_H_FRAC
-    let scale = target / Double(images.map(\.h).max()!)
-    let scaled = images.map {
-        resized($0, w: max(1, Int((Double($0.w) * scale).rounded())), h: max(1, Int((Double($0.h) * scale).rounded())))
-    }
-    let gap = Double(w) * GLYPH_GAP_FRAC
-    let total = scaled.reduce(0.0) { $0 + Double($1.w) } + gap * Double(scaled.count - 1)
-    return (scaled, total, scaled.map(\.h).max()!)
 }
 
 // --- compositing ------------------------------------------------------------
 
-func composite(_ canvas: inout Buffer, _ layer: Buffer, x: Int, y: Int, alpha: Double = 1.0) {
+func composite(_ canvas: inout Buffer, _ layer: Buffer, x: Int, y: Int) {
     canvas.data.withUnsafeMutableBytes { raw in
         let ctx = CGContext(
             data: raw.baseAddress, width: canvas.w, height: canvas.h, bitsPerComponent: 8,
             bytesPerRow: canvas.w * 4, space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
         ctx.interpolationQuality = .high
-        ctx.setAlpha(alpha)
         ctx.draw(
             layer.cgImage,
             in: CGRect(x: x, y: canvas.h - y - layer.h, width: layer.w, height: layer.h))
@@ -565,9 +620,12 @@ func composite(_ canvas: inout Buffer, _ layer: Buffer, x: Int, y: Int, alpha: D
 // clips at its image bounds, so the small-canvas version cannot fall off past
 // the window rect — it ends on a hard rectangular edge, which the offset then
 // slides out from behind the rounded corners as a visible dark box.
-func dropShadows(canvasW: Int, canvasH: Int, window: Buffer, x: Int, y: Int, scale: Double) -> [Buffer] {
+func dropShadows(
+    canvasW: Int, canvasH: Int, window: Buffer, x: Int, y: Int, scale: Double,
+    spec: [(Double, Double, Double)] = [(70.0, 8.0, 0.42), (26.0, 26.0, 0.55)]
+) -> [Buffer] {
     var layers: [Buffer] = []
-    for (blur, dy, opacity) in [(70.0, 8.0, 0.42), (26.0, 26.0, 0.55)] {
+    for (blur, dy, opacity) in spec {
         var mask = Buffer(w: canvasW, h: canvasH)
         let oy = y + Int(dy * scale)
         for wy in 0..<window.h {
@@ -593,72 +651,72 @@ func dropShadows(canvasW: Int, canvasH: Int, window: Buffer, x: Int, y: Int, sca
 // --- run --------------------------------------------------------------------
 
 func compose(
-    shot: String, out: String, headline: String, subhead: String,
-    canvasW: Int, canvasH: Int, widthFrac: Double, glyphs: [String], lang: String,
-    washColor: String?, headlineScale: Double, subheadScale: Double, centerText: Bool, blockY: Double
+    shot: String, out: String, headline: String, subhead: String, canvasW: Int, canvasH: Int,
+    frame: Frame, lang: String, ground: String?, blockY: Double?
 ) {
-    let (rawWin, header) = loadWindow(shot)
-    let art = crop(rawWin, x: 0, y: 0, w: header, h: header)
+    let rawWin = loadWindow(shot)
+    let unit = (Double(canvasW) * Double(canvasH)).squareRoot()
 
-    let scale = min(
-        Double(canvasW) * widthFrac / Double(rawWin.w),
-        Double(canvasH) * WINDOW_H_FRAC / Double(rawWin.h))
-    let win = resized(rawWin, w: Int(Double(rawWin.w) * scale), h: Int(Double(rawWin.h) * scale))
-
-    var canvas = buildBackground(art: art, washColor: washColor, w: canvasW, h: canvasH)
-
-    var glyphImages: [Buffer] = []
-    var glyphH = 0.0, glyphGap = 0.0
-    if !glyphs.isEmpty {
-        glyphImages = renderGlyphs(glyphs)
-        glyphH = Double(layoutGlyphs(glyphImages, canvasW).rowH)
-        glyphGap = Double(canvasW) * GLYPH_BLOCK_GAP_FRAC
+    let groundRGB = ground.map(parseHex) ?? groundColor(rawWin)
+    var canvas = Buffer(w: canvasW, h: canvasH)
+    for i in stride(from: 0, to: canvas.data.count, by: 4) {
+        canvas.data[i] = clamp8(groundRGB.r * 255)
+        canvas.data[i + 1] = clamp8(groundRGB.g * 255)
+        canvas.data[i + 2] = clamp8(groundRGB.b * 255)
+        canvas.data[i + 3] = 255
     }
 
-    let layout = layoutText(headline, subhead, canvasW, canvasH, lang, headlineScale, subheadScale)
+    let short = !frame.portrait
+        && Double(rawWin.h) * frame.width / Double(rawWin.w) < Double(canvasH) * SHORT_WINDOW_FRAC
+    let layout = layoutText(
+        headline, subhead, frame, canvasW, canvasH, lang, display: short ? DISPLAY_HEADLINE : 1.0)
     let blockH = textHeight(layout)
-    let gap = blockH > 0 ? Double(canvasW) * 0.032 : 0
-    let stack = glyphH + glyphGap + blockH + gap + Double(win.h)
-    var top = (Double(canvasH) - stack) * blockY
-    var windowTop = top + glyphH + glyphGap + blockH + gap
-    if centerText {
-        windowTop = Double(canvasH) - Double(win.h) - Double(canvasH) * WINDOW_BOTTOM_FRAC
-        top = (windowTop - (glyphH + glyphGap + blockH)) / 2
-    }
+    let gap = blockH > 0 ? unit * 0.034 : 0
 
-    if !glyphImages.isEmpty {
-        let (scaled, total, rowH) = layoutGlyphs(glyphImages, canvasW)
-        var gx = (Double(canvasW) - total) / 2
-        for image in scaled {
-            // Centre each symbol on the row's midline rather than its top, so
-            // the shorter ones (water.waves) sit level with the taller ones.
-            let gy = top + (Double(rowH) - Double(image.h)) / 2
-            composite(&canvas, image, x: Int(gx.rounded()), y: Int(gy.rounded()), alpha: GLYPH_ALPHA)
-            gx += Double(image.w) + Double(canvasW) * GLYPH_GAP_FRAC
+    let win: Buffer
+    var textTop: Double, windowTop: Double
+    if frame.portrait {
+        let scale = min(frame.width / Double(rawWin.w), frame.screenH / Double(rawWin.h))
+        win = deviceScreen(
+            rawWin.cgImage, w: Double(rawWin.w) * scale, h: Double(rawWin.h) * scale, hairline: unit * 0.0012)
+        windowTop = frame.screenTop
+        // The text sits on the screen, not at the top: a one-line headline
+        // then stays beside what it names.
+        textTop = windowTop - Double(canvasH) * PORTRAIT_GAP_FRAC - blockH
+    } else {
+        let scale = frame.width / Double(rawWin.w)
+        win = resized(rawWin, w: Int(frame.width), h: Int(Double(rawWin.h) * scale))
+        // The capitals' tops sit on the line, not the line box's.
+        let overshoot = layout.first.map { Double($0.font.ascender - $0.font.capHeight) } ?? 0
+        textTop = frame.left * LANDSCAPE_TOP_MARGINS - overshoot
+        windowTop = textTop + blockH + gap
+        // A tall window runs off the bottom edge, which is what lets it be
+        // this wide. A short one leaves room, and the stack is centred in it.
+        if short {
+            // Centred by what is seen: the capitals' tops to the window's
+            // bottom. --block-y places the line box instead.
+            textTop = blockY.map { (Double(canvasH) - blockH - gap - Double(win.h)) * $0 }
+                ?? (Double(canvasH) - blockH - gap - Double(win.h) - overshoot) / 2
+            windowTop = textTop + blockH + gap
         }
-        top += glyphH + glyphGap
     }
 
     if blockH > 0 {
-        // Centred headline block, over a soft dark halo so it stays legible
-        // wherever the artwork wash happens to be bright.
-        let halo = renderTextLayer(layout, top: top, w: canvasW, h: canvasH, halo: true)
-        composite(&canvas, blurred(halo, sigma: Double(canvasW) * 0.012), x: 0, y: 0)
-        let text = renderTextLayer(layout, top: top, w: canvasW, h: canvasH, halo: false)
-        composite(&canvas, text, x: 0, y: 0)
+        let ink = luminance(groundRGB) > 0.55 ? 0.06 : 1.0
+        composite(
+            &canvas, renderTextLayer(layout, top: textTop, left: frame.left, ink: ink, w: canvasW, h: canvasH),
+            x: 0, y: 0)
     }
 
-    let x = (canvasW - win.w) / 2
-    let y = Int(windowTop)
-    for shadow in dropShadows(canvasW: canvasW, canvasH: canvasH, window: win, x: x, y: y, scale: scale) {
-        composite(&canvas, shadow, x: 0, y: 0)
-    }
+    let x = Int(frame.left.rounded()), y = Int(windowTop.rounded())
+    let shadows = dropShadows(
+        canvasW: canvasW, canvasH: canvasH, window: win, x: x, y: y, scale: unit / 2277,
+        spec: [(64.0, 36.0, 0.34), (12.0, 6.0, 0.26)])
+    for shadow in shadows { composite(&canvas, shadow, x: 0, y: 0) }
     composite(&canvas, win, x: x, y: y)
 
-    // Flatten: ASC wants opaque screenshots.
-    for i in stride(from: 3, to: canvas.data.count, by: 4) { canvas.data[i] = 255 }
-    savePNG(canvas, to: out)
-    print("wrote \(out) (\(canvasW)x\(canvasH), window \(win.w)px wide, \(String(format: "%.2f", scale))x)")
+    flattenAndSave(&canvas, out)
+    print(String(format: "  ground #%02X%02X%02X", clamp8(groundRGB.r * 255), clamp8(groundRGB.g * 255), clamp8(groundRGB.b * 255)))
 }
 
 // --- creative assets --------------------------------------------------------
@@ -683,6 +741,7 @@ func drawn(w: Int, h: Int, _ body: (CGContext) -> Void) -> Buffer {
     return layer
 }
 
+// ASC wants opaque screenshots.
 func flattenAndSave(_ canvas: inout Buffer, _ out: String) {
     for i in stride(from: 3, to: canvas.data.count, by: 4) { canvas.data[i] = 255 }
     savePNG(canvas, to: out)
@@ -749,20 +808,7 @@ func composeRow(art: String, out: String, shots: [String], w: Int, h: Int) {
         let cg = loadCGImage(path)
         let ph = Double(h) * (i == 1 ? 0.80 : 0.736)
         let pw = Double(cg.width) * ph / Double(cg.height)
-        let radius = pw * 0.128  // the iPhone screen's own corner
-        let rect = CGRect(x: 0, y: 0, width: pw.rounded(), height: ph.rounded())
-        return drawn(w: Int(rect.width), h: Int(rect.height)) { ctx in
-            let path = CGPath(roundedRect: rect, cornerWidth: radius, cornerHeight: radius, transform: nil)
-            ctx.interpolationQuality = .high
-            ctx.addPath(path)
-            ctx.clip()
-            ctx.draw(cg, in: rect)
-            // A hairline, or the black playlist screen dissolves into the wash.
-            ctx.addPath(path)
-            ctx.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 0.14))
-            ctx.setLineWidth(Double(w) * 0.0012)
-            ctx.strokePath()
-        }
+        return deviceScreen(cg, w: pw, h: ph, hairline: Double(w) * 0.0012)
     }
     let gap = Int(Double(w) * 0.035)
     var x = (w - phones.reduce(0) { $0 + $1.w } - 2 * gap) / 2
@@ -783,14 +829,12 @@ func composeRow(art: String, out: String, shots: [String], w: Int, h: Int) {
 var positional: [String] = []
 var creative: String? = nil
 var headline = "", subhead = "", lang = "en"
-var washColor: String? = nil
-var headlineScale = 1.0
-var subheadScale = 1.0
-var blockY = BLOCK_Y_FRAC
-var centerText = false
-var widthFrac = WINDOW_W_FRAC
+var ground: String? = nil
+var headlineScale: Double? = nil
+var subheadScale: Double? = nil
+var blockY: Double? = nil
+var widthFrac: Double? = nil
 var canvasSpec = "\(CANVAS_W)x\(CANVAS_H)"
-var glyphSpec = ""
 var measure = false
 
 var args = Array(CommandLine.arguments.dropFirst())
@@ -804,14 +848,12 @@ while !args.isEmpty {
     case "--headline": headline = value()
     case "--subhead": subhead = value()
     case "--lang": lang = value()
-    case "--width": widthFrac = Double(value()) ?? WINDOW_W_FRAC
+    case "--width": widthFrac = Double(value())
     case "--canvas": canvasSpec = value()
-    case "--glyphs": glyphSpec = value()
-    case "--wash-color": washColor = value().trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-    case "--headline-scale": headlineScale = Double(value()) ?? 1.0
-    case "--subhead-scale": subheadScale = Double(value()) ?? 1.0
-    case "--block-y": blockY = Double(value()) ?? BLOCK_Y_FRAC
-    case "--center-text": centerText = true
+    case "--ground": ground = value().trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+    case "--headline-scale": headlineScale = Double(value())
+    case "--subhead-scale": subheadScale = Double(value())
+    case "--block-y": blockY = Double(value())
     case "--measure": measure = true
     case "--header": creative = "header"
     case "--row": creative = "row"
@@ -838,16 +880,16 @@ if let mode = creative {
 if positional.count > 2 { die("unexpected argument \(positional[2])") }
 let shot = positional.first, outPath = positional.dropFirst().first
 
+let frame = Frame(
+    w: canvasParts[0], h: canvasParts[1], widthFrac: widthFrac, headlineScale: headlineScale,
+    subheadScale: subheadScale)
 if measure {
-    _ = layoutText(headline, subhead, canvasParts[0], canvasParts[1], lang, headlineScale, subheadScale)
+    _ = layoutText(headline, subhead, frame, canvasParts[0], canvasParts[1], lang)
     exit(0)
 }
 guard let shotPath = shot, let output = outPath else {
     die("usage: compose-app-store-overlay <shot.png> <out.png> [--headline ...] (or --measure)")
 }
-let glyphNames = glyphSpec.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
 compose(
     shot: shotPath, out: output, headline: headline, subhead: subhead,
-    canvasW: canvasParts[0], canvasH: canvasParts[1], widthFrac: widthFrac,
-    glyphs: glyphNames, lang: lang, washColor: washColor, headlineScale: headlineScale, subheadScale: subheadScale,
-    centerText: centerText, blockY: blockY)
+    canvasW: canvasParts[0], canvasH: canvasParts[1], frame: frame, lang: lang, ground: ground, blockY: blockY)

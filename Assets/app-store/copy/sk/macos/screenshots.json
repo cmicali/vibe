@@ -1,22 +1,18 @@
 [
   {
     "id": "player",
-    "headline": "Rýchly, minimalistický prehrávač vašich hudobných súborov",
-    "subhead": "MP3, FLAC, AIFF, WAV a ďalšie. Kliknutím na vlnový priebeh sa presuniete."
+    "headline": "Rýchly, minimalistický prehrávač vašich hudobných súborov"
   },
   {
     "id": "playlist",
-    "headline": "Presuňte priečinok a hrajte",
-    "subhead": "Obaly, tagy a BPM sa načítajú na pozadí a ukladajú do cache."
+    "headline": "Presuňte priečinok alebo playlist"
   },
   {
     "id": "themes",
-    "headline": "Motívy",
-    "subhead": "Upravte vzhľad pomocou rozsiahleho editora motívov."
+    "headline": "Motívy"
   },
   {
     "id": "pitch",
-    "headline": "DJ-i sa budú cítiť ako doma",
-    "subhead": "Pitch fader ako na gramofóne, skoky po taktoch a FX."
+    "headline": "DJ-i sa budú cítiť ako doma"
   }
 ]
