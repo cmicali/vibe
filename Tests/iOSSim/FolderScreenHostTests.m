@@ -26,6 +26,10 @@
 // The folder each walk started from, and the folders it handed over.
 @property (nonatomic, readonly) NSMutableArray<NSURL *> *walkedFrom;
 @property (nonatomic, readonly) NSMutableArray<NSArray<NSURL *> *> *walked;
+// The folder each ended walk started from, and the last progress it told.
+@property (nonatomic, readonly) NSMutableArray<NSURL *> *walkEnded;
+@property (nonatomic) NSUInteger walkListed;
+@property (nonatomic) NSUInteger walkSongs;
 @property (nonatomic) BOOL showsCloseButton;
 @property (nonatomic) BOOL showsSortMenu;
 @property (nonatomic) VibeFolderOpenSort folderSort;
@@ -49,6 +53,7 @@
         _imported = [NSMutableArray array];
         _walkedFrom = [NSMutableArray array];
         _walked = [NSMutableArray array];
+        _walkEnded = [NSMutableArray array];
         __weak FakeBrowserHost *weakSelf = self;
         _selectionAction = [VibeBrowserAction actionWithTitle:@"Import"
                                                        symbol:@"square.and.arrow.down"
@@ -99,6 +104,18 @@
 
 - (NSArray<VibeBrowserAction *> *)menuActionsForURL:(NSURL *)url isFolder:(BOOL)isFolder {
     return @[_selectionAction];
+}
+
+- (void)subfolderWalkFromFolder:(NSURL *)folder didListFolders:(NSUInteger)folders songs:(NSUInteger)songs {
+    _walkListed = folders;
+    _walkSongs = songs;
+}
+
+- (void)subfolderWalkDidEndFromFolder:(NSURL *)folder {
+    // The end comes before the folders.
+    if (_walked.count == _walkEnded.count) {
+        [_walkEnded addObject:folder];
+    }
 }
 
 @end
@@ -221,6 +238,56 @@
         return self->_host.walked.count == 1;
     }]);
     XCTAssertEqualObjects(_host.walked.firstObject.firstObject.lastPathComponent, @"Inner");
+}
+
+// The walk lists several folders at once, but hands them over depth first,
+// each folder's subfolders ahead of its next sibling, as a walk of one
+// folder at a time does. The host hears its progress, then its end, then
+// gets the folders.
+- (void)testTheSubfolderWalkKeepsDepthFirstOrderAndTellsTheHostItsEnd {
+    NSFileManager *files = NSFileManager.defaultManager;
+    NSURL *top = [_directory URLByAppendingPathComponent:@"Top" isDirectory:YES];
+    NSArray<NSString *> *paths = @[@"A", @"A/A1", @"A/A1/A1x", @"A/A2", @"B", @"B/B1", @"C"];
+    NSMutableArray<NSString *> *expected = [NSMutableArray array];
+    for (NSString *path in paths) {
+        NSURL *folder = [top URLByAppendingPathComponent:path isDirectory:YES];
+        [files createDirectoryAtURL:folder withIntermediateDirectories:YES attributes:nil error:NULL];
+        [[@"not audio" dataUsingEncoding:NSUTF8StringEncoding]
+                writeToURL:[folder URLByAppendingPathComponent:@"song.mp3"] atomically:YES];
+        [expected addObject:folder.lastPathComponent];
+    }
+    VibeBrowserFolderViewController *folder = [self showFolder:top];
+    [folder openDirectoryWithSubfolders];
+    XCTAssertTrue([self eventually:^BOOL {
+        return self->_host.walked.count == 1;
+    }]);
+    XCTAssertEqualObjects([_host.walked.firstObject valueForKey:@"lastPathComponent"], expected);
+    XCTAssertEqualObjects(_host.walkEnded, @[top]);
+    XCTAssertEqual(_host.walkListed, paths.count + 1);
+    XCTAssertEqual(_host.walkSongs, paths.count);
+}
+
+// A sheet closed mid-walk: the walk still ends, and the host still gets its
+// folders.
+- (void)testTheSubfolderWalkFinishesWhenItsScreenGoes {
+    NSURL *outer = [_directory URLByAppendingPathComponent:@"Gone" isDirectory:YES];
+    NSURL *inner = [outer URLByAppendingPathComponent:@"Inner" isDirectory:YES];
+    [NSFileManager.defaultManager createDirectoryAtURL:inner withIntermediateDirectories:YES
+                                            attributes:nil error:NULL];
+    [[@"not audio" dataUsingEncoding:NSUTF8StringEncoding]
+            writeToURL:[inner URLByAppendingPathComponent:@"song.mp3"] atomically:YES];
+    @autoreleasepool {
+        VibeBrowserFolderViewController *screen = [[VibeBrowserFolderViewController alloc] initWithHost:_host
+                                                                                           directoryURL:outer
+                                                                                           highlighting:nil
+                                                                                             holdsScope:NO];
+        [screen openDirectoryWithSubfolders];
+    }
+    XCTAssertTrue([self eventually:^BOOL {
+        return self->_host.walked.count == 1;
+    }]);
+    XCTAssertEqualObjects(_host.walked.firstObject.firstObject.lastPathComponent, @"Inner");
+    XCTAssertEqualObjects(_host.walkEnded, @[outer]);
 }
 
 // Vibe's add sheet: a host with a prompt and no root prompt leaves the root
