@@ -45,28 +45,18 @@
 #if !TARGET_OS_OSX
 + (WaveformTheme *)themeForSettings:(AppSettings *)settings widget:(BOOL)widget isDark:(BOOL)isDark
                        artworkColor:(VibeColor *)artworkColor {
-    WaveformTheme *resolved = [self themeForIdentifier:[settings waveformThemeForWidget:widget]
-                                                isDark:isDark
-                                          artworkColor:artworkColor
-                                          customPlayed:[settings waveformCustomPlayedColorForDark:isDark widget:widget]
-                                        customUnplayed:[settings waveformCustomUnplayedColorForDark:isDark widget:widget]];
-    // The custom bands, which 3-Band's and Spectrum's Custom share, read only
-    // when either is chosen. An unset band draws Rekord Bin's, which is what
-    // its well shows.
-    NSString *bandTheme = [settings waveformBandThemeForWidget:widget];
-    NSString *spectrumPalette = [settings waveformSpectrumPaletteForWidget:widget];
-    NSMutableArray<VibeColor *> *custom = [NSMutableArray arrayWithCapacity:3];
-    if ([bandTheme isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM] ||
-        [spectrumPalette isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM]) {
-        for (NSUInteger band = 0; band < 3; band++) {
-            [custom addObject:[settings waveformCustomBandColor:band forDark:isDark widget:widget] ?: resolved.bandColors[band]];
-        }
-    }
-    resolved.bandColors = [self bandColorsForIdentifier:bandTheme isDark:isDark customBands:custom];
-    resolved.spectrumColors = [self spectrumColorsForIdentifier:spectrumPalette isDark:isDark customBands:custom];
-    resolved.spectrumColorsBySection = [[settings waveformSpectrumColoringForWidget:widget]
-            isEqualToString:SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS];
-    return resolved;
+    WaveformThemeChoice *choice = [[WaveformThemeChoice alloc] init];
+    choice.theme = [settings waveformThemeForWidget:widget];
+    choice.customPlayed = [settings waveformCustomPlayedColorForDark:isDark widget:widget];
+    choice.customUnplayed = [settings waveformCustomUnplayedColorForDark:isDark widget:widget];
+    choice.bandTheme = [settings waveformBandThemeForWidget:widget];
+    choice.spectrumPalette = [settings waveformSpectrumPaletteForWidget:widget];
+    choice.spectrumColoring = [settings waveformSpectrumColoringForWidget:widget];
+    // The band wells, which 3-Band's and Spectrum's Custom share.
+    choice.customLow = [settings waveformCustomBandColor:0 forDark:isDark widget:widget];
+    choice.customMid = [settings waveformCustomBandColor:1 forDark:isDark widget:widget];
+    choice.customHigh = [settings waveformCustomBandColor:2 forDark:isDark widget:widget];
+    return [self themeForChoice:choice isDark:isDark artworkColor:artworkColor];
 }
 
 + (NSString *)styleForSettings:(AppSettings *)settings widget:(BOOL)widget {
