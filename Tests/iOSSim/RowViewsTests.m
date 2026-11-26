@@ -286,6 +286,40 @@ static VibeTrackRow *Row(AudioTrack *track, NSUInteger number, BOOL playing) {
     XCTAssertNotEqual(dark, tile, @"one image would not follow the appearance");
 }
 
+static BOOL ShowsImage(UIView *view, UIImage *image) {
+    if ([view isKindOfClass:UIImageView.class] && ((UIImageView *)view).image == image) {
+        return YES;
+    }
+    for (UIView *subview in view.subviews) {
+        if (ShowsImage(subview, image)) {
+            return YES;
+        }
+    }
+    return NO;
+}
+
+// A song with no art shows a note, as the system's Music app does, in a
+// track row and in the strip. A file's row keeps the waveform.
+- (void)testASongWithNoArtShowsTheNoteTile {
+    UIImage *note = VibeSongTileImage();
+    XCTAssertEqual(note, VibeSongTileImage(), @"drawn once");
+    XCTAssertNotEqual(note, VibeFileTileImage(NO));
+    XCTAssertNotEqual(note, VibeFileTileImage(YES));
+    XCTAssertEqual(note.size.width, kVibeFileTileSide);
+
+    VibeTrackRow *row = [[VibeTrackRow alloc] init];
+    row.title = @"Song";
+    VibeTrackCell *cell = [self cell];
+    [cell renderRow:row];
+    XCTAssertTrue(ShowsImage(cell.contentView, note), @"a track row with no art shows the note");
+    [cell removeFromSuperview];
+
+    VibeMiniPlayerView *strip = [self strip];
+    [strip renderRow:row];
+    XCTAssertTrue(ShowsImage(strip, note), @"the strip with no art shows the note");
+    [strip removeFromSuperview];
+}
+
 - (void)testAnIconSlotReservesTheTileForEveryKind {
     UIListContentConfiguration *folder = [UIListContentConfiguration cellConfiguration];
     [folder vibeApplyFileIconForFolder:YES playlist:NO art:nil];
