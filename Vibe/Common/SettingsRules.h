@@ -43,32 +43,26 @@ static inline NSInteger VibeNormalizedCrossfadeMilliseconds(NSInteger millisecon
     return stepped > 0 ? stepped : kVibeCrossfadeOffMilliseconds;
 }
 
+// A stored identifier in its list, or the list's first, its default.
+static inline NSString *VibeIdentifierInList(NSArray<NSString *> *list, NSString *_Nullable identifier) {
+    return identifier && [list containsObject:identifier] ? identifier : list.firstObject;
+}
+
 static inline NSString *VibeNormalizedWaveformTheme(NSString *_Nullable identifier) {
-    if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ORANGE] ||
-        [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART] ||
-        [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM]) {
-        return identifier;
-    }
-    return SETTINGS_VALUE_WAVEFORM_THEME_MONO;
+    return VibeIdentifierInList(WaveformTheme.themeIdentifiers, identifier);
 }
 
 static inline NSString *VibeNormalizedWaveformBandTheme(NSString *_Nullable identifier) {
-    if ([identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE] ||
-        [identifier isEqualToString:SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM]) {
-        return identifier;
-    }
-    return SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN;
+    return VibeIdentifierInList(WaveformTheme.bandThemeIdentifiers, identifier);
 }
 
 // Spectrum's palettes in every chooser's order. Custom is last.
 static inline NSArray<NSString *> *VibeWaveformSpectrumPalettes(void) {
-    return @[SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB, SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_BLUE,
-             SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_GREEN, SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_CUSTOM];
+    return WaveformTheme.spectrumPaletteIdentifiers;
 }
 
 static inline NSString *VibeNormalizedWaveformSpectrumPalette(NSString *_Nullable identifier) {
-    return identifier && [VibeWaveformSpectrumPalettes() containsObject:identifier]
-            ? identifier : SETTINGS_VALUE_WAVEFORM_SPECTRUM_PALETTE_RGB;
+    return VibeIdentifierInList(VibeWaveformSpectrumPalettes(), identifier);
 }
 
 // The label every chooser of Spectrum's palette shows for each choice.
@@ -87,12 +81,11 @@ static inline NSString *VibeWaveformSpectrumPaletteDisplayName(NSString *palette
 
 // Spectrum's colorings in every chooser's order. Sections is the default.
 static inline NSArray<NSString *> *VibeWaveformSpectrumColorings(void) {
-    return @[SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS, SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_PRECISE];
+    return WaveformTheme.spectrumColoringIdentifiers;
 }
 
 static inline NSString *VibeNormalizedWaveformSpectrumColoring(NSString *_Nullable identifier) {
-    return identifier && [VibeWaveformSpectrumColorings() containsObject:identifier]
-            ? identifier : SETTINGS_VALUE_WAVEFORM_SPECTRUM_COLORING_SECTIONS;
+    return VibeIdentifierInList(VibeWaveformSpectrumColorings(), identifier);
 }
 
 static inline NSString *VibeWaveformSpectrumColoringDisplayName(NSString *coloring) {

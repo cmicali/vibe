@@ -1154,6 +1154,8 @@ targetTemplates:
       - path: Vibe/Common/Mac/Theme/AppTheme+Images.m
       - path: Vibe/Common/Mac/Theme/AppTheme+JSON.m
       - path: Vibe/Common/Mac/Theme/AppTheme.m
+      # SettingsRules' palette lists, which AppSettings.m reads.
+      - path: vibe-libs/waveform/WaveformStyles/WaveformTheme.m
       - path: vibe-libs/core/Graphics/PlatformColor.m
       - path: vibe-libs/core/Graphics/PlatformImage.m
       - path: vibe-libs/core/Graphics/Mac/NSImage+Util.m

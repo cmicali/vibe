@@ -34,13 +34,11 @@ static VibeWaveformPaletteKind CurrentKind(BOOL widget) {
 static NSArray<NSString *> *ThemeIdentifiers(VibeWaveformPaletteKind kind) {
     switch (kind) {
         case VibeWaveformPaletteKindBands:
-            return @[SETTINGS_VALUE_WAVEFORM_BAND_THEME_REKORD_BIN, SETTINGS_VALUE_WAVEFORM_BAND_THEME_DENGINE,
-                     SETTINGS_VALUE_WAVEFORM_BAND_THEME_CUSTOM];
+            return WaveformTheme.bandThemeIdentifiers;
         case VibeWaveformPaletteKindSpectrum:
             return VibeWaveformSpectrumPalettes();
         case VibeWaveformPaletteKindTheme:
-            return @[SETTINGS_VALUE_WAVEFORM_THEME_MONO, SETTINGS_VALUE_WAVEFORM_THEME_ORANGE,
-                     SETTINGS_VALUE_WAVEFORM_THEME_ALBUM_ART, SETTINGS_VALUE_WAVEFORM_THEME_CUSTOM];
+            return WaveformTheme.themeIdentifiers;
     }
 }
 
@@ -84,41 +82,6 @@ static NSString *CurrentTheme(VibeWaveformPaletteKind kind, BOOL widget) {
 // Every kind's Custom is the last row.
 static BOOL IsCustom(VibeWaveformPaletteKind kind, NSString *identifier) {
     return [identifier isEqualToString:ThemeIdentifiers(kind).lastObject];
-}
-
-// A built-in band or spectrum palette's three colors, low, mid and high, as
-// three bars beside its name, in this appearance's colors so the high band's
-// white reads on a light cell. The waveform themes carry no swatch. Custom
-// takes an empty one, so its name lines up with the rest. Drawn once per
-// palette and appearance, since every reload asks for every row's.
-static UIImage *PaletteSwatch(VibeWaveformPaletteKind kind, NSString *identifier, BOOL isDark) {
-    if (kind == VibeWaveformPaletteKindTheme) {
-        return nil;
-    }
-    static NSMutableDictionary<NSString *, UIImage *> *cache;
-    cache = cache ?: [NSMutableDictionary dictionary];
-    NSString *key = [NSString stringWithFormat:@"%ld/%@/%d", (long)kind, identifier, isDark];
-    if (cache[key]) {
-        return cache[key];
-    }
-    BOOL custom = IsCustom(kind, identifier);
-    NSArray<UIColor *> *colors = custom ? @[] : kind == VibeWaveformPaletteKindBands
-            ? [WaveformTheme bandColorsForIdentifier:identifier isDark:isDark customBands:@[]]
-            : [WaveformTheme spectrumColorsForIdentifier:identifier isDark:isDark customBands:@[]];
-    const CGFloat barWidth = 8, barGap = 3, height = 22;
-    CGSize size = CGSizeMake(barWidth * 3 + barGap * 2, height);
-    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat preferredFormat];
-    format.opaque = NO;
-    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size format:format];
-    UIImage *swatch = [[renderer imageWithActions:^(UIGraphicsImageRendererContext *context) {
-        for (NSUInteger band = 0; band < 3 && band < colors.count; band++) {
-            [colors[band] setFill];
-            CGRect bar = CGRectMake(band * (barWidth + barGap), 0, barWidth, height);
-            [[UIBezierPath bezierPathWithRoundedRect:bar cornerRadius:2] fill];
-        }
-    }] imageWithRenderingMode:UIImageRenderingModeAlwaysOriginal];
-    cache[key] = swatch;
-    return swatch;
 }
 
 // Shared by the wells and the seed on choosing Custom, so the waveform matches
@@ -230,7 +193,7 @@ static void StoreCustomWaveformColor(UIColor *color, NSInteger row, BOOL isDark,
     BOOL dark = tableView.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark;
     return [SettingsChoiceViewController checkmarkCellInTableView:tableView
                                                             title:ThemeDisplayNames(kind)[indexPath.row]
-                                                            image:PaletteSwatch(kind, identifier, dark)
+                                                            image:[WaveformTheme swatchImageForPaletteKind:kind identifier:identifier isDark:dark]
                                                           checked:[identifier isEqualToString:CurrentTheme(kind, _widget)]];
 }
 
