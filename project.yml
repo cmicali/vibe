@@ -966,6 +966,7 @@ targets:
           - "$(SRCROOT)/vibe-libs/audio/Player/Mac"
           - "$(SRCROOT)/vibe-libs/audio/Meter"
           - "$(SRCROOT)/vibe-libs/audio/LoudnessEqualizer"
+          - "$(SRCROOT)/vibe-libs/audio/Listening"
           - "$(SRCROOT)/vibe-libs/media/Metadata"
           - "$(SRCROOT)/vibe-libs/media/Metadata/Artwork"
           - "$(SRCROOT)/vibe-libs/media/Metadata/Artwork/FolderArt"
@@ -1033,6 +1034,10 @@ targets:
       - path: vibe-libs/audio/Player/Mac/AudioPlayer+Devices.m
       - path: vibe-libs/audio/Player/Mac/AudioPlayer+BitPerfect.m
       - path: vibe-libs/audio/Meter/AudioLevelMeter.m
+      # The master bus's listening stage, and the settings it plays.
+      - path: vibe-libs/audio/Listening/VibeListeningStage.m
+        compilerFlags: *render-path-flags
+      - path: vibe-libs/audio/Listening/VibeListeningSettings.m
       # The tag parse and its art, over the real TagLib. VibeTests compiles
       # neither (Tests/AGENTS.md). The parse's tests are vibe-libs',
       # compiled here over the generated fixtures, so Ogg's cases run.
